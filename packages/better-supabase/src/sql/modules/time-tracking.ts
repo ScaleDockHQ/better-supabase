@@ -89,6 +89,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     entries: {
       name: "time_entries",
+      app: { unused: () => ["seconds"] },
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -109,6 +110,7 @@ const NAMES: BlockSqlNames = {
     },
     timesheets: {
       name: "timesheets",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -216,7 +218,7 @@ function dropNumericSignatures(ctx: BlockSqlContext): string {
  * until the app sets one; the pair check then warns.
  */
 function upgradeRateToMoney(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
+  if (!ctx.owns("entries")) {
     return dropNumericSignatures(ctx);
   }
 
@@ -1054,7 +1056,7 @@ export const TIME_TRACKING: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "approvals"],
   integrates: ["outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 3,
   upgrades: [
     {
@@ -1071,7 +1073,6 @@ export const TIME_TRACKING: BlockSqlDefinition = {
     },
   ],
   names: NAMES,
-  adoptOptional: () => ({ entries: ["seconds"] }),
   contract,
   build,
 };

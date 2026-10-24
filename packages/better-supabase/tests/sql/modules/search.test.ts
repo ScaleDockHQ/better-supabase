@@ -165,19 +165,21 @@ describe("search module", () => {
     ).toThrow("options.dimensions must be the embedding size");
   });
 
-  it("renders nothing in custom mode, and no table when adopting", () => {
+  it("renders nothing in custom mode, and no table over the app's index", () => {
     expect(
       sqlOf({ subjects, modules: { search: { mode: "custom" } } }),
     ).not.toContain("search_refresh");
 
-    const adopted = sqlOf({
+    const appIndex = sqlOf({
       subjects,
-      modules: {
-        search: { mode: "adopt", tables: { documents: "app.search_index" } },
-      },
+      modules: { search: { tables: { documents: "app.search_index" } } },
+      ownTables: { "app.search_index": "app.sql" },
     });
 
-    expect(adopted).not.toContain('"better_supabase"."search_documents"');
-    expect(adopted).toContain(`from "app"."search_index" d`);
+    expect(appIndex).not.toContain('"better_supabase"."search_documents"');
+    expect(appIndex).not.toContain(
+      'create table if not exists "app"."search_index"',
+    );
+    expect(appIndex).toContain(`from "app"."search_index" d`);
   });
 });

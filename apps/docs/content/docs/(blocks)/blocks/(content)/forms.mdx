@@ -176,7 +176,7 @@ await forms
 
 `publish` moves the correct answers into the `form_answer_keys` table, which no client role can read. Respondents get the definition without them; callers with `forms.manage` get them merged back. When a submission is final, Postgres scores it inside `submit` and stores `score`, `maxScore` and `passed` on the row, so a client can't send its own grade. Text answers match without case and surrounding spaces, a `multi` answer matches as a set, and other answers match as the same JSON value. A field hidden by its `showIf` (or its step's) counts toward neither score. `passed` is absent without a pass mark, and `score` is absent on drafts and unscored versions.
 
-`formScore(definition, answers)` computes the same grade in the app, for a preview from a definition that still holds its correct answers. On adopted tables, scoring needs `tables.answerKeys` and the `score`, `maxScore` and `passed` columns mapped; without them, `publish` refuses a correct answer with `FORM_SCORING_UNAVAILABLE`.
+`formScore(definition, answers)` computes the same grade in the app, for a preview from a definition that still holds its correct answers. Over a submissions table of your own, the block adds the `score`, `max_score` and `passed` columns it lacks. When `columns.submissions` maps one of them to `null`, scoring is off and `publish` refuses a correct answer with `FORM_SCORING_UNAVAILABLE`.
 
 ## Net Promoter Score
 

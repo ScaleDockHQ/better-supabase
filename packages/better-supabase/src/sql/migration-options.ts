@@ -78,14 +78,14 @@ export interface MigrationOptionUse {
   readonly module: string;
   readonly option: string;
   readonly value: unknown;
-  readonly adopted: boolean;
   /** `blocks.<module>.options.<option> ... It <effect>.` */
   readonly message: string;
 }
 
 /**
  * The migration-only options `blocks` sets to a value other than the managed
- * default. They are accepted in `adopt` mode only; doctor warns about each.
+ * default. They are accepted only for a block over a table the app already has;
+ * doctor warns about each.
  */
 export function migrationOptionUses(
   modules: AnyBlocksConfig = {},
@@ -109,7 +109,6 @@ export function migrationOptionUses(
         module: entry.module,
         option: entry.option,
         value,
-        adopted: config?.mode === "adopt",
         message: `blocks.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
       },
     ];

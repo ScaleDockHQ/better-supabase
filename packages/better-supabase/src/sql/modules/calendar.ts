@@ -69,6 +69,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     calendars: {
       name: "calendars",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -84,6 +85,7 @@ const NAMES: BlockSqlNames = {
     },
     events: {
       name: "calendar_events",
+      app: {},
       lifecycle: {
         tenant: "tenant",
         user: "createdBy",
@@ -128,9 +130,11 @@ const NAMES: BlockSqlNames = {
         "autoDecline",
         "createdBy",
       ],
+      typed: ["status"],
     },
     attendees: {
       name: "calendar_attendees",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optionalTable: true,
       columns: {
@@ -167,7 +171,14 @@ function eventFields(
     [e("endsAt"), "(v_item ->> 'endsAt')::timestamptz"],
     [e("allDay"), "coalesce((v_item ->> 'allDay')::boolean, false)"],
     [e("tz"), "coalesce(v_item ->> 'tz', v_tz)"],
-    [e("status"), "coalesce(v_item ->> 'status', 'confirmed')"],
+    [
+      e("status"),
+      ctx.cast(
+        "events",
+        "status",
+        "coalesce(v_item ->> 'status', 'confirmed')",
+      ),
+    ],
     [e("rrule"), "nullif(v_item ->> 'rrule', '')"],
     [e("exdates"), "v_exdates"],
   ];
@@ -993,7 +1004,7 @@ export const CALENDAR: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["share-links", "reminders", "outbox", "leave"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

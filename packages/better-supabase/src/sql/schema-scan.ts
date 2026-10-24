@@ -465,3 +465,64 @@ export function extensionSchema(
 
   return undefined;
 }
+
+const TRIGGER_DEF = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+(${NAME})\s+(?:before|after)\s[^;]*?\bupdate\b[^;]*?\bon\s+(${TABLE_NAME})[^;]*?\bexecute\s+(?:function|procedure)\s+(${TABLE_NAME})\s*\(`,
+  "gi",
+);
+
+const FUNCTION_DEF = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?function\s+(${TABLE_NAME})\s*\([\s\S]*?\bas\s+(\$\w*\$)([\s\S]*?)\2`,
+  "gi",
+);
+
+/**
+ * A trigger function that keeps `updated_at` current by its name, as the
+ * `updated-at` module's `replace_equivalent_triggers` reads it.
+ */
+const UPDATED_AT_FUNCTION = /updated_at|moddatetime|touch/i;
+
+const SETS_UPDATED_AT = /\bnew\s*\.\s*"?updated_at"?\s*:?=/i;
+
+/**
+ * The update trigger that keeps `updated_at` current on each table in `schemas`
+ * the files create one on, by `schema.table`: its function is named like one
+ * (`set_updated_at`, `moddatetime`, `touch_*`) or the files define it with
+ * `new.updated_at :=`. Block triggers (`bsb_*`) don't count.
+ */
+export function declaredUpdatedAtTriggers(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, string>> {
+  const texts = files.map((file) => withoutComments(file.text));
+  const setters = new Set<string>();
+
+  for (const text of texts) {
+    for (const match of text.matchAll(FUNCTION_DEF)) {
+      if (SETS_UPDATED_AT.test(match[3]!)) {
+        setters.add(qualified(match[1]!));
+      }
+    }
+  }
+
+  const found: Record<string, string> = {};
+
+  for (const text of texts) {
+    for (const match of text.matchAll(TRIGGER_DEF)) {
+      const name = unquote(match[1]!);
+      const table = qualified(match[2]!);
+      const fn = qualified(match[3]!);
+
+      if (
+        !name.startsWith("bsb_") &&
+        schemas.includes(table.slice(0, table.indexOf("."))) &&
+        (UPDATED_AT_FUNCTION.test(fn.slice(fn.indexOf(".") + 1)) ||
+          setters.has(fn))
+      ) {
+        found[table] ??= name;
+      }
+    }
+  }
+
+  return found;
+}

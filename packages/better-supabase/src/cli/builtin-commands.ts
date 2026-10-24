@@ -20,6 +20,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
   ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
   ["db seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
+  [
+    "db backfill",
+    () => import("./commands/backfill.ts").then((m) => m.dbBackfillCommand),
+  ],
   ["dev env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["dev run", () => import("./commands/run.ts").then((m) => m.runCommand)],
   ["dev keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],

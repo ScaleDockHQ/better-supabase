@@ -1,8 +1,19 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
+-- @bsb-hash sha256:50cd4a418cfa88da4ae509ee83c062173b172df47d335651c5d03960edec460a
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -112,6 +123,30 @@ as $$
 $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.field-history.api: entry points for the Data API.
 create schema if not exists "api";

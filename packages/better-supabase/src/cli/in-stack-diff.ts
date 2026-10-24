@@ -15,7 +15,7 @@ import { runProcess, supabaseCli } from "./exec.ts";
  * tables (`storage.objects`), so those policies are dropped and replayed, but
  * the schemas themselves are kept.
  */
-const PLATFORM_SCHEMAS: ReadonlySet<string> = new Set([
+export const PLATFORM_SCHEMAS: ReadonlySet<string> = new Set([
   "_analytics",
   "_realtime",
   "auth",

@@ -77,6 +77,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     resources: {
       name: "booking_resources",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -95,6 +96,7 @@ const NAMES: BlockSqlNames = {
     },
     availability: {
       name: "booking_availability",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -107,6 +109,7 @@ const NAMES: BlockSqlNames = {
     },
     exceptions: {
       name: "booking_exceptions",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -119,6 +122,7 @@ const NAMES: BlockSqlNames = {
     },
     services: {
       name: "booking_services",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -139,6 +143,7 @@ const NAMES: BlockSqlNames = {
     },
     bookings: {
       name: "bookings",
+      app: {},
       lifecycle: { tenant: "tenant", user: "customerUser", export: true },
       columns: {
         id: "id",
@@ -164,6 +169,7 @@ const NAMES: BlockSqlNames = {
         series: "series_id",
       },
       optional: ["notes", "calendarEvent", "createdBy", "series"],
+      typed: ["status"],
     },
     ...SERIES_TABLES,
   },
@@ -749,7 +755,7 @@ begin
   for v_seat in 1..v_capacity loop
     begin
       insert into ${p.bookings} (${b("tenant")}, ${b("resource")}, ${b("service")}, ${b("seat")}, ${b("during")}, ${b("blocked")}, ${b("status")}, ${b("holdExpiresAt")}, ${b("customerName")}, ${b("customerEmail")}, ${b("customerUser")}${ctx.has("bookings", "notes") ? `, ${b("notes")}` : ""}, ${b("accessHash")}${ctx.has("bookings", "createdBy") ? `, ${b("createdBy")}` : ""})
-      values (v_service.${s("tenant")}, place_booking.resource, place_booking.service, v_seat, v_during, v_blocked, v_status, v_expires, v_customer ->> 'name', lower(v_customer ->> 'email'), place_booking.customer_user${ctx.has("bookings", "notes") ? ", v_customer ->> 'notes'" : ""}, ${sha256Hex("convert_to(v_token, 'utf8')")}${ctx.has("bookings", "createdBy") ? ", auth.uid()" : ""})
+      values (v_service.${s("tenant")}, place_booking.resource, place_booking.service, v_seat, v_during, v_blocked, ${ctx.cast("bookings", "status", "v_status")}, v_expires, v_customer ->> 'name', lower(v_customer ->> 'email'), place_booking.customer_user${ctx.has("bookings", "notes") ? ", v_customer ->> 'notes'" : ""}, ${sha256Hex("convert_to(v_token, 'utf8')")}${ctx.has("bookings", "createdBy") ? ", auth.uid()" : ""})
       returning * into v_booking;
       v_id := v_booking.${b("id")};
       exit;
@@ -1015,7 +1021,7 @@ export const BOOKINGS: BlockSqlDefinition = {
     "outbox",
   ],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

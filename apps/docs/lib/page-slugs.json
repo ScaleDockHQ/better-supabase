@@ -117,6 +117,7 @@
   "blocks/orders",
   "blocks/organizations",
   "blocks/outbox",
+  "blocks/own-schemas",
   "blocks/passes",
   "blocks/pipelines",
   "blocks/posts",

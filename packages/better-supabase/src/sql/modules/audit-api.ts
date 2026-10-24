@@ -146,8 +146,8 @@ export function listEntries(
 
   // A managed log's id is a bigint, so "10" pages after "9"; an adopted
   // log's id compares as text.
-  const idKey = ctx.manages ? `l.${c("id")}` : `l.${c("id")}::text`;
-  const cursorKey = ctx.manages ? "$15::bigint" : "$15";
+  const idKey = ctx.owns("log") ? `l.${c("id")}` : `l.${c("id")}::text`;
+  const cursorKey = ctx.owns("log") ? "$15::bigint" : "$15";
 
   const filters = `for_tenants ${id}[] default null,
   for_event_types text[] default null,
@@ -169,7 +169,7 @@ export function listEntries(
   // A managed log without options.readPolicy grants users no select, so the
   // invoker functions would only raise 42501 for them.
   const callers =
-    !ctx.manages || ctx.flag("readPolicy", false)
+    !ctx.owns("log") || ctx.flag("readPolicy", false)
       ? "authenticated, service_role"
       : "service_role";
 

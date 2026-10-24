@@ -86,7 +86,7 @@ using (exists (select 1 from ${conversations} c where c.${cv("id")} = ${t("chann
 
 /** The channel functions: create, update, join, leave, list and look up. */
 function channelsFunctions(q: ChannelsSql): string {
-  const { ctx, t, fn, ch, cv, mb, mfn, conversations, members } = q;
+  const { ctx, t, fn, ch, cv, cvCast, mb, mfn, conversations, members } = q;
   const id = ctx.idType;
   const subjects = ctx.of("subjects");
 
@@ -142,7 +142,7 @@ begin
   );
   begin
     insert into ${t("channels")} (${ch("id")}, ${ch("tenant")}, ${ch("name")}, ${ch("visibility")}, ${ch("topic")}, ${ch("purpose")}, ${ch("subjectType")}, ${ch("subjectId")}, ${ch("createdBy")})
-    values ((v_conv ->> 'id')::uuid, create_channel.tenant, v_name, v_visibility,
+    values ((v_conv ->> 'id')::uuid, create_channel.tenant, v_name, ${ctx.cast("channels", "visibility", "v_visibility")},
       nullif(trim(create_channel.attrs ->> 'topic'), ''), nullif(trim(create_channel.attrs ->> 'purpose'), ''),
       nullif(create_channel.attrs ->> 'subjectType', ''), nullif(create_channel.attrs ->> 'subjectId', ''), auth.uid())
     returning * into v_ch;
@@ -185,14 +185,14 @@ begin
   if v_name !~ ${NAME} then
     ${fail("CHANNELS_NAME_INVALID", "a channel name is 1 to 80 lowercase letters, digits, - or _, starting with a letter or digit", "22023")}
   end if;
-  v_visibility := coalesce(update_channel.attrs ->> 'visibility', v_ch.${ch("visibility")});
+  v_visibility := coalesce(update_channel.attrs ->> 'visibility', v_ch.${ch("visibility")}::text);
   if v_visibility not in ('public', 'private') then
     ${fail("CHANNELS_VISIBILITY_INVALID", "a channel is public or private", "22023")}
   end if;
   begin
     update ${t("channels")} x set
       ${ch("name")} = v_name,
-      ${ch("visibility")} = v_visibility,
+      ${ch("visibility")} = ${ctx.cast("channels", "visibility", "v_visibility")},
       ${ch("topic")} = case when update_channel.attrs ? 'topic' then nullif(trim(update_channel.attrs ->> 'topic'), '') else x.${ch("topic")} end,
       ${ch("purpose")} = case when update_channel.attrs ? 'purpose' then nullif(trim(update_channel.attrs ->> 'purpose'), '') else x.${ch("purpose")} end,
       ${ch("updatedAt")} = now()
@@ -206,7 +206,7 @@ begin
   end;
   update ${conversations} c set
     ${cv("title")} = v_name,
-    ${cv("access")} = case v_visibility when 'public' then 'tenant' else 'members' end,
+    ${cv("access")} = ${cvCast("access", "case v_visibility when 'public' then 'tenant' else 'members' end")},
     ${cv("updatedAt")} = now()
   where c.${cv("id")} = v_ch.${ch("id")}
   returning * into v_c;

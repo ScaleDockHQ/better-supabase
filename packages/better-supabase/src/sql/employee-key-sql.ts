@@ -25,7 +25,7 @@ export function employeeKeySql(
 ): string {
   const { owner, table } = keyed;
 
-  if (!owner.manages) {
+  if (!owner.owns(table)) {
     return "";
   }
 
@@ -99,7 +99,7 @@ export function employeeKeyBackfillSql(
 ): string {
   const { owner, table } = keyed;
 
-  if (!owner.manages) {
+  if (!owner.owns(table)) {
     return "";
   }
 

@@ -25,11 +25,11 @@ async function teamSchema(s: BlockSession): Promise<string> {
 }
 
 const layout = (schema: string): BlockSqlLayout => ({
+  ownTables: { [`${schema}.team_members`]: "app.sql" },
   modules: {
     permissions: { schema },
     memberships: {
       schema,
-      mode: "adopt",
       tables: { memberships: `${schema}.team_members` },
       columns: {
         memberships: {

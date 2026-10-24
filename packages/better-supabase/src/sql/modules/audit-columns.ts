@@ -46,7 +46,7 @@ export function hasColumn(
     return false;
   }
 
-  if (ctx.manages || !ADDED_COLUMNS[table]?.includes(logical)) {
+  if (ctx.owns("log") || !ADDED_COLUMNS[table]?.includes(logical)) {
     return true;
   }
 

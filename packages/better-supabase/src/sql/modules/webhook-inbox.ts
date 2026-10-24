@@ -111,12 +111,12 @@ ${lockTable("better_supabase.webhook_inbox")}
 `;
 
 function webhookInboxSql(ctx: BlockSqlContext): string {
-  const managed = ctx.manages;
+  const managed = ctx.owns("messages");
   const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
 
   if (managed && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with ownership "adopt"`,
+      `blocks.webhook-inbox.columns.messages: the block creates this table, so ${renamed.join(", ")} can't be renamed; declare your own table in your schema, or map blocks.webhook-inbox.tables.messages`,
     );
   }
 
@@ -159,7 +159,7 @@ function webhookInboxSql(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("messages", ["fields"]);
   const extra = extraFieldsArg(extras);
 
-  // A column the adopted table lacks reads as the managed table's default.
+  // A column the app's table lacks reads as the managed table's default.
   const missing: Partial<Record<MessageColumn, string>> = {
     headers: "'{}'::jsonb",
     maxAttempts: "8",
@@ -253,7 +253,7 @@ drop function if exists better_supabase.claim_webhooks(text, text, integer, inte
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
 
   return `${SCHEMA}
-${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
+${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table: ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
@@ -498,16 +498,17 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
   name: "webhook-inbox",
   title: "Webhook inbox",
   description:
-    "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.",
+    "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.",
   requires: [],
   integrates: ["data-lifecycle"],
   target: "schema",
-  modes: ["managed", "adopt"],
+  modes: ["managed"],
   names: {
     options: ["extraColumns"],
     tables: {
       messages: {
         name: "webhook_inbox",
+        app: {},
         columns: MESSAGE_COLUMNS,
         optional: [
           "eventType",

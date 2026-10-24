@@ -1,8 +1,9 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
+-- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Runs first (000_) and commits, so later test files can use the helpers.
@@ -206,8 +207,9 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
+-- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Runs first (000_) and commits, so later test files can use the helpers.
@@ -411,8 +413,9 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
+-- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Runs first (000_) and commits, so later test files can use the helpers.

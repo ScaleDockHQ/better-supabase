@@ -1,7 +1,8 @@
 import type { MessagingSql } from "./messaging-names.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { addExtraColumns, lockTable, triggerGrant } from "../shared.ts";
+import { addExtraColumns, triggerGrant } from "../shared.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 export const MESSAGE_RESERVED = ["fields"] as const;
 
@@ -111,6 +112,19 @@ function tableDdl(q: MessagingSql): TableDdl {
   const su = q.cols("summaries");
   const idx = (name: string): string => ctx.naming.rename(name);
 
+  const lock = (table: string): string =>
+    lockModuleTable(ctx, table, { read: true });
+
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
   return {
     conversations: `create table if not exists ${t("conversations")} (
   ${cv("id")} uuid primary key default gen_random_uuid(),
@@ -132,19 +146,17 @@ function tableDdl(q: MessagingSql): TableDdl {
 create unique index if not exists ${idx("messaging_conversations_subject_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("subjectType")}, ${cv("subjectId")}) where ${cv("kind")} = 'subject';
 create unique index if not exists ${idx("messaging_conversations_member_key_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("kind")}, ${cv("memberKey")}) where ${cv("memberKey")} is not null;
 create index if not exists ${idx("messaging_conversations_list_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("lastMessageAt")} desc nulls last, ${cv("id")});
-${lockTable(t("conversations"), { read: true })}`,
+${lock("conversations")}`,
     members: `create table if not exists ${t("members")} (
   ${mb("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
   ${mb("tenant")} ${id} not null,
   ${mb("user")} uuid not null,
-  ${mb("role")} text not null default 'member' check (${mb("role")} in ('owner', 'member')),
-  ${mb("notify")} text not null default 'all' check (${mb("notify")} in ('all', 'mentions', 'none')),
-  ${mb("lastReadAt")} timestamptz,
-  ${mb("joinedAt")} timestamptz not null default now(),
+  ${mb("role")} text not null default 'member' check (${mb("role")} in ('owner', 'member')),${column("members", "notify", (name) => `${name} text not null default 'all' check (${name} in ('all', 'mentions', 'none'))`)}
+  ${mb("lastReadAt")} timestamptz,${column("members", "joinedAt", (name) => `${name} timestamptz not null default now()`)}
   primary key (${mb("conversation")}, ${mb("user")})
-);
+);${appUniqueIndex(ctx, "members", ["conversation", "user"])}
 create index if not exists ${idx("messaging_members_user_idx")} on ${t("members")} (${mb("user")}, ${mb("tenant")});
-${lockTable(t("members"), { read: true })}`,
+${lock("members")}`,
     messages: `create table if not exists ${t("messages")} (
   ${ms("id")} uuid primary key default gen_random_uuid(),
   ${ms("tenant")} ${id} not null,
@@ -154,8 +166,7 @@ ${lockTable(t("members"), { read: true })}`,
   ${ms("author")} uuid,
   ${ms("kind")} text not null default 'message' check (${ms("kind")} in ('message', 'note')),
   ${ms("body")} text not null default '' check (length(${ms("body")}) <= ${String(q.maxBody)}),
-  ${ms("document")} jsonb,
-  ${ms("anchor")} jsonb,
+  ${ms("document")} jsonb,${column("messages", "anchor", (name) => `${name} jsonb`)}
   ${ms("mentions")} uuid[] not null default '{}',
   ${ms("mentionScope")} text check (${ms("mentionScope")} in ('channel', 'here')),
   ${ms("broadcast")} boolean not null default false,
@@ -163,10 +174,7 @@ ${lockTable(t("members"), { read: true })}`,
   ${ms("lastReplyAt")} timestamptz,
   ${ms("replyUsers")} uuid[] not null default '{}',
   ${ms("pinnedAt")} timestamptz,
-  ${ms("pinnedBy")} uuid,
-  ${ms("resolvedAt")} timestamptz,
-  ${ms("resolvedBy")} uuid,
-  ${ms("scheduledFor")} timestamptz,
+  ${ms("pinnedBy")} uuid,${column("messages", "resolvedAt", (name) => `${name} timestamptz`)}${column("messages", "resolvedBy", (name) => `${name} uuid`)}${column("messages", "scheduledFor", (name) => `${name} timestamptz`)}
   ${ms("sentAt")} timestamptz,
   ${ms("editedAt")} timestamptz,
   ${ms("deletedAt")} timestamptz,
@@ -176,11 +184,17 @@ ${lockTable(t("members"), { read: true })}`,
 create index if not exists ${idx("messaging_messages_conversation_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is null or ${ms("broadcast")};
 create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messages")} (${ms("thread")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is not null;
 create index if not exists ${idx("messaging_messages_parent_idx")} on ${t("messages")} (${ms("parent")}) where ${ms("parent")} is not null;
-create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});
-create index if not exists ${idx("messaging_messages_due_idx")} on ${t("messages")} (${ms("scheduledFor")}) where ${ms("sentAt")} is null;
-create index if not exists ${idx("messaging_messages_file_anchor_idx")} on ${t("messages")} ((${ms("anchor")} ->> 'attachmentId')) where ${ms("anchor")} ->> 'kind' = 'file';
+create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});${
+      ctx.has("messages", "scheduledFor")
+        ? `\ncreate index if not exists ${idx("messaging_messages_due_idx")} on ${t("messages")} (${ms("scheduledFor")}) where ${ms("sentAt")} is null;`
+        : ""
+    }${
+      ctx.has("messages", "anchor")
+        ? `\ncreate index if not exists ${idx("messaging_messages_file_anchor_idx")} on ${t("messages")} ((${ms("anchor")} ->> 'attachmentId')) where ${ms("anchor")} ->> 'kind' = 'file';`
+        : ""
+    }
 create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;${addExtraColumns(t("messages"), ctx.extraColumns("messages", MESSAGE_RESERVED))}
-${lockTable(t("messages"), { read: true })}`,
+${lock("messages")}`,
     edits: `create table if not exists ${t("edits")} (
   ${ed("id")} uuid primary key default gen_random_uuid(),
   ${ed("tenant")} ${id} not null,
@@ -191,7 +205,7 @@ ${lockTable(t("messages"), { read: true })}`,
   ${ed("editedAt")} timestamptz not null default now()
 );
 create index if not exists ${idx("messaging_edits_message_idx")} on ${t("edits")} (${ed("message")}, ${ed("editedAt")});
-${lockTable(t("edits"), { read: true })}`,
+${lock("edits")}`,
     reads: `create table if not exists ${t("reads")} (
   ${rd("tenant")} ${id} not null,
   ${rd("user")} uuid not null,
@@ -202,7 +216,7 @@ ${lockTable(t("edits"), { read: true })}`,
 );
 create index if not exists ${idx("messaging_reads_conversation_idx")} on ${t("reads")} (${rd("conversation")});
 create index if not exists ${idx("messaging_reads_thread_idx")} on ${t("reads")} (${rd("thread")});
-${lockTable(t("reads"), { read: true })}`,
+${lock("reads")}`,
     recordMentions: `create table if not exists ${t("recordMentions")} (
   ${rm("tenant")} ${id} not null,
   ${rm("message")} uuid not null references ${t("messages")} (${ms("id")}) on delete cascade,
@@ -214,7 +228,7 @@ ${lockTable(t("reads"), { read: true })}`,
 );
 create index if not exists ${idx("messaging_record_mentions_subject_idx")} on ${t("recordMentions")} (${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")} desc, ${rm("message")});
 create index if not exists ${idx("messaging_record_mentions_conversation_idx")} on ${t("recordMentions")} (${rm("conversation")});
-${lockTable(t("recordMentions"), { read: true })}`,
+${lock("recordMentions")}`,
     summaries: `create table if not exists ${t("summaries")} (
   ${su("id")} uuid primary key default gen_random_uuid(),
   ${su("tenant")} ${id} not null,
@@ -229,7 +243,7 @@ ${lockTable(t("recordMentions"), { read: true })}`,
   unique nulls not distinct (${su("conversation")}, ${su("thread")})
 );
 create index if not exists ${idx("messaging_thread_summaries_thread_idx")} on ${t("summaries")} (${su("thread")});
-${lockTable(t("summaries"), { read: true })}`,
+${lock("summaries")}`,
   };
 }
 

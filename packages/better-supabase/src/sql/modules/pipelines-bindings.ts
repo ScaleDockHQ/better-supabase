@@ -218,10 +218,14 @@ export function pipelineBindings(
     (each) => each.type,
   );
 
-  for (const { type, table, entry } of contributed) {
+  for (const { type, table, tenant, entry } of contributed) {
     const own = configured[type];
     raw[type] = { ...entry, ...(isRecord(own) ? own : {}) };
-    builtInSubjects[type] = { table, idType: "uuid", tenant: "tenant_id" };
+    builtInSubjects[type] = {
+      table,
+      idType: "uuid",
+      tenant: tenant ?? "tenant_id",
+    };
   }
 
   for (const [type, entry] of Object.entries(configured)) {

@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_93_contacts.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
+-- @bsb-hash sha256:7d37390b27c540aca70b8cafdf1f37dda1ba9b719a0b0dabe1b5e1b96fac5a87
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -70,6 +71,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
@@ -630,6 +649,46 @@ $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+create policy bsb_tenant_scope on "better_supabase"."people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+create policy bsb_tenant_scope on "better_supabase"."company_people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -643,12 +702,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_93_contacts.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
+-- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -656,11 +716,12 @@ values ('contacts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_93_contacts.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
+-- @bsb-hash sha256:efaf0df5c7788ced841983c42dc8f747a58fb9146a460076ae9fd9ee45e1a509
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -728,6 +789,28 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_inbox_contacts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
@@ -1437,6 +1520,54 @@ $$;
 revoke execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+create policy bsb_tenant_scope on "better_supabase"."people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+create policy bsb_tenant_scope on "better_supabase"."company_people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_inbox_contacts";
+create policy bsb_tenant_scope on "better_supabase"."person_inbox_contacts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1450,12 +1581,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_93_contacts.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
+-- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1463,11 +1595,12 @@ values ('contacts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_93_contacts.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
+-- @bsb-hash sha256:3ec029f4ad68f904fe5e7b8938bc7b74f0a826d51c67016c83fe578ca2e09974
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1535,6 +1668,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."companies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."company_people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -2097,6 +2248,46 @@ $$;
 revoke execute on function "app_private"."company_people_of"(uuid) from public, anon;
 grant execute on function "app_private"."company_people_of"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."companies";
+create policy bsb_tenant_scope on "app_private"."companies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."people";
+create policy bsb_tenant_scope on "app_private"."people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."company_people";
+create policy bsb_tenant_scope on "app_private"."company_people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2110,12 +2301,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_93_contacts.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
+-- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -2123,11 +2315,12 @@ values ('contacts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_93_contacts.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
+-- @bsb-hash sha256:c10626166f2f9e16c64c44274c0313dfe459846ef5ba97a0835ffab6e84a3c7b
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -2195,6 +2388,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
@@ -2755,6 +2966,46 @@ $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+create policy bsb_tenant_scope on "better_supabase"."people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+create policy bsb_tenant_scope on "better_supabase"."company_people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -2889,12 +3140,740 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_93_contacts.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
+-- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('contacts', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
+-- better-supabase module: contacts
+-- @bsb-block contacts@1 managed
+-- @bsb-hash sha256:fa7babb91cf6883ca1b8b0633364d0bca919719671fb4b8603b8940ddd89887f
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Moves every installed module's rows from record drop to record keep of the
+-- subject table subject_table (schema.table): comments, attachments, tags and
+-- the rest. Each module marks its handler with a comment, so this finds them
+-- without naming them.
+create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_fn regproc;
+begin
+  for v_fn in
+    select p.oid::regproc
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
+    where d.description = 'better-supabase:subject-merge'
+      -- Only the owner's functions, so a marked function in a schema another
+      -- role can write to never runs with this function's rights.
+      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
+    order by p.oid::regproc::text
+  loop
+    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
+  end loop;
+end;
+$$;
+revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Companies and people an organization works with, and who works where.
+
+-- better_supabase.companies is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."companies" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."companies" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."companies" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."companies" add column if not exists "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
+alter table "better_supabase"."companies" add column if not exists "website" text;
+alter table "better_supabase"."companies" add column if not exists "vat_id" text;
+alter table "better_supabase"."companies" add column if not exists "lifecycle" text;
+alter table "better_supabase"."companies" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."companies" add column if not exists "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object');
+alter table "better_supabase"."companies" add column if not exists "merged_into" uuid references "better_supabase"."companies" ("id");
+alter table "better_supabase"."companies" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."companies" add column if not exists "created_by" uuid;
+alter table "better_supabase"."companies" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."companies" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
+create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
+  where "domain" is not null and "archived_at" is null;
+create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+alter table "better_supabase"."companies" enable row level security;
+grant select on "better_supabase"."companies" to authenticated;
+grant all on "better_supabase"."companies" to service_role;
+drop policy if exists bsb_companies_select on "better_supabase"."companies";
+create policy bsb_companies_select on "better_supabase"."companies" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+
+-- better_supabase.people is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."people" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."people" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."people" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."people" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."people" add column if not exists "phone" text;
+alter table "better_supabase"."people" add column if not exists "title" text;
+alter table "better_supabase"."people" add column if not exists "lifecycle" text;
+alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."people" add column if not exists "user_id" uuid;
+alter table "better_supabase"."people" add column if not exists "merged_into" uuid references "better_supabase"."people" ("id");
+alter table "better_supabase"."people" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."people" add column if not exists "created_by" uuid;
+alter table "better_supabase"."people" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."people" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
+create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
+  where "email" is not null and "archived_at" is null;
+create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
+create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
+alter table "better_supabase"."people" enable row level security;
+grant select on "better_supabase"."people" to authenticated;
+grant all on "better_supabase"."people" to service_role;
+drop policy if exists bsb_people_select on "better_supabase"."people";
+create policy bsb_people_select on "better_supabase"."people" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+
+-- better_supabase.company_people is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."company_people" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."company_people" add column if not exists "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade;
+alter table "better_supabase"."company_people" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
+alter table "better_supabase"."company_people" add column if not exists "role" text;
+alter table "better_supabase"."company_people" add column if not exists "is_primary" boolean not null default false;
+alter table "better_supabase"."company_people" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "company_people_company_id_person_id_key" on "better_supabase"."company_people" ("company_id", "person_id");
+create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+alter table "better_supabase"."company_people" enable row level security;
+grant select on "better_supabase"."company_people" to authenticated;
+grant all on "better_supabase"."company_people" to service_role;
+drop policy if exists bsb_company_people_select on "better_supabase"."company_people";
+create policy bsb_company_people_select on "better_supabase"."company_people" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+
+-- Creates a company (company null) or updates the keys attrs names.
+-- Returns its row. The owner watches it when notifications is installed.
+create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_company.company;
+  v_created boolean := save_company.company is null;
+  v_row jsonb;
+  v_owner uuid;
+  v_previous_owner uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+    raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
+  end if;
+  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+    raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_company_save"(uuid, uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
+        using save_company.tenant, save_company.company, save_company.attrs;
+    end if;
+  end;
+  begin
+    if v_created then
+      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+        raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
+      end if;
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(save_company.attrs ->> 'ownerId', '')::uuid, save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_user_id" into v_id, v_owner;
+    else
+      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."companies")."lifecycle"), x."lifecycle") else x."lifecycle" end,
+        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+        "updated_at" = now()
+      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      returning x."owner_user_id" into v_owner;
+      if not found then
+        raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
+  end;
+  select to_jsonb(x) into v_row from "better_supabase"."companies" x where x."id" = v_id;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_company_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Creates a person (person null) or updates the keys attrs names.
+-- Returns its row. The owner watches it when notifications is installed.
+create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid := save_person.person;
+  v_created boolean := save_person.person is null;
+  v_row jsonb;
+  v_owner uuid;
+  v_previous_owner uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+    raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
+  end if;
+  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+    raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_person_save"(uuid, uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
+        using save_person.tenant, save_person.person, save_person.attrs;
+    end if;
+  end;
+  begin
+    if v_created then
+      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+        raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
+      end if;
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, auth.uid())
+      returning "id", "owner_user_id" into v_id, v_owner;
+    else
+      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
+      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."people")."lifecycle"), x."lifecycle") else x."lifecycle" end,
+        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "updated_at" = now()
+      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      returning x."owner_user_id" into v_owner;
+      if not found then
+        raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
+  end;
+  select to_jsonb(x) into v_row from "better_supabase"."people" x where x."id" = v_id;
+  if v_created then
+    null;
+  else
+    null;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_person_save"(uuid, boolean)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::boolean)', v_hook::oid::regproc)
+        using v_id, v_created;
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+
+
+-- Archives a company (archived true) or restores it.
+create or replace function "better_supabase"."archive_company"(id uuid, archived boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_name text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."companies" x set "archived_at" = case when archive_company.archived then coalesce(x."archived_at", now()) end, "updated_at" = now()
+    where x."id" = archive_company.id;
+  exception when unique_violation then
+    raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
+  end;
+  if archive_company.archived then
+    null;
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."archive_company"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_company"(uuid, boolean) to authenticated, service_role;
+
+
+-- Archives a person (archived true) or restores it.
+create or replace function "better_supabase"."archive_person"(id uuid, archived boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_name text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  begin
+    update "better_supabase"."people" x set "archived_at" = case when archive_person.archived then coalesce(x."archived_at", now()) end, "updated_at" = now()
+    where x."id" = archive_person.id;
+  exception when unique_violation then
+    raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
+  end;
+  if archive_person.archived then
+    null;
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."archive_person"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_person"(uuid, boolean) to authenticated, service_role;
+
+-- Links a person to a company with a role, or changes the link. A primary
+-- link replaces the company's previous primary contact.
+create or replace function "better_supabase"."set_company_person"(company uuid, person uuid, role text, is_primary boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_role text := nullif(trim(set_company_person.role), '');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."companies" x
+  join "better_supabase"."people" p on p."id" = set_company_person.person and p."tenant_id" = x."tenant_id"
+  where x."id" = set_company_person.company;
+  if v_tenant is null then
+    raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if coalesce(set_company_person.is_primary, false) then
+    update "better_supabase"."company_people" l set "is_primary" = false
+    where l."company_id" = set_company_person.company and l."person_id" <> set_company_person.person and l."is_primary";
+  end if;
+  insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
+  select x."tenant_id", set_company_person.company, set_company_person.person, v_role, coalesce(set_company_person.is_primary, false)
+  from "better_supabase"."companies" x where x."id" = set_company_person.company
+  on conflict ("company_id", "person_id") do update set "role" = excluded."role", "is_primary" = excluded."is_primary";
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_role text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select l."tenant_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
+  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'parties.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+
+-- Merges drop into keep: keep's empty fields take drop's values, every
+-- installed module moves its rows from drop to keep, and drop is archived
+-- with merged_into set.
+create or replace function "better_supabase"."merge_companies"(keep uuid, drop uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep "better_supabase"."companies";
+  v_drop "better_supabase"."companies";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_keep from "better_supabase"."companies" x where x."id" = merge_companies.keep for update;
+  select * into v_drop from "better_supabase"."companies" x where x."id" = merge_companies.drop for update;
+  if v_keep."id" is null or v_drop."id" is null then
+    raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
+    raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'parties.manage'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
+    "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  where x."id" = merge_companies.drop;
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "updated_at" = now()
+  where x."id" = merge_companies.keep;
+  insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
+  select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
+  from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop
+  on conflict do nothing;
+  delete from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop;
+  perform better_supabase.merge_subject_refs('better_supabase.companies', merge_companies.keep::text, merge_companies.drop::text);
+  null;
+  return (select to_jsonb(x) from "better_supabase"."companies" x where x."id" = merge_companies.keep);
+end;
+$$;
+revoke execute on function "better_supabase"."merge_companies"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."merge_companies"(uuid, uuid) to authenticated, service_role;
+
+-- Merges drop into keep: keep's empty fields take drop's values, every
+-- installed module moves its rows from drop to keep, and drop is archived
+-- with merged_into set.
+create or replace function "better_supabase"."merge_people"(keep uuid, drop uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_keep "better_supabase"."people";
+  v_drop "better_supabase"."people";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_keep from "better_supabase"."people" x where x."id" = merge_people.keep for update;
+  select * into v_drop from "better_supabase"."people" x where x."id" = merge_people.drop for update;
+  if v_keep."id" is null or v_drop."id" is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
+    raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'parties.manage'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
+    "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  where x."id" = merge_people.drop;
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "updated_at" = now()
+  where x."id" = merge_people.keep;
+  insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
+  select l."tenant_id", l."company_id", merge_people.keep, l."role", false
+  from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
+  on conflict do nothing;
+  delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
+  null;
+  return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
+end;
+$$;
+revoke execute on function "better_supabase"."merge_people"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authenticated, service_role;
+
+-- A page of the organization's active companies, by name. search matches
+-- the name and domain; after_name and after_id continue after the
+-- last row of the previous page.
+create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_like text := '%' || replace(replace(replace(coalesce(list_companies.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  return coalesce((
+    select jsonb_agg(to_jsonb(p) order by lower(p."name"), p."id")
+    from (
+      select x.* from "better_supabase"."companies" x
+      where x."tenant_id" = list_companies.tenant
+        and x."archived_at" is null
+        and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
+        and (list_companies.lifecycle is null or x."lifecycle"::text = list_companies.lifecycle)
+        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
+      order by lower(x."name"), x."id"
+      limit least(greatest(coalesce(list_companies.page_size, 50), 1), 200)
+    ) p
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+
+-- A page of the organization's active people, by name. search matches
+-- the name and email; after_name and after_id continue after the
+-- last row of the previous page.
+create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_like text := '%' || replace(replace(replace(coalesce(list_people.search, ''), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+begin
+  return coalesce((
+    select jsonb_agg(to_jsonb(p) order by lower(p."name"), p."id")
+    from (
+      select x.* from "better_supabase"."people" x
+      where x."tenant_id" = list_people.tenant
+        and x."archived_at" is null
+        and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
+        and (list_people.lifecycle is null or x."lifecycle"::text = list_people.lifecycle)
+        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
+      order by lower(x."name"), x."id"
+      limit least(greatest(coalesce(list_people.page_size, 50), 1), 200)
+    ) p
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer) to authenticated, service_role;
+
+-- The people of a company with their role, primary contact first.
+create or replace function "better_supabase"."company_people_of"(company uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('role', l."role", 'is_primary', l."is_primary")
+    order by l."is_primary" desc, lower(p."name"), p."id"), '[]'::jsonb)
+  from "better_supabase"."company_people" l join "better_supabase"."people" p on p."id" = l."person_id"
+  where l."company_id" = company_people_of.company and p."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
+grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+create policy bsb_tenant_scope on "better_supabase"."people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+create policy bsb_tenant_scope on "better_supabase"."company_people" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
+-- better-supabase module: contacts
+-- @bsb-block-data contacts
+-- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

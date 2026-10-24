@@ -27,6 +27,21 @@ export interface InvoiceNames {
   readonly extras: readonly ExtraColumn[];
 }
 
+/** Whether the invoices table has both columns of a company or contact. */
+export function invoiceParty(
+  ctx: BlockSqlContext,
+  party: "company" | "contact",
+): boolean {
+  return (
+    ctx.has("invoices", `${party}Type`) && ctx.has("invoices", `${party}Id`)
+  );
+}
+
+/** Whether the invoices table has both origin columns. */
+export function invoiceOrigin(ctx: BlockSqlContext): boolean {
+  return ctx.has("invoices", "originType") && ctx.has("invoices", "originId");
+}
+
 export function invoiceFunctions(
   ctx: BlockSqlContext,
   n: InvoiceNames,
@@ -35,6 +50,46 @@ export function invoiceFunctions(
   const i = (column: string): string => c("invoices", column);
   const l = (column: string): string => c("lines", column);
   const ledger = invoiceLedger(ctx);
+  const company = invoiceParty(ctx, "company");
+  const contact = invoiceParty(ctx, "contact");
+  const origin = invoiceOrigin(ctx);
+  const has = (logical: string): boolean => ctx.has("invoices", logical);
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (logical: string): string =>
+    has(logical) ? `, ${i(logical)}` : "";
+
+  // value when the column exists, for valueLines().
+  const present = (logical: string, value: string): string | undefined =>
+    has(logical) ? value : undefined;
+
+  // The column's name, or "" when the app maps it to null, so present() can
+  // take it without throwing.
+  const copy = (logical: string): string => (has(logical) ? i(logical) : "");
+
+  // The values of an insert, the present ones of each group on a line.
+  const valueLines = (
+    indent: string,
+    ...groups: readonly (string | undefined)[][]
+  ): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(`,\n${indent}`);
+
+  // Refuses a value the app's invoices table has no column for.
+  const refuse = (
+    supported: boolean,
+    given: string,
+    thing: string,
+    what: string,
+  ): string =>
+    supported
+      ? ""
+      : `
+  if ${given} is not null then
+    ${fail(`INVOICE_${thing}_UNSUPPORTED`, `this invoices table has no ${what}`, "22023")}
+  end if;`;
 
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
@@ -83,10 +138,13 @@ export function invoiceFunctions(
     type: string,
     id: string,
     tenant: string,
-  ): string => `
+  ): string =>
+    (kind === "COMPANY" ? company : contact)
+      ? `
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail(`INVOICE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
-  end if;`;
+  end if;`
+      : refuse(false, id, kind, `${kind.toLowerCase()} columns`);
 
   const settle = (alias: string): string => `
   update ${t("invoices")} x set
@@ -95,10 +153,14 @@ export function invoiceFunctions(
   where x.${i("id")} = ${alias}.${i("id")}
   returning * into ${alias};
   update ${t("invoices")} x set
-    ${i("status")} = case
+    ${i("status")} = ${ctx.cast(
+      "invoices",
+      "status",
+      `case
       when ${balance("x")} <= 0 then 'paid'
       when x.${i("paidTotal")} > 0 or x.${i("creditedTotal")} > 0 then 'partially_paid'
-      else 'issued' end,
+      else 'issued' end`,
+    )},
     ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
   where x.${i("id")} = ${alias}.${i("id")} and x.${i("status")} in ('issued', 'partially_paid', 'paid')
   returning * into ${alias};`;
@@ -111,6 +173,51 @@ export function invoiceFunctions(
       : (() => {
           const q = (column: string): string => quotes.col("quotes", column);
           const ql = (column: string): string => quotes.col("lines", column);
+          const deposits = has("depositBps");
+
+          const party = (kind: "company" | "contact"): string =>
+            (kind === "company" ? company : contact) &&
+            quotes.has("quotes", `${kind}Type`) &&
+            quotes.has("quotes", `${kind}Id`)
+              ? `case when v_quote.${q(`${kind}Id`)} is null then null else jsonb_build_object('type', v_quote.${q(`${kind}Type`)}, 'id', v_quote.${q(`${kind}Id`)}) end`
+              : "null";
+
+          const body = (): string => `
+  if invoice_from_quote.deposit_bps is null then
+    select * into v_row from ${t("invoices")} x
+    where x.${i("originType")} = 'quote' and x.${i("originId")} = v_quote.${q("id")}::text
+      and ${deposits ? `x.${i("depositBps")} is null and ` : ""}x.${i("status")} <> 'void' and x.${i("kind")} = 'invoice'
+    limit 1;
+    if v_row.${i("id")} is not null then
+      return ${row("v_row")};
+    end if;
+    select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}, 'unitAmount', x.${ql("unitAmount")}::text,
+        'discountBps', x.${ql("discountBps")}, 'taxRateBps', x.${ql("taxRateBps")}, 'taxCode', x.${ql("taxCode")},
+        'product', case when x.${ql("productType")} is null then null else jsonb_build_object('type', x.${ql("productType")}, 'id', x.${ql("productId")}) end
+      ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
+    from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")};${
+      deposits
+        ? `
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d.${i("identifier")}, 'quantity', 1, 'unitAmount', (-d.${i("subtotal")})::text,
+        'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
+      into v_lines
+    from ${t("invoices")} d
+    where d.${i("originType")} = 'quote' and d.${i("originId")} = v_quote.${q("id")}::text and d.${i("depositBps")} is not null and d.${i("status")} not in ('draft', 'void');`
+        : ""
+    }
+  else
+    v_lines := jsonb_build_array(jsonb_build_object(
+      'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote.${q("identifier")},
+      'quantity', 1,
+      'unitAmount', round(v_quote.${q("subtotal")}::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
+      'taxRateBps', case when v_quote.${q("subtotal")} = 0 then 0 else round(v_quote.${q("taxTotal")} * 10000.0 / v_quote.${q("subtotal")})::integer end));
+  end if;
+  v_row := null;
+  return ${fn("create_invoice")}(v_quote.${q("tenant")}, jsonb_build_object(
+    'title', v_quote.${q("title")}, 'currency', v_quote.${q("currency")}, 'depositBps', invoice_from_quote.deposit_bps,
+    'company', ${party("company")},
+    'contact', ${party("contact")},
+    'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)), v_lines);`;
 
           return `
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
@@ -136,38 +243,12 @@ begin
   end if;
   if invoice_from_quote.deposit_bps is not null and (invoice_from_quote.deposit_bps <= 0 or invoice_from_quote.deposit_bps >= 10000) then
     ${fail("INVOICE_DEPOSIT_INVALID", "a deposit is between 0 and 100 percent", "22023")}
-  end if;
-  if invoice_from_quote.deposit_bps is null then
-    select * into v_row from ${t("invoices")} x
-    where x.${i("originType")} = 'quote' and x.${i("originId")} = v_quote.${q("id")}::text
-      and x.${i("depositBps")} is null and x.${i("status")} <> 'void' and x.${i("kind")} = 'invoice'
-    limit 1;
-    if v_row.${i("id")} is not null then
-      return ${row("v_row")};
-    end if;
-    select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}, 'unitAmount', x.${ql("unitAmount")}::text,
-        'discountBps', x.${ql("discountBps")}, 'taxRateBps', x.${ql("taxRateBps")}, 'taxCode', x.${ql("taxCode")},
-        'product', case when x.${ql("productType")} is null then null else jsonb_build_object('type', x.${ql("productType")}, 'id', x.${ql("productId")}) end
-      ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
-    from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")};
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d.${i("identifier")}, 'quantity', 1, 'unitAmount', (-d.${i("subtotal")})::text,
-        'taxRateBps', case when d.${i("subtotal")} = 0 then 0 else round(d.${i("taxTotal")} * 10000.0 / d.${i("subtotal")})::integer end)), '[]'::jsonb)
-      into v_lines
-    from ${t("invoices")} d
-    where d.${i("originType")} = 'quote' and d.${i("originId")} = v_quote.${q("id")}::text and d.${i("depositBps")} is not null and d.${i("status")} not in ('draft', 'void');
-  else
-    v_lines := jsonb_build_array(jsonb_build_object(
-      'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote.${q("identifier")},
-      'quantity', 1,
-      'unitAmount', round(v_quote.${q("subtotal")}::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
-      'taxRateBps', case when v_quote.${q("subtotal")} = 0 then 0 else round(v_quote.${q("taxTotal")} * 10000.0 / v_quote.${q("subtotal")})::integer end));
-  end if;
-  v_row := null;
-  return ${fn("create_invoice")}(v_quote.${q("tenant")}, jsonb_build_object(
-    'title', v_quote.${q("title")}, 'currency', v_quote.${q("currency")}, 'depositBps', invoice_from_quote.deposit_bps,
-    'company', case when v_quote.${q("companyId")} is null then null else jsonb_build_object('type', v_quote.${q("companyType")}, 'id', v_quote.${q("companyId")}) end,
-    'contact', case when v_quote.${q("contactId")} is null then null else jsonb_build_object('type', v_quote.${q("contactType")}, 'id', v_quote.${q("contactId")}) end,
-    'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)), v_lines);
+  end if;${refuse(deposits, "invoice_from_quote.deposit_bps", "DEPOSIT", "deposit column")}${
+    origin
+      ? body()
+      : `
+  ${fail("INVOICE_ORIGIN_UNSUPPORTED", "this invoices table has no origin columns, so a quote can't be invoiced once", "22023")}`
+  }
 end;
 $$;
 ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
@@ -199,26 +280,56 @@ begin
   end if;
   if nullif(trim(create_invoice.attrs ->> 'title'), '') is null then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice needs a title", "23502")}
-  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}
+  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_invoice.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_invoice.tenant")}${refuse(has("note"), "create_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin, "(create_invoice.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}${refuse(has("depositBps"), "create_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}
   begin
-    insert into ${t("invoices")} (${i("tenant")}, ${i("title")}, ${i("companyType")}, ${i("companyId")}, ${i("contactType")}, ${i("contactId")}, ${i("currency")},
-      ${i("termsDays")}, ${i("note")}, ${i("originType")}, ${i("originId")}, ${i("depositBps")}, ${i("createdBy")})
-    values (create_invoice.tenant, trim(create_invoice.attrs ->> 'title'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
-      case when v_contact_id is null then null else v_contact_type end, v_contact_id,
-      upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR')), coalesce((create_invoice.attrs ->> 'termsDays')::integer, ${String(n.termsDays)}),
-      create_invoice.attrs ->> 'note', create_invoice.attrs -> 'origin' ->> 'type', create_invoice.attrs -> 'origin' ->> 'id',
-      (create_invoice.attrs ->> 'depositBps')::integer, auth.uid())
+    insert into ${t("invoices")} (${i("tenant")}, ${i("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")}, ${i("currency")},
+      ${i("termsDays")}${also("note")}${also("originType")}${also("originId")}${also("depositBps")}${also("createdBy")})
+    values (${valueLines(
+      "      ",
+      ["create_invoice.tenant", "trim(create_invoice.attrs ->> 'title')"],
+      company
+        ? [
+            "case when v_company_id is null then null else v_company_type end",
+            "v_company_id",
+          ]
+        : [],
+      contact
+        ? [
+            "case when v_contact_id is null then null else v_contact_type end",
+            "v_contact_id",
+          ]
+        : [],
+      [
+        "upper(coalesce(create_invoice.attrs ->> 'currency', 'EUR'))",
+        `coalesce((create_invoice.attrs ->> 'termsDays')::integer, ${String(n.termsDays)})`,
+      ],
+      [
+        present("note", "create_invoice.attrs ->> 'note'"),
+        present("originType", "create_invoice.attrs -> 'origin' ->> 'type'"),
+        present("originId", "create_invoice.attrs -> 'origin' ->> 'id'"),
+      ],
+      [
+        present(
+          "depositBps",
+          "(create_invoice.attrs ->> 'depositBps')::integer",
+        ),
+        present("createdBy", "auth.uid()"),
+      ],
+    )})
     returning * into v_row;
   exception when check_violation or invalid_text_representation then
     ${fail("INVOICE_ATTRS_INVALID", "an invoice field has an invalid value", "22023")}
   end;${writeExtraColumns(t("invoices"), n.extras, "create_invoice.attrs", `x.${i("id")} = v_row.${i("id")}`)}
   if create_invoice.lines is not null then
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, create_invoice.lines);
-  end if;
+  end if;${
+    origin
+      ? `
   if v_row.${i("originId")} is not null then
     ${createdFromLink(ctx, { tenant: `v_row.${i("tenant")}`, sourceType: "'invoice'", sourceId: `v_row.${i("id")}::text`, originType: `v_row.${i("originType")}`, originId: `v_row.${i("originId")}` })}
-  end if;
+  end if;`
+      : ""
+  }
   ${record("invoice.created", "v_row")}
   return (select ${row("x")} from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")});
 end;
@@ -370,11 +481,46 @@ begin
   if v_original.${i("kind")} <> 'invoice' or v_original.${i("status")} not in ('issued', 'partially_paid', 'paid') then
     ${fail("INVOICE_NOT_CREDITABLE", "only an issued invoice is credited", "55000")}
   end if;
-  insert into ${t("invoices")} (${i("tenant")}, ${i("kind")}, ${i("original")}, ${i("title")}, ${i("companyType")}, ${i("companyId")}, ${i("contactType")}, ${i("contactId")},
-    ${i("currency")}, ${i("termsDays")}, ${i("note")}, ${i("createdBy")})
-  values (v_original.${i("tenant")}, 'credit_note', v_original.${i("id")}, 'Credit for ' || coalesce(v_original.${i("identifier")}, v_original.${i("title")}),
-    v_original.${i("companyType")}, v_original.${i("companyId")}, v_original.${i("contactType")}, v_original.${i("contactId")},
-    v_original.${i("currency")}, 0, nullif(trim(credit_invoice.note), ''), auth.uid())
+  insert into ${t("invoices")} (${valueLines(
+    "    ",
+    [
+      i("tenant"),
+      i("kind"),
+      i("original"),
+      i("title"),
+      present("companyType", copy("companyType")),
+      present("companyId", copy("companyId")),
+      present("contactType", copy("contactType")),
+      present("contactId", copy("contactId")),
+    ],
+    [
+      i("currency"),
+      i("termsDays"),
+      present("note", copy("note")),
+      present("createdBy", copy("createdBy")),
+    ],
+  )})
+  values (${valueLines(
+    "    ",
+    [
+      `v_original.${i("tenant")}`,
+      "'credit_note'",
+      `v_original.${i("id")}`,
+      `'Credit for ' || coalesce(v_original.${i("identifier")}, v_original.${i("title")})`,
+    ],
+    [
+      present("companyType", `v_original.${copy("companyType")}`),
+      present("companyId", `v_original.${copy("companyId")}`),
+      present("contactType", `v_original.${copy("contactType")}`),
+      present("contactId", `v_original.${copy("contactId")}`),
+    ],
+    [
+      `v_original.${i("currency")}`,
+      "0",
+      present("note", "nullif(trim(credit_invoice.note), '')"),
+      present("createdBy", "auth.uid()"),
+    ],
+  )})
   returning * into v_row;
   if credit_invoice.lines is null then
     insert into ${t("lines")} (${l("tenant")}, ${l("parent")}, ${l("productType")}, ${l("productId")}, ${l("description")}, ${l("quantity")}, ${l("unitAmount")}, ${l("discountBps")}, ${l("taxRateBps")}, ${l("taxCode")}, ${l("position")})
@@ -408,9 +554,9 @@ begin
     ${fail("INVOICE_NOT_VOIDABLE", "an invoice with payments or credits is credited, not voided", "55000")}
   end if;
   update ${t("invoices")} x set ${i("status")} = 'void', ${i("voidedAt")} = now(),
-    ${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ${i("updatedAt")} = now()
+    ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
-  ${record("invoice.voided", "v_row", `, 'reason', v_row.${i("voidReason")}`, true)}
+  ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
   return ${row("v_row")};
 end;
 $$;

@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
+-- @bsb-hash sha256:53cdc7c04bfce7626b05b9109f3b43d69ea98a96a5e653c0aa1bb22d962d2175
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -274,12 +275,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_10_realtime_tables.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
+-- @bsb-hash sha256:3b77f16dda58cdfbf3bba8ef718621e4a7773c5e943f52e4406ff2c1cbae5f10
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -287,11 +289,12 @@ values ('realtime-tables', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
+-- @bsb-hash sha256:53cdc7c04bfce7626b05b9109f3b43d69ea98a96a5e653c0aa1bb22d962d2175
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -563,12 +566,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_10_realtime_tables.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
+-- @bsb-hash sha256:3b77f16dda58cdfbf3bba8ef718621e4a7773c5e943f52e4406ff2c1cbae5f10
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -576,11 +580,12 @@ values ('realtime-tables', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
+-- @bsb-hash sha256:53cdc7c04bfce7626b05b9109f3b43d69ea98a96a5e653c0aa1bb22d962d2175
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -852,12 +857,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_10_realtime_tables.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
+-- @bsb-hash sha256:3b77f16dda58cdfbf3bba8ef718621e4a7773c5e943f52e4406ff2c1cbae5f10
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -865,11 +871,12 @@ values ('realtime-tables', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
+-- @bsb-hash sha256:53cdc7c04bfce7626b05b9109f3b43d69ea98a96a5e653c0aa1bb22d962d2175
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1141,12 +1148,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_10_realtime_tables.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
+-- @bsb-hash sha256:3b77f16dda58cdfbf3bba8ef718621e4a7773c5e943f52e4406ff2c1cbae5f10
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

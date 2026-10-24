@@ -159,7 +159,7 @@ created, and a plain `supabase start` picks Docker when it is running.
   `main` in this checkout and its worktrees (`--dry-run` lists them); it
   keeps their data. Stop other idle stacks with `supabase stop --stack-id`.
 - A new worktree has no `supabase/signing_keys.json` (it is gitignored).
-  Run `node packages/better-supabase/src/cli/bin.ts keys --cwd .` before
+  Run `node packages/better-supabase/src/cli/bin.ts dev keys --cwd .` before
   `pnpm supabase:start`.
 
 ## Integration tests leave objects behind

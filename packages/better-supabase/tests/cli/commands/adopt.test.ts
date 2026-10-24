@@ -63,6 +63,15 @@ const MEMBERS = table("team_members", [
 
 const tables = () => Promise.resolve([TEAMS, MEMBERS]);
 
+const ENUM_TEAMS: ExistingTable = {
+  ...TEAMS,
+  columns: TEAMS.columns.map((column) =>
+    column.name === "name"
+      ? { name: "name", udt: "team_name", isEnum: true, typeSchema: "public" }
+      : column,
+  ),
+};
+
 const configPath = () => join(dir, "better-supabase.config.json");
 
 const readConfig = async (): Promise<unknown> =>
@@ -98,7 +107,6 @@ describe("adopt", () => {
       blocks: {
         tags: {},
         teams: {
-          ownership: "adopt",
           tables: { teams: "public.teams", members: "public.team_members" },
           columns: {
             teams: { tenant: "organization_id" },
@@ -143,13 +151,13 @@ describe("adopt", () => {
       { block: "teams" },
       {
         configFile: configPath(),
-        tables: () => Promise.resolve([table("teams", ["id"]), MEMBERS]),
+        tables: () => Promise.resolve([ENUM_TEAMS, MEMBERS]),
       },
     );
 
     expect(result.code).toBe(1);
     expect(result.output).toContain(
-      "  error  public.teams has no column for teams.tenant",
+      "  error  blocks.teams writes text into public.teams.name (teams.name), which is the enum public.team_name.",
     );
     expect(result.error).toContain("blocks.teams wasn't written");
     expect(await readConfig()).toEqual({});
@@ -203,7 +211,7 @@ describe("apply --adopt", () => {
     );
   });
 
-  it("adopts the blocks with existing tables and keeps the rest managed", async () => {
+  it("maps the blocks with existing tables and leaves the rest to create theirs", async () => {
     await writeFile(configPath(), json({}));
 
     const result = await runApply(
@@ -221,19 +229,23 @@ describe("apply --adopt", () => {
     expect(result.output).toContain("Adopting teams:");
     expect(result.data).toMatchObject({
       written: true,
-      adopted: { teams: { ownership: "adopt" } },
+      adopted: {
+        teams: {
+          tables: { teams: "public.teams", members: "public.team_members" },
+        },
+      },
     });
     expect(await readConfig()).toMatchObject({
       blocks: {
         "updated-at": {},
         memberships: {},
         permissions: {},
-        teams: { ownership: "adopt", tables: { teams: "public.teams" } },
+        teams: { tables: { teams: "public.teams" } },
       },
     });
     expect(
       existsSync(
-        join(dir, "supabase/schemas/900_better_supabase_58_teams.sql"),
+        join(dir, "supabase/schemas/900_better_supabase_058_teams.sql"),
       ),
     ).toBe(true);
   });
@@ -262,7 +274,7 @@ describe("apply --adopt", () => {
       {
         configFile: configPath(),
         now,
-        tables: () => Promise.resolve([table("teams", ["id"]), MEMBERS]),
+        tables: () => Promise.resolve([ENUM_TEAMS, MEMBERS]),
       },
     );
 

@@ -56,6 +56,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     tags: {
       name: "tags",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -74,6 +75,7 @@ const NAMES: BlockSqlNames = {
     },
     taggings: {
       name: "taggings",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       optionalTable: true,
       columns: {
@@ -231,7 +233,10 @@ ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${created
   unique${shared ? " nulls not distinct" : ""} (${tenant}, ${kind}, ${slug})
 );${addExtraColumns(tags, extras)}
 ${lockTable(tags, { read: true })}
-create table if not exists ${taggings} (
+${
+  taggings === ""
+    ? ""
+    : `create table if not exists ${taggings} (
   ${ctx.col("taggings", "tenant")} ${ctx.scope.column()},
   ${ctx.col("taggings", "tag")} uuid not null references ${tags} (${id}) on delete cascade,
   ${ctx.col("taggings", "subjectType")} text not null,
@@ -242,6 +247,7 @@ create table if not exists ${taggings} (
 create index if not exists ${sqlIdent(`${ctx.tableName("taggings").name}_subject_idx`)} on ${taggings} (${ctx.col("taggings", "tenant")}, ${ctx.col("taggings", "subjectType")}, ${ctx.col("taggings", "subjectId")});
 ${lockTable(taggings, { read: true })}
 `
+}`
     : "";
 
   const apply = bound
@@ -660,11 +666,11 @@ export const TAGS: BlockSqlDefinition = {
   scopes: ["tenant", "user", "none"],
   title: "Tags",
   description:
-    "Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.",
+    "Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "drive"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {
@@ -672,7 +678,7 @@ export const TAGS: BlockSqlDefinition = {
       description:
         "Tags order by a fractional rank key instead of an integer position; rank_tag sets it.",
       sql: (ctx) => {
-        if (!ctx.manages) {
+        if (!ctx.owns("tags")) {
           return "";
         }
 
@@ -695,7 +701,7 @@ alter table ${tags} drop column if exists position;`;
   names: NAMES,
   contract,
   build,
-  adoptSubjectTables(ctx) {
+  appSubjectTables(ctx) {
     return links(ctx).map((link) => ({
       logical: `links_${link.type}`,
       schema: link.schema,

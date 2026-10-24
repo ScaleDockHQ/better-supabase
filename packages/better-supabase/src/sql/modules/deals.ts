@@ -501,6 +501,7 @@ const CONTRIBUTES: BlockContributes = {
       {
         type: own.resolved.entityNaming.rename("deal"),
         table: `${schema}.${name}`,
+        tenant: own.colName("deals", "tenant"),
         entry: DEAL_PIPELINE,
       },
     ];

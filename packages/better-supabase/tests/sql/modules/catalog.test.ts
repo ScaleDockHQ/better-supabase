@@ -4,6 +4,7 @@ import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import { ISO_4217_MINOR_UNITS } from "../../../src/commerce/index.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (layout: BlockSqlLayout = {}, names = ["catalog"]): string =>
   renderBlocks(names, layout)
@@ -87,49 +88,49 @@ describe("catalog module", () => {
     ).toThrow(/storefront must be "public" or "private"/);
   });
 
-  it("leaves out the functions of tables an adopted catalog lacks", () => {
-    const sql = sqlOf({
-      modules: {
-        catalog: {
-          mode: "adopt",
-          tables: {
-            products: "public.products",
-            variants: "public.variants",
-            prices: "public.prices",
-            options: null,
-            optionValues: null,
-            variantValues: null,
-            priceLists: null,
-            categories: null,
-            productCategories: null,
-            collections: null,
-            collectionProducts: null,
-            storefronts: null,
-          },
-          columns: {
-            products: { description: null, kind: null },
-            variants: { title: null, barcode: null, weight: null },
-            prices: {
-              priceList: null,
-              compareAt: null,
-              validFrom: null,
-              validUntil: null,
-            },
+  it("leaves out the functions of tables the app's catalog lacks", () => {
+    const modules = {
+      catalog: {
+        tables: {
+          products: "public.products",
+          variants: "public.variants",
+          prices: "public.prices",
+          options: null,
+          optionValues: null,
+          variantValues: null,
+          priceLists: null,
+          categories: null,
+          productCategories: null,
+          collections: null,
+          collectionProducts: null,
+          storefronts: null,
+        },
+        columns: {
+          products: { description: null, kind: null },
+          variants: { title: null, barcode: null, weight: null },
+          prices: {
+            priceList: null,
+            compareAt: null,
+            validFrom: null,
+            validUntil: null,
           },
         },
       },
-    });
+    };
+
+    const sql = sqlOf({ modules, ownTables: ownTablesOf(modules) });
 
     expect(sql).toContain(`update "public"."products" x`);
-    expect(sql).not.toContain('create table if not exists "');
+    expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("save_product_option");
     expect(sql).not.toContain("save_category");
     expect(sql).not.toContain("publish_storefront");
     expect(sql).toContain("this catalog has no price lists");
     expect(sql).toContain("a product without options has one variant");
-    expect(sql).not.toContain("save_catalog_channel");
-    expect(sql).not.toContain("set_product_translation");
-    expect(sql).not.toContain("add_product_media");
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."catalog_channels"',
+    );
+    expect(sql).toContain("save_catalog_channel");
   });
 
   it("adds channels with listings and a price per channel", () => {

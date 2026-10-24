@@ -12,7 +12,11 @@ import {
   withProviderDefaults,
 } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
-import { SQL_MODULES, checkModules } from "./registry.ts";
+import {
+  SQL_MODULES,
+  checkMigrationOptions,
+  checkModules,
+} from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
 
 /**
@@ -70,6 +74,7 @@ export function upgradePlan(
   modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
 ): BlockSqlUpgradePlan[] {
   checkModules(layout.modules, modules);
+  checkMigrationOptions(layout.modules, layout.ownTables);
 
   const names = [
     ...new Set(installed.map((entry) => entry.block ?? entry.module)),
@@ -97,6 +102,7 @@ export function upgradePlan(
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(entry.module === block ? {} : { instance: entry.module }),
       installed: names,
+      ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
     });

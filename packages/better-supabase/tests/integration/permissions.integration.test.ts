@@ -191,7 +191,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     expect(rows.support).toMatchObject({ invite: true, audit: true });
   });
 
-  it("adopts a CentraKit-shaped catalog: deny overrides, platform roles, disabled tenants and a resolved tenant", async () => {
+  it("runs over a CentraKit-shaped catalog: deny overrides, platform roles, disabled tenants and a resolved tenant", async () => {
     const setup = `
       create table public.bsb_access_organizations (id uuid primary key, disabled_at timestamptz);
       create table public.bsb_access_roles (id uuid primary key, key text not null);
@@ -210,9 +210,18 @@ describe.skipIf(!live)("access contract against the local database", () => {
     `;
 
     const layout: BlockSqlLayout = {
+      ownTables: Object.fromEntries(
+        [
+          "organization_users",
+          "roles",
+          "permissions",
+          "role_permissions",
+          "overrides",
+          "user_roles",
+        ].map((table) => [`public.bsb_access_${table}`, "app.sql"]),
+      ),
       modules: {
         memberships: {
-          mode: "adopt",
           tables: { memberships: "public.bsb_access_organization_users" },
           columns: {
             memberships: {
@@ -223,7 +232,6 @@ describe.skipIf(!live)("access contract against the local database", () => {
           },
         },
         permissions: {
-          mode: "adopt",
           model: "catalog",
           tables: {
             roles: "public.bsb_access_roles",

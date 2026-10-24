@@ -101,3 +101,5 @@ add one, and link it from the code or config it explains.
 | [0095](0095-session-snapshot-memo.md)                     | One token verification per request across cache scopes, through a session memo keyed by the token hash                                    |
 | [0096](0096-authorization-version-cache.md)               | Authorization libraries pass a version cache to `createServer`; a Realtime subscriber evicts users on a broadcast                         |
 | [0097](0097-typescript-content-mapper.md)                 | `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only      |
+| [0098](0098-per-table-adoption.md)                        | Blocks detect the app's tables per table and run over them; `ownership: "adopt"` is removed                                               |
+| [0099](0099-restrictive-tenant-scope.md)                  | Tenant isolation is one restrictive policy per tenant table, so an app's permissive policy can't widen it                                 |

@@ -17,6 +17,7 @@ import { moduleOperations } from "./permissions-model.ts";
 /** The weekly hours a member works, in their own time zone. */
 export const WORKING_HOURS_TABLE: BlockSqlTableSpec = {
   name: "calendar_working_hours",
+  app: {},
   lifecycle: { tenant: "tenant", user: "user", export: true },
   optionalTable: true,
   columns: {

@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_89_identities.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
+-- @bsb-hash sha256:40de3edc9d507ff3a127fa089e9c34c6b45f8d76120d8428409d2f5176bf0f31
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -314,12 +315,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
+-- @bsb-hash sha256:cd6777a400827759d290e0dde0a7d52f5d50f12b8537a48f4be35b8b3a40cf69
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -327,11 +329,12 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_89_identities.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
+-- @bsb-hash sha256:511b28acf11e96e2d99831a8c176720508ae343cb66e6b12aef74317223aae94
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -643,12 +646,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
+-- @bsb-hash sha256:cd6777a400827759d290e0dde0a7d52f5d50f12b8537a48f4be35b8b3a40cf69
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -656,11 +660,12 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_89_identities.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
+-- @bsb-hash sha256:40611c06a1a2b1b531c63a95fa05a02aa35adcb3d67cbf2e84f05f64c9c2ae22
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -974,12 +979,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
+-- @bsb-hash sha256:cd6777a400827759d290e0dde0a7d52f5d50f12b8537a48f4be35b8b3a40cf69
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -987,11 +993,12 @@ values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_89_identities.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
+-- @bsb-hash sha256:32fa809c7dff92bab517ab4429ef3855129f5829ce37bc18c8c04e9ebed663ac
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1388,12 +1395,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
+-- @bsb-hash sha256:cd6777a400827759d290e0dde0a7d52f5d50f12b8537a48f4be35b8b3a40cf69
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

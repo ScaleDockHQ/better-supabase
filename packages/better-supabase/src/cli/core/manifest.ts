@@ -374,7 +374,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "db",
     description:
-      "Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string",
+      "Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string",
     group: "local",
     docs: "/docs/cli/db",
     effects: [{ kind: "database", access: "write" }],
@@ -425,6 +425,26 @@ export const COMMANDS: readonly CommandSpec[] = [
           { kind: "database", access: "write", when: "--tenant" },
         ],
       },
+      {
+        name: "backfill",
+        description:
+          "Fills the null values of a column in batches, from the table a foreign key references or from a literal",
+        docs: "/docs/cli/db#backfill",
+        examples: [
+          {
+            command:
+              "better-supabase db backfill invoices.organization_id --from projects.organization_id via project_id",
+            description:
+              "Copies each invoice's organization from its project, where it is still null",
+          },
+          {
+            command:
+              "better-supabase db backfill invoices.currency --value \"'EUR'\" --dry-run",
+            description: "Counts the rows it would set to EUR",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
     ],
   },
   {
@@ -445,6 +465,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
     effects: [
       READS_DATABASE,
+      { kind: "database", access: "write", when: "--fix" },
       MANAGEMENT_API,
       { kind: "network", target: "github" },
     ],

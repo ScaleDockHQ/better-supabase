@@ -139,7 +139,10 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
   };
 }
 
-/** An activity entry's keys, with the activity table's column names. */
+/**
+ * An activity entry's keys, with the activity table's column names. A column
+ * the app maps to null has no key, as in the feed's own rows.
+ */
 function entry(
   ctx: BlockSqlContext,
   values: Readonly<Record<string, string>>,
@@ -149,9 +152,9 @@ function entry(
     sqlString(ctx.col("activity", logical).replaceAll('"', ""));
 
   return [
-    ...Object.entries(values).map(
-      ([logical, value]) => `${key(logical)}, ${value}`,
-    ),
+    ...Object.entries(values)
+      .filter(([logical]) => ctx.has("activity", logical))
+      .map(([logical, value]) => `${key(logical)}, ${value}`),
     `'source', ${sqlString(source)}`,
   ].join(", ");
 }
@@ -333,6 +336,10 @@ function auditBranch(ctx: BlockSqlContext, audit: BlockSqlContext): string {
   const a = (logical: string): string =>
     sqlString(ctx.col("activity", logical).replaceAll('"', ""));
 
+  // The pair, or nothing when the app maps the activity column to null.
+  const pair = (logical: string, value: string): readonly string[] =>
+    ctx.has("activity", logical) ? [`${a(logical)}, ${value}`] : [];
+
   const l = (logical: string): string => `l.${audit.col("log", logical)}`;
   const has = (logical: string): boolean => hasColumn(audit, "log", logical);
   const op = has("op") ? l("op") : "null::text";
@@ -352,10 +359,10 @@ function auditBranch(ctx: BlockSqlContext, audit: BlockSqlContext): string {
     `${a("tenant")}, ${l("tenant")}`,
     `${a("event")}, null::text`,
     `${a("type")}, ${type}`,
-    `${a("actor")}, ${l("actor")}`,
+    ...pair("actor", l("actor")),
     `${a("subjectType")}, list_activity.subject_type`,
     `${a("subjectId")}, list_activity.subject_id`,
-    `${a("summary")}, ${has("summary") ? l("summary") : "null::text"}`,
+    ...pair("summary", has("summary") ? l("summary") : "null::text"),
     `${a("data")}, jsonb_strip_nulls(jsonb_build_object(${data.join(", ")}))`,
     `${a("occurredAt")}, ${l("occurredAt")}`,
     `'source', 'audit'`,

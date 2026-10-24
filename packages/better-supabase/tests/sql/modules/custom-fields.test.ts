@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (
   layout: Parameters<typeof renderBlocks>[1] = {},
@@ -94,29 +95,29 @@ describe("custom-fields module", () => {
     expect(sql).not.toContain("field_open");
   });
 
-  it("adds the encrypted flag to an adopted definitions table", () => {
-    const adopt = (columns: Record<string, Record<string, null>> = {}) =>
-      sqlOf({
-        modules: {
-          "custom-fields": {
-            mode: "adopt",
-            tables: {
-              definitions: "app.field_definitions",
-              options: "app.field_options",
-              values: "app.field_values",
-            },
-            columns,
+  it("adds the encrypted flag to the app's definitions table", () => {
+    const overApp = (columns: Record<string, Record<string, null>> = {}) => {
+      const modules = {
+        "custom-fields": {
+          tables: {
+            definitions: "app.field_definitions",
+            options: "app.field_options",
+            values: "app.field_values",
           },
+          columns,
         },
-      });
+      };
 
-    expect(adopt()).toContain(
+      return sqlOf({ modules, ownTables: ownTablesOf(modules) });
+    };
+
+    expect(overApp()).toContain(
       `alter table "app"."field_definitions" add column if not exists "encrypted" boolean not null default false;`,
     );
-    expect(adopt()).not.toContain(
+    expect(overApp()).not.toContain(
       `create table if not exists "app"."field_definitions"`,
     );
-    expect(adopt({ definitions: { encrypted: null } })).not.toContain(
+    expect(overApp({ definitions: { encrypted: null } })).not.toContain(
       `"encrypted"`,
     );
   });

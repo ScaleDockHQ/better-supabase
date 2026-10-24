@@ -53,6 +53,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     items: {
       name: "trash_items",
+      app: {},
       lifecycle: { tenant: "tenant", user: "trashedBy", export: true },
       columns: {
         id: "id",
@@ -659,7 +660,7 @@ export const TRASH: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

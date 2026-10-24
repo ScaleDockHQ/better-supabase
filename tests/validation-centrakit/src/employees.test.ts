@@ -15,7 +15,6 @@ const EXTRA: Extra = {
   modules: ["employees"],
   config: {
     employees: {
-      mode: "adopt",
       tables: {
         employees: "centrakit.employees",
         privateDetails: null,

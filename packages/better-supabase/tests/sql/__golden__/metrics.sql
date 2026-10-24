@@ -1,9 +1,20 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_71_metrics.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:cf4bf7b92d205b45f47029afc364784ef170fd4a93e41430fbc72d8da19cd82e
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -139,12 +150,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_71_metrics.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -152,12 +164,23 @@ values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_71_metrics.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:cf4bf7b92d205b45f47029afc364784ef170fd4a93e41430fbc72d8da19cd82e
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -293,12 +316,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_71_metrics.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -306,12 +330,23 @@ values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_71_metrics.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:34a4b87e964bdee320dbbd67d389b518a5fa179924c4ee964467ca2fb760f834
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."metric_points";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -449,12 +484,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_71_metrics.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -462,12 +498,23 @@ values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_71_metrics.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:08f86bd1886e4cb3d09182ede977b290cfe91d06c078d3d1b62c7f81d710d766
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -643,12 +690,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_71_metrics.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -656,15 +704,38 @@ values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_71_metrics.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
--- @bsb-block metrics@1 adopt
+-- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:339670bde99bbfe5a7a7523d3c60d6158ada752973fadc20e6e14416de023e00
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.metric_points is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."metric_points" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."metric_points" add column if not exists "metric" text;
+alter table "better_supabase"."metric_points" add column if not exists "grain" text check ("grain" in ('hour', 'day', 'week', 'month'));
+alter table "better_supabase"."metric_points" add column if not exists "bucket_start" timestamptz;
+alter table "better_supabase"."metric_points" add column if not exists "dims" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."metric_points" add column if not exists "value" numeric;
+alter table "better_supabase"."metric_points" add column if not exists "count" bigint;
+alter table "better_supabase"."metric_points" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."metric_points" enable row level security;
+grant all on "better_supabase"."metric_points" to service_role;
+create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
 -- Re-aggregates the window [since, until), default the last 3 days, so
 -- rows that arrive late or change land in their buckets. Run it from cron or
@@ -782,15 +853,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_71_metrics.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('metrics', 1, 'adopt')
+values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

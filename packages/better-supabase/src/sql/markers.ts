@@ -1,3 +1,5 @@
+import { sha256Hex } from "./sha256.ts";
+
 /**
  * The `@bsb-block` line: instance, version, mode and, for an instance that
  * installs a block under another name, the block. `upgrade` reads it.
@@ -37,6 +39,50 @@ const MODULE_DATA_MARKER: RegExp =
 /** Whether `contents` is a data file `renderBlocks` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
+
+const HASH_LINE = /^-- @bsb-hash sha256:([0-9a-f]{64})$/m;
+
+/** The SQL after the header. The hash covers this and not the header. */
+function blockBody(contents: string): string {
+  const split = contents.indexOf("\n\n");
+
+  return split === -1 ? "" : contents.slice(split + 2);
+}
+
+/**
+ * `contents` with a `-- @bsb-hash` line after its block marker. The hash is
+ * SHA-256 of the body, so a later edit of the SQL no longer matches.
+ */
+export function withBlockHash(contents: string): string {
+  if (HASH_LINE.test(contents)) {
+    return contents;
+  }
+
+  const line = `-- @bsb-hash sha256:${sha256Hex(blockBody(contents))}`;
+
+  const marker = /^(-- @bsb-(?:block|block-data|block-test|tables)[^\n]*)\n/m;
+
+  return marker.test(contents)
+    ? contents.replace(marker, `$1\n${line}\n`)
+    : `${line}\n${contents}`;
+}
+
+/**
+ * Whether the hash line matches the body. `missing` is a file from before
+ * hashes, which sync may still rewrite. `edited` is a body someone changed
+ * without updating the hash.
+ */
+export function blockFileState(
+  contents: string,
+): "clean" | "missing" | "edited" {
+  const match = HASH_LINE.exec(contents);
+
+  if (match === null) {
+    return "missing";
+  }
+
+  return match[1] === sha256Hex(blockBody(contents)) ? "clean" : "edited";
+}
 
 /**
  * Whether an installed file matches, ignoring line endings and the version

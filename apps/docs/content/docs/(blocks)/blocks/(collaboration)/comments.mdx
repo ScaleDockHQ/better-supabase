@@ -331,8 +331,8 @@ still notify through messaging unless `blocks.messaging.options.notify` is
 and every mentioned member, after group expansion, follow the record: each
 gets a `participating` row in `notification_subscriptions`. A user who
 already has a row for the record keeps it, so someone who chose `ignore`
-stays unsubscribed. An app that brings its own subscriptions table (adopt
-mode) must accept every record type it comments on.
+stays unsubscribed. When `notification_subscriptions` is a table your app
+already has, it must accept every record type you comment on.
 
 ## Events
 

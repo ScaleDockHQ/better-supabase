@@ -982,7 +982,7 @@ export function roleScopeIs(
   const access = ctx.of("permissions");
 
   if (
-    !access.manages &&
+    !access.owns("roles") &&
     typeof access.config.columns["roles"]?.["scope"] !== "string"
   ) {
     return undefined;

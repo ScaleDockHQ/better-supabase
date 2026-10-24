@@ -112,8 +112,10 @@ const profile = await profiles.mine().orThrow();
 profile?.locale; // "en" | "nl"
 ```
 
-On a managed table the guard also sets `updated_at`. An adopted table keeps
-its own `updated_at` trigger: the guard neither checks nor writes the column.
+On a table the block creates, the guard also sets `updated_at`. Over a
+`profiles` table of your own, the guard neither checks nor writes the column:
+`update_my_profile` sets it, and your own trigger keeps it current for other
+writes.
 
 Security definer functions, such as `switch_organization` from the
 [organizations](/docs/blocks/organizations) module and the email mirror, write the
@@ -182,7 +184,7 @@ profiles: {
 `readPolicy` also takes `{ members, platform }`. `platform` is a permission
 key that `is_platform()` checks, so platform staff read every profile, which
 admin consoles need. It writes its own policy, `bsb_profiles_platform_read`,
-in managed and adopt mode, and pulls in the `permissions` module. Column grants
+on a managed table and on yours, and pulls in the `permissions` module. Column grants
 still apply, so the private columns stay behind them.
 
 ```ts
@@ -191,14 +193,14 @@ profiles: { options: { readPolicy: { members: true, platform: "platform.user.rea
 
 ## Existing profiles
 
-With `mode: 'adopt'` the module writes its functions and triggers over your
-table and leaves its columns, policies and grants alone. Map the key and
-the columns you have, and set the others to `null`:
+When your schema already has a profiles table, the module skips its
+`create table`, adds the columns it needs that your table lacks and writes
+its functions, policies and triggers over it. Map the key and the columns you
+have, and set the optional ones you don't want to `null`:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
   profiles: {
-    ownership: "adopt",
     tables: { profiles: "public.profiles" },
     columns: {
       profiles: {
@@ -222,11 +224,11 @@ blocks: {
 If a trigger of yours already creates profiles (`handle_new_user`),
 installing warns about it. Keep it and set `syncTrigger: false`, calling
 `better_supabase.sync_profile(new.id)` from it, or drop it and move its
-extra work into `after_profile_sync`. With `mode: 'custom'` the module
+extra work into `after_profile_sync`. With `ownership: "custom"` the module
 writes nothing and you provide `sync_profile` and `backfill_profiles`.
 
-An adopted table has no `avatarPath` column until you map one, so a table
-without it keeps working.
+On your table, map `avatarPath` to `null` to go without the column; the
+module adds it otherwise.
 
 Avatar and logo uploads use the [`avatarBucket` and `organizationLogoBucket`
 presets](/docs/platform/storage#avatars-and-organization-logos).

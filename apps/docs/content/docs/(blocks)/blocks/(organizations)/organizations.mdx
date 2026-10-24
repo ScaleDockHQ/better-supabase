@@ -460,14 +460,15 @@ key pass the permission check, and the role ceiling still applies, so the
 access model's `can_assign` must allow them the roles they change.
 
 `blocks.invitations.options` (`tokenStorage: "plain"` is migration-only: the
-config accepts it in `ownership: "adopt"` only, and doctor warns about it, BS314):
+config accepts it only when the module runs over an invitations table your
+app already has, and doctor warns about it, BS314):
 
 | Option                  | Default    | What it does                                                 |
 | ----------------------- | ---------- | ------------------------------------------------------------ |
 | `validFor`              | `7 days`   | how long an invitation is open                               |
 | `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for      |
 | `prefill`               | `false`    | adds the `prefill` column (managed tables)                   |
-| `tokenStorage`          | `sha256`   | `plain` stores the token itself; migration-only (adopt mode) |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself; migration-only (your table) |
 | `tokenBytes`            | `24`       | the token's random bytes                                     |
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
@@ -582,26 +583,24 @@ await organizations.updateInvitation(invitationId, {
 
 ## Existing tables
 
-Both modules support `adopt`, so they run over the tables you have. Map the
-names and set the columns you don't have to `null`:
+The modules run over the tables you have: each skips the `create table` for
+a table your schema already has and adds only the columns it lacks. Map the
+names and set the optional columns you don't want to `null`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
     permissions: { model: "catalog" },
     memberships: {
-      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
     },
     organizations: {
-      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       options: { attributes: ["logo_url"] },
     },
     invitations: {
-      ownership: "adopt",
       tables: { invitations: "public.organization_invitations" },
       columns: {
         invitations: {

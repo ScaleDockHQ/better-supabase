@@ -48,6 +48,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     runs: {
       name: "bulk_runs",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -65,6 +66,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         finishedAt: "finished_at",
       },
+      typed: ["status"],
     },
   },
 };
@@ -399,7 +401,7 @@ begin
     ${c("succeeded")} = ${c("succeeded")} + v_ok,
     ${c("failed")} = ${c("failed")} + v_failed,
     ${c("results")} = ${c("results")} || v_results,
-    ${c("status")} = v_status,
+    ${c("status")} = ${ctx.cast("runs", "status", "v_status")},
     ${c("finishedAt")} = case when v_done then now() else null end
   where ${c("id")} = v_run.${c("id")}
   returning * into v_run;
@@ -450,7 +452,7 @@ export const BULK: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["queue", "outbox"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

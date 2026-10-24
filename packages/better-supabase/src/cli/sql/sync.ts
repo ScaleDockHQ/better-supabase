@@ -7,6 +7,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
+import type { SqlWrite } from "./write.ts";
 
 import { moduleTopics, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { applyPlan, changeLines, planResult } from "../core/files.ts";
@@ -21,8 +22,14 @@ import {
   sameModuleMigration,
   writesMigrations,
 } from "./module-migration.ts";
+import { orphanedBlockFiles } from "./orphans.ts";
 import { layoutFor } from "./providers.ts";
-import { moduleFile, staleModuleTests, write } from "./write.ts";
+import {
+  guardedRemoval,
+  moduleFile,
+  staleModuleTests,
+  write,
+} from "./write.ts";
 
 export async function syncModules(
   config: ResolvedConfig,
@@ -58,11 +65,20 @@ export async function syncModules(
       return checkModuleMigration(config, sqlLayout, paint, topics?.contents);
     }
 
-    const lines = await write(config, args, config.blockNames, sqlLayout, now);
+    const written = await write(
+      config,
+      args,
+      config.blockNames,
+      sqlLayout,
+      now,
+    );
 
     return {
-      code: 0,
-      output: lines.join("\n"),
+      code: written.error === undefined ? 0 : 1,
+      output: written.lines.join("\n"),
+      ...(written.error === undefined
+        ? {}
+        : { error: written.error, errorCode: "file_conflict" as const }),
       data: { blocks: config.blockNames },
     };
   }
@@ -73,9 +89,11 @@ export async function syncModules(
     topics === undefined ? [] : [{ ...topics, note: "topics" }];
 
   if (args.check !== true) {
-    const lines = hasSql
+    const written: SqlWrite = hasSql
       ? await write(config, args, config.blockNames, sqlLayout, now)
-      : [];
+      : { lines: [] };
+
+    const lines = [...written.lines];
 
     if (topics !== undefined) {
       lines.push(
@@ -93,8 +111,11 @@ export async function syncModules(
     }
 
     return {
-      code: 0,
+      code: written.error === undefined ? 0 : 1,
       output: lines.join("\n"),
+      ...(written.error === undefined
+        ? {}
+        : { error: written.error, errorCode: "file_conflict" as const }),
       data: { blocks: config.blockNames },
     };
   }
@@ -104,17 +125,28 @@ export async function syncModules(
   const plan = sqlPlan(config, {
     regenerate: "better-supabase upgrade",
     files: [...rendered.map((file) => moduleFile(file)), ...topicsFile],
-    remove: await staleModuleTests(
-      config,
-      config.blockNames,
-      sqlLayout,
-      rendered,
-    ),
+    remove: [
+      ...new Set([
+        ...(await orphanedBlockFiles(
+          config,
+          sqlLayout,
+          new Set(rendered.map((file) => file.path)),
+        )),
+        ...(await staleModuleTests(
+          config,
+          config.blockNames,
+          sqlLayout,
+          rendered,
+        )),
+      ]),
+    ].map((path) => guardedRemoval(path)),
   });
 
-  return planResult(plan, await applyPlan(plan, { check: true }, paint), {
-    data: { blocks: config.blockNames },
-  });
+  return planResult(
+    plan,
+    await applyPlan(plan, { check: true, force: args.force === true }, paint),
+    { data: { blocks: config.blockNames } },
+  );
 }
 
 /**

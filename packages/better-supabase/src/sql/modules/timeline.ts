@@ -6,13 +6,8 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ActivitySourceName } from "./timeline-reads.ts";
 
-import {
-  SERVICE_CALLER,
-  schemaPreamble,
-  pageSize,
-  revokeTable,
-  fail,
-} from "../shared.ts";
+import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
 
@@ -28,6 +23,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     activity: {
       name: "activity_entries",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -41,6 +37,7 @@ const NAMES: BlockSqlNames = {
         data: "data",
         occurredAt: "occurred_at",
       },
+      optional: ["actor", "summary"],
     },
   },
 };
@@ -68,27 +65,67 @@ function build(ctx: BlockSqlContext): string {
   const reads = activityReads(ctx);
   const read = ctx.permission("read", moduleOperations("timeline").read);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has("activity", logical) ? `\n  ${definition(a(logical))},` : "";
+
+  const written = [
+    "event",
+    "tenant",
+    "type",
+    "actor",
+    "subjectType",
+    "subjectId",
+    "summary",
+    "data",
+    "occurredAt",
+  ].filter((logical) => ctx.has("activity", logical));
+
+  const values: Readonly<Record<string, string>> = {
+    event: "e ->> 'event_id'",
+    tenant: `(e ->> 'organization_id')::${id}`,
+    type: "e ->> 'type'",
+    actor: "nullif(e ->> 'actor_id', '')::uuid",
+    subjectType: "e ->> 'subject_type'",
+    subjectId: "e ->> 'subject_id'",
+    summary: "e ->> 'summary'",
+    data: "coalesce(e -> 'data', '{}'::jsonb)",
+    occurredAt: "coalesce((e ->> 'occurred_at')::timestamptz, now())",
+  };
+
+  // The select list, broken where the default render breaks it.
+  const selected = [
+    ["event", "tenant", "type", "actor"],
+    ["subjectType", "subjectId", "summary", "data"],
+    ["occurredAt"],
+  ]
+    .map((group) =>
+      group
+        .filter((logical) => ctx.has("activity", logical))
+        .map((logical) => values[logical])
+        .join(", "),
+    )
+    .filter((line) => line !== "")
+    .join(",\n    ");
+
   return `${schemaPreamble(ctx)}
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists ${activity} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.scope.column()},
   ${a("event")} text not null unique,
-  ${a("type")} text not null,
-  ${a("actor")} uuid references auth.users (id) on delete set null,
+  ${a("type")} text not null,${column("actor", (name) => `${name} uuid references auth.users (id) on delete set null`)}
   ${a("subjectType")} text,
-  ${a("subjectId")} text,
-  ${a("summary")} text,
+  ${a("subjectId")} text,${column("summary", (name) => `${name} text`)}
   ${a("data")} jsonb not null default '{}'::jsonb,
   ${a("occurredAt")} timestamptz not null default now()
-);
+);${appUniqueIndex(ctx, "activity", ["event"])}
 create index if not exists ${ctx.naming.rename("activity_entries_feed_idx")} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
 create index if not exists ${ctx.naming.rename("activity_entries_subject_idx")} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
-create index if not exists ${ctx.naming.rename("activity_entries_actor_idx")} on ${activity} (${a("actor")});
-alter table ${activity} enable row level security;
-${revokeTable(activity)}
-grant select on ${activity} to authenticated;
-grant all on ${activity} to service_role;
+${ctx.has("activity", "actor") ? `create index if not exists ${ctx.naming.rename("activity_entries_actor_idx")} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
 ${reads.readable}drop policy if exists ${ctx.naming.rename("activity_entries_read")} on ${activity};
 create policy ${ctx.naming.rename("activity_entries_read")} on ${activity} for select to authenticated
   using (${ctx.scope.check(a("tenant"), read)}${reads.rowCheck});${reads.dropReadable}${reads.helpers}
@@ -110,10 +147,8 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("ACTIVITY_FORBIDDEN", "Only the service role records activity")}
   end if;
-  insert into ${activity} (${[a("event"), a("tenant"), a("type"), a("actor"), a("subjectType"), a("subjectId"), a("summary"), a("data"), a("occurredAt")].join(", ")})
-  select e ->> 'event_id', (e ->> 'organization_id')::${id}, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,
-    e ->> 'subject_type', e ->> 'subject_id', e ->> 'summary', coalesce(e -> 'data', '{}'::jsonb),
-    coalesce((e ->> 'occurred_at')::timestamptz, now())
+  insert into ${activity} (${written.map((logical) => a(logical)).join(", ")})
+  select ${selected}
   from jsonb_array_elements(coalesce(batch -> 'entries', '[]'::jsonb)) e
   on conflict (${a("event")}) do nothing;
   get diagnostics inserted = row_count;

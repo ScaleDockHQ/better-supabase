@@ -1,8 +1,9 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
+-- @bsb-hash sha256:d4d0b1163024399f64594eec32137a1cd90b29f08a2ad6b138668ba1a336f9c4
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -54,9 +55,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
+-- @bsb-hash sha256:cfa777137e336dcd48b6ad165f86065558effaf62baa0065a6856da7dcab1aac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_ensure_rls;
@@ -72,8 +74,9 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
+-- @bsb-hash sha256:d4d0b1163024399f64594eec32137a1cd90b29f08a2ad6b138668ba1a336f9c4
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -125,9 +128,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
+-- @bsb-hash sha256:cfa777137e336dcd48b6ad165f86065558effaf62baa0065a6856da7dcab1aac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_ensure_rls;
@@ -143,8 +147,9 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
+-- @bsb-hash sha256:d4d0b1163024399f64594eec32137a1cd90b29f08a2ad6b138668ba1a336f9c4
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -196,9 +201,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
+-- @bsb-hash sha256:cfa777137e336dcd48b6ad165f86065558effaf62baa0065a6856da7dcab1aac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_ensure_rls;
@@ -214,8 +220,9 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
+-- @bsb-hash sha256:d4d0b1163024399f64594eec32137a1cd90b29f08a2ad6b138668ba1a336f9c4
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -267,9 +274,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
+-- @bsb-hash sha256:cfa777137e336dcd48b6ad165f86065558effaf62baa0065a6856da7dcab1aac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_ensure_rls;

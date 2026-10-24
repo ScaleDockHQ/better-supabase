@@ -4,6 +4,7 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   adoptedTables,
+  SQL_MODULES,
   contractSignature,
   customContracts,
   moduleDeprecations,
@@ -17,6 +18,12 @@ import {
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
+import {
+  keepsAppsName,
+  keptUpdatedAtTriggers,
+  widenedAppTablePolicies,
+} from "./app-table-policies.ts";
+import { appTablesOf } from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
@@ -184,7 +191,10 @@ async function danglingAuditRegistrations(
   }));
 }
 
-/** Tables and columns adopt-mode modules use that the live database lacks. */
+/**
+ * Columns the modules use on the app's tables that the live database lacks:
+ * every table the database has may be the app's.
+ */
 async function missingAdoptedColumns(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
@@ -194,7 +204,7 @@ async function missingAdoptedColumns(
     return [];
   }
 
-  const tables = adoptedTables(context.config.blocks);
+  const tables = adoptedTables(context.config.blocks, appTablesOf(context));
 
   if (tables.length === 0) {
     return [];
@@ -236,17 +246,25 @@ async function missingAdoptedColumns(
     if (present.size === 0) {
       return [
         {
-          message: `blocks.${table.module} is in adopt mode and maps its ${table.logical} table to ${target}, which the database does not have. Create it, or point blocks.${table.module}.tables.${table.logical} at the existing table.`,
+          message: `blocks.${table.module} uses ${target} for its ${table.logical} table, which the database does not have. Create it, or point blocks.${table.module} at the existing table.`,
           target,
           object,
         },
       ];
     }
 
+    const added =
+      SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined;
+
+    const fix = (logical: string): string =>
+      added
+        ? `Apply the block's migration (\`better-supabase upgrade\`), which adds it, or map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it.`
+        : `Map the column in blocks.${table.module}.on to the one that holds it, or add it.`;
+
     return Object.entries(table.columns)
       .filter(([, column]) => !present.has(column))
       .map(([logical, column]) => ({
-        message: `blocks.${table.module} is in adopt mode and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. Map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it, or to null when the module allows that.`,
+        message: `blocks.${table.module} runs over ${target} and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. ${fix(logical)}`,
         target: `${target}.${column}`,
         object,
       }));
@@ -568,15 +586,13 @@ function lineOfUse(
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
 
+  const appsName = keepsAppsName(context);
+
   const entries = moduleDeprecations().filter(
     (entry) =>
       context.config.blockNames.includes(entry.module) &&
       !(entry.kind === "claim" && configured.has(entry.symbol)) &&
-      // Adopted and custom tables keep the app's names.
-      !(
-        (entry.kind === "table" || entry.kind === "column") &&
-        (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
-      ),
+      !appsName(entry),
   );
 
   if (entries.length === 0) {
@@ -838,7 +854,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Migration-only module option",
     description:
-      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets or credentials in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
+      "A module over the app's tables sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets or credentials in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
     check: migrationOptions,
   },
   {
@@ -916,9 +932,9 @@ export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS330",
     severity: "error",
-    title: "Adopted table without a mapped column",
+    title: "App table without a column a block uses",
     description:
-      "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
+      "A block runs over a table of the app's, and the live database lacks a column its SQL names, so its functions fail until the block's migration adds it. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped. A column on a table that `blocks.<name>.on` names isn't added by the block: map it or add it.",
     check: missingAdoptedColumns,
   },
   {
@@ -952,6 +968,22 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "A block entry's `on` lists a type, or has a key, that `config.records` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.records` or remove it from `on`.",
     check: onUnknownRecordTypes,
+  },
+  {
+    code: "BS347",
+    severity: "warning",
+    title: "Block policy widens an app table's access",
+    description:
+      "A block runs over a table of the app's and adds its own permissive policy there, named `bsb_<table>_<command>` so it never replaces one of the app's. Postgres ORs permissive policies, so when the app has its own policies for that command and none has the same condition (or `true`) for the same roles, the block's policy can let a user reach rows the app's policies keep closed. A block condition that is the app's, or one of its `or` operands, with more `and` operands is narrower and isn't reported, nor is a command the app has no policy for, which is the block's to grant. Doctor compares the conditions as text. When an app policy covers the block's in this sense, `upgrade` leaves the block's policy out. Repeat the block's condition in the app's policy when it is what the app means; otherwise narrow the permission key the block checks, or drop the `bsb_` policy in a schema file that runs after the block's.",
+    check: widenedAppTablePolicies,
+  },
+  {
+    code: "BS348",
+    severity: "info",
+    title: "App table keeps its own updated_at trigger",
+    description:
+      "A block runs over a table of the app's that already has a trigger keeping `updated_at` current (one that calls `set_updated_at`, `moddatetime` or a function that sets `new.updated_at`), so the block adds no `bsb_updated_at` trigger there. Keep that trigger firing on update; if you drop it, run `better-supabase upgrade` to add the block's.",
+    check: keptUpdatedAtTriggers,
   },
   {
     code: "BS335",

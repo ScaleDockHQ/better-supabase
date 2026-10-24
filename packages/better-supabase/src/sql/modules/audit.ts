@@ -84,6 +84,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     log: {
       name: "audit_events",
+      app: {},
       // Exports leave out the row snapshots and the impersonation details,
       // which describe other people.
       lifecycle: {
@@ -179,7 +180,7 @@ const NAMES: BlockSqlNames = {
         "changedValues",
       ],
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
   hooks: ["audit_retention"],
@@ -239,10 +240,9 @@ function contextPairs(
  * adopted.
  */
 function restrictedOn(ctx: BlockSqlContext): boolean {
-  return ctx.manages
+  return ctx.owns("log")
     ? ctx.flag("restricted", false)
-    : ctx.config.tables["restricted"] !== undefined &&
-        ctx.hasTable("restricted");
+    : !ctx.owns("restricted") && ctx.hasTable("restricted");
 }
 
 /** `[column, value]` pairs for the logical columns the log has. */
@@ -713,7 +713,7 @@ function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = ${sqlString(
-        ctx.manages
+        ctx.owns("log")
           ? "Set blocks.audit.options.restricted to true."
           : "Map blocks.audit.tables.restricted to the table for sensitive details.",
       )};
@@ -853,7 +853,7 @@ function readPolicy(ctx: BlockSqlContext): string {
   const log = ctx.table("log");
 
   if (!ctx.flag("readPolicy", false)) {
-    return ctx.manages
+    return ctx.owns("log")
       ? `drop policy if exists bsb_audit_read on ${log};
 drop function if exists ${ctx.fn("audit_read_tenants")}();
 drop function if exists ${ctx.fn("audit_reads_all")}();`
@@ -961,7 +961,7 @@ export const AUDIT: BlockSqlDefinition = {
       ? ["permissions"]
       : [],
   target: "schema",
-  modes: ["managed", "adopt"],
+  modes: ["managed"],
   version: 9,
   names: NAMES,
   contract: (ctx) => [

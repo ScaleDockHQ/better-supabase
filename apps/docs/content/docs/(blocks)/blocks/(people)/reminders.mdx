@@ -93,9 +93,9 @@ const client = createReminders({
 await client.upsert({ type: "task", id: taskId }, 30, { channel: "push" });
 ```
 
-## Adopt mode
+## Over your own tables
 
-Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.
+To run over tables you already have, map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.
 
 ## Without the client
 

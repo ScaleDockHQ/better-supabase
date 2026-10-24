@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { OpenLive } from "../doctor/live-source.ts";
@@ -10,8 +11,9 @@ import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
-import { stdinDatabaseUrl } from "../config.ts";
+import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
 import { contentMapperSetup } from "../content-mapper.ts";
+import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { errorText, CliError } from "../core/errors.ts";
 import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
@@ -116,6 +118,11 @@ const ARGS = {
     description:
       "Print the grant and revoke SQL BS404 asks for, to add to your schema or migration",
   },
+  fix: {
+    type: "boolean",
+    description:
+      "Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database",
+  },
 } as const;
 
 export type DoctorArgs = CliArgs<typeof ARGS & typeof SOURCE_ARGS>;
@@ -149,6 +156,74 @@ export interface DoctorOptions {
   readonly dbUrl?: string;
   /** Ends the database connection (Ctrl-C). */
   readonly signal?: AbortSignal;
+  /** Asks before `--fix` writes to a database that is not local. */
+  readonly requireConsent?: (request: ConsentRequest) => void;
+  /** Reports each statement `--fix` ran, on stderr. */
+  readonly log?: (line: string) => void;
+}
+
+/** Where `--fix` writes, for the consent detail: a host, or the project. */
+async function fixTarget(
+  config: ResolvedConfig,
+  env: CliEnv,
+  options: DoctorOptions,
+  projectRef: string | undefined,
+): Promise<{ readonly local: boolean; readonly where: string }> {
+  if (projectRef !== undefined) {
+    return { local: false, where: `project ${projectRef}` };
+  }
+
+  const url = await databaseUrl(config, env, options.dbUrl).catch(
+    () => undefined,
+  );
+
+  return url === undefined
+    ? { local: false, where: "the database" }
+    : { local: isLocalDatabaseUrl(url), where: databaseHost(url) };
+}
+
+/**
+ * Runs the fix of each finding that has one, and returns the findings left: the
+ * ones without a fix, and the ones whose fix failed, with the error.
+ */
+async function applyFixes(
+  findings: readonly Finding[],
+  database: DoctorContext["database"],
+  consent: () => Promise<void>,
+  log: (line: string) => void,
+): Promise<{ readonly left: Finding[]; readonly fixed: number }> {
+  const fixable = findings.filter((finding) => finding.fix !== undefined);
+
+  if (fixable.length === 0 || !database || "skipped" in database) {
+    return { left: [...findings], fixed: 0 };
+  }
+
+  await consent();
+
+  const left: Finding[] = [];
+  let fixed = 0;
+
+  for (const finding of findings) {
+    if (finding.fix === undefined) {
+      left.push(finding);
+      continue;
+    }
+
+    try {
+      await database.query(finding.fix);
+      fixed += 1;
+      log(`Fixed ${finding.code} ${finding.target ?? finding.title}.`);
+    } catch (cause) {
+      // A fix can open a transaction, which a failed statement leaves aborted.
+      await database.query("rollback").catch(() => []);
+      left.push({
+        ...finding,
+        message: `${finding.message} doctor --fix failed: ${errorText(cause)}`,
+      });
+    }
+  }
+
+  return { left, fixed };
 }
 
 export async function runDoctor(
@@ -216,8 +291,10 @@ export async function runDoctor(
   const projectRef = args["project-ref"];
 
   const source: SnapshotSource = {
-    // Statistics, plans and hook calls need the database, not the saved snapshot.
-    ...(stats || explainTables.length > 0 || hookUser ? { live: true } : {}),
+    // Statistics, plans, hook calls and fixes need the database, not the saved snapshot.
+    ...(stats || explainTables.length > 0 || hookUser || args.fix === true
+      ? { live: true }
+      : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
@@ -338,6 +415,26 @@ export async function runDoctor(
 
   try {
     ran = await runRules(context, rules);
+
+    if (args.fix === true) {
+      const count = ran.filter((finding) => finding.fix !== undefined).length;
+
+      ({ left: ran } = await applyFixes(
+        ran,
+        context.database,
+        async () => {
+          const target = await fixTarget(config, env, options, projectRef);
+
+          if (!target.local) {
+            options.requireConsent?.({
+              effect: "database-write",
+              detail: `doctor --fix runs ${String(count)} fix(es) against ${target.where}`,
+            });
+          }
+        },
+        options.log ?? (() => {}),
+      ));
+    }
   } finally {
     await opened.close();
   }
@@ -456,13 +553,17 @@ export const doctorCommand: AnyCommand = defineCliCommand({
     only: ruleCodes,
     ignore: ruleCodes,
   },
-  run: async (args, { config, cwd, env, io, log, paint, signal }) => {
+  run: async (
+    args,
+    { config, cwd, env, io, log, paint, requireConsent, signal },
+  ) => {
     if (args.metadata !== undefined) {
       refuseWithMetadata([
         ...sourceFlags(args),
         ...(args.stats === true ? ["--stats"] : []),
         ...(args.explain === undefined ? [] : ["--explain"]),
         ...(args.as === undefined ? [] : ["--as"]),
+        ...(args.fix === true ? ["--fix"] : []),
       ]);
 
       let snapshot: Snapshot;
@@ -496,6 +597,8 @@ export const doctorCommand: AnyCommand = defineCliCommand({
     const check = (): Promise<CommandResult> =>
       runDoctor(config, args, env, {
         paint,
+        requireConsent,
+        log: log.info,
         ...(dbUrl ? { dbUrl } : {}),
         ...(signal ? { signal } : {}),
       });

@@ -100,7 +100,8 @@ rename breaks the database, not the build. They follow these rules:
 
 Names you map in `blocks.<module>` (tables, columns, statuses) and claim names
 you set in `claims` are yours: the block never renames them. Options that only
-match an existing schema are accepted in adopt mode only, and doctor warns
+match an existing schema are accepted only when a block runs over a table the
+app already has, and doctor warns
 about them (BS314); a later release can drop one after a deprecation in the
 changelog.
 

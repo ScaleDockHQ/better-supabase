@@ -31,6 +31,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     documents: {
       name: "search_documents",
+      app: {},
       lifecycle: { tenant: "tenant", export: false },
       columns: {
         tenant: "tenant_id",
@@ -849,7 +850,7 @@ export const SEARCH: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "subjects"],
   integrates: ["share-links", "vector-search"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

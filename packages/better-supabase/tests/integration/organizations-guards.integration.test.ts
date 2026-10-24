@@ -7,7 +7,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-/** An adopted memberships table in its own schema, with text roles. */
+/** The app's own memberships table in its own schema, with text roles. */
 async function teamSchema(s: BlockSession): Promise<string> {
   const schema = `bsb_team_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
@@ -23,16 +23,16 @@ async function teamSchema(s: BlockSession): Promise<string> {
   return schema;
 }
 
-function adopted(
+function overTeam(
   schema: string,
   organizations: Record<string, unknown> = {},
 ): BlockSqlLayout {
   return {
+    ownTables: { [`${schema}.team_members`]: "app.sql" },
     modules: {
       permissions: { schema },
       memberships: {
         schema,
-        mode: "adopt",
         tables: { memberships: `${schema}.team_members` },
         columns: { memberships: { updatedAt: null, lastUsedAt: null } },
       },
@@ -67,7 +67,7 @@ describe.skipIf(!live)("organizations member guards", () => {
       `);
       await s.install(
         ["organizations"],
-        adopted(schema, { options: { assignmentGuard: "external" } }),
+        overTeam(schema, { options: { assignmentGuard: "external" } }),
       );
       const owner = await s.user("owner");
       const admin = await s.user("admin");
@@ -209,7 +209,7 @@ describe.skipIf(!live)("organizations member guards", () => {
           referencing old table as old_rows new table as new_rows
           for each statement execute function ${schema}.owner_count();
       `);
-      const layout = adopted(schema);
+      const layout = overTeam(schema);
       await s.install(["organizations"], {
         ...layout,
         modules: {
@@ -307,7 +307,7 @@ describe.skipIf(!live)("organizations member guards", () => {
     }
   });
 
-  it("records the deletion in an adopted audit log with its own categories", async () => {
+  it("records the deletion in the app's own audit log with its own categories", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -323,7 +323,6 @@ describe.skipIf(!live)("organizations member guards", () => {
         );`);
 
       const audit = (options: Record<string, unknown>) => ({
-        mode: "adopt" as const,
         tables: { log },
         columns: {
           log: {
@@ -348,7 +347,10 @@ describe.skipIf(!live)("organizations member guards", () => {
       const categories = async (
         modules: NonNullable<BlockSqlLayout["modules"]>,
       ) => {
-        await s.install(["organizations", "audit"], { modules });
+        await s.install(["organizations", "audit"], {
+          ownTables: { [log]: "app.sql" },
+          modules,
+        });
         const organization = await s.organization(owner);
         await s.as(owner);
         await s.value("better_supabase.delete_organization($1)", [
@@ -411,8 +413,9 @@ describe.skipIf(!live)("organizations member guards", () => {
             isPlatform: `${schema}.is_platform({permission})`,
           },
         },
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
-          ...adopted(schema).modules,
+          ...overTeam(schema).modules,
           permissions: {
             model: "provider",
             // Staff may assign every role but owner; members follow ownership.

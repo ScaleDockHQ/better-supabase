@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_54_push.sql
+-- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@1 managed
+-- @bsb-hash sha256:7eec64e89b9f7c7b11db80c00e84bd36f90cab2cdac60b3155c6c3341ee26e34
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -235,12 +236,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_54_push.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block-data push
+-- @bsb-hash sha256:ecfc643601573b09c38204845d671e7293bcc766df172746d5d46d6bae55e8ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

@@ -1,8 +1,9 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
+-- @bsb-hash sha256:ec4a98ace9c843299a6b22c887be0387a4b58a0dabf58b65cc42b030a825d512
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -600,9 +601,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
+-- @bsb-hash sha256:eca90ca783032ddd52748019cbe99ad19f1851c3a083f1ad16f09d788b76da8b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -613,8 +615,9 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
+-- @bsb-hash sha256:a34a26c35453a2cfe77d90bef2a948522df2c3b78d77137617fb6eceb2e8f091
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1233,9 +1236,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
+-- @bsb-hash sha256:eca90ca783032ddd52748019cbe99ad19f1851c3a083f1ad16f09d788b76da8b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1246,8 +1250,9 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
+-- @bsb-hash sha256:86926634821aa1c621c88246314453f78b05e0c61225c92f23fe5014aec176e7
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1847,9 +1852,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
+-- @bsb-hash sha256:eca90ca783032ddd52748019cbe99ad19f1851c3a083f1ad16f09d788b76da8b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1860,8 +1866,9 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
+-- @bsb-hash sha256:7a6f6763c0c89cb8ad9339a09e0c935b788374f03df983c1ee1cf6cb2ce563f1
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -2616,9 +2623,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
+-- @bsb-hash sha256:eca90ca783032ddd52748019cbe99ad19f1851c3a083f1ad16f09d788b76da8b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

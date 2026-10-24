@@ -16,7 +16,7 @@ Options
   --preset <name|code|url|file>             A named preset, a design code from /create, its URL or a downloaded design file; the design sets the preset and adds its app tables and extra columns
   --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
   --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
-  --adopt                                   Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for adopted blocks
+  --adopt                                   Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for blocks over your tables
   --allow-breaking                          Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements
   --dry-run                                 Print what would change, with a diff, and write nothing
   --check                                   Write nothing; exit 1 with a diff when a file would change
@@ -430,12 +430,13 @@ Docs: https://bettersupabase.com/docs/cli/config#print-the-resolved-config
 exports[`help > documents db 1`] = `
 "Usage: better-supabase db <command> [options]
 
-Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string
+Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Commands
-  query  Runs each file as one multi-statement script, in order, optionally in a single transaction
-  diff   Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
-  seed   Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
+  query     Runs each file as one multi-statement script, in order, optionally in a single transaction
+  diff      Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
+  seed      Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
+  backfill  Fills the null values of a column in batches, from the table a foreign key references or from a literal
 
 Global options
   --cwd <dir>            Project directory
@@ -450,6 +451,46 @@ Global options
   -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/db
+"
+`;
+
+exports[`help > documents db backfill 1`] = `
+"Usage: better-supabase db backfill [options] <column...>
+
+Fills the null values of a column in batches, from the table a foreign key references or from a literal
+
+Arguments
+  <column...>  The column to fill, as table.column or schema.table.column; \`via <column>\` after it names the foreign key --from follows
+
+Options
+  --from <table.column>  Copy the value from this column of the table the foreign key references (table.column or schema.table.column)
+  --via <column>         The foreign key column of the filled table that points at the --from table
+  --value <literal>      Set this SQL literal instead: a quoted string with an optional cast, a number, true or false
+  --batch-size <n>       Rows to update per statement (default 1000)
+  --dry-run              Count the rows it would fill, and change nothing
+  --db-url-stdin         Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>         Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Copies each invoice's organization from its project, where it is still null
+  $ better-supabase db backfill invoices.organization_id --from projects.organization_id via project_id
+  # Counts the rows it would set to EUR
+  $ better-supabase db backfill invoices.currency --value "'EUR'" --dry-run
+
+Side effects: Writes to the database.
+Docs: https://bettersupabase.com/docs/cli/db#backfill
 "
 `;
 
@@ -768,6 +809,7 @@ Options
   --as <uuid>             Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
   --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
   --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
+  --fix                   Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
 
 Global options
   --cwd <dir>            Project directory
@@ -787,7 +829,7 @@ Examples
   # Writes the findings for code scanning
   $ better-supabase doctor --format sarif --out doctor.sarif
 
-Side effects: Reads the database, calls the Supabase Management API with --project-ref, downloads from GitHub.
+Side effects: Reads the database, writes to the database with --fix, calls the Supabase Management API with --project-ref, downloads from GitHub.
 Docs: https://bettersupabase.com/docs/cli/doctor
 "
 `;
@@ -926,6 +968,7 @@ Arguments
 Options
   --dry-run  Print what would change, with a diff, and write nothing
   --check    Write nothing; exit 1 with a diff when a file would change
+  --force    Overwrite or remove block files that were edited by hand
 
 Global options
   --cwd <dir>            Project directory
@@ -1138,6 +1181,7 @@ Options
   --check            Write nothing; exit 1 when a block is behind its current version or a schema file is stale
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
+  --force            Overwrite or remove block files that were edited by hand
 
 Global options
   --cwd <dir>            Project directory
@@ -1183,7 +1227,7 @@ Generate
 
 Local stack
   dev  Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine
-  db   Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string
+  db   Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Inspect
   doctor  Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning

@@ -205,11 +205,11 @@ await client.link(
 kind and both ends, and call the `before_relation_link` and
 `after_relation_link` hooks.
 
-## Adopt mode
+## Over your own tables
 
-Adopt mode maps the `relations` table onto an existing one with the same
-columns. Tables that hold one kind each, such as a sub-issue table or a
-reporting-line table, are not adopt targets yet.
+Map `tables.relations` onto an existing table with the same columns, and the
+module runs over it. Tables that hold one kind each, such as a sub-issue
+table or a reporting-line table, can't stand in for `relations` yet.
 
 ## With ReUI
 

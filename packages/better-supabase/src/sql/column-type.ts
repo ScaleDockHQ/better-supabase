@@ -1,3 +1,4 @@
+import { sqlIdent } from "../core/template.ts";
 import { SCHEMA } from "./shared.ts";
 
 function columnTypeFunction(): string {
@@ -15,6 +16,15 @@ end;
 $$;
 revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
 grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;`;
+}
+
+/** `value` (text) cast to the type of `column` on the quoted `table`. */
+export function asColumnType(
+  table: string,
+  column: string,
+  value: string,
+): string {
+  return `better_supabase.as_column_type(${value}, (null::${table}).${sqlIdent(column)})`;
 }
 
 /**

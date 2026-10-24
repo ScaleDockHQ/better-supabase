@@ -4,6 +4,7 @@ import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { CONTRACTS } from "../../../src/sql/modules/contracts.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -39,16 +40,13 @@ describe("contracts module", () => {
   it("references the signature request only when signatures owns its table", () => {
     expect(sqlOf()).toMatch(/signature_request_id" uuid references/);
 
-    const adopted = sqlOf({
-      modules: {
-        signatures: {
-          mode: "adopt",
-          tables: { requests: "app.signing_requests" },
-        },
-      },
-    });
+    const modules = {
+      signatures: { tables: { requests: "app.signing_requests" } },
+    };
 
-    expect(adopted).not.toMatch(/signature_request_id" uuid references/);
+    const overApp = sqlOf({ modules, ownTables: ownTablesOf(modules) });
+
+    expect(overApp).not.toMatch(/signature_request_id" uuid references/);
   });
 
   it("checks counterparties against config.subjects and follows their merges", () => {

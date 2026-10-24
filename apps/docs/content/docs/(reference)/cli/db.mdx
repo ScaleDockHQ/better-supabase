@@ -166,3 +166,59 @@ create call has returned, so it can't change its result; a failed seed goes
 to `onError`, or to `console.error` by default.
 
 Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
+
+## backfill
+
+```bash
+pnpm better-supabase db backfill invoices.organization_id --from projects.organization_id via project_id
+pnpm better-supabase db backfill invoices.currency --value "'EUR'" --dry-run
+```
+
+`db backfill` fills the null values of a column that a migration added to a
+table that already holds rows, the middle step of expand and contract. With
+`--from`, it copies each value from the table a foreign key column points at:
+`via project_id` names the column of the target table, and the command finds
+the key it references (the foreign key, else the primary key of the source
+table). With `--value`, it writes one SQL literal, such as `'EUR'`, `0`,
+`true` or `'{}'::jsonb`, to every null row.
+
+It updates `--batch-size` rows per statement, each in its own transaction,
+and locks only those rows (`for update skip locked`), so the app keeps
+writing while it runs. It prints a line per batch. It only touches rows where
+the column is null, so a run that stops can start again, and a second run
+fills nothing. Rows whose source value is null, or that have no source row,
+stay null; the result counts them in `remaining`.
+
+| Flag                 | Effect                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                  |
+| `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`. |
+| `--value <literal>`  | Writes this SQL literal instead of `--from`.                                       |
+| `--batch-size <n>`   | Rows per statement (default 1000).                                                 |
+| `--dry-run`          | Counts the rows it would fill and writes nothing.                                  |
+| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).  |
+| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                  |
+
+A table name without a schema means `public`. The command connects like
+[`db query`](#query), and against a database that is not local, an agent
+needs the user's consent first. The JSON envelope returns `data.filled`,
+`data.batches` and `data.remaining`, or `data.pending` with `--dry-run`.
+
+Each update fires the table's triggers, so audit, version and event triggers
+record every backfilled row. When nothing is left null, add the not-null check
+as `not valid` in a migration, then run
+[`doctor --fix`](/docs/cli/doctor#bs236), which validates it. Then
+`set not null` needs no scan:
+
+```sql
+alter table invoices
+  add constraint invoices_currency_not_null check (currency is not null) not valid;
+```
+
+A `tables.<name>` entry that enriches a table you already have adds that check
+to the scope column itself, so the order there is the other way round: new
+rows must name an owner at once, and `db backfill` fills the existing rows
+that [doctor reports as BS238](/docs/cli/doctor#bs238). See
+[Your own schemas](/docs/blocks/own-schemas#fill-the-owner-with-db-backfill).
+
+Side effects: Writes to the database.

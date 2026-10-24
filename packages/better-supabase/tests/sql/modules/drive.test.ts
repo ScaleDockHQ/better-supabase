@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+
 import { adoptedTables } from "../../../src/sql/adopted-columns.ts";
 import { modulePath } from "../../../src/sql/paths.ts";
 import {
@@ -8,6 +10,7 @@ import {
   resolveBlocks,
 } from "../../../src/sql/registry.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -21,37 +24,44 @@ const sqlOf = (
     .map((file) => file.contents)
     .join("\n");
 
+const overApp = (
+  modules: AnyBlocksConfig,
+  blocks?: readonly string[],
+): Layout => ({ modules, ownTables: ownTablesOf(modules, blocks) });
+
 const withOptions = (options: Record<string, unknown>): Layout => ({
   modules: { drive: { options } },
 });
 
-const ADOPTED: Layout = {
-  modules: {
-    drive: {
-      mode: "adopt",
-      tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
-      columns: {
-        nodes: {
-          tenant: "organization_id",
-          attachment: null,
-          path: null,
-          rank: null,
-          deletedAt: null,
-        },
-        grants: {
-          tenant: "organization_id",
-          node: "file_node_id",
-          principalType: null,
-          principalId: null,
-          user: "user_id",
-          team: "team_id",
-          expiresAt: null,
-          createdBy: null,
-        },
+const APP_MODULES = {
+  drive: {
+    tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
+    columns: {
+      nodes: {
+        tenant: "organization_id",
+        attachment: null,
+        path: null,
+        rank: null,
+        deletedAt: null,
       },
-      options: { roles: ["viewer", "commenter", "editor"] },
+      grants: {
+        tenant: "organization_id",
+        node: "file_node_id",
+        principalType: null,
+        principalId: null,
+        user: "user_id",
+        team: "team_id",
+        expiresAt: null,
+        createdBy: null,
+      },
     },
+    options: { roles: ["viewer", "commenter", "editor"] },
   },
+};
+
+const APP_DRIVE: Layout = {
+  modules: APP_MODULES,
+  ownTables: ownTablesOf(APP_MODULES),
 };
 
 describe("drive module", () => {
@@ -127,35 +137,36 @@ describe("drive module", () => {
     expect(full).toContain("trash_restore_batch");
   });
 
-  it("adopts a node table without files and untyped user and team grants", () => {
-    const names = resolveBlocks(["drive"], ADOPTED).map(
+  it("runs over the app's node table without files and untyped user and team grants", () => {
+    const names = resolveBlocks(["drive"], APP_DRIVE).map(
       (module) => module.name,
     );
 
     expect(names).not.toContain("attachments");
-    const core = sqlOf(["drive"], "drive", ADOPTED);
+    const core = sqlOf(["drive"], "drive", APP_DRIVE);
     expect(core).not.toContain(`create table if not exists "public"`);
     expect(core).toContain(`"public"."file_node"`);
     expect(core).toContain(`"user_id"`);
     expect(core).toContain(`"team_id"`);
     expect(core).toContain("array['viewer', 'commenter', 'editor']::text[]");
-    const files = sqlOf(["drive"], "drive-files", ADOPTED);
+    const files = sqlOf(["drive"], "drive-files", APP_DRIVE);
     expect(files).not.toContain("drive_create_file");
     expect(files).not.toContain("storage.objects");
   });
 
   it("needs a principal or a user column on grants", () => {
     expect(() =>
-      sqlOf(["drive"], "drive", {
-        modules: {
+      sqlOf(
+        ["drive"],
+        "drive",
+        overApp({
           drive: {
-            mode: "adopt",
             columns: {
               grants: { principalType: null, principalId: null, user: null },
             },
           },
-        },
-      }),
+        }),
+      ),
     ).toThrow(/columns\.grants/);
   });
 
@@ -213,26 +224,34 @@ describe("drive module", () => {
         ?.functions.map((fn) => fn.name),
     ).toEqual(["drive_create_file", "drive_commit"]);
 
-    const noAttachment = customContracts(["drive"], {
-      modules: {
-        drive: { mode: "adopt", columns: { nodes: { attachment: null } } },
-        "drive-files": { mode: "custom" },
-      },
-    });
+    const noAttachment = customContracts(
+      ["drive"],
+      overApp(
+        {
+          drive: { columns: { nodes: { attachment: null } } },
+          "drive-files": { mode: "custom" },
+        },
+        ["drive"],
+      ),
+    );
 
     expect(noAttachment.map((entry) => entry.functions)).toEqual([[]]);
   });
 
-  it("checks only the grant columns an adopted table uses", () => {
-    const user = adoptedTables(ADOPTED.modules ?? {}).find(
+  it("checks only the grant columns the app's table uses", () => {
+    const user = adoptedTables(APP_MODULES, APP_DRIVE.ownTables).find(
       (table) => table.logical === "grants",
     );
 
     expect(user?.columns).toMatchObject({ user: "user_id", team: "team_id" });
 
-    const typed = adoptedTables({
-      drive: { mode: "adopt", columns: { grants: { user: null, team: null } } },
-    }).find((table) => table.logical === "grants");
+    const typedModules = {
+      drive: { columns: { grants: { user: null, team: null } } },
+    };
+
+    const typed = adoptedTables(typedModules, ownTablesOf(typedModules)).find(
+      (table) => table.logical === "grants",
+    );
 
     expect(typed?.columns).toHaveProperty("principalType");
     expect(typed?.columns).not.toHaveProperty("user");

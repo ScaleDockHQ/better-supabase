@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_22_profiles.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:98e091680094e1590a2f9b1eff9c40eeeda4a8a5f3ecc7bc00c5069925d9ed9e
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -365,12 +366,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_22_profiles.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Warns about another trigger that also creates profiles (handle_new_user).
@@ -381,11 +383,12 @@ values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_22_profiles.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:98e091680094e1590a2f9b1eff9c40eeeda4a8a5f3ecc7bc00c5069925d9ed9e
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -748,12 +751,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_22_profiles.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Warns about another trigger that also creates profiles (handle_new_user).
@@ -764,11 +768,12 @@ values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_22_profiles.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:0c10dae3a777c0d9d174eb05682cd8f5401713418a6c146df74ddf1b06d58087
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1133,12 +1138,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_22_profiles.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Warns about another trigger that also creates profiles (handle_new_user).
@@ -1149,11 +1155,12 @@ values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_22_profiles.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:0e9e6bc99e2b8a5c74d0a3794179fa62968334aa34c1cffa6b14e9571d333726
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1585,12 +1592,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_22_profiles.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Warns about another trigger that also creates profiles (handle_new_user).
@@ -1601,15 +1609,83 @@ values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_22_profiles.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 adopt
+-- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:1e31aef682c58bca4e2480a36b341f0e65e539a4c52401b65138f3cbeb23eb46
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.profiles is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."profiles" add column if not exists "id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."profiles" add column if not exists "email" text;
+alter table "better_supabase"."profiles" add column if not exists "username" text;
+alter table "better_supabase"."profiles" add column if not exists "full_name" text;
+alter table "better_supabase"."profiles" add column if not exists "first_name" text;
+alter table "better_supabase"."profiles" add column if not exists "last_name" text;
+alter table "better_supabase"."profiles" add column if not exists "avatar_url" text;
+alter table "better_supabase"."profiles" add column if not exists "active_organization_id" uuid;
+alter table "better_supabase"."profiles" add column if not exists "active_team_id" uuid;
+alter table "better_supabase"."profiles" add column if not exists "onboarding" jsonb not null default '{}';
+alter table "better_supabase"."profiles" add column if not exists "disabled_at" timestamptz;
+alter table "better_supabase"."profiles" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."profiles" add column if not exists "updated_at" timestamptz not null default now();
+
+create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+do $$
+begin
+exception when check_violation then
+  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
+end;
+$$;
+alter table "better_supabase"."profiles" enable row level security;
+drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
+create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+  using ("id" = (select auth.uid()));
+drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
+create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+  using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+grant select on "better_supabase"."profiles" to authenticated;
+grant all on "better_supabase"."profiles" to service_role;
+
 
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
@@ -1883,18 +1959,19 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_22_profiles.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Warns about another trigger that also creates profiles (handle_new_user).
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'adopt')
+values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

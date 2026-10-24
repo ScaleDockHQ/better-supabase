@@ -8,13 +8,19 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
+const overApp = (modules: AnyBlocksConfig) =>
+  renderBlocks(["notifications"], { modules, ownTables: ownTablesOf(modules) })
+    .filter((file) => file.module === "notifications")
+    .map((file) => file.contents)
+    .join("\n");
+
 const CENTRAKIT: AnyBlocksConfig = {
   notifications: {
-    mode: "adopt",
     schema: "public",
     idType: "uuid",
     columns: {
@@ -60,9 +66,18 @@ describe("notifications module", () => {
     expect(sql).toContain("'notifications:' || new.\"user_id\"::text");
   });
 
-  it("adopts CentraKit's tables and its tenant topic", () => {
-    const sql = body(CENTRAKIT);
-    expect(sql).not.toContain("create table if not exists");
+  it("runs over CentraKit's tables with its tenant topic", () => {
+    const sql = overApp(CENTRAKIT);
+
+    for (const table of ["notification_events", "notification_recipients"]) {
+      expect(sql).not.toContain(
+        `create table if not exists "public"."${table}"`,
+      );
+    }
+
+    expect(sql).toContain(
+      'alter table "public"."notification_events" add column if not exists',
+    );
     expect(sql).toContain('"public"."notification_events"');
     expect(sql).toContain(
       `'organization:' || new."organization_id"::text || ':notifications:' || new."recipient_user_id"::text`,
@@ -443,11 +458,15 @@ describe("notification actors", () => {
     );
     expect(sql).toContain("'username', pr.\"username\"");
     expect(sql).toContain("'avatarPath', pr.\"avatar_path\"");
+
+    const appProfiles: AnyBlocksConfig = {
+      profiles: { tables: { profiles: "public.profiles" } },
+    };
+
     expect(
       renderBlocks(["notifications", "profiles"], {
-        modules: {
-          profiles: { mode: "adopt", tables: { profiles: "public.profiles" } },
-        },
+        modules: appProfiles,
+        ownTables: ownTablesOf(appProfiles),
       }).find(
         (entry) => entry.module === "notifications" && entry.kind === "schema",
       )!.contents,

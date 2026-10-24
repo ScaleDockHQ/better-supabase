@@ -72,6 +72,14 @@ export function shippingRateFunctions(
   const units = ctx.of("catalog").fn("currency_minor_units");
   const amount = (key: string): string => amountOf(`(data ->> '${key}')`);
 
+  const kind = ctx.cast(
+    "shippingRates",
+    "kind",
+    "coalesce(data ->> 'kind', 'flat')",
+  );
+
+  const freeOver = ctx.has("shippingRates", "freeOver");
+
   return `
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -94,7 +102,14 @@ begin
   if ${units}(data ->> 'currency') is null then
     ${fail("ORDERS_CURRENCY_INVALID", "the currency is not an ISO 4217 code", "22023")}
   end if;
-  if ${amount("amount")} is null
+  ${
+    freeOver
+      ? ""
+      : `if data ->> 'freeOver' is not null then
+    ${fail("ORDERS_FREE_OVER_UNSUPPORTED", "this shipping rate table has no free-over column", "22023")}
+  end if;
+  `
+  }if ${amount("amount")} is null
     or (data ? 'amountPerKg' and ${amount("amountPerKg")} is null)
     or (data ->> 'freeOver' is not null and ${amount("freeOver")} is null) then
     ${fail("ORDERS_AMOUNT_INVALID", "amounts are whole minor units of zero or more, as text", "22023")}
@@ -105,14 +120,14 @@ begin
     ${fail("ORDERS_ADDRESS_INVALID", "countries are ISO 3166-1 alpha-2 codes", "22023")}
   end if;
   if save_shipping_rate.rate is null then
-    insert into ${rates} (${s("tenant")}, ${s("name")}, ${s("countries")}, ${s("currency")}, ${s("kind")}, ${s("amount")}, ${s("perKg")}, ${s("freeOver")}, ${s("active")})
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
-      ${amount("amount")}, coalesce(${amount("amountPerKg")}, 0), ${amount("freeOver")}, coalesce((data ->> 'active')::boolean, true))
+    insert into ${rates} (${s("tenant")}, ${s("name")}, ${s("countries")}, ${s("currency")}, ${s("kind")}, ${s("amount")}, ${s("perKg")}, ${freeOver ? `${s("freeOver")}, ` : ""}${s("active")})
+    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', ${kind},
+      ${amount("amount")}, coalesce(${amount("amountPerKg")}, 0), ${freeOver ? `${amount("freeOver")}, ` : ""}coalesce((data ->> 'active')::boolean, true))
     returning ${s("id")} into v_id;
   else
     update ${rates} x set ${s("name")} = data ->> 'name', ${s("countries")} = v_countries, ${s("currency")} = data ->> 'currency',
-      ${s("kind")} = coalesce(data ->> 'kind', 'flat'), ${s("amount")} = ${amount("amount")}, ${s("perKg")} = coalesce(${amount("amountPerKg")}, 0),
-      ${s("freeOver")} = ${amount("freeOver")}, ${s("active")} = coalesce((data ->> 'active')::boolean, true), ${s("updatedAt")} = now()
+      ${s("kind")} = ${kind}, ${s("amount")} = ${amount("amount")}, ${s("perKg")} = coalesce(${amount("amountPerKg")}, 0),
+      ${freeOver ? `${s("freeOver")} = ${amount("freeOver")}, ` : ""}${s("active")} = coalesce((data ->> 'active')::boolean, true), ${s("updatedAt")} = now()
     where x.${s("id")} = save_shipping_rate.rate and x.${s("tenant")} = save_shipping_rate.tenant
     returning x.${s("id")} into v_id;
     if v_id is null then
@@ -155,6 +170,16 @@ function totalsFunction(ctx: BlockSqlContext, names: OrdersNames): string {
   const c = columns(ctx, "carts");
   const cl = columns(ctx, "cartLines");
   const s = columns(ctx, "shippingRates");
+
+  const or = (
+    table: string,
+    row: string,
+    logical: string,
+    type: string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `${row}.${ctx.col(table, logical)}`
+      : `null::${type}`;
 
   const kind = catalog.has("products", "kind")
     ? `cp.${p("kind")}`
@@ -216,7 +241,7 @@ declare
 begin
   select x.${c("tenant")} as tenant, x.${c("currency")} as currency, x.${c("priceList")} as price_list,
     x.${c("shippingAddress")} as shipping_address, x.${c("shippingRate")} as shipping_rate,
-    x.${c("user")} as owner, x.${c("status")} as status, x.${c("email")} as email, x.${c("billingAddress")} as billing_address
+    x.${c("user")} as owner, x.${c("status")} as status, ${or("carts", "x", "email", "text")} as email, ${or("carts", "x", "billingAddress", "jsonb")} as billing_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = p_cart;
   for v_line in
     select l.${cl("id")} as id, l.${cl("variant")} as variant, l.${cl("quantity")} as quantity, l.${cl("unitAmount")} as unit_amount,
@@ -256,7 +281,7 @@ begin
   v_country := v_cart.shipping_address ->> 'country';
   if v_ships and v_cart.shipping_rate is not null then
     select x.${s("id")} as id, x.${s("name")} as name, x.${s("countries")} as countries, x.${s("kind")} as kind,
-      x.${s("amount")} as amount, x.${s("perKg")} as per_kg, x.${s("freeOver")} as free_over
+      x.${s("amount")} as amount, x.${s("perKg")} as per_kg, ${or("shippingRates", "x", "freeOver", "bigint")} as free_over
     into v_rate from ${ctx.table("shippingRates")} x
     where x.${s("id")} = v_cart.shipping_rate and x.${s("active")} and x.${s("currency")} = v_cart.currency;
     if not found or (cardinality(v_rate.countries) > 0 and (v_country is null or not v_country = any (v_rate.countries))) then
@@ -298,6 +323,8 @@ export function cartFunctions(
   const cl = columns(ctx, "cartLines");
   const s = columns(ctx, "shippingRates");
   const catalog = ctx.of("catalog");
+  const email = ctx.has("carts", "email");
+  const billing = ctx.has("carts", "billingAddress");
 
   const moveCodes = ctx.installed("promotions")
     ? `
@@ -340,12 +367,23 @@ begin
   if ${catalog.fn("currency_minor_units")}(create_cart.currency) is null then
     ${fail("ORDERS_CURRENCY_INVALID", "the currency is not an ISO 4217 code", "22023")}
   end if;
-  ${priceListCheck}
-  insert into ${carts} as x (${c("tenant")}, ${c("user")}, ${c("currency")}, ${c("priceList")}, ${c("email")})
-  values (create_cart.tenant, auth.uid(), create_cart.currency, create_cart.price_list, create_cart.email)
+  ${priceListCheck}${
+    email
+      ? ""
+      : `
+  if create_cart.email is not null then
+    ${fail("ORDERS_EMAIL_UNSUPPORTED", "this cart table has no email column", "22023")}
+  end if;`
+  }
+  insert into ${carts} as x (${c("tenant")}, ${c("user")}, ${c("currency")}, ${c("priceList")}${email ? `, ${c("email")}` : ""})
+  values (create_cart.tenant, auth.uid(), create_cart.currency, create_cart.price_list${email ? ", create_cart.email" : ""})
   on conflict (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open' do update
-    set ${c("priceList")} = coalesce(excluded.${c("priceList")}, x.${c("priceList")}),
-      ${c("email")} = coalesce(excluded.${c("email")}, x.${c("email")}), ${c("updatedAt")} = now()
+    set ${c("priceList")} = coalesce(excluded.${c("priceList")}, x.${c("priceList")}),${
+      email
+        ? `
+      ${c("email")} = coalesce(excluded.${c("email")}, x.${c("email")}),`
+        : ""
+    } ${c("updatedAt")} = now()
   returning x.${c("id")} into v_id;
   return jsonb_build_object('id', v_id, 'currency', create_cart.currency, 'status', 'open');
 end;
@@ -432,11 +470,33 @@ begin
   ${ownCart(ctx, "set_cart_details.cart", { lock: true })}
   ${openCart()}
   ${addressCheck("set_cart_details.shipping_address")}
-  ${addressCheck("set_cart_details.billing_address")}
-  update ${carts} x set
-    ${c("email")} = coalesce(set_cart_details.email, x.${c("email")}),
-    ${c("shippingAddress")} = coalesce(set_cart_details.shipping_address, x.${c("shippingAddress")}),
-    ${c("billingAddress")} = coalesce(set_cart_details.billing_address, x.${c("billingAddress")}),
+  ${addressCheck("set_cart_details.billing_address")}${
+    email
+      ? ""
+      : `
+  if set_cart_details.email is not null then
+    ${fail("ORDERS_EMAIL_UNSUPPORTED", "this cart table has no email column", "22023")}
+  end if;`
+  }${
+    billing
+      ? ""
+      : `
+  if set_cart_details.billing_address is not null then
+    ${fail("ORDERS_BILLING_ADDRESS_UNSUPPORTED", "this cart table has no billing address column", "22023")}
+  end if;`
+  }
+  update ${carts} x set${
+    email
+      ? `
+    ${c("email")} = coalesce(set_cart_details.email, x.${c("email")}),`
+      : ""
+  }
+    ${c("shippingAddress")} = coalesce(set_cart_details.shipping_address, x.${c("shippingAddress")}),${
+      billing
+        ? `
+    ${c("billingAddress")} = coalesce(set_cart_details.billing_address, x.${c("billingAddress")}),`
+        : ""
+    }
     ${c("updatedAt")} = now()
   where x.${c("id")} = set_cart_details.cart;
   return true;
@@ -493,8 +553,12 @@ begin
     select jsonb_agg(jsonb_build_object(
       'id', x.${s("id")}, 'name', x.${s("name")}, 'kind', x.${s("kind")}, 'currency', x.${s("currency")},
       'amount', (case
-        when x.${s("freeOver")} is not null and v_after_discount >= x.${s("freeOver")} then 0
-        else x.${s("amount")} + case when x.${s("kind")} = 'weight' then (x.${s("perKg")} * v_weight + 999) / 1000 else 0 end
+${
+  ctx.has("shippingRates", "freeOver")
+    ? `        when x.${s("freeOver")} is not null and v_after_discount >= x.${s("freeOver")} then 0
+`
+    : ""
+}        else x.${s("amount")} + case when x.${s("kind")} = 'weight' then (x.${s("perKg")} * v_weight + 999) / 1000 else 0 end
       end)::text) order by x.${s("amount")}, x.${s("name")})
     from ${ctx.table("shippingRates")} x
     where x.${s("tenant")} = v_cart.tenant and x.${s("active")} and x.${s("currency")} = v_cart.currency

@@ -186,9 +186,9 @@ removes both.
 
 Turn on `recurring` to book a series: a weekly class, a standing appointment.
 The option is off by default; it adds a `booking_series` table, a `series_id`
-column on `bookings` and the series functions, and needs the module's own
-tables (an adopted `bookings` table gets no series unless you map
-`tables.series`).
+column on `bookings` and the series functions. Over a `bookings` table of
+your own, the block adds `series_id` when the table lacks it, or uses the
+column `columns.bookings.series` maps.
 
 ```ts title="better-supabase.config.ts"
 blocks: {

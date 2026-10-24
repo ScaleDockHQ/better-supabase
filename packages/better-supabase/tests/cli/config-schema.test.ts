@@ -196,10 +196,7 @@ describe("configIssues", () => {
       configIssues({
         blocks: {
           permissions: { model: "catalog", activeTenant: "claim" },
-          organizations: {
-            ownership: "adopt",
-            options: { ownerRole: "owner" },
-          },
+          organizations: { options: { ownerRole: "owner" } },
         },
       }),
     ).toEqual([]);
@@ -208,6 +205,17 @@ describe("configIssues", () => {
     ).toEqual([
       expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
     ]);
+  });
+
+  it("refuses the removed ownership adopt", () => {
+    expect(
+      configIssues({ blocks: { organizations: { ownership: "adopt" } } }),
+    ).toEqual([
+      'blocks.organizations.ownership: ownership "adopt" was removed: a block now leaves alone every table your schema already has. Delete the key, or run `better-supabase codemod`.',
+    ]);
+    expect(
+      configIssues({ blocks: { organizations: { ownership: "custom" } } }),
+    ).toEqual([]);
   });
 });
 

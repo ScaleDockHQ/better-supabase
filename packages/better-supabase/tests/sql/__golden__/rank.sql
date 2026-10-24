@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_66_rank.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
+-- @bsb-hash sha256:b9a8f6a30223704dbe54d7ec4223d01fcf6ef76a12c769c2b9bfcd8b92e81d0f
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -151,12 +152,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_66_rank.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block-data rank
+-- @bsb-hash sha256:f798697a0fce2c8a2157fde8c520ec5a38596bbc3870a3e082a069358fbb3c7a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -164,11 +166,12 @@ values ('rank', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_66_rank.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
+-- @bsb-hash sha256:1f7748cbc142e1f93c9bd7e9fcf50d45efeb68a2da253200d1f7daeae614fa9a
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -317,12 +320,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_66_rank.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block-data rank
+-- @bsb-hash sha256:f798697a0fce2c8a2157fde8c520ec5a38596bbc3870a3e082a069358fbb3c7a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -330,11 +334,12 @@ values ('rank', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_66_rank.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
+-- @bsb-hash sha256:90b0cf1f4080728740074de3297fc4743021d6876562db9ae4549b8a9d289c0a
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -485,12 +490,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_66_rank.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block-data rank
+-- @bsb-hash sha256:f798697a0fce2c8a2157fde8c520ec5a38596bbc3870a3e082a069358fbb3c7a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -498,11 +504,12 @@ values ('rank', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_66_rank.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
+-- @bsb-hash sha256:582de2240aa54e13041f8eb07f62fdd6d075b62926b071412c1b7b203a486b7d
 -- Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -691,12 +698,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_66_rank.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block-data rank
+-- @bsb-hash sha256:f798697a0fce2c8a2157fde8c520ec5a38596bbc3870a3e082a069358fbb3c7a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

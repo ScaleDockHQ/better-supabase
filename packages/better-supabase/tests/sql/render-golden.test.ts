@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { blockFileState } from "../../src/sql/markers.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
+import { ownTablesOf } from "../fixtures/own-tables.ts";
 
 // Refactors of the module builders keep every file here byte-identical; an
 // intended change to the SQL goes in its own commit with the golden diff.
@@ -43,26 +45,62 @@ const VARIANTS: readonly Variant[] = [
     layout: (module) => ({ modules: { [module]: { api: "api" } } }),
   },
   {
-    name: "adopt",
-    applies: (module) => SQL_MODULES[module]?.modes?.includes("adopt") ?? false,
+    name: "over the app's tables",
+    applies: (module) =>
+      Object.values(SQL_MODULES[module]?.names?.tables ?? {}).some(
+        (table) => table.app !== undefined,
+      ),
     modules: (module) => [module],
-    layout: (module) => ({
-      modules: { [module]: { mode: "adopt", ...ADOPT_OPTIONS[module] } },
-    }),
+    layout: (module) => {
+      const modules = { [module]: { ...OVER_APP_OPTIONS[module] } };
+
+      return { modules, ownTables: ownTablesOf(modules, [module]) };
+    },
   },
 ];
 
-/** Options an adopted module refuses to render without. */
-const ADOPT_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
+/** Options a module refuses to render over the app's tables without. */
+const OVER_APP_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
   "webhooks-out": { options: { defaultFormat: "standard" } },
 };
 
-function render(variant: Variant, module: string): string {
-  let files;
+type Rendered = ReturnType<typeof renderBlocks> | { readonly error: unknown };
 
-  try {
-    files = renderBlocks(variant.modules(module), variant.layout(module));
-  } catch (cause) {
+const RENDERS = new Map<string, Rendered>();
+
+function filesOf(variant: Variant, module: string): Rendered {
+  const key = `${variant.name}\u0000${module}`;
+  let rendered = RENDERS.get(key);
+
+  if (rendered === undefined) {
+    try {
+      rendered = renderBlocks(variant.modules(module), variant.layout(module));
+    } catch (error) {
+      rendered = { error };
+    }
+
+    RENDERS.set(key, rendered);
+  }
+
+  return rendered;
+}
+
+const EVERY_MODULE = NAMES.filter((name) => name !== "pgtap");
+
+let everyModule: ReturnType<typeof renderBlocks> | undefined;
+
+function renderEveryModule(): ReturnType<typeof renderBlocks> {
+  everyModule ??= renderBlocks(EVERY_MODULE, {});
+
+  return everyModule;
+}
+
+function render(variant: Variant, module: string): string {
+  const files = filesOf(variant, module);
+
+  if ("error" in files) {
+    const cause = files.error;
+
     return `-- ==== ${variant.name}: throws\n-- ${String(cause instanceof Error ? cause.message : cause)}\n`;
   }
 
@@ -82,6 +120,43 @@ describe("SQL module output", () => {
       .join("\n");
 
     await expect(out).toMatchFileSnapshot(`__golden__/${module}.sql`);
+  });
+
+  it("renders the same files whatever order the modules come in", () => {
+    const forward = renderEveryModule();
+
+    const reversed = new Map(
+      renderBlocks(EVERY_MODULE.toReversed(), {}).map((file) => [
+        file.path,
+        file.contents,
+      ]),
+    );
+
+    expect(
+      forward
+        .filter((file) => reversed.get(file.path) !== file.contents)
+        .map((file) => file.path),
+    ).toEqual([]);
+  });
+
+  it("stamps every file with the hash of its own body", () => {
+    const each = VARIANTS.filter(
+      (variant) => variant.name !== "with every module",
+    ).flatMap((variant) =>
+      NAMES.filter((module) => variant.applies(module)).flatMap((module) => {
+        const files = filesOf(variant, module);
+
+        return "error" in files ? [] : files;
+      }),
+    );
+
+    const files = [...each, ...renderEveryModule()];
+
+    expect(
+      files
+        .filter((file) => blockFileState(file.contents) !== "clean")
+        .map((file) => file.path),
+    ).toEqual([]);
   });
 
   it("gives every table one owning module", () => {

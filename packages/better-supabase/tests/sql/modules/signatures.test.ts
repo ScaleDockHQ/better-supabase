@@ -57,11 +57,10 @@ describe("signatures module", () => {
     ).toThrow(/versions can't be in custom mode/);
   });
 
-  it("references adopted versions without a foreign key", () => {
+  it("references the app's versions table without a foreign key", () => {
     const sql = sqlOf(BASE, {
-      modules: {
-        versions: { mode: "adopt", tables: { versions: "app.revisions" } },
-      },
+      modules: { versions: { tables: { versions: "app.revisions" } } },
+      ownTables: { "app.revisions": "app.sql" },
     });
 
     expect(sql).toContain(`from "app"."revisions" x`);
@@ -79,16 +78,19 @@ describe("signatures module", () => {
     ]);
   });
 
-  it("works on adopted tables without creating them", () => {
+  it("works on the app's tables without creating them", () => {
     const sql = sqlOf(BASE, {
       modules: {
         signatures: {
-          mode: "adopt",
           tables: {
             requests: "app.sign_requests",
             signatures: "app.sign_marks",
           },
         },
+      },
+      ownTables: {
+        "app.sign_requests": "app.sql",
+        "app.sign_marks": "app.sql",
       },
     });
 

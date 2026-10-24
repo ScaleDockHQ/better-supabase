@@ -803,9 +803,9 @@ await inbox.process(async (message) => {
 `createInbox` from `better-supabase/blocks/inbox` is the conversation inbox
 block.
 
-To keep messages in a table your app already has, adopt it with
-`blocks.webhook-inbox.ownership: "adopt"`; see
-[Adopting your own tables](/docs/blocks/webhooks-in#adopting-your-own-tables).
+To keep messages in a table your app already has, map it in
+`blocks.webhook-inbox.tables`; see
+[Over your own tables](/docs/blocks/webhooks-in#over-your-own-tables).
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for

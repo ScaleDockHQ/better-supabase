@@ -4,10 +4,10 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   profiles: {
-    mode: "adopt",
     tables: { profiles: "public.profiles" },
     columns: {
       profiles: {
@@ -32,6 +32,9 @@ const CENTRAKIT: AnyBlocksConfig = {
 
 const body = (modules: AnyBlocksConfig) => moduleBody("profiles", { modules })!;
 
+const overApp = (modules: AnyBlocksConfig) =>
+  moduleBody("profiles", { modules, ownTables: ownTablesOf(modules) })!;
+
 describe("profiles module", () => {
   it("keeps an avatar_path column that auth metadata never writes", () => {
     const sql = body({});
@@ -50,19 +53,18 @@ describe("profiles module", () => {
       body({ profiles: { options: { metadata: { picture: "avatar_url" } } } }),
     ).toContain("meta ->> 'picture'");
 
-    const adopted = body({
+    const appTable = overApp({
       profiles: {
-        mode: "adopt",
         tables: { profiles: "public.profiles" },
         options: { columnGrants: true },
       },
     });
 
-    expect(adopted).not.toContain("avatar_path");
+    expect(appTable).not.toContain("attrs ? 'avatar_path'");
+    expect(appTable).not.toMatch(/grant update \([^)]*"avatar_path"/);
     expect(
-      body({
+      overApp({
         profiles: {
-          mode: "adopt",
           tables: { profiles: "public.profiles" },
           columns: { profiles: { avatarPath: "avatar_object" } },
           options: { columnGrants: true },
@@ -70,9 +72,8 @@ describe("profiles module", () => {
       }),
     ).toMatch(/grant update \([^)]*"avatar_object"/);
     expect(
-      body({
+      overApp({
         profiles: {
-          mode: "adopt",
           tables: { profiles: "public.profiles" },
           columns: { profiles: { avatarPath: "avatar_object" } },
         },
@@ -126,9 +127,13 @@ describe("profiles module", () => {
     expect(sql).not.toContain("attrs ->> 'onboarding'");
   });
 
-  it("adopts CentraKit's profiles without touching its table or grants", () => {
-    const sql = body(CENTRAKIT);
-    expect(sql).not.toContain("create table");
+  it("runs over CentraKit's profiles without touching its table or grants", () => {
+    const sql = renderBlocks(["profiles"], {
+      modules: CENTRAKIT,
+      ownTables: ownTablesOf(CENTRAKIT),
+    }).find((file) => file.module === "profiles")!.contents;
+
+    expect(sql).not.toContain('create table if not exists "public"."profiles"');
     expect(sql).not.toContain("revoke update");
     expect(sql).toContain(
       'insert into "public"."profiles" ("user_id", "first_name", "last_name", "email", "username")',
@@ -362,8 +367,8 @@ describe("profiles module", () => {
     ).toThrow(/is not a profile column sync_profile fills/);
   });
 
-  it("leaves updated_at to an adopted table's own trigger", () => {
-    const adopted = body({
+  it("leaves updated_at to the app's table's own trigger", () => {
+    const appTable = overApp({
       profiles: {
         ...CENTRAKIT["profiles"],
         options: {
@@ -373,7 +378,7 @@ describe("profiles module", () => {
       },
     });
 
-    const guard = adopted.slice(adopted.indexOf("guard_profile"));
+    const guard = appTable.slice(appTable.indexOf("guard_profile"));
     expect(guard).toContain('new."email" is distinct from old."email"');
     expect(guard).not.toContain('new."updated_at" is distinct from');
     expect(guard).not.toContain(":= now()");

@@ -590,11 +590,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
       `);
 
       const layout: BlockSqlLayout = {
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
           permissions: { schema },
           memberships: {
             schema,
-            mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
             columns: {
               memberships: {
@@ -704,11 +704,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
       `);
 
       const layout: BlockSqlLayout = {
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
           permissions: { schema },
           memberships: {
             schema,
-            mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
             columns: { memberships: { updatedAt: null, lastUsedAt: null } },
           },
@@ -793,11 +793,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema),
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
           permissions: { model: "provider" },
           memberships: {
             schema,
-            mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
             columns: { memberships: { updatedAt: null, lastUsedAt: null } },
           },
@@ -922,11 +922,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
           permissions: { model: "provider" },
           memberships: {
             schema,
-            mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
             columns: { memberships: { updatedAt: null, lastUsedAt: null } },
           },
@@ -1111,11 +1111,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
+        ownTables: { [`${schema}.team_members`]: "app.sql" },
         modules: {
           permissions: { model: "provider" },
           memberships: {
             schema,
-            mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
             columns: { memberships: { updatedAt: null, lastUsedAt: null } },
           },

@@ -60,6 +60,7 @@ export function moduleContext(
       ...(layout.claims ? { claims: layout.claims } : {}),
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
+      ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),
@@ -98,9 +99,9 @@ export function moduleContext(
  */
 
 /**
- * `blocks` with what the authorization provider already says: an adopted
- * `tenant` module on a membership table whose role the provider reads through a
- * roles table gets the same `roleThrough`, unless the config sets one.
+ * `blocks` with what the authorization provider already says: a `memberships`
+ * block over the app's membership table, whose role the provider reads through
+ * a roles table, gets the same `roleThrough`, unless the config sets one.
  */
 export function withProviderDefaults(
   layout: BlockSqlLayout,
@@ -152,11 +153,13 @@ function withProviderRoles(
   const sources = layout.accessProvider?.roleSources;
   const tenant = modules?.["memberships"];
 
-  if (!modules || !sources || tenant?.mode !== "adopt") {
-    return modules;
-  }
-
-  if (tenant.options?.["roleThrough"] !== undefined) {
+  if (
+    !modules ||
+    !sources ||
+    tenant === undefined ||
+    tenant.mode === "custom" ||
+    tenant.options?.["roleThrough"] !== undefined
+  ) {
     return modules;
   }
 
@@ -169,6 +172,10 @@ function withProviderRoles(
   const table = mapped.includes(".")
     ? mapped
     : `${tenant.schema ?? "better_supabase"}.${mapped}`;
+
+  if (layout.ownTables?.[table] === undefined) {
+    return modules;
+  }
 
   const role = tenant.columns?.["memberships"]?.["role"] ?? "role";
 

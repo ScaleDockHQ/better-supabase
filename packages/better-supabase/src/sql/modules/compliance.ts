@@ -198,7 +198,7 @@ function tables(ctx: BlockSqlContext): string {
 create policy ${name(logical, "read")} on ${ctx.table(logical)} for select to authenticated
   using (${using});`;
 
-  const versionRef = versions.manages
+  const versionRef = versions.owns("versions")
     ? ` references ${versions.table("versions")} (${versions.col("versions", "id")}) on delete restrict`
     : "";
 

@@ -3,8 +3,8 @@ title: Existing apps
 description: Bring better-supabase into an app that already has its own tables, permissions, events and middleware, one module at a time.
 ---
 
-An app with users in production can adopt better-supabase without renaming a
-table, changing a claim or logging anyone out. Each SQL module runs over your
+An app with users in production can move to better-supabase without renaming
+a table, changing a claim or logging anyone out. Each SQL module runs over your
 existing tables, the access contract reads your permission model, and the
 session cookie is the one `@supabase/ssr` already writes. You move one module
 at a time and keep the rest of your code as it is.
@@ -49,31 +49,46 @@ export default defineConfig({
 });
 ```
 
-`sql add`, `sql sync` and `sql upgrade` then write the modules into
+`add` and `upgrade` then write the modules into
 `supabase/migrations/<stamp>_better_supabase_modules.sql`, and you apply it
-with `supabase migration up`. An app still on declarative schemas 1.0 sets
+with `supabase migration up`. Save a schema snapshot with
+`better-supabase gen --save-snapshot` too, so the CLI sees the tables your
+migrations create. An app still on declarative schemas 1.0 sets
 `workflow: "migra"` to keep `supabase db diff`. See
 [Workflows](/docs/blocks/sql#workflows).
 
-## Pick a mode per module
+## Blocks run over the tables you have
 
-Every SQL module has a contract: the functions your policies, other
-modules and the TypeScript APIs call. `blocks.<module>.ownership` decides what stands
-behind it.
+You don't tell a block which tables are yours. The CLI reads your own schema
+files (and migrations it didn't write) and the saved schema snapshot, and
+decides per table: a block table you already have, at its default name or at
+the name `blocks.<name>.tables` maps, keeps your definition, and the block
+creates only the tables you don't have. So a block covers both the features
+you already built (organizations, invitations, an audit log, an events
+table) and the ones you don't have, and adding a table to your schema later
+moves it over without a config change.
 
-| Mode                | Use it when                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `managed` (default) | you have nothing for this feature yet; the block creates the tables             |
-| `adopt`             | you have the tables; the block writes functions over them and never creates one |
-| `custom`            | you have the tables and the functions; you write the contract yourself          |
+Over your table, the block skips its `create table`, adds only the columns
+it needs that your table lacks with `add column if not exists`, casts its
+writes to your column types where they may differ (an enum `status`, for
+example), and never recreates your table or revokes your grants. Its
+policies and triggers there are named `bsb_<table>_<command>` and
+`bsb_<name>`, so they never replace one of yours.
+[Your own schemas](/docs/blocks/own-schemas) explains the detection, the
+names, the doctor findings and how block files are protected from edits.
 
-Start with `adopt` for the features you already built (organizations,
-invitations, an audit log, an events table) and `managed` for the ones you
-don't have. `custom` is for a function you can't replace yet; doctor checks its
-signature against the contract (BS307), and `sql print` with the module
-name lists the signatures. The
-[SQL modules page](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) shows
-which modules support which modes.
+`blocks.<name>.ownership` has two values. `managed` (the default) is the
+behavior above. `custom` writes no SQL: you keep your own functions and
+write the block's contract yourself (the functions your policies, other
+blocks and the TypeScript APIs call). Use it for a function you can't
+replace yet; doctor checks its signature against the contract (BS307), and
+`blocks view --sql <block>` lists the signatures. The
+[Block SQL page](/docs/blocks/sql#existing-tables-managed-and-custom) shows
+which blocks support `custom`.
+
+An `ownership: "adopt"` from before 0.15 is rejected when the config loads.
+Run `better-supabase codemod 0.15` to remove it (it keeps `tables` and
+`columns`), then `better-supabase upgrade`.
 
 ## Map your names
 
@@ -88,7 +103,6 @@ export default defineConfig({
     permissions: {},
     "webhooks-out": {},
     memberships: {
-      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: {
         memberships: {
@@ -99,7 +113,6 @@ export default defineConfig({
       },
     },
     organizations: {
-      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       permissions: { update: "organization.settings.manage" },
@@ -110,7 +123,6 @@ export default defineConfig({
       options: { attributes: ["website", "logo_path", "default_currency"] },
     },
     outbox: {
-      ownership: "adopt",
       tables: { events: "public.workflow_events" },
       columns: {
         events: {
@@ -126,13 +138,30 @@ export default defineConfig({
 });
 ```
 
-`permissions` maps each block action to your permission keys, `hooks` points
+`permissions` maps each block action to your permission keys, `callbacks` points
 the block at functions you already have (seeding a new organization, writing a
 contact profile), and `options` covers the rest: extra columns a function
 accepts, token storage, slug rules, source values your check constraints
 allow. An attribute your input leaves out keeps its column default. An unknown
-table or column stops `sql add` and `sql sync` with the valid names, so a typo
+table or column stops `add` and `upgrade` with the valid names, so a typo
 fails before it reaches the database.
+[`better-supabase add --adopt <block> --tables <schema.table>`](/docs/cli/presets#adopting-tables)
+proposes the `tables` and `columns` of an entry from the tables in your
+database.
+
+## Give your own tables a scope
+
+A table only your app has, such as `projects`, can get the same scope column,
+row level security and policies as the block tables through a
+`tables.<name>` entry. When your schema already creates the table, the entry
+enriches it: it adds only the missing `id`, scope column (`organization_id`
+or `user_id`), `created_at` and `updated_at`, the scope's policies and, per
+tenant, the restrictive `bsb_tenant_scope` policy. The scope column gets a
+`not valid` not-null check, so new rows must name an owner while existing
+rows stay until you fill them with
+[`better-supabase db backfill`](/docs/cli/db#backfill) and validate the
+check with `better-supabase doctor --fix`. See
+[App tables](/docs/repository/tables#enriching-a-table-you-already-have).
 
 ## Choose an access model
 
@@ -159,7 +188,7 @@ when you store it on the profile, or `'resolver'` when the URL decides.
 
 ## Keep your events and your receivers
 
-An adopted outbox writes to your events table. SQL modules emit in the same
+An outbox over your events table writes to it. SQL modules emit in the same
 transaction as the change, with the source in `blockSource`, and
 `emit_event` calls without a source get `defaultSource`. Your existing
 webhook receivers keep their signature format through a
@@ -169,9 +198,9 @@ Webhooks later, per destination.
 
 ## Upgrade without breaking users
 
-- **SQL objects.** Run `better-supabase sql upgrade` after each package
+- **SQL objects.** Run `better-supabase upgrade` after each package
   update. It writes forward steps into a migration before the schema diff runs,
-  and `sql upgrade --check` fails CI when a module is behind. A renamed
+  and `upgrade --check` fails CI when a module is behind. A renamed
   function or claim keeps a wrapper under the old name for at least one minor
   release, and doctor reports code that still uses it (BS309).
 - **TypeScript.** `better-supabase codemod <version>` rewrites renamed imports
@@ -199,19 +228,19 @@ session better-supabase wrote. See [sessions](/docs/auth/sessions).
 
 ## Keep your middleware
 
-`bs.proxy` owns the session refresh; your other middleware goes in `before`,
+`bsb.proxy` owns the session refresh; your other middleware goes in `before`,
 and your route rules in `protect`:
 
 ```ts title="src/proxy.ts"
 import createMiddleware from "next-intl/middleware";
 import type { NextRequest } from "next/server";
 import { routing } from "@/i18n/routing";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const intl = createMiddleware(routing);
 
 export const proxy = (request: NextRequest) =>
-  bs.proxy(request, {
+  bsb.proxy(request, {
     before: intl,
     protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
   });
@@ -227,9 +256,15 @@ explains the order.
    `database.sql.workflow: "migrations"` to keep migrations only), add
    `better-supabase.config.ts` with `access` in the model your app uses, and
    run `better-supabase doctor` to see what it finds.
-2. Adopt `memberships` and swap one policy helper for `tenant_ids_with`.
-3. Adopt the features you already have (organizations, invitations, audit,
-   the events table), one per pull request, and run your tests after each.
-4. Add the modules you don't have yet in `managed` mode.
-5. Move the session handling to an adapter and `bs.proxy`, then move queries
+2. Add `memberships` over your memberships table, mapped with `tables` and
+   `columns`, and swap one policy helper for `tenant_ids_with`.
+3. Add the blocks for the features you already have (organizations,
+   invitations, audit, the events table), one per pull request. Each runs
+   over your table; run `better-supabase upgrade`, read the comments it
+   writes over your tables, and run your tests after each.
+4. Add the blocks you don't have yet; they create their own tables.
+5. Add `tables.<name>` entries for your own tables, run
+   `better-supabase db backfill` for each scope column doctor reports
+   (BS238), then `better-supabase doctor --fix`.
+6. Move the session handling to an adapter and `bsb.proxy`, then move queries
    to repositories as you touch them.

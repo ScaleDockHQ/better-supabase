@@ -13,6 +13,8 @@ import { instancePrefix } from "../config/instances.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
+import { canBeAppTable } from "./app-owned.ts";
+import { blockNamesOnAppTables } from "./app-table-names.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
 import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
@@ -23,14 +25,27 @@ import {
   rendersOwnInstance,
 } from "./instance-names.ts";
 import { moduleExtensions } from "./introspect.ts";
-import { entitiesMarker } from "./markers.ts";
+import { entitiesMarker, withBlockHash } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
+import {
+  overAppTables,
+  withoutAppTableEdits,
+  withoutUnmappedColumns,
+  withoutUnmappedTables,
+} from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
+import { withoutCoveredPolicies } from "./policy-cover.ts";
+import {
+  checkMigrationOptions,
+  checkModules,
+  resolveBlocks,
+  SQL_MODULES,
+} from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
+import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
 /**
@@ -59,7 +74,10 @@ function moduleSql(
 ) {
   return withSubjectMergeFunction(
     withColumnTypeFunction(
-      applyActorWriteGuards(module.build(ctx, layout), layout),
+      applyActorWriteGuards(
+        applyTenantScope(module.build(ctx, layout), ctx),
+        layout,
+      ),
     ),
   );
 }
@@ -70,6 +88,7 @@ export function moduleBody(
   layout: BlockSqlLayout = {},
 ): string | undefined {
   checkModules(layout.modules);
+  checkMigrationOptions(layout.modules, layout.ownTables);
   const modules = resolveBlocks([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
 
@@ -81,7 +100,54 @@ export function moduleBody(
 
   return ctx.mode === "custom"
     ? undefined
-    : renameQualifiers(moduleSql(module, ctx, layout), ctx);
+    : withoutCoveredPolicies(
+        overApp(
+          renameQualifiers(moduleSql(module, ctx, layout), ctx),
+          ctx,
+          layout,
+        ),
+        layout.ownPolicies,
+      );
+}
+
+/**
+ * `sql` over the app's tables: their `create table` becomes the missing
+ * columns, and what would change their data rules or access is left out.
+ */
+function overApp(
+  sql: string,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
+  const appTables = appTableSet(ctx);
+
+  return withoutUnmappedColumns(
+    withoutUnmappedTables(
+      blockNamesOnAppTables(
+        withoutAppTableEdits(
+          overAppTables(sql, appTables, layout.ownColumns),
+          appTables,
+        ),
+        appTables,
+        layout.ownUpdatedAtTriggers,
+      ),
+      ctx.instance,
+    ),
+    ctx.instance,
+  );
+}
+
+/** The app's tables a module runs over, as `schema.table`. */
+function appTableSet(ctx: BlockSqlContext): Set<string> {
+  return new Set(
+    ctx.manages
+      ? ctx.appOwned.map((table) => {
+          const parts = ctx.tableName(table);
+
+          return `${parts.schema}.${parts.name}`;
+        })
+      : [],
+  );
 }
 
 /** The table `moduleRow` writes to, created by every schema module's file. */
@@ -136,6 +202,7 @@ export function renderBlocks(
   layout: BlockSqlLayout = {},
 ): BlockSqlFile[] {
   checkModules(layout.modules);
+  checkMigrationOptions(layout.modules, layout.ownTables);
   const modules = resolveBlocks(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
@@ -150,7 +217,14 @@ export function renderBlocks(
     ),
   ]);
 
-  return [...files, ...appTablesFiles(layout, installed)];
+  return [...files, ...appTablesFiles(layout, installed)].map((file) => ({
+    ...file,
+    contents: withBlockHash(
+      file.kind === "schema"
+        ? withoutCoveredPolicies(file.contents, layout.ownPolicies)
+        : file.contents,
+    ),
+  }));
 }
 
 function moduleFiles(
@@ -183,13 +257,31 @@ function moduleFiles(
         instancePrefix(ctx.instance),
       );
 
-  const scoped = (sql: string): string =>
-    renameIdentifiers(renameQualifiers(sql, ctx), renames);
+  const collisions = ownTablesCreatedBy(module, ctx, layout);
+
+  const scoped = (sql: string): string => {
+    const renamed = renameIdentifiers(renameQualifiers(sql, ctx), renames);
+
+    const collision = [...collisions].find(
+      (table) => overAppTables(renamed, new Set([table])) !== renamed,
+    );
+
+    if (collision !== undefined) {
+      const file = layout.ownTables?.[collision];
+      const where = file === "database" ? "the database" : file;
+
+      throw new Error(
+        `blocks.${ctx.instance} creates ${collision}, which is already in ${where}. This module can't run over a table the app has: rename yours, or map the block's table to another name in blocks.${ctx.instance}.tables.`,
+      );
+    }
+
+    return overApp(renamed, ctx, layout);
+  };
 
   const title = `-- better-supabase module: ${ctx.instance}`;
 
   const managed = [
-    "-- Managed by `better-supabase add`; re-running it overwrites this file.",
+    "-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.",
     "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
   ];
 
@@ -343,6 +435,38 @@ function checkTenantName(
 }
 
 /**
+ * The app's tables (`layout.ownTables`) that `module` names but can't run over
+ * (no `app` in their spec, or `onlyWhenMapped` and unmapped), as
+ * `schema.table`.
+ */
+function ownTablesCreatedBy(
+  module: BlockSql,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): ReadonlySet<string> {
+  const { ownTables } = layout;
+
+  if (!ctx.manages || ownTables === undefined) {
+    return new Set();
+  }
+
+  return new Set(
+    Object.entries(module.names?.tables ?? {})
+      .filter(
+        ([logical, spec]) =>
+          ctx.config.tables[logical] !== null &&
+          !canBeAppTable(spec, ctx.config.tables[logical]),
+      )
+      .map(([logical]) => {
+        const parts = ctx.tableName(logical);
+
+        return `${parts.schema}.${parts.name}`;
+      })
+      .filter((table) => Object.hasOwn(ownTables, table)),
+  );
+}
+
+/**
  * Throws when `blocks.<name>.entities` gives a managed table a name another
  * installed block's table already has.
  */
@@ -378,7 +502,10 @@ function checkEntityTables(
       }
 
       return Object.entries(module.names?.tables ?? {})
-        .filter(([logical]) => ctx.config.tables[logical] === undefined)
+        .filter(
+          ([logical]) =>
+            ctx.config.tables[logical] === undefined && ctx.owns(logical),
+        )
         .map(([logical, spec]) => {
           const { schema, name } = ctx.tableName(logical);
 

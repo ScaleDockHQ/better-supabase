@@ -33,8 +33,9 @@ const KINDS = `array[${DELIVERY_EVENT_KINDS.map(sqlString).join(", ")}]::text[]`
 
 /**
  * Whether the module tracks provider events. It needs deliveries with a
- * provider message id, and an adopted module needs `tables.deliveryEvents`
- * mapped explicitly, so an adopter that predates it keeps installing.
+ * provider message id, and a module over the app's tables needs
+ * `tables.deliveryEvents` mapped explicitly, so an adopter that predates it
+ * keeps installing.
  */
 const tracking = (ctx: BlockSqlContext): boolean =>
   ctx.hasTable("deliveries") &&

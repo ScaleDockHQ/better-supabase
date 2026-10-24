@@ -35,6 +35,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     sequences: {
       name: "number_sequences",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -973,7 +974,7 @@ export const NUMBER_SEQUENCES: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

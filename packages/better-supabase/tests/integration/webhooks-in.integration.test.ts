@@ -702,7 +702,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     }
   });
 
-  it("runs over adopted endpoint and inbox tables and hands deliveries to a queue", async () => {
+  it("runs over the app's own endpoint and inbox tables and hands deliveries to a queue", async () => {
     const client = await pool.connect();
     const owner = crypto.randomUUID();
     const organization = crypto.randomUUID();
@@ -752,9 +752,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       `);
 
       const layout = {
+        ownTables: { [hooksTable]: "app.sql", [inboxTable]: "app.sql" },
         modules: {
           "webhooks-in": {
-            mode: "adopt" as const,
             tables: { endpoints: hooksTable },
             columns: {
               endpoints: {
@@ -777,7 +777,6 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             },
           },
           "webhook-inbox": {
-            mode: "adopt" as const,
             tables: { messages: inboxTable },
             columns: {
               messages: {

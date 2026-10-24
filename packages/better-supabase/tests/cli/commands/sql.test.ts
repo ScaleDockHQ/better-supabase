@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -14,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
+import { readIfExists } from "../../../src/cli/core/io.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
@@ -482,7 +484,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_18_vector_search.sql"),
+      join(root, "supabase/schemas/900_better_supabase_018_vector_search.sql"),
       "utf-8",
     );
 
@@ -542,7 +544,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(
-      "Created supabase/better-supabase-data/900_better_supabase_04_memberships.sql (memberships)",
+      "Created supabase/better-supabase-data/900_better_supabase_004_memberships.sql (memberships)",
     );
     expect(synced.output).toContain("run `better-supabase add --adopt`");
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
@@ -679,7 +681,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await sql(["sync"], config);
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -704,7 +706,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     const file = await readFile(
-      join(schemas, "900_better_supabase_13_grants.sql"),
+      join(schemas, "900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -748,7 +750,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     const grants = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -758,7 +760,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(grants).not.toContain("legacy");
 
     const sessions = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      join(root, "supabase/schemas/900_better_supabase_026_sessions.sql"),
       "utf-8",
     );
 
@@ -780,7 +782,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -817,7 +819,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     const file = await readFile(
-      join(schemas, "900_better_supabase_13_grants.sql"),
+      join(schemas, "900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -881,7 +883,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      join(root, "supabase/schemas/900_better_supabase_026_sessions.sql"),
       "utf-8",
     );
 
@@ -904,10 +906,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
 
     expect(synced.output).toContain(
-      "Created supabase/declarative/module/900_better_supabase_04_memberships.sql (memberships)",
+      "Created supabase/declarative/module/900_better_supabase_004_memberships.sql (memberships)",
     );
     expect(synced.output).toContain(
-      "Created supabase/better-supabase-data/900_better_supabase_04_memberships.sql (memberships)",
+      "Created supabase/better-supabase-data/900_better_supabase_004_memberships.sql (memberships)",
     );
   });
 
@@ -1151,6 +1153,65 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(check.output).toContain("-- edited");
   });
 
+  it("leaves a block file edited by hand alone until --force", async () => {
+    const config: BetterSupabaseConfig = { blocks: ["mfa"] };
+    await sql(["sync"], config);
+
+    const [file] = renderBlocks(
+      ["mfa"],
+      moduleLayout(resolveConfig(config, root)),
+    );
+
+    const path = join(root, file!.path);
+    const edited = `${await readFile(path, "utf-8")}\n-- mine\n`;
+    await writeFile(path, edited);
+
+    const kept = await sql(["sync"], config);
+    expect(kept.code).toBe(1);
+    expect(kept.error).toContain(
+      "was edited by hand, so the CLI left it alone",
+    );
+    expect(await readFile(path, "utf-8")).toBe(edited);
+
+    expect((await sql(["sync", "--force"], config)).code).toBe(0);
+    expect(await readFile(path, "utf-8")).toBe(file!.contents);
+  });
+
+  it("removes block files no installed block writes, and moves 2-digit names", async () => {
+    const config: BetterSupabaseConfig = { blocks: ["mfa"] };
+    await sql(["sync"], config);
+
+    const [file] = renderBlocks(
+      ["mfa"],
+      moduleLayout(resolveConfig(config, root)),
+    );
+
+    const current = join(root, file!.path);
+    const twoDigit = current.replace(/_0(\d\d_mfa\.sql)$/, "_$1");
+
+    const orphan = join(
+      root,
+      "supabase/schemas/900_better_supabase_098_gone.sql",
+    );
+
+    const mine = join(
+      root,
+      "supabase/schemas/900_better_supabase_099_mine.sql",
+    );
+
+    expect(twoDigit).not.toBe(current);
+    await rename(current, twoDigit);
+    await writeFile(orphan, "-- @bsb-block gone@1 managed\n\nselect 1;\n");
+    await writeFile(mine, "create table mine ();\n");
+
+    const synced = await sql(["sync"], config);
+    expect(synced.code).toBe(0);
+    expect(await readIfExists(twoDigit)).toBeUndefined();
+    expect(await readIfExists(orphan)).toBeUndefined();
+    expect(await readFile(current, "utf-8")).toBe(file!.contents);
+    expect(await readFile(mine, "utf-8")).toBe("create table mine ();\n");
+  });
+
   it("turns pg-delta on under the pg-delta workflow, and leaves migra alone", async () => {
     await mkdir(join(root, "supabase"), { recursive: true });
     await writeFile(
@@ -1247,6 +1308,31 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       const check = await sql(["sync", "--check"], config);
       expect(check.code).toBe(1);
       expect(check.error).toContain(`supabase/tests/${file!}`);
+    });
+
+    it("reports a deleted pgTAP file and a block test that is no longer written", async () => {
+      const config = migrations(["pgtap"]);
+      await sql(["sync"], config);
+
+      const tests = await readdir(join(root, "supabase/tests"), {
+        recursive: true,
+      });
+
+      const file = tests.find((name) => name.endsWith(".sql"))!;
+      const leftover = "900_better_supabase_pgtap_old.test.sql";
+
+      await rm(join(root, "supabase/tests", file));
+      await writeFile(
+        join(root, "supabase/tests", leftover),
+        "-- @bsb-block-test pgtap\nselect 1;\n",
+      );
+
+      const check = await sql(["sync", "--check"], config);
+      expect(check.code).toBe(1);
+      expect(check.output).toContain(
+        `supabase/tests/${leftover} is no longer written; \`upgrade\` removes it.`,
+      );
+      expect(check.error).toContain(`supabase/tests/${file}`);
     });
 
     it("upgrades nothing before the first module migration", async () => {

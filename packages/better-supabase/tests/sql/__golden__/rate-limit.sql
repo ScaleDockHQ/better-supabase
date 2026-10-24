@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_17_rate_limit.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@1 managed
+-- @bsb-hash sha256:7baf0a6890356d83e268b168836937ec6432c79e1a1c17a9a91898ad83bd233d
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -237,12 +238,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_17_rate_limit.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
+-- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
@@ -270,11 +272,12 @@ values ('rate-limit', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_17_rate_limit.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@1 managed
+-- @bsb-hash sha256:7baf0a6890356d83e268b168836937ec6432c79e1a1c17a9a91898ad83bd233d
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -509,12 +512,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_17_rate_limit.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
+-- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
@@ -542,11 +546,12 @@ values ('rate-limit', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_17_rate_limit.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@1 managed
+-- @bsb-hash sha256:7baf0a6890356d83e268b168836937ec6432c79e1a1c17a9a91898ad83bd233d
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -781,12 +786,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_17_rate_limit.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
+-- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an
@@ -814,11 +820,12 @@ values ('rate-limit', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_17_rate_limit.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@1 managed
+-- @bsb-hash sha256:881ce737139133b09bd254c91eaa6ec23815a4dad0d196035c99989fa82ef4cf
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1102,12 +1109,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_17_rate_limit.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block-data rate-limit
+-- @bsb-hash sha256:15898458bc504e8d36285d83cc2c6a240321839e73d4a58c113b49c3b93d8212
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Points PostgREST's pre-request hook at check_request. It keeps an

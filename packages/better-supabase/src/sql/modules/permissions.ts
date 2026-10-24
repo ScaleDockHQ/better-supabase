@@ -172,20 +172,6 @@ grant execute on function better_supabase.role_grants(text, text) to service_rol
 }
 
 function catalogTables(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
-    return `
--- Adopted catalog: ${[
-      "roles",
-      "permissions",
-      "rolePermissions",
-      "overrides",
-      "platformAssignments",
-    ]
-      .filter((table) => ctx.hasTable(table))
-      .map((table) => ctx.table(table))
-      .join(", ")}.`;
-  }
-
   const id = ctx.idType;
 
   return `
@@ -1060,22 +1046,29 @@ export const ACCESS: BlockSqlDefinition = {
     return model === "roles" || model === "catalog" ? ["memberships"] : [];
   },
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: {
     options: ["platformRoleScope", "scope", "tenantRoleScope"],
     tables: {
       roles: {
         name: "roles",
+        app: {},
         columns: { id: "id", key: "key", scope: "scope", tenant: "tenant_id" },
         optional: ["scope", "tenant"],
       },
-      permissions: { name: "permissions", columns: { id: "id", key: "key" } },
+      permissions: {
+        name: "permissions",
+        app: {},
+        columns: { id: "id", key: "key" },
+      },
       rolePermissions: {
         name: "role_permissions",
+        app: {},
         columns: { role: "role_id", permission: "permission_id" },
       },
       overrides: {
         name: "permission_overrides",
+        app: {},
         lifecycle: { tenant: "tenant" },
         columns: {
           tenant: "organization_id",
@@ -1087,6 +1080,7 @@ export const ACCESS: BlockSqlDefinition = {
       },
       platformAssignments: {
         name: "platform_roles",
+        app: {},
         lifecycle: { user: "user" },
         columns: { user: "user_id", role: "role_id" },
         optionalTable: true,

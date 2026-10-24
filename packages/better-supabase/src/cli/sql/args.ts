@@ -14,6 +14,10 @@ export const SQL_ARGS = {
     valueHint: "dir",
   },
   "dry-run": { type: "boolean", description: "Show what would be written" },
+  force: {
+    type: "boolean",
+    description: "Overwrite or remove block files that were edited by hand",
+  },
   "allow-hook-overlap": {
     type: "boolean",
     description:

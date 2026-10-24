@@ -6,6 +6,15 @@ import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig) => moduleBody("outbox", { modules })!;
 
+const overApp = (modules: AnyBlocksConfig) =>
+  renderBlocks(["outbox"], {
+    modules,
+    ownTables: { "public.domain_events": "app.sql" },
+  })
+    .filter((file) => file.module === "outbox")
+    .map((file) => file.contents)
+    .join("\n");
+
 describe("outbox module", () => {
   it("owns its tables and keeps the functions for the service role", () => {
     const sql = body({});
@@ -22,10 +31,9 @@ describe("outbox module", () => {
     expect(sql).toContain("track_events");
   });
 
-  it("adopts an events table with other names and no xid column", () => {
-    const sql = body({
+  it("runs over the app's events table with other names and no xid column", () => {
+    const sql = overApp({
       outbox: {
-        mode: "adopt",
         idType: "uuid",
         tables: { events: "public.domain_events" },
         columns: {
@@ -40,7 +48,7 @@ describe("outbox module", () => {
     });
 
     expect(sql).not.toContain(
-      "create table if not exists public.domain_events",
+      'create table if not exists "public"."domain_events"',
     );
     expect(sql).toContain("coalesce(source, 'domain')");
     expect(sql).toContain(
@@ -81,18 +89,17 @@ describe("outbox module", () => {
     );
   });
 
-  it("adds the xid column to an adopted table and refuses a zero settle", () => {
-    const adopted = body({
-      outbox: { mode: "adopt", tables: { events: "public.domain_events" } },
+  it("adds the xid column to the app's events table and refuses a zero settle", () => {
+    const appEvents = overApp({
+      outbox: { tables: { events: "public.domain_events" } },
     });
 
-    expect(adopted).toContain(
+    expect(appEvents).toContain(
       'alter table "public"."domain_events" add column if not exists "xid" xid8 not null default pg_current_xact_id();',
     );
     expect(() =>
       body({
         outbox: {
-          mode: "adopt",
           columns: { events: { xid: null } },
           options: { settle: "0 seconds" },
         },

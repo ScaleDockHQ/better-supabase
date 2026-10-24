@@ -125,8 +125,9 @@ export function snapshotTables(
 }
 
 /**
- * Proposes `blocks.<block>` in adopt mode over existing tables, reports what
- * can't map, and writes the entry to the config when everything maps.
+ * Proposes `blocks.<block>` over existing tables, reports what can't map, and
+ * writes the entry's `tables` and `columns` to the config when everything
+ * maps.
  */
 export async function runAdopt(
   config: ResolvedConfig,

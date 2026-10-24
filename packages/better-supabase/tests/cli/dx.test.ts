@@ -746,7 +746,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
 
     const path = join(
       dir,
-      "supabase/schemas/900_better_supabase_14_read_sets.sql",
+      "supabase/schemas/900_better_supabase_014_read_sets.sql",
     );
 
     const sql = await readFile(path, "utf-8");

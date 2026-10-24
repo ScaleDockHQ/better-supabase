@@ -4,7 +4,7 @@ import { lockTable, SERVICE_CALLER, triggerGrant } from "../shared.ts";
 
 /** Whether `blocks.audit.options.chain` is on for a log the module manages. */
 export function chainOn(ctx: BlockSqlContext): boolean {
-  return ctx.manages && ctx.flag("chain", false);
+  return ctx.owns("log") && ctx.flag("chain", false);
 }
 
 /**
@@ -12,7 +12,7 @@ export function chainOn(ctx: BlockSqlContext): boolean {
  * manages.
  */
 export function partitionedOn(ctx: BlockSqlContext): boolean {
-  return ctx.manages && ctx.flag("partitioned", false);
+  return ctx.owns("log") && ctx.flag("partitioned", false);
 }
 
 export const CHAIN_CONTRACT: readonly BlockSqlContractFunction[] = [
@@ -53,7 +53,9 @@ export function chainSql(ctx: BlockSqlContext): string {
   const trigger = ctx.trigger("audit_chain");
 
   if (!chainOn(ctx)) {
-    return ctx.manages ? `drop trigger if exists ${trigger} on ${log};` : "";
+    return ctx.owns("log")
+      ? `drop trigger if exists ${trigger} on ${log};`
+      : "";
   }
 
   const id = ctx.idType;

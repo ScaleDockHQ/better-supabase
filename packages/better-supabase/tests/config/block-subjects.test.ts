@@ -70,6 +70,17 @@ describe("withBlockSubjects", () => {
     });
   });
 
+  it("leaves a column mapped to null out of the search", () => {
+    const subjects = withBlockSubjects({}, ["tasks"], {
+      tasks: { columns: { items: { body: null } } },
+    });
+
+    expect(subjects["work_item"]?.search).toEqual({
+      title: "title",
+      body: ["identifier"],
+    });
+  });
+
   it("sets a url without renaming the entity", () => {
     expect(
       withBlockSubjects({}, ["deals"], {

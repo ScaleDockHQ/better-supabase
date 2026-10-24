@@ -1,11 +1,12 @@
 -- ==== alone: throws
 -- The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_16_entitlements.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_016_entitlements.sql
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
+-- @bsb-hash sha256:924387da340021fe4064fbf6c890480e652ec485fa12155ecbda0fcb5a99352c
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -186,12 +187,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_16_entitlements.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_016_entitlements.sql
 -- better-supabase module: entitlements
 -- @bsb-block-data entitlements
+-- @bsb-hash sha256:0fe1d3ec510c4179203a9a582961bbe8876a78180dc540ca081225cb66f1fe80
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

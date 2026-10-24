@@ -13,12 +13,13 @@ import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
  */
 
 /**
- * `managed`: the module owns its tables. `adopt`: the module writes its
- * functions and views over tables the app already has (`tables` and `columns`),
- * never `create table`. `custom`: the app implements the contract functions
- * itself; the module writes nothing and doctor checks the signatures (BS307).
+ * `managed`: the module writes its tables, functions and views, and leaves
+ * alone every table the app's schema already has (`ownTables`), writing its
+ * functions over that table instead. `custom`: the app implements the contract
+ * functions itself; the module writes nothing and doctor checks the signatures
+ * (BS307).
  */
-export type BlockMode = "managed" | "adopt" | "custom";
+export type BlockMode = "managed" | "custom";
 
 /**
  * Who a block's rows belong to. `tenant`: a tenant, checked through the access

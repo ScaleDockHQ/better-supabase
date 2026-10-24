@@ -4,6 +4,7 @@ import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { CONTROLS } from "../../../src/sql/modules/compliance.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -30,8 +31,8 @@ describe("controls module", () => {
     expect(bare).not.toMatch(/"attachment_id" uuid references/);
     expect(bare).toContain("evidence files need the attachments module");
 
-    const adopted = sqlOf({ modules: { attachments: { mode: "custom" } } });
-    expect(adopted).toContain("evidence files need the attachments module");
+    const custom = sqlOf({ modules: { attachments: { mode: "custom" } } });
+    expect(custom).toContain("evidence files need the attachments module");
   });
 
   it("notifies the assignee of a missed task only with notifications installed", () => {
@@ -46,13 +47,10 @@ describe("controls module", () => {
       /references "better_supabase"\."versions" \("id"\) on delete restrict/,
     );
 
-    const adopted = sqlOf({
-      modules: {
-        versions: { mode: "adopt", tables: { versions: "app.revisions" } },
-      },
-    });
+    const modules = { versions: { tables: { versions: "app.revisions" } } };
+    const overApp = sqlOf({ modules, ownTables: ownTablesOf(modules) });
 
-    expect(adopted).not.toContain("on delete restrict");
+    expect(overApp).not.toContain("on delete restrict");
   });
 
   it("refuses to build on versions in custom mode", () => {

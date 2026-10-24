@@ -26,6 +26,7 @@ export const MOVING_REASON = "bs:moving";
 export const SERIES_TABLES = {
   series: {
     name: "booking_series",
+    app: {},
     optionalTable: true,
     columns: {
       id: "id",

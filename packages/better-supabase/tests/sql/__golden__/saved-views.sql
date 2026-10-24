@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_67_saved_views.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:4a326d9e7b3050c0386a6a698f73e34c054fba9576df58b1159183e4acb7ebe3
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
@@ -408,6 +423,43 @@ $$;
 revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  and (
+    ("scope" = 'user' and "owner_id" = (select auth.uid()))
+    or ("scope" = 'team' and false)
+    or "scope" = 'tenant'
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope on "better_supabase"."saved_view_preferences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -421,12 +473,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_67_saved_views.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -434,11 +487,12 @@ values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_67_saved_views.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:d9c8fe419c966896ea0c750d8c382e7739d928149d694b6efb053ad84d9192b4
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -475,6 +529,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
@@ -855,6 +923,43 @@ $$;
 revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  and (
+    ("scope" = 'user' and "owner_id" = (select auth.uid()))
+    or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
+    or "scope" = 'tenant'
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope on "better_supabase"."saved_view_preferences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -868,12 +973,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_67_saved_views.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -881,11 +987,12 @@ values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_67_saved_views.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:242a7bd0e79a6464958c5a293e553da6932757c9c8e9f6fc48c201db5f331ccf
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -922,6 +1029,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."saved_views";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."saved_view_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -1293,6 +1414,43 @@ $$;
 revoke execute on function "app_private"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
 grant execute on function "app_private"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."saved_views";
+create policy bsb_tenant_scope on "app_private"."saved_views" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  and (
+    ("scope" = 'user' and "owner_id" = (select auth.uid()))
+    or ("scope" = 'team' and false)
+    or "scope" = 'tenant'
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."saved_view_preferences";
+create policy bsb_tenant_scope on "app_private"."saved_view_preferences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1306,12 +1464,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_67_saved_views.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1319,11 +1478,12 @@ values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_67_saved_views.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:666729ccb06654da08428d5f33cbd9f46dcbbe941bd3892ca1da022a269d5668
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1360,6 +1520,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
@@ -1729,6 +1903,43 @@ $$;
 revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  and (
+    ("scope" = 'user' and "owner_id" = (select auth.uid()))
+    or ("scope" = 'team' and false)
+    or "scope" = 'tenant'
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope on "better_supabase"."saved_view_preferences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.saved-views.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1829,12 +2040,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_67_saved_views.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1842,11 +2054,12 @@ values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_67_saved_views.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
--- @bsb-block saved-views@2 adopt
+-- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:36c53937a880ebc7ad1bd9c517329eef981cd001fc1158f6c39999165e128898
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1883,19 +2096,65 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.saved_views is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."saved_views" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."saved_views" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."saved_views" add column if not exists "list" text check (length("list") between 1 and 80);
+alter table "better_supabase"."saved_views" add column if not exists "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant'));
+alter table "better_supabase"."saved_views" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."saved_views" add column if not exists "team_id" text;
+alter table "better_supabase"."saved_views" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."saved_views" add column if not exists "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt'));
+alter table "better_supabase"."saved_views" add column if not exists "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536);
+alter table "better_supabase"."saved_views" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."saved_views" add column if not exists "is_default" boolean not null default false;
+alter table "better_supabase"."saved_views" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."saved_views" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+alter table "better_supabase"."saved_views" enable row level security;
+grant select on "better_supabase"."saved_views" to authenticated;
+grant all on "better_supabase"."saved_views" to service_role;
 
-drop policy if exists saved_views_read on "better_supabase"."saved_views";
-create policy saved_views_read on "better_supabase"."saved_views" for select to authenticated
+drop policy if exists bsb_saved_views_select on "better_supabase"."saved_views";
+create policy bsb_saved_views_select on "better_supabase"."saved_views" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
-drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+-- better_supabase.saved_view_preferences is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."saved_view_preferences" add column if not exists "view_id" uuid references "better_supabase"."saved_views" ("id") on delete cascade;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "is_default" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "hidden" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "pinned" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "better_supabase"."saved_view_preferences" enable row level security;
+grant select on "better_supabase"."saved_view_preferences" to authenticated;
+grant all on "better_supabase"."saved_view_preferences" to service_role;
+drop policy if exists bsb_saved_view_preferences_select on "better_supabase"."saved_view_preferences";
+create policy bsb_saved_view_preferences_select on "better_supabase"."saved_view_preferences" for select to authenticated
 using ("user_id" = (select auth.uid()));
 
 
@@ -2213,6 +2472,43 @@ $$;
 revoke execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."set_view_preference"(uuid, boolean, boolean, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
+create policy bsb_tenant_scope on "better_supabase"."saved_views" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  and (
+    ("scope" = 'user' and "owner_id" = (select auth.uid()))
+    or ("scope" = 'team' and false)
+    or "scope" = 'tenant'
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
+create policy bsb_tenant_scope on "better_supabase"."saved_view_preferences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2226,15 +2522,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_67_saved_views.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('saved-views', 2, 'adopt')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

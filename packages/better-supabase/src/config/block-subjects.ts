@@ -202,7 +202,9 @@ function subjectsOf(
           : {
               search: {
                 title: column(subject.search.title),
-                body: subject.search.body.map(column),
+                body: subject.search.body
+                  .filter((name) => config.columns[logical]?.[name] !== null)
+                  .map(column),
               },
             }),
         ...(url === undefined

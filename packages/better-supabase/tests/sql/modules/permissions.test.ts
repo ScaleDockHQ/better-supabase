@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessBlockConfig } from "../../../src/config/blocks.ts";
+import type {
+  AccessBlockConfig,
+  AnyBlocksConfig,
+} from "../../../src/config/blocks.ts";
 import type { BlockSqlAccessProvider } from "../../../src/sql/module-types.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/permissions-model.ts";
@@ -10,6 +13,7 @@ import {
   callerOnlyProvider,
   moduleProvider,
 } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const access = (config: AccessBlockConfig, tenant?: object) =>
   moduleBody("permissions", {
@@ -32,7 +36,6 @@ const provider = (
   })!;
 
 const CATALOG: AccessBlockConfig = {
-  mode: "adopt",
   model: "catalog",
   tables: {
     roles: "public.roles",
@@ -77,21 +80,29 @@ describe("access module", () => {
     expect(access({ roles: {} })).toContain("select '{}'::text[]");
   });
 
-  it("adopts a role, permission and override catalog", () => {
-    const sql = access(CATALOG, {
-      mode: "adopt",
-      tables: { memberships: "public.organization_users" },
-      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
-    });
+  it("runs over the app's role, permission and override catalog", () => {
+    const modules: AnyBlocksConfig = {
+      permissions: CATALOG,
+      memberships: {
+        tables: { memberships: "public.organization_users" },
+        columns: {
+          memberships: { tenant: "organization_id", role: "role_id" },
+        },
+      },
+    };
 
-    expect(sql).not.toMatch(/create table/);
+    const sql = renderBlocks(["permissions"], {
+      modules,
+      ownTables: ownTablesOf(modules),
+    }).find((file) => file.module === "permissions")!.contents;
+
+    expect(sql).not.toMatch(/create table if not exists "/);
     expect(sql).toContain(
       'from "public"."organization_permission_overrides" o',
     );
     expect(sql).toContain('bool_and(o."granted")');
     expect(sql).toContain('from "public"."user_roles" a');
     expect(sql).toContain('from "public"."organization_users" m');
-    expect(sql).toContain("-- Adopted catalog:");
   });
 
   it("creates the catalog tables in managed mode and leaves out optional ones", () => {

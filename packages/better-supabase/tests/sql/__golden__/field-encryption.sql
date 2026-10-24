@@ -1,8 +1,9 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
+-- @bsb-hash sha256:0898f5314a1b36889c211ddde50f6825271976b98ae579a4db596b8d17d7b417
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -145,9 +146,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block-data field-encryption
+-- @bsb-hash sha256:d58ab41031404e1532b8554ca08a2564787cc54aa0f0be2b52af7380d697666d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";
@@ -160,8 +162,9 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
+-- @bsb-hash sha256:1e8172c23b40da518382d1fcbc0ff0c66774073641dad094647b3ea56deb28fd
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -311,9 +314,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block-data field-encryption
+-- @bsb-hash sha256:d58ab41031404e1532b8554ca08a2564787cc54aa0f0be2b52af7380d697666d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";
@@ -326,8 +330,9 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
+-- @bsb-hash sha256:117f1d5d0abdcebece752d06840588de75d4289c1dba18c763988ce973e953dd
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -472,9 +477,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block-data field-encryption
+-- @bsb-hash sha256:d58ab41031404e1532b8554ca08a2564787cc54aa0f0be2b52af7380d697666d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";
@@ -487,8 +493,9 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
+-- @bsb-hash sha256:f2d21c1cfd71d116987640608cc40422924e5917c938ab7bf8873991898588d2
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -662,9 +669,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block-data field-encryption
+-- @bsb-hash sha256:d58ab41031404e1532b8554ca08a2564787cc54aa0f0be2b52af7380d697666d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";

@@ -151,7 +151,7 @@ const app = createBlocks(
 );
 ```
 
-`time_entry.updated` carries `previousStartedAt`, and `timeEntryMetricTime` returns it next to `startedAt`, so an update that moves an entry to another day rolls up both days in the same relay. In adopt mode, map `seconds` to a column of your own or leave it out and define the metric yourself.
+`time_entry.updated` carries `previousStartedAt`, and `timeEntryMetricTime` returns it next to `startedAt`, so an update that moves an entry to another day rolls up both days in the same relay. Over a time entries table of your own, map `seconds` to a column of yours, or map it to `null` and define the metric yourself.
 
 ## With ReUI
 

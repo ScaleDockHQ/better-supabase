@@ -65,6 +65,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     versions: {
       name: "versions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -849,7 +850,7 @@ export const VERSIONS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "share-links"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

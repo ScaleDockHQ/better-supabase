@@ -1,9 +1,28 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_60_state_machine.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:b34f369a140a5fb9d3936e31cfa78b1906f1eec3918ff56a50f1e49a57c3fc81
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -247,6 +266,46 @@ $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+create policy bsb_tenant_scope on "better_supabase"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -260,12 +319,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_60_state_machine.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
+-- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -273,12 +333,31 @@ values ('state-machine', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_60_state_machine.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:b34f369a140a5fb9d3936e31cfa78b1906f1eec3918ff56a50f1e49a57c3fc81
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -522,6 +601,46 @@ $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+create policy bsb_tenant_scope on "better_supabase"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -535,12 +654,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_60_state_machine.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
+-- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -548,12 +668,31 @@ values ('state-machine', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_60_state_machine.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:2125e6bbe11c9d3ddce0179dcb3a9a3611af3e9bddd5b97e6c71fde1c98cac2a
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -799,6 +938,46 @@ $$;
 revoke execute on function "app_private"."list_status_stages"(text, text) from public, anon;
 grant execute on function "app_private"."list_status_stages"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."status_history";
+create policy bsb_tenant_scope on "app_private"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."status_stages";
+create policy bsb_tenant_scope on "app_private"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."subject_lifecycles";
+create policy bsb_tenant_scope on "app_private"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -812,12 +991,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_60_state_machine.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
+-- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -825,12 +1005,31 @@ values ('state-machine', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_60_state_machine.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:1e2be5424301c31904b0be51ee71b0ec2451e1f4f8ceb9d9fcc57fda7f644de3
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1074,6 +1273,46 @@ $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+create policy bsb_tenant_scope on "better_supabase"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.state-machine.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1154,12 +1393,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_60_state_machine.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
+-- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1167,15 +1407,88 @@ values ('state-machine', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_60_state_machine.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
--- @bsb-block state-machine@2 adopt
+-- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:45ca7e12d3e8a0831f210373518a01e9d95a48f735de6fd8ed095df8ceb807b0
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.status_history is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."status_history" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."status_history" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."status_history" add column if not exists "subject_type" text;
+alter table "better_supabase"."status_history" add column if not exists "subject_id" text;
+alter table "better_supabase"."status_history" add column if not exists "from_status" text;
+alter table "better_supabase"."status_history" add column if not exists "to_status" text;
+alter table "better_supabase"."status_history" add column if not exists "actor_user_id" uuid;
+alter table "better_supabase"."status_history" add column if not exists "reason" text;
+alter table "better_supabase"."status_history" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+alter table "better_supabase"."status_history" enable row level security;
+grant select on "better_supabase"."status_history" to authenticated;
+grant all on "better_supabase"."status_history" to service_role;
+drop policy if exists bsb_status_history_select on "better_supabase"."status_history";
+create policy bsb_status_history_select on "better_supabase"."status_history" for select to authenticated
+  using (false);
+-- better_supabase.status_stages is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."status_stages" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."status_stages" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."status_stages" add column if not exists "subject_type" text;
+alter table "better_supabase"."status_stages" add column if not exists "subject_id" text;
+alter table "better_supabase"."status_stages" add column if not exists "label" text;
+alter table "better_supabase"."status_stages" add column if not exists "outcome" text;
+alter table "better_supabase"."status_stages" add column if not exists "display" integer;
+alter table "better_supabase"."status_stages" add column if not exists "cleared_at" timestamptz;
+alter table "better_supabase"."status_stages" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+alter table "better_supabase"."status_stages" enable row level security;
+grant select on "better_supabase"."status_stages" to authenticated;
+grant all on "better_supabase"."status_stages" to service_role;
+drop policy if exists bsb_status_stages_select on "better_supabase"."status_stages";
+create policy bsb_status_stages_select on "better_supabase"."status_stages" for select to authenticated
+  using (false);
+-- better_supabase.subject_lifecycles is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."subject_lifecycles" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."subject_lifecycles" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "subject_type" text;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "subject_id" text;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "version" integer not null default 1;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "flags" text[] not null default '{}';
+alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_at" timestamptz;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_until" timestamptz;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "pause_reason" text;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_by_user_id" uuid;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."subject_lifecycles" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+alter table "better_supabase"."subject_lifecycles" enable row level security;
+grant select on "better_supabase"."subject_lifecycles" to authenticated;
+grant all on "better_supabase"."subject_lifecycles" to service_role;
+drop policy if exists bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles";
+create policy bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles" for select to authenticated
+  using (false);
 
 
 
@@ -1355,6 +1668,46 @@ $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+create policy bsb_tenant_scope on "better_supabase"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1368,15 +1721,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_60_state_machine.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
+-- @bsb-hash sha256:5d7403d9a64f8fbaf3bf7657ec34ce81a8b879a5ad9827b08d0441016bd9de7e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('state-machine', 2, 'adopt')
+values ('state-machine', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

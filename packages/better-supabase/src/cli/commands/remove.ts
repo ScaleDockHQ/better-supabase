@@ -15,6 +15,7 @@ import { CliError } from "../core/errors.ts";
 import {
   applyPlan,
   changeLines,
+  HAND_EDITED,
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
@@ -23,12 +24,14 @@ import { commandMeta } from "../core/manifest.ts";
 import { templateContextFor } from "../glue.ts";
 import { detectProject } from "../project/detect.ts";
 import { sqlPlan } from "../sql-layout.ts";
+import { SQL_ARGS } from "../sql/args.ts";
 import { layoutFor } from "../sql/providers.ts";
 import {
   removeBlocksFromConfig,
   removeBlocksFromJson,
   removeBlocksFromWiring,
 } from "../sql/remove-edit.ts";
+import { guardedRemoval } from "../sql/write.ts";
 import { plain } from "../style.ts";
 import { blockClients, blocksWiringPath } from "./add.ts";
 import { blockNames } from "./blocks.ts";
@@ -44,7 +47,9 @@ const REMOVE_ARGS = {
 } as const;
 
 export type RemoveArgs = CliArgs<
-  typeof REMOVE_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+  typeof REMOVE_ARGS &
+    Pick<typeof PLAN_ARGS, "dry-run" | "check"> &
+    Pick<typeof SQL_ARGS, "force">
 >;
 
 /** What `runRemove` reads from outside. */
@@ -175,14 +180,23 @@ export async function runRemove(
   const plan = sqlPlan(config, {
     regenerate: "better-supabase remove",
     files,
-    remove: gone,
+    remove: gone.map((path) => guardedRemoval(path)),
   });
 
   const applied = await applyPlan(plan, args, deps.paint ?? plain);
 
-  const data = { blocks: names, removed: gone };
+  const edited = applied.changes
+    .filter((change) => change.reason === HAND_EDITED)
+    .map((change) => change.file);
 
-  if (applied.mode === "check") {
+  const data = {
+    blocks: names,
+    removed: gone.filter(
+      (path) => !edited.includes(display(config.root, path)),
+    ),
+  };
+
+  if (applied.mode === "check" || edited.length > 0) {
     return planResult(plan, applied, { data });
   }
 
@@ -216,6 +230,7 @@ export const removeCommand: AnyCommand = defineCliCommand({
     ...REMOVE_ARGS,
     "dry-run": PLAN_ARGS["dry-run"],
     check: PLAN_ARGS.check,
+    force: SQL_ARGS.force,
   },
   completions: { block: blockNames },
   run: (args, { config, configFile, paint }) =>
