@@ -941,6 +941,20 @@ describe("module upgrades (BS309, BS310)", () => {
         ),
       ),
     ).toEqual([]);
+    expect(
+      await run(
+        "BS309",
+        context(
+          snap,
+          { sqlFiles },
+          {
+            blocks: {
+              memberships: { tables: { memberships: "public.notes" } },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("reports a table with a module trigger and an equivalent one", async () => {

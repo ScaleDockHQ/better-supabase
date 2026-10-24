@@ -248,20 +248,10 @@ function publicLimitOf(ctx: BlockSqlContext): PublicLimit | undefined {
   return { max, period };
 }
 
-/**
- * Scoring needs the answer key table and the score columns: always when
- * managed, and when the app maps them on adopted tables.
- */
+/** Scoring needs the score columns, which `columns` can map to `null`. */
 function scoringOn(ctx: BlockSqlContext): boolean {
-  const keys = ctx.manages
-    ? true
-    : !ctx.owns("answerKeys") && ctx.hasTable("answerKeys");
-
-  return (
-    keys &&
-    ["score", "maxScore", "passed"].every((column) =>
-      ctx.has("submissions", column),
-    )
+  return ["score", "maxScore", "passed"].every((column) =>
+    ctx.has("submissions", column),
   );
 }
 

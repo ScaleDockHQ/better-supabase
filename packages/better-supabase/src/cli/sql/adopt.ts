@@ -37,7 +37,14 @@ export type ColumnMatch =
       readonly column: string;
       readonly by: "name" | "alias";
     }
-  | { readonly logical: string; readonly column: null; readonly by: "missing" };
+  | { readonly logical: string; readonly column: null; readonly by: "missing" }
+  | {
+      readonly logical: string;
+      readonly column: null;
+      readonly by: "added";
+      /** The column the block's migration adds. */
+      readonly adds: string;
+    };
 
 /** One logical table of the module and the existing table it maps to. */
 export interface TableMatch {
@@ -156,7 +163,11 @@ function matchColumns(
       );
 
     if (found === undefined) {
-      matches.push({ logical, column: null, by: "missing" });
+      matches.push(
+        spec.optional?.includes(logical) === true
+          ? { logical, column: null, by: "missing" }
+          : { logical, column: null, by: "added", adds: physical },
+      );
     } else {
       used.add(found);
       matches.push({ logical, column: found, by: "alias" });
@@ -457,11 +468,13 @@ export function describeProposal(proposal: AdoptProposal): string[] {
 
     for (const column of table.columns) {
       const target =
-        column.column === null
-          ? "null (not in the table)"
-          : column.by === "alias"
-            ? `${column.column} (guessed)`
-            : column.column;
+        column.by === "added"
+          ? `${column.adds} (the block adds it)`
+          : column.column === null
+            ? "null (not in the table)"
+            : column.by === "alias"
+              ? `${column.column} (guessed)`
+              : column.column;
 
       lines.push(`    ${column.logical.padEnd(width)}  ${target}`);
     }

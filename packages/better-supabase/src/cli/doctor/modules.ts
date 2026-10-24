@@ -19,6 +19,7 @@ import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import {
+  keepsAppsName,
   keptUpdatedAtTriggers,
   widenedAppTablePolicies,
 } from "./app-table-policies.ts";
@@ -585,15 +586,13 @@ function lineOfUse(
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
 
+  const appsName = keepsAppsName(context);
+
   const entries = moduleDeprecations().filter(
     (entry) =>
       context.config.blockNames.includes(entry.module) &&
       !(entry.kind === "claim" && configured.has(entry.symbol)) &&
-      // Adopted and custom tables keep the app's names.
-      !(
-        (entry.kind === "table" || entry.kind === "column") &&
-        (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
-      ),
+      !appsName(entry),
   );
 
   if (entries.length === 0) {

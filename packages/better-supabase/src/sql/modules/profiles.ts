@@ -480,7 +480,11 @@ function table(ctx: BlockSqlContext): string {
   ];
 
   const columns = definitions
-    .filter(([logical]) => ctx.has("profiles", logical))
+    .filter(
+      ([logical]) =>
+        ctx.has("profiles", logical) &&
+        (logical !== "avatarPath" || hasAvatarPath(ctx)),
+    )
     .map(([logical, type]) => `${c(logical)} ${type}`);
 
   const username = ctx.has("profiles", "username")

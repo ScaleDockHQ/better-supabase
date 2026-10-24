@@ -269,7 +269,7 @@ describe("describeProposal", () => {
 
     expect(lines).toContain("  teams: public.teams");
     expect(lines).toContain("    tenant       organization_id (guessed)");
-    expect(lines).toContain("    name         null (not in the table)");
+    expect(lines).toContain("    name         name (the block adds it)");
     expect(lines.some((line) => line.startsWith("  warn   "))).toBe(true);
   });
 });

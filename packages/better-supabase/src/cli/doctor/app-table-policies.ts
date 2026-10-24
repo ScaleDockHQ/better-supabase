@@ -1,7 +1,12 @@
+import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { CatalogPolicy } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
-import { adoptedTables } from "../../sql/index.ts";
+import {
+  adoptedTables,
+  moduleDeprecations,
+  SQL_MODULES,
+} from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { moduleFiles } from "./module-files.ts";
 import { catalogOf, qualified } from "./shared.ts";
@@ -171,4 +176,50 @@ export async function keptUpdatedAtTriggers(
         )
       : [],
   );
+}
+
+/**
+ * Whether a deprecated table or column name belongs to the app: the app's
+ * tables keep the app's names, as custom blocks' tables do.
+ */
+export function keepsAppsName(
+  context: DoctorContext,
+): (entry: BlockSqlDeprecation & { readonly module: string }) => boolean {
+  const named = context.config.blockNames.some((name) =>
+    moduleDeprecations().some(
+      (entry) =>
+        entry.module === name &&
+        (entry.kind === "table" || entry.kind === "column"),
+    ),
+  );
+
+  const adopted = named
+    ? adoptedTables(context.config.blocks, appTablesOf(context))
+    : [];
+
+  return (entry) => {
+    if (entry.kind !== "table" && entry.kind !== "column") {
+      return false;
+    }
+
+    if (
+      (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
+    ) {
+      return true;
+    }
+
+    const name =
+      entry.kind === "table"
+        ? entry.symbol.slice(entry.symbol.lastIndexOf(".") + 1)
+        : entry.symbol.slice(0, entry.symbol.indexOf("."));
+
+    return adopted.some(
+      (table) =>
+        table.module === entry.module &&
+        (name === table.logical ||
+          name === table.table ||
+          name ===
+            SQL_MODULES[table.module]?.names?.tables[table.logical]?.name),
+    );
+  };
 }

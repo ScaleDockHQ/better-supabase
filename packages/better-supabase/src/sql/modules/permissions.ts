@@ -172,20 +172,6 @@ grant execute on function better_supabase.role_grants(text, text) to service_rol
 }
 
 function catalogTables(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
-    return `
--- Adopted catalog: ${[
-      "roles",
-      "permissions",
-      "rolePermissions",
-      "overrides",
-      "platformAssignments",
-    ]
-      .filter((table) => ctx.hasTable(table))
-      .map((table) => ctx.table(table))
-      .join(", ")}.`;
-  }
-
   const id = ctx.idType;
 
   return `

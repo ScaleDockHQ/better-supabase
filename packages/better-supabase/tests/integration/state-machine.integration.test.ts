@@ -301,4 +301,90 @@ describe.skipIf(!live)("state machine", () => {
       await s.close();
     }
   });
+
+  it("writes an enum status and an app history table with enum and domain columns", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`${TABLES}
+create type sm_it.quote_status as enum ('draft', 'sent', 'accepted', 'void');
+create domain sm_it.status_label as text check (value <> '');
+alter table sm_it.quotes alter column status type sm_it.quote_status using status::sm_it.quote_status;
+alter table sm_it.quotes alter column status set default 'draft';
+create table sm_it.quote_history (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  from_status sm_it.quote_status,
+  to_status sm_it.status_label not null,
+  created_at timestamptz not null default now()
+);
+grant select on sm_it.quote_history to authenticated;`);
+      const owner = await s.user("owner");
+
+      await s.install(["organizations", "outbox", "state-machine"], {
+        subjects: { quote: { table: "sm_it.quotes", idType: "uuid" } },
+        ownTables: { "sm_it.quote_history": "database" },
+        modules: {
+          "state-machine": {
+            tables: { history: "sm_it.quote_history" },
+            options: {
+              machines: {
+                quote: {
+                  column: "status",
+                  initial: "draft",
+                  transitions: { draft: ["sent"], sent: ["accepted"] },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const tenant = await s.organization(owner);
+      await s.service();
+
+      const quote = (
+        await s.rows<{ id: string }>(
+          "insert into sm_it.quotes (organization_id) values ($1) returning id",
+          [tenant],
+        )
+      )[0]!.id;
+
+      await s.asRole(owner);
+      expect(
+        await s.value<boolean>(
+          "better_supabase.transition('quote', $1, 'sent', 'ready')",
+          [quote],
+        ),
+      ).toBe(true);
+      expect(
+        await s.hint("better_supabase.transition('quote', $1, 'void', null)", [
+          quote,
+        ]),
+      ).toBe("STATE_TRANSITION_INVALID");
+
+      await s.service();
+      expect(
+        await s.rows(
+          "select status::text as status from sm_it.quotes where id = $1",
+          [quote],
+        ),
+      ).toEqual([{ status: "sent" }]);
+      expect(
+        await s.rows(
+          "select from_status::text as from, to_status::text as to, reason from sm_it.quote_history where subject_id = $1",
+          [quote],
+        ),
+      ).toEqual([{ from: "draft", to: "sent", reason: "ready" }]);
+      expect(
+        await s.value<string[]>(
+          "(select array_agg(polname::text order by polname) from pg_policy where polrelid = 'sm_it.quote_history'::regclass and polpermissive)",
+        ),
+      ).toEqual(["bsb_quote_history_select"]);
+    } finally {
+      await s.close();
+    }
+  });
 });

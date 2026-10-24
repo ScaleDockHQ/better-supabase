@@ -1612,7 +1612,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@2 managed
--- @bsb-hash sha256:3c0af9d3fda9d6489f40b7751abd79615204aef94db3e2f13669cff118c92225
+-- @bsb-hash sha256:1e31aef682c58bca4e2480a36b341f0e65e539a4c52401b65138f3cbeb23eb46
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1661,7 +1661,6 @@ alter table "better_supabase"."profiles" add column if not exists "full_name" te
 alter table "better_supabase"."profiles" add column if not exists "first_name" text;
 alter table "better_supabase"."profiles" add column if not exists "last_name" text;
 alter table "better_supabase"."profiles" add column if not exists "avatar_url" text;
-alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
 alter table "better_supabase"."profiles" add column if not exists "active_organization_id" uuid;
 alter table "better_supabase"."profiles" add column if not exists "active_team_id" uuid;
 alter table "better_supabase"."profiles" add column if not exists "onboarding" jsonb not null default '{}';

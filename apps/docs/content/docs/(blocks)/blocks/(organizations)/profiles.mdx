@@ -112,8 +112,10 @@ const profile = await profiles.mine().orThrow();
 profile?.locale; // "en" | "nl"
 ```
 
-On a managed table the guard also sets `updated_at`. An adopted table keeps
-its own `updated_at` trigger: the guard neither checks nor writes the column.
+On a table the block creates, the guard also sets `updated_at`. Over a
+`profiles` table of your own, the guard neither checks nor writes the column:
+`update_my_profile` sets it, and your own trigger keeps it current for other
+writes.
 
 Security definer functions, such as `switch_organization` from the
 [organizations](/docs/blocks/organizations) module and the email mirror, write the
