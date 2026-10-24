@@ -3719,7 +3719,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:463bd65a4de93b3c71a62be8560181fa4edfe363580860fd5efb812000293408
+-- @bsb-hash sha256:eacd6562e7c0fdc9c6bedd14ef5771c21857a8df6080ce15c8fb119c93dd32a5
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3826,8 +3826,8 @@ create index if not exists "time_entries_subject_idx" on "better_supabase"."time
 alter table "better_supabase"."time_entries" enable row level security;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-drop policy if exists time_entries_read on "better_supabase"."time_entries";
-create policy time_entries_read on "better_supabase"."time_entries" for select to authenticated
+drop policy if exists bsb_time_entries_select on "better_supabase"."time_entries";
+create policy bsb_time_entries_select on "better_supabase"."time_entries" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
 -- better_supabase.timesheets is the app's table: this block adds only the columns it needs.
@@ -3845,8 +3845,8 @@ create index if not exists "timesheets_week_idx" on "better_supabase"."timesheet
 alter table "better_supabase"."timesheets" enable row level security;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-drop policy if exists timesheets_read on "better_supabase"."timesheets";
-create policy timesheets_read on "better_supabase"."timesheets" for select to authenticated
+drop policy if exists bsb_timesheets_select on "better_supabase"."timesheets";
+create policy bsb_timesheets_select on "better_supabase"."timesheets" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
 -- The Monday of the week an instant falls in, in options.timeZone.

@@ -8155,7 +8155,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:b73cef98ae14495c932a8319af47743fadc790f669c9b1666c4dd127c13c0189
+-- @bsb-hash sha256:1d568d9a338ef24a76a4f9c8dff66f3e04082cbe4fe780f047d97bc254cce8e9
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8310,8 +8310,8 @@ create index if not exists products_status_idx on "better_supabase"."products" (
 alter table "better_supabase"."products" enable row level security;
 grant select on "better_supabase"."products" to authenticated;
 grant all on "better_supabase"."products" to service_role;
-drop policy if exists products_read on "better_supabase"."products";
-create policy products_read on "better_supabase"."products" for select to authenticated
+drop policy if exists bsb_products_select on "better_supabase"."products";
+create policy bsb_products_select on "better_supabase"."products" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_options is the app's table: this block adds only the columns it needs.
@@ -8323,8 +8323,8 @@ alter table "better_supabase"."product_options" add column if not exists "rank" 
 alter table "better_supabase"."product_options" enable row level security;
 grant select on "better_supabase"."product_options" to authenticated;
 grant all on "better_supabase"."product_options" to service_role;
-drop policy if exists product_options_read on "better_supabase"."product_options";
-create policy product_options_read on "better_supabase"."product_options" for select to authenticated
+drop policy if exists bsb_product_options_select on "better_supabase"."product_options";
+create policy bsb_product_options_select on "better_supabase"."product_options" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_option_values is the app's table: this block adds only the columns it needs.
@@ -8336,8 +8336,8 @@ alter table "better_supabase"."product_option_values" add column if not exists "
 alter table "better_supabase"."product_option_values" enable row level security;
 grant select on "better_supabase"."product_option_values" to authenticated;
 grant all on "better_supabase"."product_option_values" to service_role;
-drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
-create policy product_option_values_read on "better_supabase"."product_option_values" for select to authenticated
+drop policy if exists bsb_product_option_values_select on "better_supabase"."product_option_values";
+create policy bsb_product_option_values_select on "better_supabase"."product_option_values" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_variants is the app's table: this block adds only the columns it needs.
@@ -8357,8 +8357,8 @@ create index if not exists product_variants_product_idx on "better_supabase"."pr
 alter table "better_supabase"."product_variants" enable row level security;
 grant select on "better_supabase"."product_variants" to authenticated;
 grant all on "better_supabase"."product_variants" to service_role;
-drop policy if exists product_variants_read on "better_supabase"."product_variants";
-create policy product_variants_read on "better_supabase"."product_variants" for select to authenticated
+drop policy if exists bsb_product_variants_select on "better_supabase"."product_variants";
+create policy bsb_product_variants_select on "better_supabase"."product_variants" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_variant_values is the app's table: this block adds only the columns it needs.
@@ -8369,8 +8369,8 @@ create index if not exists product_variant_values_value_idx on "better_supabase"
 alter table "better_supabase"."product_variant_values" enable row level security;
 grant select on "better_supabase"."product_variant_values" to authenticated;
 grant all on "better_supabase"."product_variant_values" to service_role;
-drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
-create policy product_variant_values_read on "better_supabase"."product_variant_values" for select to authenticated
+drop policy if exists bsb_product_variant_values_select on "better_supabase"."product_variant_values";
+create policy bsb_product_variant_values_select on "better_supabase"."product_variant_values" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.price_lists is the app's table: this block adds only the columns it needs.
@@ -8382,8 +8382,8 @@ alter table "better_supabase"."price_lists" add column if not exists "created_at
 alter table "better_supabase"."price_lists" enable row level security;
 grant select on "better_supabase"."price_lists" to authenticated;
 grant all on "better_supabase"."price_lists" to service_role;
-drop policy if exists price_lists_read on "better_supabase"."price_lists";
-create policy price_lists_read on "better_supabase"."price_lists" for select to authenticated
+drop policy if exists bsb_price_lists_select on "better_supabase"."price_lists";
+create policy bsb_price_lists_select on "better_supabase"."price_lists" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_prices is the app's table: this block adds only the columns it needs.
@@ -8403,8 +8403,8 @@ create index if not exists product_prices_price_list_idx on "better_supabase"."p
 alter table "better_supabase"."product_prices" enable row level security;
 grant select on "better_supabase"."product_prices" to authenticated;
 grant all on "better_supabase"."product_prices" to service_role;
-drop policy if exists product_prices_read on "better_supabase"."product_prices";
-create policy product_prices_read on "better_supabase"."product_prices" for select to authenticated
+drop policy if exists bsb_product_prices_select on "better_supabase"."product_prices";
+create policy bsb_product_prices_select on "better_supabase"."product_prices" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.categories is the app's table: this block adds only the columns it needs.
@@ -8421,8 +8421,8 @@ create index if not exists categories_parent_idx on "better_supabase"."categorie
 alter table "better_supabase"."categories" enable row level security;
 grant select on "better_supabase"."categories" to authenticated;
 grant all on "better_supabase"."categories" to service_role;
-drop policy if exists categories_read on "better_supabase"."categories";
-create policy categories_read on "better_supabase"."categories" for select to authenticated
+drop policy if exists bsb_categories_select on "better_supabase"."categories";
+create policy bsb_categories_select on "better_supabase"."categories" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_categories is the app's table: this block adds only the columns it needs.
@@ -8433,8 +8433,8 @@ create index if not exists product_categories_category_idx on "better_supabase".
 alter table "better_supabase"."product_categories" enable row level security;
 grant select on "better_supabase"."product_categories" to authenticated;
 grant all on "better_supabase"."product_categories" to service_role;
-drop policy if exists product_categories_read on "better_supabase"."product_categories";
-create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
+drop policy if exists bsb_product_categories_select on "better_supabase"."product_categories";
+create policy bsb_product_categories_select on "better_supabase"."product_categories" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.product_collections is the app's table: this block adds only the columns it needs.
@@ -8449,8 +8449,8 @@ alter table "better_supabase"."product_collections" add column if not exists "up
 alter table "better_supabase"."product_collections" enable row level security;
 grant select on "better_supabase"."product_collections" to authenticated;
 grant all on "better_supabase"."product_collections" to service_role;
-drop policy if exists product_collections_read on "better_supabase"."product_collections";
-create policy product_collections_read on "better_supabase"."product_collections" for select to authenticated
+drop policy if exists bsb_product_collections_select on "better_supabase"."product_collections";
+create policy bsb_product_collections_select on "better_supabase"."product_collections" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.collection_products is the app's table: this block adds only the columns it needs.
@@ -8462,8 +8462,8 @@ create index if not exists collection_products_product_idx on "better_supabase".
 alter table "better_supabase"."collection_products" enable row level security;
 grant select on "better_supabase"."collection_products" to authenticated;
 grant all on "better_supabase"."collection_products" to service_role;
-drop policy if exists collection_products_read on "better_supabase"."collection_products";
-create policy collection_products_read on "better_supabase"."collection_products" for select to authenticated
+drop policy if exists bsb_collection_products_select on "better_supabase"."collection_products";
+create policy bsb_collection_products_select on "better_supabase"."collection_products" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- better_supabase.storefronts is the app's table: this block adds only the columns it needs.
@@ -8472,8 +8472,8 @@ alter table "better_supabase"."storefronts" add column if not exists "published_
 alter table "better_supabase"."storefronts" enable row level security;
 grant select on "better_supabase"."storefronts" to authenticated;
 grant all on "better_supabase"."storefronts" to service_role;
-drop policy if exists storefronts_read on "better_supabase"."storefronts";
-create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
+drop policy if exists bsb_storefronts_select on "better_supabase"."storefronts";
+create policy bsb_storefronts_select on "better_supabase"."storefronts" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."catalog_channels" (
@@ -9859,17 +9859,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."product_text"(uuid, text) from public;
 grant execute on function "better_supabase"."product_text"(uuid, text) to anon, authenticated, service_role;
-
-drop policy if exists products_storefront on "better_supabase"."products";
-drop policy if exists product_options_storefront on "better_supabase"."product_options";
-drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
-drop policy if exists product_variants_storefront on "better_supabase"."product_variants";
-drop policy if exists product_variant_values_storefront on "better_supabase"."product_variant_values";
-drop policy if exists product_prices_storefront on "better_supabase"."product_prices";
-drop policy if exists categories_storefront on "better_supabase"."categories";
-drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
-drop policy if exists product_collections_storefront on "better_supabase"."product_collections";
-drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
 drop policy if exists catalog_channels_storefront on "better_supabase"."catalog_channels";
 drop policy if exists catalog_channel_products_storefront on "better_supabase"."catalog_channel_products";
 drop policy if exists product_translations_storefront on "better_supabase"."product_translations";

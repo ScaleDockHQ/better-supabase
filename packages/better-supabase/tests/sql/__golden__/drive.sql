@@ -3792,7 +3792,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:2f22a36c66049c002f28abeecb37fc154c91a78cbb11c02efb6f661eefb0f578
+-- @bsb-hash sha256:0a6ea904be24805fb1d52300ccf4e955d3268e53e636d125f23a939ad1cd2d43
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3973,8 +3973,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
-create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
+drop policy if exists bsb_drive_nodes_select on "better_supabase"."drive_nodes";
+create policy bsb_drive_nodes_select on "better_supabase"."drive_nodes" for select to authenticated
   using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so

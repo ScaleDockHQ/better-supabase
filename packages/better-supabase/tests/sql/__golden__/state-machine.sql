@@ -1362,7 +1362,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:48f246f98f127d8c3e88407eebc66e72c39a212ad60b6a683b7c7847f6a0c523
+-- @bsb-hash sha256:bb84ec77140fe3272719b5f74b9fa5f3582b237db1730ed862b5b3cb2295ba1d
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1401,8 +1401,8 @@ create index if not exists status_history_subject_idx on "better_supabase"."stat
 alter table "better_supabase"."status_history" enable row level security;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+drop policy if exists bsb_status_history_select on "better_supabase"."status_history";
+create policy bsb_status_history_select on "better_supabase"."status_history" for select to authenticated
   using (false);
 -- better_supabase.status_stages is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."status_stages" add column if not exists "id" uuid default gen_random_uuid();
@@ -1418,8 +1418,8 @@ create index if not exists status_stages_subject_idx on "better_supabase"."statu
 alter table "better_supabase"."status_stages" enable row level security;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+drop policy if exists bsb_status_stages_select on "better_supabase"."status_stages";
+create policy bsb_status_stages_select on "better_supabase"."status_stages" for select to authenticated
   using (false);
 -- better_supabase.subject_lifecycles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."subject_lifecycles" add column if not exists "id" uuid default gen_random_uuid();
@@ -1438,8 +1438,8 @@ create index if not exists subject_lifecycles_paused_idx on "better_supabase"."s
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+drop policy if exists bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles";
+create policy bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles" for select to authenticated
   using (false);
 
 

@@ -3729,7 +3729,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:fe39446bf6f5183a6b8ccbb96dd0416309ddd8ce58bb6cb11662bb8798337409
+-- @bsb-hash sha256:201c7ec15b1185d88acedb6ca853e6c8aa8c8b52266677a5e811434c2718fb07
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3831,8 +3831,8 @@ alter table "better_supabase"."booking_resources" enable row level security;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
-drop policy if exists booking_resources_read on "better_supabase"."booking_resources";
-create policy booking_resources_read on "better_supabase"."booking_resources" for select to authenticated
+drop policy if exists bsb_booking_resources_select on "better_supabase"."booking_resources";
+create policy bsb_booking_resources_select on "better_supabase"."booking_resources" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 -- better_supabase.booking_availability is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."booking_availability" add column if not exists "id" uuid default gen_random_uuid();
@@ -3845,8 +3845,8 @@ create index if not exists booking_availability_resource_idx on "better_supabase
 alter table "better_supabase"."booking_availability" enable row level security;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
-drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
-create policy booking_availability_read on "better_supabase"."booking_availability" for select to authenticated
+drop policy if exists bsb_booking_availability_select on "better_supabase"."booking_availability";
+create policy bsb_booking_availability_select on "better_supabase"."booking_availability" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 -- better_supabase.booking_exceptions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."booking_exceptions" add column if not exists "id" uuid default gen_random_uuid();
@@ -3859,8 +3859,8 @@ create index if not exists booking_exceptions_resource_idx on "better_supabase".
 alter table "better_supabase"."booking_exceptions" enable row level security;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
-drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
-create policy booking_exceptions_read on "better_supabase"."booking_exceptions" for select to authenticated
+drop policy if exists bsb_booking_exceptions_select on "better_supabase"."booking_exceptions";
+create policy bsb_booking_exceptions_select on "better_supabase"."booking_exceptions" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')));
 -- better_supabase.booking_services is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."booking_services" add column if not exists "id" uuid default gen_random_uuid();
@@ -3880,8 +3880,8 @@ alter table "better_supabase"."booking_services" enable row level security;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
-drop policy if exists booking_services_read on "better_supabase"."booking_services";
-create policy booking_services_read on "better_supabase"."booking_services" for select to authenticated
+drop policy if exists bsb_booking_services_select on "better_supabase"."booking_services";
+create policy bsb_booking_services_select on "better_supabase"."booking_services" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 -- better_supabase.bookings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."bookings" add column if not exists "id" uuid default gen_random_uuid();
@@ -3911,8 +3911,8 @@ create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("h
 alter table "better_supabase"."bookings" enable row level security;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
-drop policy if exists bookings_read on "better_supabase"."bookings";
-create policy bookings_read on "better_supabase"."bookings" for select to authenticated
+drop policy if exists bsb_bookings_select on "better_supabase"."bookings";
+create policy bsb_bookings_select on "better_supabase"."bookings" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()));
 
 create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)

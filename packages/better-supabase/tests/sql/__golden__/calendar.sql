@@ -5104,7 +5104,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:52c2d1bf3de23ddf3ea1da293be3e5b398f28d6bbd5b1242529e4664162310d2
+-- @bsb-hash sha256:5bb216f5a7e76dcff3836560959ad52027eb11d2c32c96ba48a7358820c46c9d
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5196,8 +5196,8 @@ alter table "better_supabase"."calendars" enable row level security;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
 create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
-drop policy if exists calendars_read on "better_supabase"."calendars";
-create policy calendars_read on "better_supabase"."calendars" for select to authenticated
+drop policy if exists bsb_calendars_select on "better_supabase"."calendars";
+create policy bsb_calendars_select on "better_supabase"."calendars" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
 -- better_supabase.calendar_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."calendar_events" add column if not exists "id" uuid default gen_random_uuid();
@@ -5261,8 +5261,8 @@ $$;
 alter table "better_supabase"."calendar_events" enable row level security;
 grant select on "better_supabase"."calendar_events" to authenticated;
 grant all on "better_supabase"."calendar_events" to service_role;
-drop policy if exists calendar_events_read on "better_supabase"."calendar_events";
-create policy calendar_events_read on "better_supabase"."calendar_events" for select to authenticated
+drop policy if exists bsb_calendar_events_select on "better_supabase"."calendar_events";
+create policy bsb_calendar_events_select on "better_supabase"."calendar_events" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
 -- better_supabase.calendar_attendees is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."calendar_attendees" add column if not exists "id" uuid default gen_random_uuid();
@@ -5290,8 +5290,8 @@ begin
   end if;
 end;
 $$;
-drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
-create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
+drop policy if exists bsb_calendar_attendees_select on "better_supabase"."calendar_attendees";
+create policy bsb_calendar_attendees_select on "better_supabase"."calendar_attendees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 -- better_supabase.calendar_working_hours is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."calendar_working_hours" add column if not exists "id" uuid default gen_random_uuid();
@@ -5304,8 +5304,8 @@ alter table "better_supabase"."calendar_working_hours" add column if not exists 
 alter table "better_supabase"."calendar_working_hours" enable row level security;
 grant select on "better_supabase"."calendar_working_hours" to authenticated;
 grant all on "better_supabase"."calendar_working_hours" to service_role;
-drop policy if exists calendar_working_hours_read on "better_supabase"."calendar_working_hours";
-create policy calendar_working_hours_read on "better_supabase"."calendar_working_hours" for select to authenticated
+drop policy if exists bsb_calendar_working_hours_select on "better_supabase"."calendar_working_hours";
+create policy bsb_calendar_working_hours_select on "better_supabase"."calendar_working_hours" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 
 create or replace function "better_supabase"."create_calendar"(tenant uuid, name text, tz text, owner_type text, owner_id text)
@@ -6199,8 +6199,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_attendee_auto_decline"() from public, anon, authenticated;
-drop trigger if exists "calendar_attendees_auto_decline" on "better_supabase"."calendar_attendees";
-create trigger "calendar_attendees_auto_decline"
+drop trigger if exists bsb_calendar_attendees_auto_decline on "better_supabase"."calendar_attendees";
+create trigger bsb_calendar_attendees_auto_decline
 before insert or update of "user_id" on "better_supabase"."calendar_attendees"
 for each row
 when (new."user_id" is not null and new."response" = 'needs-action')
@@ -6238,8 +6238,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_block_auto_decline"() from public, anon, authenticated;
-drop trigger if exists "calendar_events_auto_decline" on "better_supabase"."calendar_events";
-create trigger "calendar_events_auto_decline"
+drop trigger if exists bsb_calendar_events_auto_decline on "better_supabase"."calendar_events";
+create trigger bsb_calendar_events_auto_decline
 after insert or update of "starts_at", "ends_at", "kind", "auto_decline", "status" on "better_supabase"."calendar_events"
 for each row
 when (new."kind" <> 'event' and new."auto_decline" and new."status" <> 'cancelled' and new."rrule" is null)

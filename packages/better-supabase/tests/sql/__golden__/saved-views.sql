@@ -2009,7 +2009,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:5f08c2b1c1fea8329677b02506bbefd10612fed88fbef9fd6dd81bc208a01e98
+-- @bsb-hash sha256:c1d010badfc0f5aca8b3df2986b1840bd517ae4b6145ba961a028e0afa7f2051
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2085,8 +2085,8 @@ alter table "better_supabase"."saved_views" enable row level security;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
-drop policy if exists saved_views_read on "better_supabase"."saved_views";
-create policy saved_views_read on "better_supabase"."saved_views" for select to authenticated
+drop policy if exists bsb_saved_views_select on "better_supabase"."saved_views";
+create policy bsb_saved_views_select on "better_supabase"."saved_views" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
@@ -2105,8 +2105,8 @@ create index if not exists "saved_view_preferences_user_idx" on "better_supabase
 alter table "better_supabase"."saved_view_preferences" enable row level security;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
-drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
+drop policy if exists bsb_saved_view_preferences_select on "better_supabase"."saved_view_preferences";
+create policy bsb_saved_view_preferences_select on "better_supabase"."saved_view_preferences" for select to authenticated
 using ("user_id" = (select auth.uid()));
 
 

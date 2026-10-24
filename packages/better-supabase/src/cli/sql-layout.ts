@@ -16,6 +16,7 @@ import {
   auditRegistrations,
   declaredTableColumns,
   declaredTables,
+  declaredUpdatedAtTriggers,
   extensionSchema,
   moduleLayout,
   policyGrants,
@@ -211,10 +212,15 @@ export async function moduleLayoutFor(
   };
 }
 
-/** `ownTables` and `ownColumns`: the database's tables, then the app's files. */
+/**
+ * `ownTables`, `ownColumns` and `ownUpdatedAtTriggers`: the database's tables,
+ * then the app's files.
+ */
 async function ownLayout(
   config: ResolvedConfig,
-): Promise<Pick<BlockSqlLayout, "ownTables" | "ownColumns">> {
+): Promise<
+  Pick<BlockSqlLayout, "ownTables" | "ownColumns" | "ownUpdatedAtTriggers">
+> {
   const database = await databaseTables(config);
 
   const own = (await declarativeTexts(config)).filter(
@@ -234,8 +240,15 @@ async function ownLayout(
       ...ownDeclaredTables(own, config.schemas),
     },
     ownColumns: { ...database.columns, ...columns },
+    ownUpdatedAtTriggers: {
+      ...database.updatedAtTriggers,
+      ...declaredUpdatedAtTriggers(own, config.schemas),
+    },
   };
 }
+
+/** A trigger function named like one that keeps `updated_at` current. */
+const UPDATED_AT_FUNCTION = /updated_at|moddatetime|touch/i;
 
 const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
 
@@ -259,8 +272,9 @@ async function databaseTables(
 ): Promise<{
   readonly tables: Readonly<Record<string, string>>;
   readonly columns: Readonly<Record<string, readonly string[]>>;
+  readonly updatedAtTriggers: Readonly<Record<string, string>>;
 }> {
-  const none = { tables: {}, columns: {} };
+  const none = { tables: {}, columns: {}, updatedAtTriggers: {} };
   const path = config.source.snapshot;
 
   if (path === undefined || !existsSync(resolve(config.root, path))) {
@@ -293,6 +307,7 @@ async function databaseTables(
 
   const tables: Record<string, string> = {};
   const columns: Record<string, readonly string[]> = {};
+  const updatedAtTriggers: Record<string, string> = {};
 
   for (const table of toCatalog(snapshot).tables) {
     const name = `${table.schema}.${table.name}`;
@@ -300,10 +315,21 @@ async function databaseTables(
     if (config.schemas.includes(table.schema) && !created.has(name)) {
       tables[name] = "database";
       columns[name] = table.columns.map((column) => column.name);
+
+      const kept = table.triggers.find(
+        (trigger) =>
+          !trigger.name.startsWith("bsb_") &&
+          trigger.events.includes("update") &&
+          UPDATED_AT_FUNCTION.test(trigger.function),
+      );
+
+      if (kept !== undefined) {
+        updatedAtTriggers[name] = kept.name;
+      }
     }
   }
 
-  return { tables, columns };
+  return { tables, columns, updatedAtTriggers };
 }
 
 /**

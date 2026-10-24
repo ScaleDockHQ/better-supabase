@@ -1704,7 +1704,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@1 managed
--- @bsb-hash sha256:6a948225df0ed88f2bf678c50525950fd557b59f0c09422856114ad202def0f6
+-- @bsb-hash sha256:a8ad942b6c6eaaae73f2863ae40f96eae591d34fd468551f2c3166aa38a4f1f5
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1773,8 +1773,8 @@ alter table "better_supabase"."teams" add column if not exists "updated_at" time
 alter table "better_supabase"."teams" enable row level security;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
-drop policy if exists teams_read on "better_supabase"."teams";
-create policy teams_read on "better_supabase"."teams" for select to authenticated
+drop policy if exists bsb_teams_select on "better_supabase"."teams";
+create policy bsb_teams_select on "better_supabase"."teams" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 -- better_supabase.team_members is the app's table: this block adds only the columns it needs.
@@ -1787,8 +1787,8 @@ create index if not exists team_members_membership_idx on "better_supabase"."tea
 alter table "better_supabase"."team_members" enable row level security;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
-drop policy if exists team_members_read on "better_supabase"."team_members";
-create policy team_members_read on "better_supabase"."team_members" for select to authenticated
+drop policy if exists bsb_team_members_select on "better_supabase"."team_members";
+create policy bsb_team_members_select on "better_supabase"."team_members" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 

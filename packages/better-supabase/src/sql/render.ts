@@ -14,6 +14,7 @@ import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
 import { canBeAppTable } from "./app-owned.ts";
+import { blockNamesOnAppTables } from "./app-table-names.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
 import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
@@ -118,9 +119,13 @@ function overApp(
 
   return withoutUnmappedColumns(
     withoutUnmappedTables(
-      withoutAppTableEdits(
-        overAppTables(sql, appTables, layout.ownColumns),
+      blockNamesOnAppTables(
+        withoutAppTableEdits(
+          overAppTables(sql, appTables, layout.ownColumns),
+          appTables,
+        ),
         appTables,
+        layout.ownUpdatedAtTriggers,
       ),
       ctx.instance,
     ),

@@ -749,7 +749,7 @@ export interface JsonSchemaCheck {
 }
 
 /** FNV-1a, as 8 hex digits: a stable suffix that keeps two names apart. */
-function shortHash(text: string): string {
+export function shortHash(text: string): string {
   let hash = 0x81_1c_9d_c5;
 
   for (let index = 0; index < text.length; index += 1) {

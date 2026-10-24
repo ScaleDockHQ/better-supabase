@@ -7483,6 +7483,7 @@
       "dataExportPlan",
       "declaredTableColumns",
       "declaredTables",
+      "declaredUpdatedAtTriggers",
       "DEFAULT_ROLES",
       "entityRenamePlan",
       "excludedColumns",

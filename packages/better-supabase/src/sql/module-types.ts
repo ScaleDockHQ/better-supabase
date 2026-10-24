@@ -324,6 +324,12 @@ export interface BlockSqlLayout {
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**
+   * The trigger that already keeps `updated_at` current on a table in
+   * `ownTables`, by `schema.table`. A block adds no `updated_at` trigger
+   * there.
+   */
+  readonly ownUpdatedAtTriggers?: Readonly<Record<string, string>>;
+  /**
    * The declared tables with row level security on, for tables `fromPolicies`
    * makes service-only.
    */

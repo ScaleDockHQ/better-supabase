@@ -4636,7 +4636,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:cb085046a5dbdec1d1c86d85cd31154309f5b2c1e715f38862a4d7016701cf9d
+-- @bsb-hash sha256:c4464b4f0f7854fc1f1692495649270f63a339cd9082358e3d7bb06cb82a59d1
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4729,8 +4729,8 @@ alter table "better_supabase"."forms" add column if not exists "updated_at" time
 alter table "better_supabase"."forms" enable row level security;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
-drop policy if exists forms_read on "better_supabase"."forms";
-create policy forms_read on "better_supabase"."forms" for select to authenticated
+drop policy if exists bsb_forms_select on "better_supabase"."forms";
+create policy bsb_forms_select on "better_supabase"."forms" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 -- better_supabase.form_versions is the app's table: this block adds only the columns it needs.
@@ -4745,8 +4745,8 @@ alter table "better_supabase"."form_versions" add column if not exists "created_
 alter table "better_supabase"."form_versions" enable row level security;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
-drop policy if exists form_versions_read on "better_supabase"."form_versions";
-create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+drop policy if exists bsb_form_versions_select on "better_supabase"."form_versions";
+create policy bsb_form_versions_select on "better_supabase"."form_versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 -- better_supabase.form_submissions is the app's table: this block adds only the columns it needs.
@@ -4772,8 +4772,8 @@ create index if not exists "form_submissions_subject_idx" on "better_supabase"."
 alter table "better_supabase"."form_submissions" enable row level security;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
-drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
-create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+drop policy if exists bsb_form_submissions_select on "better_supabase"."form_submissions";
+create policy bsb_form_submissions_select on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;

@@ -1306,7 +1306,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:97774142be4fb9993dd9bb661f8effc7f202d845a1c314e0976a076ea1751e6e
+-- @bsb-hash sha256:64fc679b00934de2ef424e93d1ec4978ae3c60fbc8f08a70fa79807c59fc608a
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1393,8 +1393,8 @@ create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_run
 alter table "better_supabase"."bulk_runs" enable row level security;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
-create policy bulk_runs_read on "better_supabase"."bulk_runs" for select to authenticated
+drop policy if exists bsb_bulk_runs_select on "better_supabase"."bulk_runs";
+create policy bsb_bulk_runs_select on "better_supabase"."bulk_runs" for select to authenticated
   using ("created_by" = (select auth.uid()));
 
 create or replace function "better_supabase"."bulk_row"(tenant uuid, subject_type text, subject_id text, action text, args jsonb)

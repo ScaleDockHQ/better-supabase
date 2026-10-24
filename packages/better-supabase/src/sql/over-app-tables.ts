@@ -7,7 +7,7 @@ import {
 } from "./schema-scan.ts";
 
 /** Comments replaced by spaces, so offsets into `text` stay the same. */
-function maskComments(text: string): string {
+export function maskComments(text: string): string {
   return text
     .replaceAll(/--[^\n]*/g, (comment) => " ".repeat(comment.length))
     .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
@@ -103,7 +103,7 @@ function skipQuoted(sql: string, at: number): number {
 }
 
 /** Each statement of `sql` with what precedes it, up to its semicolon. */
-function statementSpans(sql: string): [number, number][] {
+export function statementSpans(sql: string): [number, number][] {
   const spans: [number, number][] = [];
   let start = 0;
   let at = 0;

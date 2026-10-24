@@ -2092,7 +2092,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:0305159f92555734aa142dc3537bbd6a4bd027bc074ea7b5c3c8a6f8b1a01dc5
+-- @bsb-hash sha256:14127502117d2e0ed3137c4868e984f1a88d0445cff069183d61c1290a33c247
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2159,8 +2159,8 @@ alter table "better_supabase"."relations" enable row level security;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
+drop policy if exists bsb_relations_select on "better_supabase"."relations";
+create policy bsb_relations_select on "better_supabase"."relations" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the

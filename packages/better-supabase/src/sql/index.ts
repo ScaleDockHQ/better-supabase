@@ -108,6 +108,7 @@ export type { AuditedTable } from "./audit-registrations.ts";
 export {
   declaredTableColumns,
   declaredTables,
+  declaredUpdatedAtTriggers,
   rlsTables,
   extensionSchema,
   policyGrants,
