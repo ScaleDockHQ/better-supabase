@@ -677,6 +677,26 @@ $$;
 revoke execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
 grant execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."contracts";
+create policy bsb_tenant_scope on "better_supabase"."contracts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."contract_obligations";
+create policy bsb_tenant_scope on "better_supabase"."contract_obligations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

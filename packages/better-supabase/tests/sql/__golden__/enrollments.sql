@@ -634,6 +634,34 @@ $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1332,6 +1360,34 @@ $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1997,6 +2053,34 @@ $$;
 revoke execute on function "app_private"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "app_private"."cancel_enrollment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."enrollment_programs";
+create policy bsb_tenant_scope on "app_private"."enrollment_programs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."enrollments";
+create policy bsb_tenant_scope on "app_private"."enrollments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."enrollment_steps";
+create policy bsb_tenant_scope on "app_private"."enrollment_steps" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."enrollments" x where x."id" = "app_private"."enrollment_steps"."enrollment_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2659,6 +2743,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_enrollment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_enrollment"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_programs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
+create policy bsb_tenant_scope on "better_supabase"."enrollments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
+create policy bsb_tenant_scope on "better_supabase"."enrollment_steps" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.enrollments.api: entry points for the Data API.
 create schema if not exists "api";

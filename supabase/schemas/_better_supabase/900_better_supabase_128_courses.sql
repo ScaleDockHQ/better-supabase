@@ -1224,6 +1224,50 @@ $$;
 revoke execute on function "better_supabase"."verify_course_certificate"(text) from public;
 grant execute on function "better_supabase"."verify_course_certificate"(text) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 drop trigger if exists "bsb_search_course_index" on "better_supabase"."courses";
 create trigger "bsb_search_course_index"
   after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"

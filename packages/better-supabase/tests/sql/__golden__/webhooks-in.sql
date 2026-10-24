@@ -489,6 +489,19 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1055,6 +1068,19 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1575,6 +1601,19 @@ grant execute on function "app_private"."incoming_webhook_by_token"(text) to ser
 revoke execute on function "app_private"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "app_private"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."incoming_webhooks";
+create policy bsb_tenant_scope on "app_private"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "app_private"."incoming_webhook_tenant_ids"())
+    and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2092,6 +2131,19 @@ revoke execute on function "better_supabase"."incoming_webhook_by_token"(text) f
 grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to service_role;
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
 
 -- blocks.webhooks-in.api: entry points for the Data API.
 create schema if not exists "api";

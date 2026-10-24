@@ -823,6 +823,26 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1704,6 +1724,26 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2560,6 +2600,26 @@ $$;
 revoke execute on function "app_private"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "app_private"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."time_entries";
+create policy bsb_tenant_scope on "app_private"."time_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."timesheets";
+create policy bsb_tenant_scope on "app_private"."timesheets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3413,6 +3473,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.time-tracking.api: entry points for the Data API.
 create schema if not exists "api";

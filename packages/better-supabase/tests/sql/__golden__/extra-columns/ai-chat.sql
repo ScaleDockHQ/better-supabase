@@ -2311,6 +2311,35 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope on "better_supabase"."ai_projects" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope on "better_supabase"."ai_chats" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope on "better_supabase"."ai_sandboxes" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

@@ -476,6 +476,21 @@ create trigger "bsb_comments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id', 'tenant_id');
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  );
+
 -- blocks.comments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

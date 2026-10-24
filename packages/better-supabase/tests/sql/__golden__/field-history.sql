@@ -68,6 +68,18 @@ $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -164,6 +176,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -264,6 +288,18 @@ $$;
 revoke execute on function "app_private"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "app_private"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."field_changes";
+create policy bsb_tenant_scope on "app_private"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -360,6 +396,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.field-history.api: entry points for the Data API.
 create schema if not exists "api";

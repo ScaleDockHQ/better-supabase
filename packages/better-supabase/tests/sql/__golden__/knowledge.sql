@@ -461,6 +461,18 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -996,6 +1008,18 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1488,6 +1512,18 @@ $$;
 revoke execute on function "app_private"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."knowledge_documents";
+create policy bsb_tenant_scope on "app_private"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1977,6 +2013,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";

@@ -237,6 +237,21 @@ revoke execute on function "better_supabase"."record_activity"(jsonb) from publi
 grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope on "better_supabase"."activity_entries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
+    and ("subject_type" is null or "subject_id" is null
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,project,task}'::text[]))
+      or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.timeline.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

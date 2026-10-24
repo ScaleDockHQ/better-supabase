@@ -42,6 +42,11 @@ drop policy if exists "projects_update" on "public"."projects";
 create policy "projects_update" on "public"."projects" for update to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids())) with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "public"."projects";
+create policy bsb_tenant_scope on "public"."projects" as restrictive
+  for all to authenticated
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 create index if not exists "projects_workspace_id_idx" on "public"."projects" ("workspace_id");
 create index if not exists "projects_owner_id_idx" on "public"."projects" ("owner_id");
 drop trigger if exists "bsb_updated_at" on "public"."projects";
@@ -60,6 +65,11 @@ drop policy if exists "tasks_update" on "public"."tasks";
 create policy "tasks_update" on "public"."tasks" for update to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids())) with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "public"."tasks";
+create policy bsb_tenant_scope on "public"."tasks" as restrictive
+  for all to authenticated
+  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 create index if not exists "tasks_workspace_id_idx" on "public"."tasks" ("workspace_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
 drop trigger if exists "bsb_updated_at" on "public"."tasks";
@@ -83,7 +93,7 @@ select extensions.plan(15);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_tenant_scope'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.projects');
 
@@ -94,23 +104,29 @@ with o as (
 )
 insert into "public"."projects" ("workspace_id", "name") select o.id, repeat('x', 1) from o;
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."projects" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope');
-select extensions.throws_ok($$insert into "public"."projects" ("workspace_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
+select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."projects" ("workspace_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope even through an app policy using (true)');
 reset role;
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
-select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete'], 'public.tasks has the policies for its scope');
+select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_tenant_scope'], 'public.tasks has the policies for its scope');
 select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."tasks"'::regclass and k.conname = 'tasks_project_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.tasks.project_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'tasks', 'anon', array[]::text[], 'anon has no privileges on public.tasks');
 select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.tasks');
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."tasks" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.skip('public.tasks has a required reference, so the read test can''t insert a row of another tenant', 1);
-select extensions.throws_ok($$insert into "public"."tasks" ("workspace_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope');
+select extensions.throws_ok($$insert into "public"."tasks" ("workspace_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope even through an app policy using (true)');
 reset role;
 
 select * from extensions.finish();

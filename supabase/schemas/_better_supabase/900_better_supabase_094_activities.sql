@@ -944,6 +944,29 @@ create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."bsb_booking_engagement"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 drop trigger if exists "bsb_search_engagement_index" on "better_supabase"."engagements";
 create trigger "bsb_search_engagement_index"
   after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."engagements"

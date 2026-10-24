@@ -760,6 +760,32 @@ grant execute on function "better_supabase"."list_attachments"(uuid, text, text)
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

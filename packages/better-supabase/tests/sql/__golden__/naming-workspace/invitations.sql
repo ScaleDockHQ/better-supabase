@@ -699,6 +699,18 @@ grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to 
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select "better_supabase"."invitation_tenant_ids"()))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

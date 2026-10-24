@@ -348,6 +348,21 @@ $$;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -827,6 +842,21 @@ $$;
 revoke execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1206,6 +1236,21 @@ $$;
 revoke execute on function "app_private"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "app_private"."copy_comments"(uuid, text, text, text, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."comment_tasks";
+create policy bsb_tenant_scope on "app_private"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("app_private"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "app_private"."comment_message_readable"("message_id", "organization_id"))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1582,6 +1627,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  );
 
 -- blocks.comments.api: entry points for the Data API.
 create schema if not exists "api";

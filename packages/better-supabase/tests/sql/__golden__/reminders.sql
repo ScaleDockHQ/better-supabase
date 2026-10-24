@@ -252,6 +252,20 @@ $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -532,6 +546,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -816,6 +844,20 @@ $$;
 revoke execute on function "app_private"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "app_private"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope on "app_private"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."reminders";
+create policy bsb_tenant_scope on "app_private"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1096,6 +1138,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";

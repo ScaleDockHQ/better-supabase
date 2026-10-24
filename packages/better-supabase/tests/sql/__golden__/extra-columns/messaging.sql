@@ -1518,6 +1518,74 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
+create policy bsb_tenant_scope on "better_supabase"."conversations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    and case "better_supabase"."conversations"."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
+      else false
+    end))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope on "better_supabase"."conversation_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
+create policy bsb_tenant_scope on "better_supabase"."messages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("sent_at" is not null or "author_id" = (select auth.uid()))
+  and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
+create policy bsb_tenant_scope on "better_supabase"."message_edits" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope on "better_supabase"."thread_reads" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope on "better_supabase"."message_record_mentions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope on "better_supabase"."thread_summaries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

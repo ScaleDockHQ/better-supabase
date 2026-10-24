@@ -376,6 +376,29 @@ $$;
 revoke execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -815,6 +838,29 @@ $$;
 revoke execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1222,6 +1268,29 @@ $$;
 revoke execute on function "app_private"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "app_private"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."engagements";
+create policy bsb_tenant_scope on "app_private"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."engagement_subjects";
+create policy bsb_tenant_scope on "app_private"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1626,6 +1695,29 @@ as $$
 $$;
 revoke execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.activities.api: entry points for the Data API.
 create schema if not exists "api";

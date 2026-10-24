@@ -461,6 +461,18 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

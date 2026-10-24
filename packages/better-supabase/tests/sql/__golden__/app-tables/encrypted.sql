@@ -50,6 +50,11 @@ drop policy if exists "patients_update" on "public"."patients";
 create policy "patients_update" on "public"."patients" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "patients_delete" on "public"."patients";
 create policy "patients_delete" on "public"."patients" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."patients";
+create policy bsb_tenant_scope on "public"."patients" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "patients_organization_id_idx" on "public"."patients" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."patients";
 create trigger "bsb_updated_at" before update on "public"."patients"
@@ -370,7 +375,7 @@ select extensions.plan(66);
 
 select extensions.has_table('public', 'patients', 'public.patients exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."patients"'::regclass), 'public.patients has row level security on');
-select extensions.policies_are('public', 'patients', array['patients_select', 'patients_insert', 'patients_update', 'patients_delete'], 'public.patients has the policies for its scope');
+select extensions.policies_are('public', 'patients', array['patients_select', 'patients_insert', 'patients_update', 'patients_delete', 'bsb_tenant_scope'], 'public.patients has the policies for its scope');
 select extensions.table_privs_are('public', 'patients', 'anon', array[]::text[], 'anon has no privileges on public.patients');
 select extensions.table_privs_are('public', 'patients', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.patients');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."patients"', 'diagnosis', 'SELECT'), 'authenticated may not select public.patients.diagnosis');
@@ -407,10 +412,13 @@ select extensions.is((select r."born_on"::text from "public"."patients_reveal"(c
 select extensions.ok((select bool_and(left("diagnosis", 5) = 'bsf1:' and "diagnosis" <> (repeat('x', 1))::text) from "public"."patients"), 'public.patients.diagnosis is ciphertext at rest');
 select extensions.is((select r."diagnosis"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.patients.diagnosis');
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."patients" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."patients"), 0, 'a signed-in user does not read a row of public.patients outside their scope');
-select extensions.throws_ok($$insert into "public"."patients" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.patients outside their scope');
+select extensions.is((select count(*)::integer from "public"."patients"), 0, 'a signed-in user does not read a row of public.patients outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."patients" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.patients outside their scope even through an app policy using (true)');
 select extensions.is((select count(*)::integer from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.patients outside their scope');
 select extensions.throws_ok($$select "ssn" from "public"."patients"$$, '42501', null, 'a signed-in user cannot read public.patients.ssn');
 select extensions.throws_ok($$select "email" from "public"."patients"$$, '42501', null, 'a signed-in user cannot read public.patients.email');

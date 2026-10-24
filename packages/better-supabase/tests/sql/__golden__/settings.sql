@@ -269,6 +269,23 @@ drop function if exists "better_supabase"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -639,6 +656,23 @@ drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platf
 create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -939,6 +973,23 @@ drop function if exists "app_private"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "app_private"."platform_settings";
 drop function if exists "app_private"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
+create policy bsb_tenant_scope on "app_private"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1236,6 +1287,23 @@ drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."o
 drop function if exists "better_supabase"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
 
 -- blocks.settings.api: entry points for the Data API.
 create schema if not exists "api";

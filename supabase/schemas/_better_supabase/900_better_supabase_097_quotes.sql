@@ -888,6 +888,26 @@ $$;
 revoke execute on function "better_supabase"."quote_from_deal"(uuid) from public, anon;
 grant execute on function "better_supabase"."quote_from_deal"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."quotes";
+create policy bsb_tenant_scope on "better_supabase"."quotes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."quote_lines";
+create policy bsb_tenant_scope on "better_supabase"."quote_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.quotes.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

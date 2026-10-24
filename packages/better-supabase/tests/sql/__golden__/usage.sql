@@ -641,6 +641,26 @@ grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric,
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1372,6 +1392,34 @@ grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric,
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
+create policy bsb_tenant_scope on "better_supabase"."usage_history" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2044,6 +2092,26 @@ grant execute on function "app_private"."consume_quota"(uuid, text, numeric, tex
 grant execute on function "app_private"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "app_private"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
+create policy bsb_tenant_scope on "app_private"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
+create policy bsb_tenant_scope on "app_private"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2713,6 +2781,26 @@ grant execute on function "better_supabase"."record_usage"(uuid, text, numeric, 
 grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.usage.api: entry points for the Data API.
 create schema if not exists "api";

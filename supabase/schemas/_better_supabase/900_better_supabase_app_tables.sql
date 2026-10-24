@@ -70,6 +70,11 @@ drop policy if exists "projects_update" on "public"."projects";
 create policy "projects_update" on "public"."projects" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."projects";
+create policy bsb_tenant_scope on "public"."projects" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 create index if not exists "projects_lead_id_idx" on "public"."projects" ("lead_id");
 create index if not exists "projects_label_id_idx" on "public"."projects" ("label_id");
@@ -89,6 +94,11 @@ drop policy if exists "tasks_update" on "public"."tasks";
 create policy "tasks_update" on "public"."tasks" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."tasks";
+create policy bsb_tenant_scope on "public"."tasks" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 alter table "public"."tasks" drop constraint if exists "tasks_title_check";
 alter table "public"."tasks" add constraint "tasks_title_check" check (char_length("title") <= 200);
 alter table "public"."tasks" drop constraint if exists "tasks_status_check";
@@ -152,6 +162,11 @@ drop policy if exists "client_notes_update" on "public"."client_notes";
 create policy "client_notes_update" on "public"."client_notes" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "client_notes_delete" on "public"."client_notes";
 create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."client_notes";
+create policy bsb_tenant_scope on "public"."client_notes" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."client_notes";
 create trigger "bsb_updated_at" before update on "public"."client_notes"

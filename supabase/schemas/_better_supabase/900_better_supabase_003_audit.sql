@@ -1423,6 +1423,19 @@ $$;
 revoke execute on function "better_supabase"."revert_audit_entries"(text[]) from public, anon;
 grant execute on function "better_supabase"."revert_audit_entries"(text[]) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+create policy bsb_tenant_scope on "better_supabase"."audit_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."audit_read_tenants"())
+    or (select "better_supabase"."audit_reads_all"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.audit.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

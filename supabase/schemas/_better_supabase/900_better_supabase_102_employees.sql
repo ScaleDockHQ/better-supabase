@@ -817,6 +817,35 @@ drop trigger if exists bsb_time_entries_employee_sync on "better_supabase"."empl
 create trigger bsb_time_entries_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_time_entries_employee_sync();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
+create policy bsb_tenant_scope on "better_supabase"."employees" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
+create policy bsb_tenant_scope on "better_supabase"."employee_private_details" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
+create policy bsb_tenant_scope on "better_supabase"."employee_contracts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 drop trigger if exists "bsb_search_employee_index" on "better_supabase"."employees";
 create trigger "bsb_search_employee_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"

@@ -1012,6 +1012,42 @@ $$;
 revoke execute on function "better_supabase"."dispatch_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."dispatch_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
+create policy bsb_tenant_scope on "better_supabase"."work_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
+create policy bsb_tenant_scope on "better_supabase"."dispatch_routes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
+create policy bsb_tenant_scope on "better_supabase"."dispatch_route_stops" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
+create policy bsb_tenant_scope on "better_supabase"."work_order_parts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.dispatch.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

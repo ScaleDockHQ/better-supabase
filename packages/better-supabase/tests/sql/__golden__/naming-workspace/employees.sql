@@ -683,6 +683,35 @@ $$;
 revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
+create policy bsb_tenant_scope on "better_supabase"."employees" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
+create policy bsb_tenant_scope on "better_supabase"."employee_private_details" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
+create policy bsb_tenant_scope on "better_supabase"."employee_contracts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,

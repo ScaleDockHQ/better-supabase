@@ -1908,6 +1908,34 @@ $$;
 revoke execute on function "better_supabase"."check_workflow_alerts"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."check_workflow_alerts"(integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_definitions";
+create policy bsb_tenant_scope on "better_supabase"."workflow_definitions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_opt_outs";
+create policy bsb_tenant_scope on "better_supabase"."workflow_opt_outs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_credentials";
+create policy bsb_tenant_scope on "better_supabase"."workflow_credentials" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
