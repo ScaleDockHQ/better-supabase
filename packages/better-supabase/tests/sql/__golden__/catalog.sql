@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:fecf072931eeb88359734165e0151f20498a16ac39ba2da323ccb83fab4abb96
+-- @bsb-hash sha256:1a49ace84d2759faf0a971538f7c0170a9e9e7264f2972171564e723de05af40
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,67 +46,67 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1902,7 +1902,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:e9736e8d0d6a759e9fd8dfbd9c34e4b23d2f6b4fb2fc2c08bffdadb7dfc35ebf
+-- @bsb-hash sha256:3872df3f65d1494df6ceec4ce4cdd2ee7c3254cd17c7c59fce4005f44dc5f2b0
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1947,71 +1947,71 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_media";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -4030,7 +4030,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:e29441c1535e49e70a85068d53999226c77405299ad8d58f99ef4921732e9e51
+-- @bsb-hash sha256:6f181fbb7bfe8ad2e932e6ce1991e3ae3a2658f4d047518f4456f2bb42d854ba
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4075,67 +4075,67 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_options";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_option_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_variants";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_variant_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."price_lists";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_prices";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_collections";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."collection_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."storefronts";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."catalog_channels";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."catalog_channel_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."product_variant_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -5933,7 +5933,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:445d4359feeb3399af5c95e3aa5a05354bdc4df3ef8df078fa9f55082536eb4d
+-- @bsb-hash sha256:77b2a2ea940d547055918d2e052708b6fdc6fe434f081eab304f6e45ecf058cc
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5978,67 +5978,67 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -8155,7 +8155,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:1d568d9a338ef24a76a4f9c8dff66f3e04082cbe4fe780f047d97bc254cce8e9
+-- @bsb-hash sha256:b2d0c681f6d8b8ecbdb99d9436233adca1cc712710b02b67ff7b34686d9b5e04
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8216,67 +8216,67 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

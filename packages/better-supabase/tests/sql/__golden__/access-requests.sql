@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:b8b3d1d14252c361d1f9b1a62e4ecbd9e165a452e5c8808d7cf54723d6e931a4
+-- @bsb-hash sha256:0669ef47e2d1691a9948edc932f3713425eda65040f0a7595d9ef70da25f1994
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -392,7 +392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:7527eb2eb1a611d422b286da40bf9daf4afc90b474131459851089f981296216
+-- @bsb-hash sha256:5c2d9e9a167ce486a091697c0a249483f12544a534ddea04b81786fab678b182
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -437,7 +437,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -815,7 +815,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:05cb475308ecdcb04cd3b48eb0be086c9ff69e03654af3deba60b3b241c3b2c0
+-- @bsb-hash sha256:4b6cdd98732e3e0a5bde20f11f104f11e81e5a44e42a36dfef66ecdab7875284
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -860,7 +860,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."access_requests";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1208,7 +1208,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a3681ac33e9d51de389c5ba3ec9efe1e92d095f006f2c8b81681655c07c29519
+-- @bsb-hash sha256:32cf3fe1db693c1fcacf11ee1bb446e558dedf30041ab52e3ab0b19bd24ed9d7
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1253,7 +1253,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

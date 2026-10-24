@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:22ca27e917a958f383f3ed5bc0142831c5c6fc34e4238122b107b71d1533956b
+-- @bsb-hash sha256:b153ef944c8303bede382705166dbacf3be0852bb527b2a527434852a289b07b
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -378,7 +378,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:125190c27fc5bc88ff5e413f5a542fcc01aaa1c9724452c75bf5b07ea60e2edb
+-- @bsb-hash sha256:f7bf2cbf0b6a120721c44679ab49d29f8594c2b7111e69c9d5b7d94de17b33f7
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -423,7 +423,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -782,7 +782,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:1716a11a70e0a4c1829deee7892441be31bb7766ac2a2466e715b2cf775a8522
+-- @bsb-hash sha256:f6c340237a5d8ad11bb870967e9fc484b4741c4472dbbcbd6629049afbeadb3d
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -827,7 +827,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1161,7 +1161,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:dff1d583b914ddb2f8aa348500b23ff171f90988e29f3629d06377cb556f2d17
+-- @bsb-hash sha256:057dd59a47c9922f44153bc7d956bda7898aec35313a478aaa1989b7b709fb04
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1206,7 +1206,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1616,7 +1616,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:a115011e44974df0b4b9d6e2c604a6e4f895ea641090f3d96b344ebb1ba3cbd8
+-- @bsb-hash sha256:35664ee48517095b729d98b9ecebbbf45f672a3a7d4dcb15d3d16c9284d61c51
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1661,7 +1661,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

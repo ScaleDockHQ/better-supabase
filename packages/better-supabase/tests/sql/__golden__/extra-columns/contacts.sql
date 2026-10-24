@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:86ea903c530ce0f86f0ed4c8829c535d378b99e975e0b1e769d5fddb96dae714
+-- @bsb-hash sha256:fc31aae67569f87028eb499708ec2f517050e3dca3fc7677c709dafced9d9298
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,15 +77,15 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

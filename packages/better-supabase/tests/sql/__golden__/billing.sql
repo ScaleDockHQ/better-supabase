@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:c8aa031224426b9ea8df3952729ccf504e8694d611f7052a8e4f9f20ba1912e5
+-- @bsb-hash sha256:beafca1b6018b2204a65a0f4cff22d18600e3fa7bd1e8d93b7f37807fcecf58f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -685,7 +685,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:5d3f6aab49e37496259b70ec8f005c8113f990c2fe9a1c708651d43288600ecc
+-- @bsb-hash sha256:c80402c9394ad02524040fcfe6bfa2c4c5c66ab369c4d08566b7077fff7ca17f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,7 +696,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1404,7 +1404,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:b74498be7e9a8bdc6b47e9bec11ae7e7d47ddf1f5e3715103255d45cdccc4cb8
+-- @bsb-hash sha256:22ebbcc27a2531284e8de1aae62c7269d93eb22c7b520d90350a202a21a4c5a4
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1415,7 +1415,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."billing_customers";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -2090,7 +2090,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:2cc66aa71cc59c04cfe3a77e0ea8be89038177561fd231ecf50cca296b584d15
+-- @bsb-hash sha256:d1365496df29dd3a942f142d0afd10400219e445f844207aea3565bfaf533f86
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2101,7 +2101,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

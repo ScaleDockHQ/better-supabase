@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:e73f838cc47a3e2ca8086c5bf7ac3d2e161bf153d0d42469b4f0927cfeabfe1c
+-- @bsb-hash sha256:4327accf1083aa841868093fc20df4a41f511a8c6f058b55a13ddad5d96648be
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,23 +46,23 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

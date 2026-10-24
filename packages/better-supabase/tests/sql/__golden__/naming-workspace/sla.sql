@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:afa3751d75c79459a66026322b2b92e73cb0023d5f93ae14d9949c27fae14f82
+-- @bsb-hash sha256:59b960c2d693839e5d4c49c824f1cc0446b4dd145b42b7119e26ffaf091ac82b
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,11 +46,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_policies";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

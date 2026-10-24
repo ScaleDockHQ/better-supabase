@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:a8281df0ca6b334f5c4e2f5280c68fddd261345cdbc02eba22b92b628fa12725
+-- @bsb-hash sha256:da01a16270a8dac9723f4688ba0b5221a8180a70d4a30e431e453cfdc2fe9566
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -446,7 +446,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:368e5c21272e89edee4e1d1964d07bd6a955b8b6d6f465459334415eaf6f319d
+-- @bsb-hash sha256:e725caf86dcf7fa993c2f2a384fcb6d97f015dd56aa486f0b21f45d838a53f85
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -491,7 +491,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -921,7 +921,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:3b062ad4fa76e14c41fd5066828e9b35a936827986f9683de822c82943c9c0dc
+-- @bsb-hash sha256:0b4dd8bd51a4e0cc39e0940b1ee49fdee3177ce2ec73197e1b95ef7741b3eeb8
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -966,7 +966,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."flag_overrides";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1368,7 +1368,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:0f92aef3ba6cdd8276886e6ba4651f65fe5bda2c01598f1748bd573db783399f
+-- @bsb-hash sha256:ea81aa9e51ac377f71918ea6a3b39b8edcc349379b3853480f13399ccb4109d1
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1413,7 +1413,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

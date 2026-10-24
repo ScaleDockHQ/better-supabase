@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:ba15bc765a8bd2eee3292cbbbc2382cfa3d13c6f3c17454edeb75ae83dd59399
+-- @bsb-hash sha256:bd835b0a0ddf9ac18bcdb8efd7ea30a6b79253e52fbb053584b15a135382931d
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,11 +46,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -325,7 +325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:574c5fd3bdb20a346b39aa48d17af4a1c97c89a7bc66446305af4f0af2cf2faf
+-- @bsb-hash sha256:32ac8c7a3d28c9ba38656311c520808133b0a710973dda81facc1e5412b12a26
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -370,11 +370,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -688,7 +688,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:21c941a4f692384d03f5c97cef7c6f5a664c62b42ea7449cd6a2f29f54b8e215
+-- @bsb-hash sha256:f06909077eac135c0fde16dbc8e0d2cfb8cfada107b1e4527c0a7a05f51c2ca1
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -733,11 +733,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."field_definitions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."field_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1014,7 +1014,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:ce4fbcecbe500c2eef5ccc9cc6b032d6c84f84bf009e313827ca340158831d9a
+-- @bsb-hash sha256:5edf202d6606fb847a9137f4e68db8507dd29b453c2fa2cf1ce6f63e0a1cd9c3
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1059,11 +1059,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1414,7 +1414,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:4d7bfce181981b6e505c9f8ac70dc6afd7dc9054698cb7fb7ef898da0b60406a
+-- @bsb-hash sha256:2d0d82540d91f2accf056216f51a72e79cb0ab313981b6f4f4771a5f9cca1604
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1459,11 +1459,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

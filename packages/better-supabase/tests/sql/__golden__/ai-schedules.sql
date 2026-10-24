@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:c8d6c5498e20988b81315dafb0aadde6269928ada6e48fcca940d7fcae0fc7a9
+-- @bsb-hash sha256:400d69b1883d8df7fde2b72355f1b366a739c64c815fb911e09e21bb1d0d856c
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,11 +46,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -410,7 +410,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:9318a62f139a6f7f2bcdbab515ef2d036419eb00e05d0eef69f5ef40e0e69422
+-- @bsb-hash sha256:51cbb66c458f6f3b4f9558b902f56e922dcf73ccaf72181796ce5897db66b0b6
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,11 +455,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -820,7 +820,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ba6fd166f68a97dec6757974408ae6bdc80cd6fc2dd53fb5f0265a7554bceb3d
+-- @bsb-hash sha256:6b8a3c60b284f67376960d7e7ab5ae87748b824029f62c2c5b8057be8830e878
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -865,11 +865,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."ai_scheduled_tasks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."ai_task_runs";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1231,7 +1231,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ec732076cecf16424a368fa253b2d4639e58512b1f506f5efbd1964301b00ba8
+-- @bsb-hash sha256:37eec8991446a67481dd1843763981fdce5fc595337b7a5f4d18cd8e51b4c233
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1276,11 +1276,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

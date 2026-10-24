@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:09b1c7663f67fa0209b2d97531ff786ead6e6bfc319b64b84b8f0f7d33068e7d
+-- @bsb-hash sha256:63aa10cead0a5b03ce66a02a51859268b41dd99f63a157564a94fc1422be3b3b
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,11 +46,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -386,7 +386,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:754e6353e2f3acf3bc96feca17e2b13cfd93b0afba02677d5f86d35ef559d5ef
+-- @bsb-hash sha256:3770f9e03968012fe5c510777f75fe99c272440531d5c27122fcfa3fa67974c8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -431,11 +431,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -902,7 +902,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3cc4cb62a2f8f3ac270ad53132d2ba5f9e39259f593666ccc969b1b2fe354e43
+-- @bsb-hash sha256:ca5272e74cb121293ee843880fd3fda71201ac7234651c8da491fab775c47fda
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -947,11 +947,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."passes";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."pass_check_ins";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1289,7 +1289,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:e092f15e50494197380cb98717886470ce80f493815c74c44d429a943304c23d
+-- @bsb-hash sha256:12e32d47c96887aa4ef8583c66270e8a544ed0fb012430efae0c11546addbff8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1334,11 +1334,11 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

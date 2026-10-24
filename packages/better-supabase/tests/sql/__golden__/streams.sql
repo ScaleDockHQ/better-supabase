@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:e0a7f177ebf598cd229ae64beb71edfe98f2f9c984f856889afae21655b9176f
+-- @bsb-hash sha256:cf51d9a797a95f7caaf9e2fda337e2a2461091991b038f192bdef7a39331ddb9
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -369,7 +369,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:e0a7f177ebf598cd229ae64beb71edfe98f2f9c984f856889afae21655b9176f
+-- @bsb-hash sha256:cf51d9a797a95f7caaf9e2fda337e2a2461091991b038f192bdef7a39331ddb9
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -414,7 +414,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -737,7 +737,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:6d091bb6bb7bef5b37dc0c71ca836f5d5ff04417007044584b9a1c716dec0442
+-- @bsb-hash sha256:39dead99d3ada944a69bc6340f038a2ab87ac3f780a387eeb8a72300bc658ae6
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -782,7 +782,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."streams";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1107,7 +1107,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:8a554898f1663b0ced65763a9a2e64a0b96d0b2201e0f20cdb057537d15156fc
+-- @bsb-hash sha256:e5d5858199fa11e3dedaa8cd9b945e4dbec89c8a46878d94155d828176183c77
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1152,7 +1152,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

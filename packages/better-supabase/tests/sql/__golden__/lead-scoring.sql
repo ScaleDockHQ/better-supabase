@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:862ace464d21cfea80d887449b4dbdb0b401fc8e1a9a86bb75535285c476e6d9
+-- @bsb-hash sha256:bc0f8a2ff520b444ece95055e2095e95b989a0b6d5b5463a53bde9171da76a96
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -262,7 +262,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:7fcbc1b5ae5735381668ef5e4e6bc18f3bce54098c027da211e06d62534799ab
+-- @bsb-hash sha256:0d2bb381a1ced2ac9f17a193d972e3d8f6b23a518b836b0aeb8008d6ad70fd20
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -307,7 +307,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -611,7 +611,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:10610a54829b9d1e29d3984009ff2a1f4c64927c9d24e894d9e2b46e225a8874
+-- @bsb-hash sha256:9f1d110ee89697b15f5fa3b8c7c50eaa5865868ce6e8e10279b89099fa541403
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -656,7 +656,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."lead_score_checks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -874,7 +874,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:7db916acc0f478d93188c30b478b658a4e438c19045bceff48d941b967702058
+-- @bsb-hash sha256:cf738c08f3f8dd9f9ce2829aa8071cda3870f255c3759aea544fd271ab3b6a93
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -919,7 +919,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:067df1bbe6a63d26a35707ff21cb09cbc4071795fa7e27bb62e70eb228b1f8d8
+-- @bsb-hash sha256:f2ed30eeefad52e4657c0c7e45792f11382416e39244b9d4ca976898bdab4b53
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

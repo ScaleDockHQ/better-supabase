@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:fc6dcaca1e32a8c858a51eaa7be7e680afb8d9244bb3b2342b167214f5fb4b25
+-- @bsb-hash sha256:20290ef1cc9c9d2db9585760a1745972d59f083b08a70a5c66d2b0cf6195f42b
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

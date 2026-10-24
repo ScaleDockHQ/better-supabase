@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:40fd6dbb5ab4a48fdd6119b54baf0169f166dbb577ff2408dc6874d668bb3610
+-- @bsb-hash sha256:839d4399d8c896542e93c04998f0e029aa9406b2ad9f9e9ea2b6ec8c0d9d16ba
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

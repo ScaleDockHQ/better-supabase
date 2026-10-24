@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:d4f0644d1f78cb90e0d7f6d891cae2c3f0305f68243c8726a7311b007936b7a3
+-- @bsb-hash sha256:1a8fdaf05569fe3063dda7eb476ab3f101ae27a7ef40c20a76718bdac64451a1
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

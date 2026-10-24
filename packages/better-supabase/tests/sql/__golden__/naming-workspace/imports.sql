@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:e59a0dc4aafd3fec981320021aa33e1badad8ee5c9e5d24775c321f81528d5f9
+-- @bsb-hash sha256:549597f7e2b3fe8e391c8f8a3f6e426e634636d1e3b7e16242b9c34cf253ce72
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

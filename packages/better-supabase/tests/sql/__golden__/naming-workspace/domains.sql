@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:e033e36318c37f303fa2bf902935744371406edf029a904e12c3ada4fe3e56b3
+-- @bsb-hash sha256:8896d33f797954d42d415b1563c2063dcbf0bee23cba74d12266028103a70e6d
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."workspace_hostnames";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

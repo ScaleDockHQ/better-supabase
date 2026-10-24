@@ -3308,7 +3308,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:ea389b61802e9fd5934bd47f26dcee6f592e664d816d7ed2954215da861ec152
+-- @bsb-hash sha256:1488291600fbba3f961070c8cd65ab19840223182d426712c486fa4503f9849f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3368,7 +3368,8 @@ alter table "better_supabase"."organizations" enable row level security;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
-create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_select on "better_supabase"."organizations";
+create policy bsb_organizations_select on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from

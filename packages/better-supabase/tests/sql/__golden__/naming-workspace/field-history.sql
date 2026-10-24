@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1c38598db7da30eeb3c82c76779a29e2468610bac0a98e339ac740969d9687a5
+-- @bsb-hash sha256:a2460fd97f6d88fb382a330a4c15304f6a4f0bdc5e153c5606e7efdd4bdeaf2e
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

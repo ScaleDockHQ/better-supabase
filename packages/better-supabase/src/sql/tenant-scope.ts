@@ -335,7 +335,7 @@ ${targets
   .map(
     (target) => `  begin
     drop policy if exists ${TENANT_SCOPE_POLICY} on ${target};
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;`,
   )
   .join("\n")}

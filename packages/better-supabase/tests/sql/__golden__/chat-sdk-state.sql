@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:1823d7c31fe105d44b7310baf074afd2e76052e4e28548b71af1486f2deed666
+-- @bsb-hash sha256:9e68b1cca2228722cab0d1270da013f94060a3a0c301de6d2a2094de47c4b6c2
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."chat_installations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -540,7 +540,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:1823d7c31fe105d44b7310baf074afd2e76052e4e28548b71af1486f2deed666
+-- @bsb-hash sha256:9e68b1cca2228722cab0d1270da013f94060a3a0c301de6d2a2094de47c4b6c2
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -551,7 +551,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."chat_installations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:1df10290edb17a4aea52864a1d54e374da50548befb912883d112f85537e624e
+-- @bsb-hash sha256:5b14ea749b0a67b5e87a51b308d3544793d5457271bdf7cd757a6de3ee56efbd
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1090,7 +1090,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."chat_installations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1620,7 +1620,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@1 managed
--- @bsb-hash sha256:36877a84569366355bb553b88960f16533a88777ab948650a276cae7362749f9
+-- @bsb-hash sha256:79b4a9551455df0fbea5bbf8cb095200e34982defa4676384fb5d5484df28b3c
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1631,7 +1631,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."chat_installations";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:1db40e5cb0282f747c414409f42e161dee405fbcdc163fd374eca1e6b1ad28c9
+-- @bsb-hash sha256:3e73420f0b132faccfb67d85ea6a227e939bdc8ed7e1e82f23f500c2e5f1f4a5
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -680,7 +680,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:205209d4c3f70bbef7a2dcfa1331343effb5fad7fe7f255ebbd29663722f9530
+-- @bsb-hash sha256:95c57ddabbdfd3eeebae3f1e7aa2e018e6d748220d8df4dababe33a27d69cd53
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -725,7 +725,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -1423,7 +1423,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:70187fa2cddd6e8c164b609c0df6bf1055bb20f42cd93adca8fe675bb0eda4b3
+-- @bsb-hash sha256:ed58672751e85a89faaa87be288296e346d5808c847e04c7271315c81e678290
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1468,7 +1468,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "app_private"."content_entries";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 
@@ -2104,7 +2104,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:fb9ae159a87ccc12d1a793e2703d09909445cd6244e00ad9da0da969ed530883
+-- @bsb-hash sha256:341793271b56c70713caed4d9f1ead34504a09872a7e362e00f0d0a64a24cb3b
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2149,7 +2149,7 @@ do $$
 begin
   begin
     drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-  exception when undefined_table then null;
+  exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
 

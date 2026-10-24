@@ -80,7 +80,7 @@ create policy invoices_read on ${TABLE}
 
     const drop = sql.indexOf(
       `drop policy if exists ${TENANT_SCOPE_POLICY} on ${TABLE};
-  exception when undefined_table then null;`,
+  exception when undefined_table or invalid_schema_name then null;`,
     );
 
     expect(drop).toBeGreaterThan(-1);
