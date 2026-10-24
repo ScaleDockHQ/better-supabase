@@ -9,12 +9,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
@@ -26,6 +21,7 @@ import {
   kitchenSql,
 } from "./orders-kitchen.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 type CommerceKey = keyof CommerceSubjectEventData;
@@ -109,6 +105,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     carts: {
       name: "carts",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -125,9 +122,12 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         convertedAt: "converted_at",
       },
+      optional: ["email", "billingAddress"],
+      typed: ["status"],
     },
     cartLines: {
       name: "cart_lines",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -142,6 +142,7 @@ const NAMES: BlockSqlNames = {
     },
     shippingRates: {
       name: "shipping_rates",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -157,9 +158,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["freeOver"],
+      typed: ["kind"],
     },
     orders: {
       name: "orders",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -196,9 +200,12 @@ const NAMES: BlockSqlNames = {
         cancelReason: "cancel_reason",
         updatedAt: "updated_at",
       },
+      optional: ["email", "billingAddress", "cancelReason", "taxTransaction"],
+      typed: ["status"],
     },
     orderLines: {
       name: "order_lines",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -225,6 +232,7 @@ const NAMES: BlockSqlNames = {
     },
     payments: {
       name: "order_payments",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -240,9 +248,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["status"],
     },
     fulfillments: {
       name: "fulfillments",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -257,6 +267,8 @@ const NAMES: BlockSqlNames = {
         shippedAt: "shipped_at",
         deliveredAt: "delivered_at",
       },
+      optional: ["trackingUrl"],
+      typed: ["status"],
     },
     fulfillmentLines: {
       name: "fulfillment_lines",
@@ -270,6 +282,7 @@ const NAMES: BlockSqlNames = {
     },
     returns: {
       name: "order_returns",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -281,6 +294,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         receivedAt: "received_at",
       },
+      optional: ["reason", "requestedBy"],
+      typed: ["status"],
     },
     returnLines: {
       name: "order_return_lines",
@@ -294,6 +309,7 @@ const NAMES: BlockSqlNames = {
     },
     refunds: {
       name: "order_refunds",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -309,6 +325,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         completedAt: "completed_at",
       },
+      optional: ["reason"],
+      typed: ["status"],
     },
     ...KITCHEN_TABLES,
   },
@@ -356,6 +374,16 @@ using (${using});`;
   const variants = `${catalog.table("variants")} (${variant("id")})`;
   const order = `${t("orders")} (${o("id")}) on delete cascade`;
 
+  // A column definition, left out when the app maps the column to null.
+  const optionalColumn = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
   const priceList =
     catalog.hasTable("priceLists") && catalog.has("prices", "priceList")
       ? ` references ${catalog.table("priceLists")} (${catalog.col("priceLists", "id")}) on delete set null`
@@ -370,14 +398,13 @@ create table if not exists ${t("shippingRates")} (
   ${currency(sr("currency"))},
   ${sr("kind")} text not null default 'flat' check (${sr("kind")} in ('flat', 'weight')),
   ${amount(sr("amount"))},
-  ${amount(sr("perKg"))},
-  ${amount(sr("freeOver"), true)},
+  ${amount(sr("perKg"))},${optionalColumn("shippingRates", "freeOver", (name) => amount(name, true))}
   ${sr("active")} boolean not null default true,
   ${sr("createdAt")} timestamptz not null default now(),
   ${sr("updatedAt")} timestamptz not null default now()
 );
 create index if not exists shipping_rates_tenant_idx on ${t("shippingRates")} (${sr("tenant")}, ${sr("currency")});
-${lockTable(t("shippingRates"), { read: true })}
+${lockModuleTable(ctx, "shippingRates", { read: true })}
 ${policy("shippingRates", tenantRead("shippingRates"))}
 
 create table if not exists ${t("carts")} (
@@ -386,10 +413,8 @@ create table if not exists ${t("carts")} (
   ${c("user")} uuid not null references auth.users (id) on delete cascade,
   ${currency(c("currency"))},
   ${c("priceList")} uuid${priceList},
-  ${c("status")} text not null default 'open' check (${c("status")} in ('open', 'converted', 'abandoned')),
-  ${c("email")} text check (length(${c("email")}) <= 320),
-  ${c("shippingAddress")} jsonb check (jsonb_typeof(${c("shippingAddress")}) = 'object'),
-  ${c("billingAddress")} jsonb check (jsonb_typeof(${c("billingAddress")}) = 'object'),
+  ${c("status")} text not null default 'open' check (${c("status")} in ('open', 'converted', 'abandoned')),${optionalColumn("carts", "email", (name) => `${name} text check (length(${name}) <= 320)`)}
+  ${c("shippingAddress")} jsonb check (jsonb_typeof(${c("shippingAddress")}) = 'object'),${optionalColumn("carts", "billingAddress", (name) => `${name} jsonb check (jsonb_typeof(${name}) = 'object')`)}
   ${c("shippingRate")} uuid references ${t("shippingRates")} (${sr("id")}) on delete set null,
   ${c("createdAt")} timestamptz not null default now(),
   ${c("updatedAt")} timestamptz not null default now(),
@@ -398,7 +423,7 @@ create table if not exists ${t("carts")} (
 create unique index if not exists ${ctx.naming.rename("carts_open_idx")} on ${t("carts")} (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open';
 create index if not exists ${ctx.naming.rename("carts_user_idx")} on ${t("carts")} (${c("user")});
 create index if not exists ${ctx.naming.rename("carts_rate_idx")} on ${t("carts")} (${c("shippingRate")});
-${c("priceList") && priceList ? `create index if not exists ${ctx.naming.rename("carts_price_list_idx")} on ${t("carts")} (${c("priceList")});\n` : ""}${lockTable(t("carts"), { read: true })}
+${c("priceList") && priceList ? `create index if not exists ${ctx.naming.rename("carts_price_list_idx")} on ${t("carts")} (${c("priceList")});\n` : ""}${lockModuleTable(ctx, "carts", { read: true })}
 ${policy("carts", `${c("user")} = (select auth.uid()) or ${tenantRead("carts")}`)}
 
 create table if not exists ${t("cartLines")} (
@@ -411,9 +436,9 @@ create table if not exists ${t("cartLines")} (
   ${cl("createdAt")} timestamptz not null default now(),
   ${cl("updatedAt")} timestamptz not null default now(),
   unique (${cl("cart")}, ${cl("variant")})
-);
+);${appUniqueIndex(ctx, "cartLines", ["cart", "variant"])}
 create index if not exists ${ctx.naming.rename("cart_lines_variant_idx")} on ${t("cartLines")} (${cl("variant")});
-${lockTable(t("cartLines"), { read: true })}
+${lockModuleTable(ctx, "cartLines", { read: true })}
 ${policy("cartLines", `${tenantRead("cartLines")} or exists (select 1 from ${t("carts")} x where x.${c("id")} = ${cl("cart")} and x.${c("user")} = (select auth.uid()))`)}
 
 create table if not exists ${t("orders")} (
@@ -422,8 +447,7 @@ create table if not exists ${t("orders")} (
   ${o("number")} text not null,
   ${o("sequence")} bigint not null,
   ${o("cart")} uuid unique references ${t("carts")} (${c("id")}) on delete set null,
-  ${o("customer")} uuid references auth.users (id) on delete set null,
-  ${o("email")} text,
+  ${o("customer")} uuid references auth.users (id) on delete set null,${optionalColumn("orders", "email", (name) => `${name} text`)}
   ${o("status")} text not null default 'pending_payment',
   ${currency(o("currency"))},
   ${amount(o("subtotal"))},
@@ -434,12 +458,10 @@ create table if not exists ${t("orders")} (
   ${amount(o("paidTotal"))},
   ${amount(o("refundedTotal"))},
   ${o("taxInclusive")} boolean not null default false,
-  ${o("shippingAddress")} jsonb,
-  ${o("billingAddress")} jsonb,
+  ${o("shippingAddress")} jsonb,${optionalColumn("orders", "billingAddress", (name) => `${name} jsonb`)}
   ${o("shipping")} jsonb,
   ${o("promotions")} jsonb not null default '[]',
-  ${o("tax")} jsonb,
-  ${o("taxTransaction")} jsonb,
+  ${o("tax")} jsonb,${optionalColumn("orders", "taxTransaction", (name) => `${name} jsonb`)}
   ${o("invoiceNumber")} text,
   ${o("invoiceSequence")} bigint,
   ${o("invoicedAt")} timestamptz,
@@ -447,8 +469,7 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,
-  ${o("cancelReason")} text,
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
@@ -456,7 +477,7 @@ create table if not exists ${t("orders")} (
 create index if not exists ${ctx.naming.rename("orders_status_idx")} on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
 create index if not exists ${ctx.naming.rename("orders_customer_idx")} on ${t("orders")} (${o("customer")});
 create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${addExtraColumns(t("orders"), names.extras)}
-${lockTable(t("orders"), { read: true })}
+${lockModuleTable(ctx, "orders", { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}
 
 create table if not exists ${t("orderLines")} (
@@ -483,7 +504,7 @@ create table if not exists ${t("orderLines")} (
 );
 create index if not exists ${ctx.naming.rename("order_lines_order_idx")} on ${t("orderLines")} (${ol("order")});
 create index if not exists ${ctx.naming.rename("order_lines_variant_idx")} on ${t("orderLines")} (${ol("variant")});
-${lockTable(t("orderLines"), { read: true })}
+${lockModuleTable(ctx, "orderLines", { read: true })}
 ${policy("orderLines", ofOrder("orderLines"))}
 
 create table if not exists ${t("payments")} (
@@ -500,9 +521,9 @@ create table if not exists ${t("payments")} (
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
   unique (${p("provider")}, ${p("reference")})
-);
+);${appUniqueIndex(ctx, "payments", ["provider", "reference"])}
 create index if not exists ${ctx.naming.rename("order_payments_order_idx")} on ${t("payments")} (${p("order")});
-${lockTable(t("payments"), { read: true })}
+${lockModuleTable(ctx, "payments", { read: true })}
 ${policy("payments", ofOrder("payments"))}
 
 create table if not exists ${t("fulfillments")} (
@@ -512,14 +533,13 @@ create table if not exists ${t("fulfillments")} (
   ${f("location")} uuid,
   ${f("status")} text not null default 'pending' check (${f("status")} in ('pending', 'shipped', 'delivered', 'cancelled')),
   ${f("carrier")} text,
-  ${f("trackingNumber")} text,
-  ${f("trackingUrl")} text check (${f("trackingUrl")} ~ '^https://'),
+  ${f("trackingNumber")} text,${optionalColumn("fulfillments", "trackingUrl", (name) => `${name} text check (${name} ~ '^https://')`)}
   ${f("createdAt")} timestamptz not null default now(),
   ${f("shippedAt")} timestamptz,
   ${f("deliveredAt")} timestamptz
 );
 create index if not exists ${ctx.naming.rename("fulfillments_order_idx")} on ${t("fulfillments")} (${f("order")});
-${lockTable(t("fulfillments"), { read: true })}
+${lockModuleTable(ctx, "fulfillments", { read: true })}
 ${policy("fulfillments", ofOrder("fulfillments"))}
 
 create table if not exists ${t("fulfillmentLines")} (
@@ -530,21 +550,19 @@ create table if not exists ${t("fulfillmentLines")} (
   primary key (${fl("fulfillment")}, ${fl("line")})
 );
 create index if not exists fulfillment_lines_line_idx on ${t("fulfillmentLines")} (${fl("line")});
-${lockTable(t("fulfillmentLines"), { read: true })}
+${lockModuleTable(ctx, "fulfillmentLines", { read: true })}
 ${policy("fulfillmentLines", tenantRead("fulfillmentLines"))}
 
 create table if not exists ${t("returns")} (
   ${r("id")} uuid primary key default gen_random_uuid(),
   ${r("tenant")} ${ctx.idType} not null,
   ${r("order")} uuid not null references ${order},
-  ${r("status")} text not null default 'requested' check (${r("status")} in ('requested', 'received', 'rejected')),
-  ${r("reason")} text check (length(${r("reason")}) <= 2000),
-  ${r("requestedBy")} uuid default auth.uid(),
+  ${r("status")} text not null default 'requested' check (${r("status")} in ('requested', 'received', 'rejected')),${optionalColumn("returns", "reason", (name) => `${name} text check (length(${name}) <= 2000)`)}${optionalColumn("returns", "requestedBy", (name) => `${name} uuid default auth.uid()`)}
   ${r("createdAt")} timestamptz not null default now(),
   ${r("receivedAt")} timestamptz
 );
 create index if not exists ${ctx.naming.rename("order_returns_order_idx")} on ${t("returns")} (${r("order")});
-${lockTable(t("returns"), { read: true })}
+${lockModuleTable(ctx, "returns", { read: true })}
 ${policy("returns", ofOrder("returns"))}
 
 create table if not exists ${t("returnLines")} (
@@ -555,7 +573,7 @@ create table if not exists ${t("returnLines")} (
   primary key (${rl("return")}, ${rl("line")})
 );
 create index if not exists ${ctx.naming.rename("order_return_lines_line_idx")} on ${t("returnLines")} (${rl("line")});
-${lockTable(t("returnLines"), { read: true })}
+${lockModuleTable(ctx, "returnLines", { read: true })}
 ${policy("returnLines", tenantRead("returnLines"))}
 
 create table if not exists ${t("refunds")} (
@@ -566,8 +584,7 @@ create table if not exists ${t("refunds")} (
   ${rf("return")} uuid references ${t("returns")} (${r("id")}) on delete set null,
   ${rf("amount")} bigint not null check (${rf("amount")} > 0),
   ${currency(rf("currency"))},
-  ${rf("status")} text not null default 'pending' check (${rf("status")} in ('pending', 'succeeded', 'failed')),
-  ${rf("reason")} text check (length(${rf("reason")}) <= 2000),
+  ${rf("status")} text not null default 'pending' check (${rf("status")} in ('pending', 'succeeded', 'failed')),${optionalColumn("refunds", "reason", (name) => `${name} text check (length(${name}) <= 2000)`)}
   ${rf("providerReference")} text,
   ${rf("createdAt")} timestamptz not null default now(),
   ${rf("completedAt")} timestamptz
@@ -576,7 +593,7 @@ create index if not exists ${ctx.naming.rename("order_refunds_order_idx")} on ${
 create index if not exists ${ctx.naming.rename("order_refunds_payment_idx")} on ${t("refunds")} (${rf("payment")});
 create index if not exists ${ctx.naming.rename("order_refunds_return_idx")} on ${t("refunds")} (${rf("return")});
 create unique index if not exists ${ctx.naming.rename("order_refunds_provider_reference_idx")} on ${t("refunds")} (${rf("providerReference")}) where ${rf("providerReference")} is not null;
-${lockTable(t("refunds"), { read: true })}
+${lockModuleTable(ctx, "refunds", { read: true })}
 ${policy("refunds", ofOrder("refunds"))}
 `;
 }

@@ -305,7 +305,7 @@ begin
   if not found then
     ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
   end if;
-  v_amount := coalesce(accrue_leave.amount, v_type.${ty("allowance")});
+  v_amount := ${ctx.has("types", "allowance") ? `coalesce(accrue_leave.amount, v_type.${ty("allowance")})` : "accrue_leave.amount"};
   if v_amount is null or v_amount <= 0 then
     ${invalid("name an amount, or give the type an allowance")}
   end if;
@@ -349,7 +349,7 @@ begin
   end if;
   for v_row in
     select x.${la("owner")} as user_id, t.${ty("id")} as type_id, b.${lb("balance")}::numeric / ${SCALE} as balance,
-      least(b.${lb("balance")}::numeric / ${SCALE}, coalesce(t.${ty("carryoverMax")}, b.${lb("balance")}::numeric / ${SCALE})) as carry
+      ${ctx.has("types", "carryoverMax") ? `least(b.${lb("balance")}::numeric / ${SCALE}, coalesce(t.${ty("carryoverMax")}, b.${lb("balance")}::numeric / ${SCALE}))` : `b.${lb("balance")}::numeric / ${SCALE}`} as carry
     from ${accounts} x
     join ${balances} b on b.${lb("account")} = x.${la("id")}
     join ${types} t on t.${ty("id")}::text = x.${la("holderId")} and t.${ty("tracked")}

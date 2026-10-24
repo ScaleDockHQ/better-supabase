@@ -82,6 +82,36 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
   const invalid = (code: string, message: string): string =>
     fail(code, message, "22023");
 
+  // A column of row, or null when the app maps it to null.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // ", <column> = <value>" for an update, when the column exists.
+  const alsoSet = (table: string, logical: string, value: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)} = ${value}` : "";
+
+  // Refuses a non-null argument the table has no column for.
+  const unsupported = (
+    table: string,
+    logical: string,
+    arg: string,
+    code: string,
+    message: string,
+  ): string =>
+    ctx.has(table, logical)
+      ? ""
+      : `
+  if ${arg} is not null then
+    ${invalid(code, message)}
+  end if;`;
+
+  const limits = ctx.has("categories", "limitAmount");
+  const thresholds = ctx.has("categories", "receiptOver");
+
   const status = (row: string, approval: string): string =>
     `(case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' else 'draft' end)`;
 
@@ -89,18 +119,41 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
     `coalesce((select sum(y.${x("amount")}) from ${lines} y where y.${x("report")} = ${row}.${r("id")}), 0)`;
 
   const categoryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${row}.${k("key")}, 'name', ${row}.${k("name")}, 'currency', ${row}.${k("currency")}, 'limitAmount', ${row}.${k("limitAmount")}::text, 'receiptOver', ${row}.${k("receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${row}.${k("key")}, 'name', ${row}.${k("name")}, 'currency', ${row}.${k("currency")}, 'limitAmount', ${or("categories", row, "limitAmount")}::text, 'receiptOver', ${or("categories", row, "receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")})`;
 
   const receipts = (line: string): string =>
     attachments === undefined
       ? "0"
       : `(select count(*) from ${attachments.table("attachments")} t where t.${attachments.col("attachments", "subjectType")} = ${sqlString(lineType)} and t.${attachments.col("attachments", "subjectId")} = ${line}.${x("id")}::text and t.${attachments.col("attachments", "uploadedAt")} is not null and t.${attachments.col("attachments", "status")} <> 'infected')`;
 
+  // The findings of one spend policy rule, as one branch of a union.
+  const findings = [
+    ...(limits
+      ? [
+          `select 1 as ord, min(l.${x("createdAt")}) as at, jsonb_build_object('kind', 'limit', 'categoryId', c.${k("id")}, 'category', c.${k("name")},
+        'limit', c.${k("limitAmount")}::text, 'total', sum(l.${x("amount")})::text, 'currency', c.${k("currency")}) as v
+      from ${lines} l join ${categories} c on c.${k("id")} = l.${x("category")}
+      where l.${x("report")} = expense_report_violations.report_id and c.${k("limitAmount")} is not null
+      group by c.${k("id")}
+      having sum(l.${x("amount")}) > c.${k("limitAmount")}`,
+        ]
+      : []),
+    ...(thresholds
+      ? [
+          `select 2${limits ? "" : " as ord"}, l.${x("createdAt")}${limits ? "" : " as at"}, jsonb_build_object('kind', 'receipt', 'lineId', l.${x("id")}, 'categoryId', c.${k("id")}, 'category', c.${k("name")},
+        'receiptOver', c.${k("receiptOver")}::text, 'amount', l.${x("amount")}::text, 'currency', c.${k("currency")})${limits ? "" : " as v"}
+      from ${lines} l join ${categories} c on c.${k("id")} = l.${x("category")}
+      where l.${x("report")} = expense_report_violations.report_id and c.${k("receiptOver")} is not null
+        and l.${x("amount")} > c.${k("receiptOver")} and ${receipts("l")} = 0`,
+        ]
+      : []),
+  ];
+
   const lineJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${row}.${x("merchant")}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${or("lines", row, "merchant")}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
 
   const reportJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${row}.${r("note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${row}.${r("approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${row}.${r("approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${row}.${r("reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${or("reports", row, "note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${row}.${r("approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${or("reports", row, "approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${or("reports", row, "reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
       'lines', (select coalesce(jsonb_agg(${lineJson("l")} order by l.${x("spentOn")}, l.${x("createdAt")}), '[]'::jsonb) from ${lines} l where l.${x("report")} = ${row}.${r("id")}))`;
 
   const reportRecord = (
@@ -229,7 +282,7 @@ begin
   end if;
   if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a receipt threshold is zero or more minor units")}
-  end if;${
+  end if;${unsupported("categories", "limitAmount", "save_expense_category.limit_amount", "EXPENSE_LIMIT_UNSUPPORTED", "this expense categories table has no limit column")}${unsupported("categories", "receiptOver", "save_expense_category.receipt_over", "EXPENSE_RECEIPT_THRESHOLD_UNSUPPORTED", "this expense categories table has no receipt threshold column")}${
     attachments === undefined
       ? `
   if save_expense_category.receipt_over is not null then
@@ -237,12 +290,14 @@ begin
   end if;`
       : ""
   }
-  insert into ${categories} (${k("tenant")}, ${k("key")}, ${k("name")}, ${k("currency")}, ${k("limitAmount")}, ${k("receiptOver")})
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency,
-    save_expense_category.limit_amount, save_expense_category.receipt_over)
+  insert into ${categories} (${k("tenant")}, ${k("key")}, ${k("name")}, ${k("currency")}${also("categories", "limitAmount")}${also("categories", "receiptOver")})
+  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency${limits || thresholds ? ",\n    " : ""}${[
+    ...(limits ? ["save_expense_category.limit_amount"] : []),
+    ...(thresholds ? ["save_expense_category.receipt_over"] : []),
+  ].join(", ")})
   on conflict (${k("tenant")}, ${k("key")}) do update set
-    ${k("name")} = excluded.${k("name")}, ${k("currency")} = excluded.${k("currency")}, ${k("limitAmount")} = excluded.${k("limitAmount")},
-    ${k("receiptOver")} = excluded.${k("receiptOver")}, ${k("archivedAt")} = null, ${k("updatedAt")} = now()
+    ${k("name")} = excluded.${k("name")}, ${k("currency")} = excluded.${k("currency")}${limits ? `, ${k("limitAmount")} = excluded.${k("limitAmount")}` : ""},
+    ${thresholds ? `${k("receiptOver")} = excluded.${k("receiptOver")}, ` : ""}${k("archivedAt")} = null, ${k("updatedAt")} = now()
   returning * into v_row;
   return ${categoryJson("v_row")};
 end;
@@ -304,20 +359,15 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(q.v order by q.ord, q.at), '[]'::jsonb)
   from (
-    select 1 as ord, min(l.${x("createdAt")}) as at, jsonb_build_object('kind', 'limit', 'categoryId', c.${k("id")}, 'category', c.${k("name")},
-        'limit', c.${k("limitAmount")}::text, 'total', sum(l.${x("amount")})::text, 'currency', c.${k("currency")}) as v
-      from ${lines} l join ${categories} c on c.${k("id")} = l.${x("category")}
-      where l.${x("report")} = expense_report_violations.report_id and c.${k("limitAmount")} is not null
-      group by c.${k("id")}
-      having sum(l.${x("amount")}) > c.${k("limitAmount")}
+    ${findings
+      .map(
+        (finding) => `${finding}
     union all
-    select 2, l.${x("createdAt")}, jsonb_build_object('kind', 'receipt', 'lineId', l.${x("id")}, 'categoryId', c.${k("id")}, 'category', c.${k("name")},
-        'receiptOver', c.${k("receiptOver")}::text, 'amount', l.${x("amount")}::text, 'currency', c.${k("currency")})
-      from ${lines} l join ${categories} c on c.${k("id")} = l.${x("category")}
-      where l.${x("report")} = expense_report_violations.report_id and c.${k("receiptOver")} is not null
-        and l.${x("amount")} > c.${k("receiptOver")} and ${receipts("l")} = 0
-    union all
-    select 3, min(l.${x("createdAt")}), jsonb_build_object('kind', 'archived', 'categoryId', c.${k("id")}, 'category', c.${k("name")})
+    `,
+      )
+      .join(
+        "",
+      )}select 3${findings.length === 0 ? " as ord" : ""}, min(l.${x("createdAt")})${findings.length === 0 ? " as at" : ""}, jsonb_build_object('kind', 'archived', 'categoryId', c.${k("id")}, 'category', c.${k("name")})${findings.length === 0 ? " as v" : ""}
       from ${lines} l join ${categories} c on c.${k("id")} = l.${x("category")}
       where l.${x("report")} = expense_report_violations.report_id and c.${k("archivedAt")} is not null
       group by c.${k("id")}
@@ -346,10 +396,9 @@ begin
   end if;
   if create_expense_report.currency is null or create_expense_report.currency !~ '^[A-Z]{3}$' then
     ${invalid("EXPENSE_REPORT_INVALID", "currency must be a three-letter currency code")}
-  end if;
-  insert into ${reports} (${r("tenant")}, ${r("user")}, ${r("title")}, ${r("currency")}, ${r("note")})
-  values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency,
-    nullif(trim(create_expense_report.note), ''))
+  end if;${unsupported("reports", "note", "nullif(trim(create_expense_report.note), '')", "EXPENSE_NOTE_UNSUPPORTED", "this expense reports table has no note column")}
+  insert into ${reports} (${r("tenant")}, ${r("user")}, ${r("title")}, ${r("currency")}${also("reports", "note")})
+  values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency${ctx.has("reports", "note") ? ",\n    nullif(trim(create_expense_report.note), '')" : ""})
   returning * into v_row;${writeExtraColumns(reports, extras, "create_expense_report.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   ${reportRecord("expense_report.created", "created an expense report")}
   return ${reportJson("v_row", "v_approval")};
@@ -381,10 +430,10 @@ begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${c
   end if;
   if nullif(trim(add_expense_line.description), '') is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs a description")}
-  end if;
-  insert into ${lines} (${x("tenant")}, ${x("report")}, ${x("category")}, ${x("spentOn")}, ${x("description")}, ${x("merchant")}, ${x("amount")})
+  end if;${unsupported("lines", "merchant", "nullif(trim(add_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}
+  insert into ${lines} (${x("tenant")}, ${x("report")}, ${x("category")}, ${x("spentOn")}, ${x("description")}${also("lines", "merchant")}, ${x("amount")})
   values (v_row.${r("tenant")}, v_row.${r("id")}, v_category.${k("id")}, add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), add_expense_line.amount)
+    ${ctx.has("lines", "merchant") ? "nullif(trim(add_expense_line.merchant), ''), " : ""}add_expense_line.amount)
   returning * into v_line;
   update ${reports} x set ${r("updatedAt")} = now() where x.${r("id")} = v_row.${r("id")};
   return ${lineJson("v_line")};
@@ -417,13 +466,12 @@ begin
   end if;
   if update_expense_line.amount is not null and update_expense_line.amount <= 0 then
     ${invalid("EXPENSE_LINE_INVALID", "an amount is more than zero minor units")}
-  end if;
+  end if;${unsupported("lines", "merchant", "nullif(trim(update_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}
   update ${lines} l set
       ${x("category")} = coalesce(update_expense_line.category_id, l.${x("category")}),
       ${x("spentOn")} = coalesce(update_expense_line.spent_on, l.${x("spentOn")}),
       ${x("amount")} = coalesce(update_expense_line.amount, l.${x("amount")}),
-      ${x("description")} = coalesce(nullif(trim(update_expense_line.description), ''), l.${x("description")}),
-      ${x("merchant")} = coalesce(nullif(trim(update_expense_line.merchant), ''), l.${x("merchant")}),
+      ${x("description")} = coalesce(nullif(trim(update_expense_line.description), ''), l.${x("description")}),${ctx.has("lines", "merchant") ? `\n      ${x("merchant")} = coalesce(nullif(trim(update_expense_line.merchant), ''), l.${x("merchant")}),` : ""}
       ${x("updatedAt")} = now()
     where l.${x("id")} = v_line.${x("id")}
     returning * into v_line;
@@ -496,7 +544,7 @@ begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editabl
   end if;
   v_request := ${approvals.fn("open_approval")}(
     v_row.${r("tenant")}, ${sqlString(EXPENSE_REPORT_SUBJECT)}, v_row.${r("id")}::text, 'approve',
-    ${sqlString(policy)}::jsonb, v_row.${r("note")},
+    ${sqlString(policy)}::jsonb, ${or("reports", "v_row", "note")},
     jsonb_build_object('userId', v_row.${r("user")}, 'title', v_row.${r("title")}, 'total', ${total("v_row")}::text, 'currency', v_row.${r("currency")})
   );
   update ${reports} x set ${r("approval")} = (v_request ->> 'id')::uuid, ${r("submittedAt")} = now(), ${r("updatedAt")} = now()
@@ -540,7 +588,7 @@ begin
   v_tx := ${ledger.fn("ledger_post")}(v_row.${r("tenant")}, 'expense.approved', v_lines,
     'expenses', v_row.${r("id")}::text, left('Expenses: ' || v_row.${r("title")}, 500), 'expense:' || v_row.${r("id")}::text || ':approved', null,
     jsonb_build_object('reportId', v_row.${r("id")}, 'userId', v_row.${r("user")}));
-  update ${reports} x set ${r("approvedAt")} = now(), ${r("approvalTransaction")} = v_tx, ${r("updatedAt")} = now()
+  update ${reports} x set ${r("approvedAt")} = now()${alsoSet("reports", "approvalTransaction", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;
   select * into v_approval from ${ar} p where p.${a("id")} = v_row.${r("approval")};
@@ -575,7 +623,7 @@ begin${loadReport("reimburse_expense_report.report_id", true)}
     'expenses', v_row.${r("id")}::text, left('Reimbursed: ' || v_row.${r("title")}, 500), 'expense:' || v_row.${r("id")}::text || ':reimbursed',
     reimburse_expense_report.paid_at,
     jsonb_strip_nulls(jsonb_build_object('reportId', v_row.${r("id")}, 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
-  update ${reports} x set ${r("reimbursedAt")} = coalesce(reimburse_expense_report.paid_at, now()), ${r("reimbursement")} = v_tx, ${r("updatedAt")} = now()
+  update ${reports} x set ${r("reimbursedAt")} = coalesce(reimburse_expense_report.paid_at, now())${alsoSet("reports", "reimbursement", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;
   ${reportRecord("expense_report.reimbursed", "reimbursed an expense report", ", 'transactionId', v_tx", "billing")}

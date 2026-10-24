@@ -95,6 +95,9 @@ function orderJson(ctx: BlockSqlContext, names: OrdersNames): string {
   const text = (alias: string, column: string): string =>
     `${alias}.${column}::text`;
 
+  const or = (table: string, alias: string, logical: string): string =>
+    ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : "null";
+
   return `
 -- The order as one object. Amounts are text. Internal: get_order and
 -- place_order return it after their checks.
@@ -107,15 +110,15 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'id', x.${o("id")}, 'organizationId', x.${o("tenant")}, 'number', x.${o("number")}, 'cartId', x.${o("cart")},
-    'customerId', x.${o("customer")}, 'email', x.${o("email")}, 'status', x.${o("status")}, 'currency', x.${o("currency")},
+    'customerId', x.${o("customer")}, 'email', ${or("orders", "x", "email")}, 'status', x.${o("status")}, 'currency', x.${o("currency")},
     'subtotal', ${text("x", o("subtotal"))}, 'discountTotal', ${text("x", o("discountTotal"))},
     'shippingTotal', ${text("x", o("shippingTotal"))}, 'taxTotal', ${text("x", o("taxTotal"))}, 'total', ${text("x", o("total"))},
     'paidTotal', ${text("x", o("paidTotal"))}, 'refundedTotal', ${text("x", o("refundedTotal"))}, 'taxInclusive', x.${o("taxInclusive")},
-    'shippingAddress', x.${o("shippingAddress")}, 'billingAddress', x.${o("billingAddress")}, 'shipping', x.${o("shipping")},
-    'promotions', x.${o("promotions")}, 'tax', x.${o("tax")}, 'taxTransaction', x.${o("taxTransaction")},
+    'shippingAddress', x.${o("shippingAddress")}, 'billingAddress', ${or("orders", "x", "billingAddress")}, 'shipping', x.${o("shipping")},
+    'promotions', x.${o("promotions")}, 'tax', x.${o("tax")}, 'taxTransaction', ${or("orders", "x", "taxTransaction")},
     'invoiceNumber', x.${o("invoiceNumber")}, 'invoicedAt', x.${o("invoicedAt")}, 'placedAt', x.${o("placedAt")},
     'paidAt', x.${o("paidAt")}, 'fulfilledAt', x.${o("fulfilledAt")}, 'completedAt', x.${o("completedAt")},
-    'cancelledAt', x.${o("cancelledAt")}, 'cancelReason', x.${o("cancelReason")},
+    'cancelledAt', x.${o("cancelledAt")}, 'cancelReason', ${or("orders", "x", "cancelReason")},
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l.${ol("id")}, 'variantId', l.${ol("variant")}, 'productId', l.${ol("product")}, 'sku', l.${ol("sku")},
         'title', l.${ol("title")}, 'quantity', l.${ol("quantity")}, 'unitAmount', ${text("l", ol("unitAmount"))},
@@ -131,20 +134,20 @@ as $$
       from ${ctx.table("payments")} y where y.${p("order")} = x.${o("id")}), '[]'::jsonb),
     'fulfillments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y.${f("id")}, 'status', y.${f("status")}, 'locationId', y.${f("location")}, 'carrier', y.${f("carrier")},
-        'trackingNumber', y.${f("trackingNumber")}, 'trackingUrl', y.${f("trackingUrl")}, 'createdAt', y.${f("createdAt")},
+        'trackingNumber', y.${f("trackingNumber")}, 'trackingUrl', ${or("fulfillments", "y", "trackingUrl")}, 'createdAt', y.${f("createdAt")},
         'shippedAt', y.${f("shippedAt")}, 'deliveredAt', y.${f("deliveredAt")},
         'lines', coalesce((select jsonb_agg(jsonb_build_object('lineId', z.${fl("line")}, 'quantity', z.${fl("quantity")}))
           from ${ctx.table("fulfillmentLines")} z where z.${fl("fulfillment")} = y.${f("id")}), '[]'::jsonb)) order by y.${f("createdAt")})
       from ${ctx.table("fulfillments")} y where y.${f("order")} = x.${o("id")}), '[]'::jsonb),
     'returns', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', y.${r("id")}, 'status', y.${r("status")}, 'reason', y.${r("reason")}, 'createdAt', y.${r("createdAt")},
+        'id', y.${r("id")}, 'status', y.${r("status")}, 'reason', ${or("returns", "y", "reason")}, 'createdAt', y.${r("createdAt")},
         'receivedAt', y.${r("receivedAt")},
         'lines', coalesce((select jsonb_agg(jsonb_build_object('lineId', z.${rl("line")}, 'quantity', z.${rl("quantity")}))
           from ${ctx.table("returnLines")} z where z.${rl("return")} = y.${r("id")}), '[]'::jsonb)) order by y.${r("createdAt")})
       from ${ctx.table("returns")} y where y.${r("order")} = x.${o("id")}), '[]'::jsonb),
     'refunds', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y.${rf("id")}, 'paymentId', y.${rf("payment")}, 'returnId', y.${rf("return")}, 'amount', ${text("y", rf("amount"))},
-        'status', y.${rf("status")}, 'reason', y.${rf("reason")}, 'providerReference', y.${rf("providerReference")},
+        'status', y.${rf("status")}, 'reason', ${or("refunds", "y", "reason")}, 'providerReference', y.${rf("providerReference")},
         'createdAt', y.${rf("createdAt")}, 'completedAt', y.${rf("completedAt")}) order by y.${rf("createdAt")})
       from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${extraFieldsJson("x", names.extras)})
   from ${ctx.table("orders")} x where x.${o("id")} = p_order
@@ -269,6 +272,15 @@ export function checkoutFunctions(
 
   const taxOf = (key: string): string => amountOf(`(e ->> '${key}')`);
 
+  const has = (table: string, logical: string): boolean =>
+    ctx.has(table, logical);
+
+  const cartOr = (logical: string, type: string): string =>
+    has("carts", logical) ? `x.${c(logical)}` : `null::${type}`;
+
+  const email = has("orders", "email");
+  const billing = has("orders", "billingAddress");
+
   const load = (id: string, lock: boolean): string =>
     `select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = ${id}${lock ? " for update" : ""};`;
 
@@ -319,7 +331,7 @@ declare
 begin
   ${serviceOnlyGuard()}
   select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status, x.${c("currency")} as currency,
-    x.${c("email")} as email, x.${c("shippingAddress")} as shipping_address, x.${c("billingAddress")} as billing_address
+    ${cartOr("email", "text")} as email, x.${c("shippingAddress")} as shipping_address, ${cartOr("billingAddress", "jsonb")} as billing_address
   into v_cart from ${carts} x where x.${c("id")} = place_order.cart for update;
   if not found then
     ${fail("ORDERS_CART_NOT_FOUND", "cart not found", "P0002")}
@@ -360,12 +372,12 @@ begin
   end if;
   v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
   ${assignNumber(ctx, "order", "v_cart.tenant", { seq: "v_seq", number: "v_number" })}
-  insert into ${orders} (${o("tenant")}, ${o("number")}, ${o("sequence")}, ${o("cart")}, ${o("customer")}, ${o("email")}, ${o("currency")},
+  insert into ${orders} (${o("tenant")}, ${o("number")}, ${o("sequence")}, ${o("cart")}, ${o("customer")}, ${email ? `${o("email")}, ` : ""}${o("currency")},
     ${o("subtotal")}, ${o("discountTotal")}, ${o("shippingTotal")}, ${o("taxTotal")}, ${o("total")}, ${o("taxInclusive")},
-    ${o("shippingAddress")}, ${o("billingAddress")}, ${o("shipping")}, ${o("promotions")}, ${o("tax")})
-  values (v_cart.tenant, v_number, v_seq, place_order.cart, v_cart.owner, v_cart.email, v_cart.currency,
+    ${o("shippingAddress")}, ${billing ? `${o("billingAddress")}, ` : ""}${o("shipping")}, ${o("promotions")}, ${o("tax")})
+  values (v_cart.tenant, v_number, v_seq, place_order.cart, v_cart.owner, ${email ? "v_cart.email, " : ""}v_cart.currency,
     (v_priced ->> 'subtotal')::bigint, (v_priced ->> 'discountTotal')::bigint, (v_priced ->> 'shippingTotal')::bigint,
-    v_tax, v_total, v_inclusive, v_cart.shipping_address, v_cart.billing_address, v_priced -> 'shipping',
+    v_tax, v_total, v_inclusive, v_cart.shipping_address, ${billing ? "v_cart.billing_address, " : ""}v_priced -> 'shipping',
     v_priced -> 'promotions', place_order.tax)
   returning ${o("id")} into v_id;${writeExtraColumns(orders, names.extras, "place_order.fields", `x.${o("id")} = v_id`)}
   insert into ${ctx.table("orderLines")} (${ol("tenant")}, ${ol("order")}, ${ol("position")}, ${ol("variant")}, ${ol("product")}, ${ol("sku")}, ${ol("title")},
@@ -451,7 +463,7 @@ begin
   end if;
   insert into ${payments} as x (${p("tenant")}, ${p("order")}, ${p("provider")}, ${p("reference")}, ${p("status")}, ${p("currency")},
     ${p("amount")}, ${p("captured")}, ${p("refunded")})
-  values (v_order.tenant, v_order.id, record_payment.provider, record_payment.reference, record_payment.status, record_payment.currency,
+  values (v_order.tenant, v_order.id, record_payment.provider, record_payment.reference, ${ctx.cast("payments", "status", "record_payment.status")}, record_payment.currency,
     record_payment.amount, coalesce(record_payment.captured, 0), coalesce(record_payment.refunded, 0))
   on conflict (${p("provider")}, ${p("reference")}) do update set
     ${p("status")} = case when x.${p("status")} in ${SETTLED} and excluded.${p("status")} not in ${SETTLED} then x.${p("status")} else excluded.${p("status")} end,
@@ -503,8 +515,13 @@ security definer
 set search_path = ''
 as $$
 begin
-  ${serviceOnlyGuard()}
-  update ${orders} x set ${o("taxTransaction")} = set_order_tax_transaction.tax_transaction, ${o("updatedAt")} = now()
+  ${serviceOnlyGuard()}${
+    has("orders", "taxTransaction")
+      ? ""
+      : `
+  ${fail("ORDERS_TAX_TRANSACTION_UNSUPPORTED", "this order table has no tax transaction column", "22023")}`
+  }
+  update ${orders} x set ${has("orders", "taxTransaction") ? `${o("taxTransaction")} = set_order_tax_transaction.tax_transaction, ` : ""}${o("updatedAt")} = now()
   where x.${o("id")} = set_order_tax_transaction.order_id;
   return found;
 end;
@@ -525,8 +542,12 @@ declare
   v_claims text;
 begin
   ${load("p_order", true)}
-  perform ${fn("order_transition")}(v_order.id, 'cancelled');
-  update ${orders} x set ${o("cancelReason")} = p_reason where x.${o("id")} = v_order.id;${releaseLines(ctx)}${
+  perform ${fn("order_transition")}(v_order.id, 'cancelled');${
+    has("orders", "cancelReason")
+      ? `
+  update ${orders} x set ${o("cancelReason")} = p_reason where x.${o("id")} = v_order.id;`
+      : ""
+  }${releaseLines(ctx)}${
     promotions === undefined
       ? ""
       : `
