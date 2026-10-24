@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:3678cd822dc525de29633d24d02813a23d04b69eed479aa3aee7630bce8266c6
+-- @bsb-hash sha256:0abd75ff1ca171dad665249e286df26383f7551073a4a49592713c12d5c75e2d
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,6 +71,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
@@ -689,7 +707,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:1268313590b0a7ad24f4409d9b414759649cf1725e36197e4d2cae4aecfc1b61
+-- @bsb-hash sha256:9f67f6acddd0e7c08c7a54efd7eca8ff79110ed68a7a4e336e449c74fa537cae
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -759,6 +777,28 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_inbox_contacts";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
@@ -1534,7 +1574,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:dec03780f3c23ec95d33f3108e15c2626f36853ae6634769ff11b187ef55a671
+-- @bsb-hash sha256:ece37a5bb884ddbdd5450c4e64e92ee746e7557922a5056ecc23cb0b4af227ef
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1604,6 +1644,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."companies";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."people";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."company_people";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -2224,7 +2282,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:022b3fca1513bf95ccabe8afb1fafd6cf41cd18fe6e9fadeb5481efd813ceb57
+-- @bsb-hash sha256:13b6079c6e1c37970533bd8f590a5335a4e3d238bdfba0d26c10508942a0e747
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2294,6 +2352,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.

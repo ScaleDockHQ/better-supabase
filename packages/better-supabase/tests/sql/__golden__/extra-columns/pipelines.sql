@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:277dcfbb0f90d4c5fe4737f8d1da7f8fa78983eecc95f346867a19ce53da1c56
+-- @bsb-hash sha256:e7df3ed18a16278880b783a4a654d9ea0dc94de4e77472b642cebb41ffdcb236
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,6 +40,28 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with

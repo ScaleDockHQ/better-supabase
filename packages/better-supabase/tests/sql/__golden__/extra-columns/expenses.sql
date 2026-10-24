@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:e4990decbf5e5ebddc384aa4bbc268f2d0dc85754a068ef93eee65b613443bbe
+-- @bsb-hash sha256:48384d7c5bedc56882119da6f151f679538b5b83b3117ea9afd0fbd2ac3823b5
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,6 +40,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_categories";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_reports";
+  exception when undefined_table then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_lines";
+  exception when undefined_table then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Expenses: reports of lines in categories, spend policies checked on

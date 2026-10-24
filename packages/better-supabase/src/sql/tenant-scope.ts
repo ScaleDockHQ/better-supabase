@@ -274,6 +274,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
   const policies = policiesOf(source);
   const granted = grantedTables(source);
   const statements: string[] = [];
+  const targets: string[] = [];
 
   for (const [logical, spec] of Object.entries(ctx.names.tables)) {
     const tenant = spec.lifecycle?.tenant;
@@ -294,6 +295,10 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
         policy.target === key && !policy.restrictive && policy.authenticated,
     );
 
+    if (source.includes(ctx.table(logical))) {
+      targets.push(ctx.table(logical));
+    }
+
     if (own.length === 0 && !granted.has(key)) {
       continue;
     }
@@ -308,15 +313,34 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
     );
   }
 
-  if (statements.length === 0) {
+  if (targets.length === 0) {
     return sql;
   }
 
-  return `${sql.trimEnd()}
+  const scope =
+    statements.length === 0
+      ? ""
+      : `
 
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-${statements.join("\n")}
+${statements.join("\n")}`;
+
+  return `-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+${targets
+  .map(
+    (target) => `  begin
+    drop policy if exists ${TENANT_SCOPE_POLICY} on ${target};
+  exception when undefined_table then null;
+  end;`,
+  )
+  .join("\n")}
+end $$;
+
+${sql.trimEnd()}${scope}
 `;
 }

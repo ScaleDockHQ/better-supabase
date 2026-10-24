@@ -70,6 +70,23 @@ describe("applyTenantScope", () => {
   with check ("tenant_id" in (select ${MEMBERS}));`);
   });
 
+  it("drops the scope policy before the module can drop a function it calls", () => {
+    const body = `drop function if exists better_supabase.invoice_readers();
+create policy invoices_read on ${TABLE}
+  for select to authenticated
+  using (true);`;
+
+    const sql = scoped(body);
+
+    const drop = sql.indexOf(
+      `drop policy if exists ${TENANT_SCOPE_POLICY} on ${TABLE};
+  exception when undefined_table then null;`,
+    );
+
+    expect(drop).toBeGreaterThan(-1);
+    expect(drop).toBeLessThan(sql.indexOf(body));
+  });
+
   it("checks an update's using when it has no with check", () => {
     const sql = scoped(`create policy invoices_update on ${TABLE}
   for update to authenticated
@@ -111,7 +128,7 @@ grant select on ${TABLE} to authenticated;`);
   for all to service_role
   using (true);`;
 
-    expect(scoped(sql)).toBe(sql);
+    expect(scoped(sql)).not.toContain(`create policy ${TENANT_SCOPE_POLICY}`);
   });
 
   it("ignores restrictive and commented-out policies", () => {
@@ -120,7 +137,7 @@ grant select on ${TABLE} to authenticated;`);
   using (false);
 -- create policy invoices_example on ${TABLE} for select using (true);`;
 
-    expect(scoped(sql)).toBe(sql);
+    expect(scoped(sql)).not.toContain(`create policy ${TENANT_SCOPE_POLICY}`);
   });
 
   it("adds nothing outside a tenant scope", () => {
