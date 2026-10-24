@@ -211,6 +211,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0094: supported adapters (Next.js, Hono, Expo, SvelteKit, TanStack Start, React Router) get the full test matrix; the rest are community adapters with a smoke test.
 - 0095: one token verification per request across cache scopes, through a session memo keyed by the token hash.
 - 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast.
+- 0098: tenant isolation renders as one restrictive `bsb_tenant_scope` policy per tenant table; an app's permissive policy can't widen it.
 
 ## Pre-release pins
 
