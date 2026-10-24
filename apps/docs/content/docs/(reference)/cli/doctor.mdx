@@ -35,10 +35,11 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
 | `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
 | `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
+| `--fix`                | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
 
-Side effects: Reads the database, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+Side effects: Reads the database, writes to the database with `--fix`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
 ## In CI
 
@@ -696,7 +697,10 @@ can't run inside a transaction.
 key or a check scans the whole table while it holds a lock that blocks writes.
 Add the constraint with `not valid`, then run
 `alter table ... validate constraint ...` in a later statement, which scans
-without blocking writes.
+without blocking writes. A `references` or `check` written inline in
+`add column` can't be `not valid`, so BS230 flags it too: add the column,
+then the constraint. For a check, [BS236](#bs236) tells you when the rows
+pass and `doctor --fix` validates it.
 
 ### BS231
 
@@ -706,7 +710,9 @@ types are binary compatible. `set not null` scans the table under the same
 lock. For a type change, add a new column, backfill it, and switch reads to
 it. For `set not null`, first add `check (column is not null) not valid`,
 validate it, and then set not null, which Postgres then accepts without a
-scan.
+scan. BS231 also flags `add column ... not null` without a default, which
+fails once the table has rows: add the column nullable, fill it with
+[`db backfill`](/docs/cli/db#backfill), and then add the check.
 
 ### BS232
 
@@ -722,7 +728,9 @@ default, backfill it in batches, and then set the default.
 alters an existing table waits behind long-running queries for its lock, and
 every query that arrives after it waits too. Start the migration with
 `set lock_timeout = '5s';` so it fails fast and can be retried instead of
-stalling the app.
+stalling the app. A statement that only runs `validate constraint` takes a
+share update exclusive lock, which doesn't block reads or writes, so it
+doesn't count.
 
 ### BS234
 
@@ -742,6 +750,24 @@ names the old argument list, fails once the migration runs. Doctor flags a
 the same file creates that function again with the same number of arguments.
 Read the [upgrade notes](/docs/migration) for the release, call the function
 with named arguments, and grant on the new signature in the same migration.
+
+### BS236
+
+**Info: not valid check ready to validate.** Expand and contract adds a
+column nullable, adds `check (column is not null) not valid` so new rows must
+fill it, backfills the old rows with [`db backfill`](/docs/cli/db#backfill),
+and then validates the check. BS236 reads the checks the database holds as not
+valid and tests each one against the rows. When no row fails it, the finding
+carries the fix, and `doctor --fix` runs
+`alter table ... validate constraint ...` without a statement timeout. That
+scans the table but doesn't block reads or writes. After it, `set not null` on
+the column needs no scan. When rows still fail, the finding names the
+`db backfill` command for a not-null check. BS236 needs a database, so a saved
+snapshot skips it.
+
+Postgres checks a not valid constraint on every insert and update, so an
+update of a row the backfill hasn't reached yet fails until it fills the
+column. Add the check after the backfill when the app still writes those rows.
 
 ## Drift
 

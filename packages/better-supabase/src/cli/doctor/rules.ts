@@ -39,6 +39,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
+import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { REALTIME_RULES } from "./realtime.ts";
@@ -90,6 +91,8 @@ export interface Finding {
   readonly location?: Location;
   readonly object?: SqlObject;
   readonly help: string;
+  /** SQL that `doctor --fix` runs against the database to resolve it. */
+  readonly fix?: string;
 }
 
 /** Rules fill in code, severity, title and help; advisor findings override them. */
@@ -1110,6 +1113,7 @@ export const RULES: readonly Rule[] = [
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
+  ...NOT_VALID_RULES,
   ...ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,

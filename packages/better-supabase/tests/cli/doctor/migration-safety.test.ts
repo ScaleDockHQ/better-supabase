@@ -9,6 +9,11 @@ import {
 } from "../../../src/cli/doctor/migration-safety.ts";
 import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
 import { splitStatements } from "../../../src/cli/doctor/shared.ts";
+import {
+  addNotNullCheck,
+  notNullCheckName,
+  validateConstraint,
+} from "../../../src/sql/shared.ts";
 
 const migration = (version: string, text: string): TextFile => ({
   path: `supabase/migrations/${version}_change.sql`,
@@ -232,6 +237,111 @@ describe("migration safety", () => {
       expect.stringContaining(":1: drops better_supabase.audit"),
       expect.stringContaining(":3: drops better_supabase.purge"),
     ]);
+  });
+
+  it("BS230 flags a foreign key or check written inline in add column", async () => {
+    const files = [
+      migration(
+        "20260101000000",
+        [
+          "alter table invoices add column project_id uuid references projects (id);",
+          "alter table invoices add column if not exists points int check (points > 0);",
+          "alter table invoices add column note text, add constraint invoices_note check (note <> '') not valid;",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(await run("BS230", files)).toEqual([
+      expect.stringContaining(
+        ":1: adds column project_id to public.invoices with an inline foreign key",
+      ),
+      expect.stringContaining(
+        ":2: adds column points to public.invoices with an inline check",
+      ),
+    ]);
+  });
+
+  it("BS231 flags a not null column without a default", async () => {
+    const files = [
+      migration(
+        "20260101000000",
+        [
+          "alter table invoices add column currency text not null;",
+          "alter table invoices add column status text not null default 'open';",
+          "alter table invoices add column id2 bigint not null generated always as identity;",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(await run("BS231", files)).toEqual([
+      expect.stringContaining(
+        ":1: adds column currency to public.invoices as not null without a default",
+      ),
+    ]);
+  });
+
+  it("passes every step of expand and contract", async () => {
+    const steps = [
+      migration(
+        "20260101000000",
+        [
+          "set lock_timeout = '5s';",
+          "alter table invoices add column organization_id uuid;",
+          addNotNullCheck({
+            table: "public.invoices",
+            column: "organization_id",
+          }),
+          "alter table invoices add constraint invoices_organization_id_fkey foreign key (organization_id) references organizations (id) not valid;",
+        ].join("\n"),
+      ),
+      migration(
+        "20260201000000",
+        [
+          validateConstraint(
+            "public.invoices",
+            notNullCheckName("invoices", "organization_id"),
+          ),
+          "alter table invoices validate constraint invoices_organization_id_fkey;",
+        ].join("\n"),
+      ),
+      migration(
+        "20260301000000",
+        [
+          "set lock_timeout = '5s';",
+          validateConstraint(
+            "public.invoices",
+            notNullCheckName("invoices", "organization_id"),
+          ),
+          "alter table invoices alter column organization_id set not null;",
+        ].join("\n"),
+      ),
+    ];
+
+    for (const step of steps) {
+      for (const code of ["BS229", "BS230", "BS231", "BS232", "BS233"]) {
+        expect(await run(code, [step])).toEqual([]);
+      }
+    }
+  });
+
+  it("BS233 doesn't count a statement that only validates constraints", async () => {
+    expect(
+      await run("BS233", [
+        migration(
+          "20260101000000",
+          'alter table public.invoices validate constraint "invoices_currency_not_null";',
+        ),
+      ]),
+    ).toEqual([]);
+
+    expect(
+      await run("BS233", [
+        migration(
+          "20260101000000",
+          "alter table invoices validate constraint a, alter column b set not null;",
+        ),
+      ]),
+    ).toEqual([expect.stringContaining("without setting lock_timeout")]);
   });
 
   it("checks only the newest migration offline without since", async () => {
