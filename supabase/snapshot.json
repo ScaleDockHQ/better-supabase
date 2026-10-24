@@ -209219,19 +209219,6 @@
         ],
         "policies": [
           {
-            "name": "bsb_organizations_select",
-            "command": "select",
-            "roles": [
-              "authenticated"
-            ],
-            "permissive": true,
-            "using": "(id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
-            "check": null,
-            "functions": [
-              "better_supabase.member_organization_ids"
-            ]
-          },
-          {
             "name": "bsb_session_active",
             "command": "all",
             "roles": [
@@ -209251,10 +209238,11 @@
               "authenticated"
             ],
             "permissive": true,
-            "using": "(id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "using": "((id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)) OR (id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)))",
             "check": null,
             "functions": [
-              "better_supabase.current_tenant_id"
+              "better_supabase.current_tenant_id",
+              "better_supabase.member_organization_ids"
             ]
           }
         ],

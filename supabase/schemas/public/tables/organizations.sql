@@ -13,7 +13,10 @@ alter table public.organizations enable row level security;
 
 create policy organizations_member_select on public.organizations
   for select to authenticated
-  using (id = (select better_supabase.current_tenant_id()));
+  using (
+    id = (select better_supabase.current_tenant_id())
+    or id in (select better_supabase.member_organization_ids())
+  );
 
 revoke all on public.organizations from anon, authenticated;
 
