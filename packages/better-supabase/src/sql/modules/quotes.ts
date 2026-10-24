@@ -16,7 +16,7 @@ import {
 } from "../line-items-sql.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
-import { lockModuleTable } from "./over-app.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { quoteFunctions, quoteOrigin, quoteParty } from "./quotes-functions.ts";
 
@@ -165,7 +165,7 @@ create table if not exists ${t("quotes")} (
   ${constraints.join(",\n  ")}
 );
 create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
-create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}
+create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}
 drop policy if exists ${ctx.naming.rename("quotes_read")} on ${t("quotes")};
 create policy ${ctx.naming.rename("quotes_read")} on ${t("quotes")} for select to authenticated

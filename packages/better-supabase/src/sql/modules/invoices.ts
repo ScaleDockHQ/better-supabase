@@ -21,7 +21,7 @@ import {
   invoiceParty,
 } from "./invoices-functions.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
-import { lockModuleTable } from "./over-app.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const INVOICE = [
@@ -179,7 +179,7 @@ create table if not exists ${t("invoices")} (
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
 );
-create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin ? index("invoices_origin_idx", ["originType", "originId"]) : ""}${index("invoices_original_idx", ["original"])}${company ? index("invoices_company_idx", ["companyType", "companyId"]) : ""}${addExtraColumns(t("invoices"), n.extras)}
+create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin ? index("invoices_origin_idx", ["originType", "originId"]) : ""}${index("invoices_original_idx", ["original"])}${company ? index("invoices_company_idx", ["companyType", "companyId"]) : ""}${addExtraColumns(t("invoices"), n.extras)}${appUniqueIndex(ctx, "invoices", ["tenant", "kind", "number"])}
 ${lockModuleTable(ctx, "invoices", { read: true })}
 drop policy if exists ${ctx.naming.rename("invoices_read")} on ${t("invoices")};
 create policy ${ctx.naming.rename("invoices_read")} on ${t("invoices")} for select to authenticated

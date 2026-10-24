@@ -84,7 +84,7 @@ export function leaveLedgerFunctions(
       'typeId', (x.${la("metadata")} ->> 'typeId')::uuid, 'kind', substr(r.${lt("kind")}, 7), 'amount', ${decimalText(`y.${le("amount")}`)},
       'period', (x.${la("metadata")} ->> 'period')::integer,
       'requestId', case when r.${lt("referenceType")} = 'leave-requests' then r.${lt("referenceId")}::uuid end,
-      'note', r.${lt("memo")}, 'createdAt', y.${le("createdAt")})`;
+      'note', ${ledger.has("transactions", "memo") ? `r.${lt("memo")}` : "null"}, 'createdAt', y.${le("createdAt")})`;
 
   const adjusted = ctx.record({
     type: "leave.adjusted",
@@ -384,6 +384,7 @@ export function leaveLedgerUpgrade(ctx: BlockSqlContext): string {
   const accounts = ledger.table("accounts");
   const la = (column: string): string => ledger.col("accounts", column);
   const lt = (column: string): string => ledger.col("transactions", column);
+  const memo = ledger.has("transactions", "memo");
   const le = (column: string): string => ledger.col("entries", column);
   const read = ctx.permission("read", moduleOperations("leave").read);
   const types = ctx.table("types");
@@ -408,8 +409,8 @@ begin
   select distinct m.tenant_id, 'leave_pool', ${counter("m")}, case when m.kind = 'taken' then 'Leave taken' else 'Leave pool' end, t.${ty("unit")}, 2, 'leave-types', m.type_id::text, true, ${read}, 'leave'
   from ${old} m join ${types} t on t.${ty("id")} = m.type_id
   on conflict do nothing;
-  insert into ${ledger.table("transactions")} (${lt("id")}, ${lt("tenant")}, ${lt("kind")}, ${lt("referenceType")}, ${lt("referenceId")}, ${lt("memo")}, ${lt("key")}, ${lt("metadata")}, ${lt("effectiveAt")}, ${lt("actor")}, ${lt("createdAt")})
-  select m.id, m.tenant_id, 'leave.' || m.kind, case when m.request_id is not null then 'leave-requests' end, m.request_id::text, m.note,
+  insert into ${ledger.table("transactions")} (${lt("id")}, ${lt("tenant")}, ${lt("kind")}, ${lt("referenceType")}, ${lt("referenceId")}, ${memo ? `${lt("memo")}, ` : ""}${lt("key")}, ${lt("metadata")}, ${lt("effectiveAt")}, ${lt("actor")}, ${lt("createdAt")})
+  select m.id, m.tenant_id, 'leave.' || m.kind, case when m.request_id is not null then 'leave-requests' end, m.request_id::text,${memo ? " m.note," : ""}
     case when m.idempotency_key is not null then 'leave:' || m.user_id::text || ':' || m.type_id::text || ':' || m.idempotency_key end,
     jsonb_build_object('userId', m.user_id, 'typeId', m.type_id, 'period', m.period, 'kind', m.kind), m.created_at, m.created_by, m.created_at
   from ${old} m
