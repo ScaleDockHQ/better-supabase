@@ -454,10 +454,12 @@ export async function runBackfill(
     ];
 
     if (remaining > 0) {
+      const are = remaining === 1 ? "is" : "are";
+
       lines.push(
         source.kind === "column"
-          ? `${rowsText(remaining)} are still null: their ${source.via} is null, has no match, or the match has no value (or another session held the row). Fill them, then run this again.`
-          : `${rowsText(remaining)} are still null because another session held them. Run this again.`,
+          ? `${rowsText(remaining)} ${are} still null: their ${source.via} is null, has no match, or the match has no value (or another session held the row). Fill them, then run this again.`
+          : `${rowsText(remaining)} ${are} still null because another session held them. Run this again.`,
       );
     } else {
       lines.push(

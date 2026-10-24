@@ -356,6 +356,46 @@ describe("db backfill", () => {
     ).rejects.toThrow("has no foreign key to public.projects");
   });
 
+  it("names the key in a dry run that leaves rows null", async () => {
+    const open = fakeConnect(fakeDb().client);
+
+    const result = await runBackfill(
+      config,
+      args([
+        "invoices.organization_id",
+        "--from",
+        "projects.organization_id",
+        "via",
+        "project_id",
+        "--dry-run",
+      ]),
+      LOCAL,
+      { open: open.connect },
+    );
+
+    expect(result.output).toContain(
+      "2 rows would stay null: their project_id is null or has no match with a value.",
+    );
+  });
+
+  it("says a value fill left rows another session held", async () => {
+    const open = fakeConnect(fakeDb({ batches: [1], remaining: 1 }).client);
+
+    const result = await runBackfill(
+      config,
+      args(["invoices.currency", "--value", "'EUR'"]),
+      LOCAL,
+      { open: open.connect },
+    );
+
+    expect(result.output).toContain(
+      "Filled 1 row of public.invoices.currency in 1 batch.",
+    );
+    expect(result.output).toContain(
+      "1 row is still null because another session held them. Run this again.",
+    );
+  });
+
   it("fails on a missing column to follow", async () => {
     const open = fakeConnect(fakeDb({ missing: "project_id" }).client);
 
