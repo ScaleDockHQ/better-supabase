@@ -106,7 +106,7 @@ as $$
   with page_rows as (
     select m.* from ${t("messages")} m where m.${ms("id")} = any (messaging_messages_json.ids)
   )${authors ? `,\n  a as (select ${authors.call("messaging_messages_json.ids")} as authors)` : ""}${files}${reactions}
-  select coalesce(jsonb_agg(${json} order by coalesce(x.${ms("sentAt")}, x.${ms("scheduledFor")}, x.${ms("createdAt")}), x.${ms("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${json} order by coalesce(x.${ms("sentAt")}, ${ctx.has("messages", "scheduledFor") ? `x.${ms("scheduledFor")}, ` : ""}x.${ms("createdAt")}), x.${ms("id")}), '[]'::jsonb)
   from ${from}
 $$;
 ${userGrant(`${fn("messaging_messages_json")}(uuid[])`)}`;
@@ -126,6 +126,8 @@ function sentEffects(q: MessagingSql): string {
   const messageId = sqlString(q.e("messageId"));
   const notifications = ctx.installed("notifications");
   const notifies = notifications && ctx.flag("notify", true);
+  // Without a notify column every member hears of every message.
+  const levels = ctx.has("members", "notify");
 
   const label = `coalesce(case when v_conv.${cv("kind")} = 'subject' then ${ctx.of("subjects").fn("subject_title")}(v_conv.${cv("subjectType")}, v_conv.${cv("subjectId")}) end, v_conv.${cv("title")})`;
 
@@ -207,13 +209,17 @@ function sentEffects(q: MessagingSql): string {
   if v_msg.${ms("mentionScope")} is not null then
     v_mentioned := v_mentioned || array(
       select k.${mb("user")} from ${t("members")} k
-      where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("notify")} <> 'none'
+      where k.${mb("conversation")} = v_conv.${cv("id")}${levels ? ` and k.${mb("notify")} <> 'none'` : ""}
         and k.${mb("user")} is distinct from v_msg.${ms("author")}
     );
   end if;
   v_mentioned := array(
-    select distinct x from unnest(v_mentioned) x
-    where not exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = x and k.${mb("notify")} = 'none')
+    select distinct x from unnest(v_mentioned) x${
+      levels
+        ? `
+    where not exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = x and k.${mb("notify")} = 'none')`
+        : ""
+    }
   );
   if cardinality(v_mentioned) > 0 then
     ${notify("message.mentioned", `,\n      'recipients', to_jsonb(v_mentioned),\n      'watchers', false,\n      'key', ${sqlString(q.e("message.mentioned:"))} || v_msg.${ms("id")}::text`)}
@@ -221,7 +227,7 @@ function sentEffects(q: MessagingSql): string {
   if v_conv.${cv("kind")} in ('dm', 'group_dm') and v_msg.${ms("thread")} is null then
     v_direct := array(
       select k.${mb("user")} from ${t("members")} k
-      where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("notify")} = 'all'
+      where k.${mb("conversation")} = v_conv.${cv("id")}${levels ? ` and k.${mb("notify")} = 'all'` : ""}
         and k.${mb("user")} is distinct from v_msg.${ms("author")}
         and not k.${mb("user")} = any (v_mentioned)
     );
@@ -370,6 +376,8 @@ function messageFunctions(q: MessagingSql): string {
       : "";
 
   const parse = `${fn("parse_mentions")}(send_message.body)`;
+  const anchors = ctx.has("messages", "anchor");
+  const schedules = ctx.has("messages", "scheduledFor");
   const rm = q.cols("recordMentions");
 
   return `
@@ -549,14 +557,27 @@ begin
       ${fail("MESSAGING_PARENT_INVALID", "reply to a sent message in the same conversation", "22023")}
     end if;${depth}
   end if;
-  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+  ${
+    anchors
+      ? `if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
     if not ${fn("messaging_file_anchor_valid")}(send_message.attrs -> 'anchor') then
       ${fail("MESSAGING_ANCHOR_INVALID", "a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0", "22023")}
     end if;${anchorFile}
-  end if;
+  end if;`
+      : `if coalesce(jsonb_typeof(send_message.attrs -> 'anchor'), 'null') <> 'null' then
+    ${fail("MESSAGING_ANCHOR_UNSUPPORTED", "this messages table has no anchor column", "22023")}
+  end if;`
+  }
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
-  end if;
+  end if;${
+    schedules
+      ? ""
+      : `
+  if v_scheduled is not null then
+    ${fail("MESSAGING_SCHEDULE_UNSUPPORTED", "this messages table has no scheduledFor column", "22023")}
+  end if;`
+  }
   v_mentions := array(
     select distinct x from (
       select (jsonb_array_elements_text(coalesce(send_message.attrs -> 'mentions', '[]'::jsonb)))::uuid as x
@@ -570,14 +591,14 @@ begin
     ["jsonb", "send_message.attrs"],
   ])}
   begin
-    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")}, ${ms("body")}, ${ms("document")}, ${ms("anchor")},
-      ${ms("mentions")}, ${ms("mentionScope")}, ${ms("broadcast")}, ${ms("scheduledFor")}, ${ms("sentAt")})
+    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")}, ${ms("body")}, ${ms("document")},${anchors ? ` ${ms("anchor")},` : ""}
+      ${ms("mentions")}, ${ms("mentionScope")}, ${ms("broadcast")},${schedules ? ` ${ms("scheduledFor")},` : ""} ${ms("sentAt")})
     values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
-      case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
-      case when v_conv.${cv("access")} = 'subject' then null else v_parsed ->> 'scope' end,
+      ${anchors ? "case when v_parent is null then send_message.attrs -> 'anchor' end, " : ""}v_mentions,
+      ${ctx.cast("messages", "mentionScope", `case when v_conv.${cv("access")} = 'subject' then null else v_parsed ->> 'scope' end`)},
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
-      v_scheduled, case when v_scheduled is null then now() end)
+      ${schedules ? "v_scheduled, " : ""}case when v_scheduled is null then now() end)
     returning ${ms("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("MESSAGING_MESSAGE_INVALID", "a message field has an invalid value", "22023")}
@@ -607,7 +628,9 @@ declare
 begin
   if not ${q.service} then
     ${fail("MESSAGING_FORBIDDEN", "publish_due_messages runs as the service role")}
-  end if;
+  end if;${
+    schedules
+      ? `
   for v_id in
     select m.${ms("id")} from ${t("messages")} m
     where m.${ms("sentAt")} is null and m.${ms("deletedAt")} is null and m.${ms("scheduledFor")} <= now()
@@ -618,7 +641,9 @@ begin
     update ${t("messages")} m set ${ms("sentAt")} = now() where m.${ms("id")} = v_id;
     perform ${fn("messaging_message_sent")}(v_id);
     v_sent := v_sent + 1;
-  end loop;
+  end loop;`
+      : ""
+  }
   return v_sent;
 end;
 $$;
@@ -756,12 +781,21 @@ begin
   where m.${ms("id")} = resolve_message.message and m.${ms("thread")} is null and m.${ms("deletedAt")} is null and m.${ms("sentAt")} is not null;
   if not found or not ${fn("can_conversation")}(v_msg.${ms("conversation")}, 'send') then
     ${fail("MESSAGING_NOT_FOUND", "no such thread you can resolve", "P0002")}
-  end if;
+  end if;${
+    ctx.has("messages", "resolvedAt")
+      ? `
   update ${t("messages")} m
-  set ${ms("resolvedAt")} = case when resolve_message.resolved then coalesce(m.${ms("resolvedAt")}, now()) end,
-    ${ms("resolvedBy")} = case when resolve_message.resolved then coalesce(m.${ms("resolvedBy")}, auth.uid()) end
+  set ${ms("resolvedAt")} = case when resolve_message.resolved then coalesce(m.${ms("resolvedAt")}, now()) end${
+    ctx.has("messages", "resolvedBy")
+      ? `,
+    ${ms("resolvedBy")} = case when resolve_message.resolved then coalesce(m.${ms("resolvedBy")}, auth.uid()) end`
+      : ""
+  }
   where m.${ms("id")} = v_msg.${ms("id")}
-  returning * into v_msg;
+  returning * into v_msg;`
+      : `
+  ${fail("MESSAGING_RESOLVE_UNSUPPORTED", "this messages table has no resolvedAt column", "22023")}`
+  }
   ${messageRecord(q, "message.resolved", "v_msg", ", 'resolved', resolve_message.resolved")}
   return ${fn("messaging_messages_json")}(array[v_msg.${ms("id")}]) -> 0;
 end;
@@ -836,8 +870,12 @@ set search_path = ''
 as $$
   select ${fn("messaging_messages_json")}(array(
     select m.${ms("id")} from ${t("messages")} m
-    where m.${ms("anchor")} ->> 'kind' = 'file'
-      and m.${ms("anchor")} ->> 'attachmentId' = list_file_anchors.attachment::text
+    where ${
+      anchors
+        ? `m.${ms("anchor")} ->> 'kind' = 'file'
+      and m.${ms("anchor")} ->> 'attachmentId' = list_file_anchors.attachment::text`
+        : "false"
+    }
       and m.${ms("sentAt")} is not null and m.${ms("deletedAt")} is null
     order by m.${ms("sentAt")}, m.${ms("id")}
     limit ${pageSize("list_file_anchors.max_rows", 100, 500)}

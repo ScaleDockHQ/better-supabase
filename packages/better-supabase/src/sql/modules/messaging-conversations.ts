@@ -5,6 +5,7 @@ import { fail, pageSize, userGrant } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
 import { conversationTopic } from "./messaging-names.ts";
 import { conversationReadable, guestOnRecord } from "./messaging-tables.ts";
+import { asText } from "./over-app.ts";
 
 /** `ctx.record` of a conversation event over the row variable `row`. */
 function conversationRecord(
@@ -38,6 +39,11 @@ export function conversationFunctions(q: MessagingSql): string {
 
   const memberRecord = (type: string, user: string): string =>
     conversationRecord(q, type, "v_conv", `, ${userId}, ${user}`);
+
+  const kindOf = (alias: string): string =>
+    asText(ctx, "conversations", `${alias}.${cv("kind")}`);
+
+  const notify = ctx.has("members", "notify");
 
   const subscriptions = ctx.installed("notifications")
     ? ctx.of("notifications")
@@ -196,7 +202,7 @@ begin
       end if;
       v_key := array_to_string(v_users, ',');
       select c.${cv("id")} into v_id from ${t("conversations")} c
-      where c.${cv("tenant")} = open_conversation.tenant and c.${cv("kind")} = open_conversation.kind and c.${cv("memberKey")} = v_key;
+      where c.${cv("tenant")} = open_conversation.tenant and ${kindOf("c")} = open_conversation.kind and c.${cv("memberKey")} = v_key;
       v_access := 'members';
     when 'subject' then
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
@@ -230,14 +236,14 @@ begin
   if v_id is null then
     begin
       insert into ${t("conversations")} (${cv("tenant")}, ${cv("kind")}, ${cv("access")}, ${cv("subjectType")}, ${cv("subjectId")}, ${cv("title")}, ${cv("memberKey")}, ${cv("createdBy")})
-      values (open_conversation.tenant, open_conversation.kind, v_access,
+      values (open_conversation.tenant, ${ctx.cast("conversations", "kind", "open_conversation.kind")}, ${ctx.cast("conversations", "access", "v_access")},
         nullif(open_conversation.attrs ->> 'subjectType', ''), nullif(open_conversation.attrs ->> 'subjectId', ''),
         nullif(trim(open_conversation.attrs ->> 'title'), ''), v_key, auth.uid())
       returning ${cv("id")} into v_id;
       v_created := true;
     exception when unique_violation then
       select c.${cv("id")} into v_id from ${t("conversations")} c
-      where c.${cv("tenant")} = open_conversation.tenant and c.${cv("kind")} = open_conversation.kind
+      where c.${cv("tenant")} = open_conversation.tenant and ${kindOf("c")} = open_conversation.kind
         and (c.${cv("memberKey")} = v_key or (c.${cv("subjectType")} = open_conversation.attrs ->> 'subjectType' and c.${cv("subjectId")} = open_conversation.attrs ->> 'subjectId'));
     when check_violation then
       ${fail("MESSAGING_CONVERSATION_INVALID", "a conversation field has an invalid value", "22023")}
@@ -246,7 +252,7 @@ begin
   select * into v_conv from ${t("conversations")} c where c.${cv("id")} = v_id;
   if v_created then
     insert into ${t("members")} (${mb("conversation")}, ${mb("tenant")}, ${mb("user")}, ${mb("role")})
-    select v_id, open_conversation.tenant, x, case when x = auth.uid() then 'owner' else 'member' end from unnest(v_users) x
+    select v_id, open_conversation.tenant, x, ${ctx.cast("members", "role", "case when x = auth.uid() then 'owner' else 'member' end")} from unnest(v_users) x
     on conflict do nothing;
     ${conversationRecord(q, "conversation.created", "v_conv", `, 'recordType', v_conv.${cv("subjectType")}, 'recordId', v_conv.${cv("subjectId")}`)}
   end if;
@@ -381,7 +387,7 @@ as $$
       'unread', u.unread,
       'mentions', u.mentions,
       'lastReadAt', k.${mb("lastReadAt")},
-      'notify', k.${mb("notify")}
+      'notify', ${notify ? `k.${mb("notify")}` : "null"}
     ) order by c.${cv("lastMessageAt")} desc nulls last, c.${cv("id")}), '[]'::jsonb)
   from (
     select c.* from ${t("conversations")} c
@@ -391,7 +397,7 @@ as $$
         ctx.installed("inbox")
           ? `list_conversations.kinds is null and c.${cv("kind")} <> 'inbox'`
           : "list_conversations.kinds is null"
-      } or c.${cv("kind")} = any (list_conversations.kinds))
+      } or ${kindOf("c")} = any (list_conversations.kinds))
     order by c.${cv("lastMessageAt")} desc nulls last, c.${cv("id")}
     limit ${pageSize("list_conversations.max_rows", 100, 500)}
   ) c
@@ -505,10 +511,15 @@ as $$
 begin
   if set_conversation_notify.level not in ('all', 'mentions', 'none') then
     ${fail("MESSAGING_NOTIFY_INVALID", "level is all, mentions or none", "22023")}
-  end if;
-  update ${t("members")} k set ${mb("notify")} = set_conversation_notify.level
+  end if;${
+    notify
+      ? `
+  update ${t("members")} k set ${mb("notify")} = ${ctx.cast("members", "notify", "set_conversation_notify.level")}
   where k.${mb("conversation")} = set_conversation_notify.conversation and k.${mb("user")} = auth.uid();
-  return found;
+  return found;`
+      : `
+  ${fail("MESSAGING_NOTIFY_UNSUPPORTED", "this conversation members table has no notify column", "22023")}`
+  }
 end;
 $$;
 ${userGrant(`${fn("set_conversation_notify")}(uuid, text)`)}
