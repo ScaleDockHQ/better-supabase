@@ -1,10 +1,25 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:4d9ae40f16b11054f61e7da10cc314951e9d474f788d72d9a7ad350f17b1efe5
+-- @bsb-hash sha256:3f9c114e97755924ae62002e510a88f8edb4dda2f7df3d9f748efaef8376fe09
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."status_history" (
@@ -97,11 +112,11 @@ begin
   if new."state" is not distinct from old."state" then
     return new;
   end if;
-  if not (case old."state" when 'triage' then new."state" = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state" = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state" = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state" = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state" = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state" = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
+  if not (case old."state"::text when 'triage' then new."state"::text = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state"::text = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state"::text = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state"::text = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state"::text = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state"::text = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
   insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason")
-        values (new."tenant_id", 'work_item', new."id"::text, old."state", new."state", auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));
+        values (new."tenant_id", 'work_item', new."id"::text, old."state"::text, new."state"::text, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));
   
   perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'work_item', 'subjectId', new."id"::text, 'from', old."state"::text, 'to', new."state"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/work_item/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
@@ -133,7 +148,7 @@ begin
   end;
   case transition.subject_type
     when 'work_item' then
-      update "better_supabase"."work_items" s set "state" = transition.to_status
+      update "better_supabase"."work_items" s set "state" = better_supabase.as_column_type(transition.to_status, (null::"better_supabase"."work_items")."state")
       where s."id" = (transition.subject_id)::uuid;
     else
       raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
@@ -390,6 +405,15 @@ create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as rest
 -- blocks.state-machine.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."as_column_type"(value text, target anyelement)
+returns anyelement
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."as_column_type"($1, $2) $$;
+revoke execute on function "api"."as_column_type"(text, anyelement) from public;
+grant execute on function "api"."as_column_type"(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function "api"."transition"(subject_type text, subject_id text, to_status text, reason text)
 returns boolean
