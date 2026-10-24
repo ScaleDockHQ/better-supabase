@@ -111,12 +111,12 @@ ${lockTable("better_supabase.webhook_inbox")}
 `;
 
 function webhookInboxSql(ctx: BlockSqlContext): string {
-  const managed = ctx.manages;
+  const managed = ctx.owns("messages");
   const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
 
   if (managed && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with ownership "adopt"`,
+      `blocks.webhook-inbox.columns.messages: the block creates this table, so ${renamed.join(", ")} can't be renamed; declare your own table in your schema, or map blocks.webhook-inbox.tables.messages`,
     );
   }
 

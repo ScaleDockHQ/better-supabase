@@ -2285,7 +2285,7 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 adopt
--- @bsb-hash sha256:d69d9f971f61ce44a8bf2dd21e6fba5ff3f1327cfd2abad42db367acf30bb9be
+-- @bsb-hash sha256:a7cb0d22becc5366eb9e29b56c254ba198ff7bdd75b5695d0ecb23d5e54b8fea
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2326,7 +2326,7 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Trigger URLs over the app's table "better_supabase"."incoming_webhooks" (adopt mode): the app owns its
+-- Trigger URLs over the app's table "better_supabase"."incoming_webhooks" (the app's table): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()

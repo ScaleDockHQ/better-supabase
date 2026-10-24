@@ -575,7 +575,10 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
       description:
         "Field definitions order by a fractional rank key instead of an integer position; rank_field_definition sets it.",
       sql: (ctx) => {
-        if (!ctx.manages || ctx.text("layout", "normalized") === "inline") {
+        if (
+          !ctx.owns("definitions") ||
+          ctx.text("layout", "normalized") === "inline"
+        ) {
           return "";
         }
 
@@ -602,7 +605,7 @@ alter table ${definitions} drop column if exists position;`;
       description:
         "Field definitions gain an encrypted flag; encrypt_field_definition encrypts a text field's values with the tenant's data key.",
       sql: (ctx) =>
-        !ctx.manages ||
+        !ctx.owns("definitions") ||
         ctx.text("layout", "normalized") === "inline" ||
         !ctx.has("definitions", "encrypted")
           ? ""

@@ -218,7 +218,7 @@ function dropNumericSignatures(ctx: BlockSqlContext): string {
  * until the app sets one; the pair check then warns.
  */
 function upgradeRateToMoney(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
+  if (!ctx.owns("entries")) {
     return dropNumericSignatures(ctx);
   }
 

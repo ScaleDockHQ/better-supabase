@@ -264,7 +264,7 @@ function build(ctx: BlockSqlContext): string {
   ${r("tenant")} ${ctx.idType} not null,
   ${r("subjectType")} text not null,
   ${r("subjectId")} text not null,
-  ${r("version")} uuid not null${versionsModule.manages ? ` references ${vt} (${v("id")}) on delete restrict` : ""},
+  ${r("version")} uuid not null${versionsModule.owns("versions") ? ` references ${vt} (${v("id")}) on delete restrict` : ""},
   ${r("contentHash")} text not null,
   ${r("signers")} uuid[] not null check (cardinality(${r("signers")}) between 1 and ${String(MAX_SIGNERS)} and array_position(${r("signers")}, null) is null),
   ${r("order")} text not null default 'parallel' check (${r("order")} in ('parallel', 'sequential')),

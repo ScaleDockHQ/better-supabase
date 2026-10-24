@@ -22,7 +22,7 @@ function rolesTenantColumn(ctx: BlockSqlContext): string | undefined {
 
   const access = ctx.of("permissions");
 
-  return !access.manages &&
+  return !access.owns("roles") &&
     typeof access.config.columns["roles"]?.["tenant"] === "string"
     ? access.col("roles", "tenant")
     : undefined;

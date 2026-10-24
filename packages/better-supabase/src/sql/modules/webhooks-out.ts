@@ -188,7 +188,7 @@ function formatDefault(ctx: BlockSqlContext, n: HookNames): string {
 }
 
 export const ADOPTED_FORMAT_ERROR =
-  'blocks.webhooks-out: the adopted endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
+  'blocks.webhooks-out: your endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
 
 /**
  * Without a format column every endpoint uses `defaultFormat`, whose default
@@ -197,7 +197,7 @@ export const ADOPTED_FORMAT_ERROR =
  */
 function requireAdoptedFormat(ctx: BlockSqlContext, n: HookNames): void {
   if (
-    ctx.mode === "adopt" &&
+    !ctx.owns("endpoints") &&
     !n.has("endpoints", "format") &&
     ctx.option("defaultFormat") === undefined
   ) {
@@ -456,7 +456,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   requireAdoptedFormat(ctx, n);
 
   return [
-    `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.manages ? "" : formatDefault(ctx, n)}`,
+    `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.owns("endpoints") ? "" : formatDefault(ctx, n)}`,
     reenable(ctx, n),
     vaultCleanup(ctx, n),
     functions(ctx, n),
@@ -534,7 +534,7 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
       sql: (ctx) => {
         const n = hookNames(ctx);
 
-        return ctx.manages && n.has("endpoints", "format")
+        return ctx.owns("endpoints") && n.has("endpoints", "format")
           ? `alter table ${n.table("endpoints")} add column if not exists ${n.col("endpoints", "format")} ${formatColumn(n.col("endpoints", "format"), "standard")};`
           : "";
       },

@@ -93,9 +93,9 @@ const graceColumns = (vault: boolean): readonly EndpointColumn[] => [
 function webhooksInSql(ctx: BlockSqlContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
 
-  if (ctx.manages && renamed.length > 0) {
+  if (ctx.owns("endpoints") && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with ownership "adopt"`,
+      `blocks.webhooks-in.columns.endpoints: the block creates this table, so ${renamed.join(", ")} can't be renamed; declare your own table in your schema, or map blocks.webhooks-in.tables.endpoints`,
     );
   }
 
@@ -235,7 +235,7 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
       )
     : "";
 
-  const table = ctx.manages
+  const table = ctx.owns("endpoints")
     ? `
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
@@ -278,10 +278,10 @@ create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subjec
 create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
 ${updatedAt(t, "updated_at")}`
     : `
--- Trigger URLs over the app's table ${t} (adopt mode): the app owns its
+-- Trigger URLs over the app's table ${t} (the app's table): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.`;
 
-  const policies = ctx.manages
+  const policies = ctx.owns("endpoints")
     ? `
 alter table ${t} enable row level security;
 ${revokeTable(t)}
@@ -291,7 +291,7 @@ grant all on ${t} to service_role;
 `
     : "\n";
 
-  const readPolicy = ctx.manages
+  const readPolicy = ctx.owns("endpoints")
     ? `
 drop policy if exists bsb_incoming_webhooks_read on ${t};
 create policy bsb_incoming_webhooks_read on ${t} for select to authenticated

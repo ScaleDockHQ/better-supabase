@@ -236,7 +236,7 @@ describe("webhooks-in module", () => {
           "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
         },
       }),
-    ).toThrow(/ownership "adopt"/);
+    ).toThrow(/declare your own table/);
     expect(() =>
       adopted({}, { on: { project: { table: "public.projects" } } }),
     ).toThrow(/subjectType and subjectId/);

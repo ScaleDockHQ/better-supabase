@@ -102,7 +102,7 @@ function names(ctx: BlockSqlContext): Names {
     k: (logical) => ctx.col("consumers", logical),
     x: (logical) => ctx.col("deadLetters", logical),
     has: (logical) => ctx.has("events", logical),
-    partitioned: ctx.manages && ctx.flag("partitioned", false),
+    partitioned: ctx.owns("events") && ctx.flag("partitioned", false),
   };
 }
 
@@ -164,7 +164,7 @@ create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e
 }
 
 function tables(ctx: BlockSqlContext, n: Names): string {
-  if (!ctx.manages) {
+  if (!ctx.owns("events")) {
     return `${adoptXid(n)}${consumersTable(n)}`;
   }
 

@@ -262,7 +262,7 @@ const raiseSlug = (
 ): string =>
   ctx.has("organizations", "slug")
     ? `
-  case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
+  case ${ctx.fn("organization_slug_problem")}(${ctx.owns("organizations") ? `coalesce(${value}, '')` : value}, ${except})
     when 'invalid' then ${raise(`Invalid slug "%"`, "23514", "ORGANIZATION_SLUG_INVALID", value)}
     when 'reserved' then ${raise(`The slug "%" is reserved`, "23514", "ORGANIZATION_SLUG_RESERVED", value)}
     when 'taken' then ${raise(`The slug "%" is taken`, "23505", "ORGANIZATION_SLUG_TAKEN", value)}
@@ -445,7 +445,7 @@ function platformOverride(
  * invitations and permission overrides go with their organization.
  */
 function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
-  if (!ctx.manages) {
+  if (!ctx.owns("organizations")) {
     return "";
   }
 
@@ -464,7 +464,7 @@ function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
 
     const other = ctx.of(module);
 
-    if (!other.manages || !other.hasTable(logical)) {
+    if (!other.hasTable(logical) || !other.owns(logical)) {
       return;
     }
 
@@ -548,9 +548,9 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   }
 
   if (guard === "external") {
-    if (ctx.of("memberships").manages) {
+    if (ctx.of("memberships").owns("memberships")) {
       throw new TypeError(
-        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.memberships.ownership "adopt").',
+        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so the memberships table must be your own: declare it in your schema, or map it in blocks.memberships.tables.memberships.',
       );
     }
 

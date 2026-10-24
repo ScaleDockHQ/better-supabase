@@ -674,7 +674,7 @@ export const TAGS: BlockSqlDefinition = {
       description:
         "Tags order by a fractional rank key instead of an integer position; rank_tag sets it.",
       sql: (ctx) => {
-        if (!ctx.manages) {
+        if (!ctx.owns("tags")) {
           return "";
         }
 

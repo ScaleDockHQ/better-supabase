@@ -378,7 +378,7 @@ describe("audit value mapping", () => {
     );
     expect(() =>
       audit({ options: { metadataColumns: { ticket_id: "ticketId" } } }),
-    ).toThrow(/adopted log/);
+    ).toThrow(/your own log table/);
     expect(() =>
       audit({ ...ADOPTED, options: { metadataColumns: { scope: "scope" } } }),
     ).toThrow(/already fills it/);

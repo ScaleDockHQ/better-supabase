@@ -64,9 +64,9 @@ export function roleThrough(tenant: BlockSqlContext): RoleThrough | undefined {
     );
   }
 
-  if (tenant.manages) {
+  if (tenant.owns("memberships")) {
     throw new TypeError(
-      `${where} describes an adopted memberships table; the managed one stores role names. Set blocks.memberships.ownership to "adopt".`,
+      `${where} describes your own memberships table; the block's table stores role names. Declare the memberships table in your schema, or map it in blocks.memberships.tables.memberships.`,
     );
   }
 
@@ -146,7 +146,7 @@ export function sharedRolesProblem(
  * the condition names. Removed when `where` is unset.
  */
 function roleScope(ctx: BlockSqlContext): string {
-  if (ctx.manages) {
+  if (ctx.owns("memberships")) {
     return "";
   }
 
@@ -602,7 +602,7 @@ export const TENANT: BlockSqlDefinition = {
       description:
         "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows blocks.permissions.roles.",
       sql: (ctx) =>
-        ctx.manages
+        ctx.owns("memberships")
           ? renameSql({
               schema: ctx.tableName("memberships").schema,
               table: ctx.tableName("memberships").name,

@@ -428,7 +428,7 @@ function inboxMove(
   name: string,
   slug: string,
 ): string {
-  if (!ctx.installed("inbox") || !ctx.manages) {
+  if (!ctx.installed("inbox") || !ctx.owns("teams")) {
     return "";
   }
 

@@ -103,9 +103,9 @@ function statusValues(
       );
     }
 
-    if (ctx.manages) {
+    if (ctx.owns("deliveries")) {
       throw new TypeError(
-        "blocks.webhooks-out.options.statuses maps an adopted table's values; managed tables use the default statuses",
+        "blocks.webhooks-out.options.statuses maps the values of your own deliveries table; the block's table uses the default statuses",
       );
     }
 
@@ -169,7 +169,7 @@ export function hookNames(
 ): HookNames {
   const has = (table: string, logical: string) =>
     ctx.has(table, logical) &&
-    (ctx.manages ||
+    (ctx.owns(table) ||
       !ADDED_COLUMNS[table]?.includes(logical) ||
       typeof ctx.config.columns[table]?.[logical] === "string");
 
@@ -209,7 +209,7 @@ export function hookNames(
       access && has("endpoints", "tenant") && has("deliveries", "tenant"),
     vault,
     allowHttp: ctx.flag("allowHttp", false),
-    partitioned: ctx.manages && ctx.flag("partitioned", false),
+    partitioned: ctx.owns("deliveries") && ctx.flag("partitioned", false),
     eventIdType: typeOption(ctx, "eventIdType"),
     runIdType: typeOption(ctx, "runIdType"),
     status: (status) => sqlString(values[status]),

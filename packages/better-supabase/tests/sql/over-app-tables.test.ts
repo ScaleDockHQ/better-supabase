@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
+
 import { canBeAppTable } from "../../src/sql/app-owned.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { runsOverAppTables } from "../../src/sql/module-types.ts";
@@ -51,6 +53,11 @@ create index invoices_status on public.invoices (status);
     expect(overAppTables(SQL, new Set(["public.contacts"]))).toBe(SQL);
   });
 });
+
+/** Options a module needs once one of its tables is the app's. */
+const OVER_APP_OPTIONS: AnyBlocksConfig = {
+  "webhooks-out": { options: { defaultFormat: "standard" } },
+};
 
 function rendersAlone(module: string): boolean {
   try {
@@ -107,9 +114,10 @@ function tablesOf(module: string): string[] {
 }
 
 function created(module: string, ownTables: Record<string, string>): string[] {
-  const files = renderBlocks([module], { ownTables }).filter(
-    (file) => file.module === module,
-  );
+  const files = renderBlocks([module], {
+    ownTables,
+    modules: OVER_APP_OPTIONS,
+  }).filter((file) => file.module === module);
 
   return declaredTables(
     files.map((file) => ({ text: file.contents })),
@@ -166,6 +174,19 @@ describe("blocks over the app's tables", () => {
     expect(() => created(module, { [table]: "app.sql" })).toThrow(
       `creates ${table}, which is already in app.sql`,
     );
+  });
+
+  it("shapes its SQL to the app's table, not to the block's mode", () => {
+    const sql = (ownTables: Record<string, string>) =>
+      renderBlocks(["audit"], { ownTables })
+        .filter((file) => file.module === "audit")
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(sql({})).toContain("$15::bigint");
+    expect(
+      sql({ "better_supabase.audit_events": "supabase/schemas/audit.sql" }),
+    ).not.toContain("$15::bigint");
   });
 
   it("covers every table of a module that runs over app tables", () => {

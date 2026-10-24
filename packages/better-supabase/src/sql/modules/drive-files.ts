@@ -810,7 +810,7 @@ ${userGrant(`${fn("drive_approvals")}(uuid)`)}
 `;
 
   const attachmentKey =
-    ctx.manages && A !== undefined
+    ctx.owns("nodes") && A !== undefined
       ? `
 alter table ${T} drop constraint if exists bsb_drive_nodes_attachment;
 alter table ${T} add constraint bsb_drive_nodes_attachment foreign key (${n("attachment")}) references ${A} (${a("id")}) on delete set null;

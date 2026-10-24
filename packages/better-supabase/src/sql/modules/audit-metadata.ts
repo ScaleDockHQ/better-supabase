@@ -27,9 +27,9 @@ export function metadataColumns(
     throw new TypeError(`${where} must map columns to metadata keys`);
   }
 
-  if (ctx.manages) {
+  if (ctx.owns("log")) {
     throw new TypeError(
-      `${where} fills an adopted log's own columns; set ownership: "adopt" or keep the values in metadata`,
+      `${where} fills the columns of your own log table; declare the log in your schema or map blocks.audit.tables.log, or keep the values in metadata`,
     );
   }
 

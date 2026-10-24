@@ -87,7 +87,7 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
 export function hasAvatarPath(ctx: BlockSqlContext): boolean {
   return (
     ctx.has("profiles", "avatarPath") &&
-    (ctx.manages ||
+    (ctx.owns("profiles") ||
       typeof ctx.config.columns["profiles"]?.["avatarPath"] === "string")
   );
 }
@@ -640,7 +640,7 @@ grant execute on function ${ctx.fn("profile_peer_ids")}() to authenticated, serv
 
 /** Column grants: users update only the columns in `options.updatable`. */
 function grants(ctx: BlockSqlContext): string {
-  if (!ctx.flag("columnGrants", ctx.manages)) {
+  if (!ctx.flag("columnGrants", ctx.owns("profiles"))) {
     return "";
   }
 
@@ -718,10 +718,10 @@ function guard(ctx: BlockSqlContext): string {
     .map((name) => `new.${name} is distinct from old.${name}`)
     .join("\n    or ");
 
-  // A managed table has no other trigger for updated_at; an adopted one
-  // keeps its own.
+  // The block's table has no other trigger for updated_at; the app's keeps
+  // its own.
   const stamp =
-    ctx.manages && updatedAt ? `\n  new.${updatedAt} := now();` : "";
+    ctx.owns("profiles") && updatedAt ? `\n  new.${updatedAt} := now();` : "";
 
   return `
 -- The API roles can't change the key or ${columns.join(", ")}. Security

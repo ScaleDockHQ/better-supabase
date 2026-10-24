@@ -354,7 +354,7 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  if (!ctx.manages) {
+  if (!ctx.owns("secrets")) {
     return adopted(ctx);
   }
 
@@ -362,7 +362,7 @@ function build(ctx: BlockSqlContext): string {
 
   if (renamed.length > 0) {
     throw new TypeError(
-      `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with ownership "adopt"`,
+      `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; declare your own table in your schema, or map blocks.credentials.tables.secrets`,
     );
   }
 

@@ -945,7 +945,7 @@ export const INVITATIONS: BlockSqlDefinition = {
       description:
         "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.permissions, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
       sql: (ctx) =>
-        ctx.manages
+        ctx.owns("invitations")
           ? renameSql({
               schema: ctx.tableName("invitations").schema,
               table: ctx.tableName("invitations").name,

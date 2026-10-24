@@ -484,7 +484,7 @@ export function membershipDisabledAt(ctx: BlockSqlContext): string | undefined {
   }
 
   if (
-    !tenant.manages &&
+    !tenant.owns("memberships") &&
     typeof tenant.config.columns["memberships"]?.["disabledAt"] !== "string"
   ) {
     return undefined;
@@ -674,7 +674,7 @@ function managedOrganizations(
 
   const organizations = ctx.of("organizations");
 
-  if (!organizations.manages) {
+  if (!organizations.owns("organizations")) {
     return undefined;
   }
 

@@ -304,7 +304,7 @@ describe("organizations module", () => {
     expect(external).toContain("better_supabase.can_assign(organization,");
     expect(() =>
       body({ organizations: { options: { assignmentGuard: "external" } } }),
-    ).toThrow(/needs an adopted table/);
+    ).toThrow(/must be your own/);
     expect(() =>
       body({ organizations: { options: { assignmentGuard: "none" } } }),
     ).toThrow(/must be "module" or "external"/);
@@ -410,7 +410,7 @@ describe("roles through a lookup table", () => {
           },
         },
       }),
-    ).toThrow(/describes an adopted memberships table/);
+    ).toThrow(/describes your own memberships table/);
     expect(() =>
       moduleBody("memberships", {
         modules: {

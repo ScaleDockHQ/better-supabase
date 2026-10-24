@@ -254,7 +254,7 @@ export function disabling(
   const organizations = ctx.of("organizations");
 
   if (
-    !organizations.manages ||
+    !organizations.owns("organizations") ||
     !organizations.has("organizations", "disabledAt")
   ) {
     return undefined;
