@@ -321,6 +321,56 @@ end;
 $$;`;
 }
 
+const lastName = (name: string): string =>
+  (name.match(/"(?:[^"]|"")*"|[^."]+/gu)?.at(-1) ?? name)
+    .replace(/^"(.*)"$/su, "$1")
+    .replaceAll('""', '"');
+
+/**
+ * The name `addNotNullCheck` gives the check on `column` of `table`, both
+ * quoted or bare, the table with or without its schema:
+ * `<table>_<column>_not_null`, shortened with a hash past 63 bytes.
+ */
+export function notNullCheckName(table: string, column: string): string {
+  const name = `${lastName(table)}_${lastName(column)}_not_null`;
+
+  return name.length <= 63 ? name : `${name.slice(0, 54)}_${shortHash(name)}`;
+}
+
+/**
+ * The expand step for a column added nullable to a table that already has rows:
+ * adds `check (<column> is not null) not valid` once, without scanning the
+ * table. Postgres checks it on every insert and update from then on, so add it
+ * after `better-supabase db backfill` filled the column, or updates to rows
+ * that are still null fail. `doctor --fix` validates it once no row is null
+ * (BS236), and then `set not null` needs no scan. `table` and `column` are
+ * quoted identifiers, the table schema-qualified.
+ */
+export function addNotNullCheck(check: {
+  readonly table: string;
+  readonly column: string;
+  readonly name?: string;
+}): string {
+  const name = check.name ?? notNullCheckName(check.table, check.column);
+
+  return `do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = ${sqlString(check.table)}::regclass and conname = ${sqlString(name)}
+  ) then
+    alter table ${check.table} add constraint ${sqlIdent(name)}
+      check (${check.column} is not null) not valid;
+  end if;
+end;
+$$;`;
+}
+
+/** The contract step after `addNotNullCheck`, for doctor and upgrade steps. */
+export function validateConstraint(table: string, name: string): string {
+  return `alter table ${table} validate constraint ${sqlIdent(name)};`;
+}
+
 /**
  * An `updated_at` column on a managed table, kept current by the `updated-at`
  * module's `set_updated_at()` (the module must require it).
