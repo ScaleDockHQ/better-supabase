@@ -316,12 +316,17 @@ const library = defineConfig({
   },
 });
 
-// The CLI runs on Node and inlines its own packages (citty, c12, valibot and
-// the rest are devDependencies), so apps install no CLI dependency
-// (invariant 1). It loads the library from the package's own entries, so a
-// command and the app's config share one copy of `defineSchema` and the block registry.
+// The CLI and the TypeScript content mapper run on Node and inline their own
+// packages (citty, c12, valibot and the rest are devDependencies), so apps
+// install no CLI dependency (invariant 1). They load the library from the
+// package's own entries, so a command and the app's config share one copy of
+// `defineSchema` and the block registry.
 const cli = defineConfig({
-  entry: { "cli/index": "src/cli/index.ts", "cli/bin": "src/cli/bin.ts" },
+  entry: {
+    "cli/index": "src/cli/index.ts",
+    "cli/bin": "src/cli/bin.ts",
+    "mapper/bin": "src/mapper/bin.ts",
+  },
   platform: "node",
   format: "esm",
   fixedExtension: false,
@@ -350,13 +355,13 @@ const cli = defineConfig({
       },
     },
     {
-      // The bin is an executable, not a module anyone imports, so it ships no types.
+      // The bins are executables, not modules anyone imports, so they ship no types.
       name: "no-bin-types",
       generateBundle: {
         order: "post",
         handler(_options, bundle) {
           for (const file of Object.keys(bundle)) {
-            if (/^cli\/bin\.d\.[cm]?ts(\.map)?$/.test(file)) {
+            if (/^(cli|mapper)\/bin\.d\.[cm]?ts(\.map)?$/.test(file)) {
               delete bundle[file];
             }
           }

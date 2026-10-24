@@ -2233,6 +2233,16 @@
       "optional": true
     }
   },
+  "typescript": {
+    "contentMapper": {
+      "compilerOptions": [],
+      "dynamicConfig": true,
+      "exec": [
+        "node",
+        "dist/mapper/bin.js"
+      ]
+    }
+  },
   "engines": {
     "node": ">=24"
   }
