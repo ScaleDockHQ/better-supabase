@@ -802,7 +802,7 @@ export const CATALOG: BlockSqlDefinition = {
   before: "search",
   integrates: ["outbox", "state-machine", "inventory", "attachments"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 3,
   names: NAMES,
   upgrades: [

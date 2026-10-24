@@ -1062,7 +1062,7 @@ export const PROFILES: BlockSqlDefinition = {
       : [];
   },
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

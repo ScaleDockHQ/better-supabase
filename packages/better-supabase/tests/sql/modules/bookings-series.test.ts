@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (
   module: string,
@@ -67,15 +68,14 @@ describe("bookings recurring option", () => {
     expect(sql).toContain("'seriesId', bk.\"series_id\"");
   });
 
-  it("only applies to managed tables", () => {
+  it("only applies to the block's own tables", () => {
+    const modules = {
+      bookings: { options: { recurring: true }, tables: { series: null } },
+    };
+
     const sql = sqlOf("bookings", ["organizations", "bookings"], {
-      modules: {
-        bookings: {
-          mode: "adopt",
-          options: { recurring: true },
-          tables: { series: null },
-        },
-      },
+      modules,
+      ownTables: ownTablesOf(modules),
     });
 
     expect(sql).not.toContain("book_series");

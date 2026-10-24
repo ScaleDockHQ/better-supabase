@@ -395,7 +395,7 @@ export const REMINDERS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "queue"],
   integrates: ["notifications", "outbox"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

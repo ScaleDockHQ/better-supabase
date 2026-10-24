@@ -542,7 +542,7 @@ export const TEAMS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

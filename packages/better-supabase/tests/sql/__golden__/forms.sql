@@ -4545,10 +4545,10 @@ values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_086_forms.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
--- @bsb-block forms@2 adopt
--- @bsb-hash sha256:b5ab0871ddf8214ab5b9ea21cf287060607e00325c0f1736afb903a337f25345
+-- @bsb-block forms@2 managed
+-- @bsb-hash sha256:71174cd41b766f4edd8ae5b06d652d62e9e04659ffc5b709827ada348d7016e4
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4605,6 +4605,80 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.forms is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."forms" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."forms" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."forms" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."forms" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."forms" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
+alter table "better_supabase"."forms" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived'));
+alter table "better_supabase"."forms" add column if not exists "current_version_id" uuid;
+alter table "better_supabase"."forms" add column if not exists "created_by" uuid;
+alter table "better_supabase"."forms" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."forms" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."forms" enable row level security;
+grant select on "better_supabase"."forms" to authenticated;
+grant all on "better_supabase"."forms" to service_role;
+drop policy if exists forms_read on "better_supabase"."forms";
+create policy forms_read on "better_supabase"."forms" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
+
+-- better_supabase.form_versions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."form_versions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."form_versions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."form_versions" add column if not exists "form_id" uuid references "better_supabase"."forms" ("id") on delete cascade;
+alter table "better_supabase"."form_versions" add column if not exists "number" integer check ("number" > 0);
+alter table "better_supabase"."form_versions" add column if not exists "definition" jsonb;
+alter table "better_supabase"."form_versions" add column if not exists "schema" jsonb;
+alter table "better_supabase"."form_versions" add column if not exists "created_by" uuid;
+alter table "better_supabase"."form_versions" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."form_versions" enable row level security;
+grant select on "better_supabase"."form_versions" to authenticated;
+grant all on "better_supabase"."form_versions" to service_role;
+drop policy if exists form_versions_read on "better_supabase"."form_versions";
+create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
+
+-- better_supabase.form_submissions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."form_submissions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."form_submissions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."form_submissions" add column if not exists "form_id" uuid references "better_supabase"."forms" ("id") on delete cascade;
+alter table "better_supabase"."form_submissions" add column if not exists "version_id" uuid references "better_supabase"."form_versions" ("id") on delete cascade;
+alter table "better_supabase"."form_submissions" add column if not exists "subject_type" text;
+alter table "better_supabase"."form_submissions" add column if not exists "subject_id" text;
+alter table "better_supabase"."form_submissions" add column if not exists "respondent_id" uuid;
+alter table "better_supabase"."form_submissions" add column if not exists "answers" jsonb not null default '{}'::jsonb check (jsonb_typeof("answers") = 'object' and octet_length("answers"::text) <= 1048576);
+alter table "better_supabase"."form_submissions" add column if not exists "status" text not null default 'submitted' check ("status" in ('draft', 'submitted', 'accepted', 'rejected'));
+alter table "better_supabase"."form_submissions" add column if not exists "source" text not null default 'member' check ("source" in ('member', 'public', 'service'));
+alter table "better_supabase"."form_submissions" add column if not exists "reviewed_by" uuid;
+alter table "better_supabase"."form_submissions" add column if not exists "reviewed_at" timestamptz;
+alter table "better_supabase"."form_submissions" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."form_submissions" add column if not exists "submitted_at" timestamptz;
+alter table "better_supabase"."form_submissions" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "form_submissions_form_idx" on "better_supabase"."form_submissions" ("form_id", "created_at" desc);
+create index if not exists "form_submissions_version_idx" on "better_supabase"."form_submissions" ("version_id");
+create index if not exists "form_submissions_respondent_idx" on "better_supabase"."form_submissions" ("respondent_id") where "respondent_id" is not null;
+create index if not exists "form_submissions_subject_idx" on "better_supabase"."form_submissions" ("subject_type", "subject_id") where "subject_type" is not null;
+alter table "better_supabase"."form_submissions" enable row level security;
+grant select on "better_supabase"."form_submissions" to authenticated;
+grant all on "better_supabase"."form_submissions" to service_role;
+drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
+create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
+alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "passed" boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists "better_supabase"."form_answer_keys" (
+  "version_id" uuid primary key references "better_supabase"."form_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "created_at" timestamptz not null default now()
+);
+alter table "better_supabase"."form_answer_keys" enable row level security;
+revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
@@ -5069,12 +5143,16 @@ begin
   v_resolved := "better_supabase"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
   v_split := "better_supabase"."form_answer_split"(v_resolved);
   if v_split -> 'key' <> '{}'::jsonb then
-    raise exception 'scoring needs the form_answer_keys table and the score columns on form_submissions' using errcode = '0A000', hint = 'FORM_SCORING_UNAVAILABLE';
+    v_resolved := v_split -> 'definition';
   end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "better_supabase"."form_versions" x where x."form_id" = v_form."id";
   insert into "better_supabase"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "better_supabase"."form_schema"(v_resolved), auth.uid())
   returning * into v_row;
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into "better_supabase"."form_answer_keys" ("version_id", "tenant_id", "answers")
+    values (v_row."id", v_row."tenant_id", v_split -> 'key');
+  end if;
   update "better_supabase"."forms" x set
     "current_version_id" = v_row."id",
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
@@ -5089,7 +5167,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_form_version"(uuid, jsonb) from public, anon;
@@ -5114,7 +5194,9 @@ begin
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', v_version."definition", 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_version."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_version."id"))
+        else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."get_form"(uuid) from public, anon;
@@ -5137,7 +5219,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_version"(uuid) from public, anon;
@@ -5177,6 +5261,8 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_schema jsonb;
+  v_definition jsonb;
+  v_grade jsonb;
   v_errors text[];
   v_row "better_supabase"."form_submissions"%rowtype;
   v_link jsonb;
@@ -5200,12 +5286,13 @@ begin
     end if;
   end;
   if not form_submission_save.draft then
-    select x."schema" into v_schema from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
+    select x."schema", x."definition" into v_schema, v_definition from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       raise exception '%.answers does not match its JSON Schema: %', 'form_submissions', array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';
     end if;
+    v_grade := "better_supabase"."form_score"(v_definition, (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_form."current_version_id"), form_submission_save.answers);
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from "better_supabase"."form_submissions" x where x."id" = form_submission_save.submission_id for update;
@@ -5222,14 +5309,17 @@ begin
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
+      "score" = (v_grade ->> 'score')::numeric,
+      "max_score" = (v_grade ->> 'maxScore')::numeric,
+      "passed" = (v_grade ->> 'passed')::boolean,
       "updated_at" = now()
     where x."id" = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at")
+    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at", "score", "max_score", "passed")
     values (v_form."tenant_id", v_form."id", v_form."current_version_id", form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end, (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean)
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
@@ -5243,7 +5333,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -5297,7 +5387,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_submission"(uuid) from public, anon;
@@ -5321,7 +5411,7 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
@@ -5438,7 +5528,7 @@ begin
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."review_form_submission"(uuid, text) from public, anon;
@@ -5473,6 +5563,34 @@ $$;
 revoke execute on function "better_supabase"."delete_form_submission"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_form_submission"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5486,16 +5604,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block-data forms
--- @bsb-hash sha256:4af5885dc37ddcbf5f0dd94970198b406453dad412914c1aede29cdb5bf6f193
+-- @bsb-hash sha256:ba046d701cddbc2f816944c4e89a65d5c3aa2d200a4356ce41ce71820acfd8f0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('forms', 2, 'adopt')
+values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

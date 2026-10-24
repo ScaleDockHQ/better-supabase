@@ -1645,10 +1645,10 @@ values ('teams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_058_teams.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@1 adopt
--- @bsb-hash sha256:e33a60320b111c1f761b130168e3beb585cab4562c910b7333d7fac2d225c24a
+-- @bsb-block teams@1 managed
+-- @bsb-hash sha256:b657ec2587aa864c7145a2fb76f170d9a91d42c2df9062fad8899d4c074e5629
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1690,6 +1690,36 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
+-- better_supabase.teams is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."teams" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."teams" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."teams" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."teams" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+alter table "better_supabase"."teams" add column if not exists "description" text;
+alter table "better_supabase"."teams" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'archived'));
+alter table "better_supabase"."teams" add column if not exists "created_by" uuid;
+alter table "better_supabase"."teams" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."teams" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."teams" enable row level security;
+grant select on "better_supabase"."teams" to authenticated;
+grant all on "better_supabase"."teams" to service_role;
+drop policy if exists teams_read on "better_supabase"."teams";
+create policy teams_read on "better_supabase"."teams" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+
+-- better_supabase.team_members is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."team_members" add column if not exists "team_id" uuid references "better_supabase"."teams" ("id") on delete cascade;
+alter table "better_supabase"."team_members" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."team_members" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."team_members" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
+create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
+alter table "better_supabase"."team_members" enable row level security;
+grant select on "better_supabase"."team_members" to authenticated;
+grant all on "better_supabase"."team_members" to service_role;
+drop policy if exists team_members_read on "better_supabase"."team_members";
+create policy team_members_read on "better_supabase"."team_members" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 
 create or replace function "better_supabase"."team_ids_of"(member uuid)
@@ -1924,6 +1954,26 @@ $$;
 revoke execute on function "better_supabase"."list_teams"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_teams"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."teams";
+create policy bsb_tenant_scope on "better_supabase"."teams" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."team_members";
+create policy bsb_tenant_scope on "better_supabase"."team_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1937,16 +1987,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:66c28f8c1f895ad334926aa732dea8792561687d09a6aff5743da6a0b9415676
+-- @bsb-hash sha256:19bfee5dda96e7973b73e19f76149b703738d4788a8e5d200273ec0604271d32
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 1, 'adopt')
+values ('teams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

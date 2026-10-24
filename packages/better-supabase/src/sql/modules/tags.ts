@@ -662,11 +662,11 @@ export const TAGS: BlockSqlDefinition = {
   scopes: ["tenant", "user", "none"],
   title: "Tags",
   description:
-    "Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.",
+    "Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "drive"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

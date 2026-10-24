@@ -1950,10 +1950,10 @@ values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_067_saved_views.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
--- @bsb-block saved-views@2 adopt
--- @bsb-hash sha256:d768f728f8645fa3ac8ab9d9cc50229f6777447d844fb4019f3713356ccab47f
+-- @bsb-block saved-views@2 managed
+-- @bsb-hash sha256:3fa485de0f3b06a7fb7ce1b3138a351bb41b833dc11e3dbae3117bba90d58173
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1994,6 +1994,26 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.saved_views is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."saved_views" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."saved_views" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."saved_views" add column if not exists "list" text check (length("list") between 1 and 80);
+alter table "better_supabase"."saved_views" add column if not exists "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant'));
+alter table "better_supabase"."saved_views" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."saved_views" add column if not exists "team_id" text;
+alter table "better_supabase"."saved_views" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."saved_views" add column if not exists "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt'));
+alter table "better_supabase"."saved_views" add column if not exists "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536);
+alter table "better_supabase"."saved_views" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."saved_views" add column if not exists "is_default" boolean not null default false;
+alter table "better_supabase"."saved_views" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."saved_views" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+alter table "better_supabase"."saved_views" enable row level security;
+grant select on "better_supabase"."saved_views" to authenticated;
+grant all on "better_supabase"."saved_views" to service_role;
 
 drop policy if exists saved_views_read on "better_supabase"."saved_views";
 create policy saved_views_read on "better_supabase"."saved_views" for select to authenticated
@@ -2003,6 +2023,18 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
+-- better_supabase.saved_view_preferences is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."saved_view_preferences" add column if not exists "view_id" uuid references "better_supabase"."saved_views" ("id") on delete cascade;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "is_default" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "hidden" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "pinned" boolean not null default false;
+alter table "better_supabase"."saved_view_preferences" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+alter table "better_supabase"."saved_view_preferences" enable row level security;
+grant select on "better_supabase"."saved_view_preferences" to authenticated;
+grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
 create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
 using ("user_id" = (select auth.uid()));
@@ -2360,16 +2392,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block-data saved-views
--- @bsb-hash sha256:dd1ab232b92aa4d8897b84502b2321e60478535835cd9511c2cb9237a0ab2963
+-- @bsb-hash sha256:c7b5642e8303e22583d102851c071a83d2a86b6f5ab0aca5d15da41af490dba2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('saved-views', 2, 'adopt')
+values ('saved-views', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

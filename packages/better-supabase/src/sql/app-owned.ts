@@ -2,17 +2,17 @@ import type { ResolvedBlock } from "../config/blocks.ts";
 import type {
   BlockSqlContext,
   BlockSqlContextSource,
-  BlockSqlNames,
   BlockSqlTableSpec,
 } from "./context.ts";
 
 import { sqlIdent } from "../core/template.ts";
 import { asColumnType } from "./column-type.ts";
+import { UNMAPPED_COLUMN, UNMAPPED_TABLE } from "./over-app-tables.ts";
 
 interface Ownership {
   readonly module: string;
   readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
-  readonly config: Pick<ResolvedBlock, "mode" | "tables">;
+  readonly config: Pick<ResolvedBlock, "mode" | "tables" | "schema">;
   readonly source: Pick<BlockSqlContextSource, "ownTables">;
   readonly tableName: BlockSqlContext["tableName"];
 }
@@ -48,10 +48,6 @@ function appOwnedTables(input: Ownership): string[] {
         return false;
       }
 
-      if (config.mode === "adopt") {
-        return true;
-      }
-
       const parts = input.tableName(logical);
 
       return (
@@ -62,17 +58,19 @@ function appOwnedTables(input: Ownership): string[] {
     .map(([logical]) => logical);
 }
 
-/** `appOwned`, `owns` and `cast` of a module context. */
+/**
+ * `appOwned`, `owns` and `cast` of a module context, and its `tableName` and
+ * `col`. Over the app's tables, a table or column the block maps to `null` gets
+ * a marker name, so the DDL that builds it still renders; the render drops that
+ * DDL and refuses any other use.
+ */
 export function tableOwnership(
-  module: string,
-  names: BlockSqlNames,
-  config: Ownership["config"],
-  source: Ownership["source"],
-  tableName: Ownership["tableName"],
-  column: (table: string, logical: string) => string,
-): Pick<BlockSqlContext, "appOwned" | "owns" | "cast"> {
-  const input = { module, tables: names.tables, config, source, tableName };
+  input: Ownership,
+  column: (table: string, logical: string) => string | null,
+  requiredColumn: (table: string, logical: string) => string,
+): Pick<BlockSqlContext, "appOwned" | "owns" | "cast" | "tableName" | "col"> {
   const appOwned = appOwnedTables(input);
+  const overApp = appOwned.length > 0;
 
   return {
     appOwned,
@@ -81,6 +79,18 @@ export function tableOwnership(
 
       return input.config.mode !== "custom" && !appOwned.includes(logical);
     },
+    tableName: (logical) =>
+      overApp &&
+      input.config.tables[logical] === null &&
+      input.tables[logical] !== undefined
+        ? { schema: input.config.schema, name: `${UNMAPPED_TABLE}${logical}` }
+        : input.tableName(logical),
+    col: (table, logical) =>
+      sqlIdent(
+        column(table, logical) === null && appOwned.includes(table)
+          ? `${UNMAPPED_COLUMN}${table}.${logical}`
+          : requiredColumn(table, logical),
+      ),
     cast: (table, logical, value) => {
       if (input.tables[table]?.typed?.includes(logical) !== true) {
         throw new TypeError(
@@ -96,7 +106,7 @@ export function tableOwnership(
 
       return asColumnType(
         `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`,
-        column(table, logical),
+        requiredColumn(table, logical),
         value,
       );
     },

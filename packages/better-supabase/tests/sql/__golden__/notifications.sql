@@ -5744,10 +5744,10 @@ values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_024_notifications.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@8 adopt
--- @bsb-hash sha256:519d2c2dda246960624f7662d748ba9539042720458f836df8e2526bc048ef54
+-- @bsb-block notifications@8 managed
+-- @bsb-hash sha256:339bf53c5744e8904e9064625419c837f27fdf73d62c61e62ad38a499a75b786
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5788,6 +5788,214 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.notification_events is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."notification_events" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."notification_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_events" add column if not exists "type" text;
+alter table "better_supabase"."notification_events" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."notification_events" add column if not exists "subject_type" text;
+alter table "better_supabase"."notification_events" add column if not exists "subject_id" text;
+alter table "better_supabase"."notification_events" add column if not exists "subject_label" text;
+alter table "better_supabase"."notification_events" add column if not exists "summary" text;
+alter table "better_supabase"."notification_events" add column if not exists "action_path" text;
+alter table "better_supabase"."notification_events" add column if not exists "priority" text not null default 'normal';
+alter table "better_supabase"."notification_events" add column if not exists "data" jsonb not null default '{}';
+alter table "better_supabase"."notification_events" add column if not exists "idempotency_key" text;
+alter table "better_supabase"."notification_events" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."notification_events" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create index if not exists notification_events_subject_idx on "better_supabase"."notification_events" ("subject_type", "subject_id");
+create index if not exists notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
+create index if not exists notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
+create index if not exists notification_events_created_at_idx on "better_supabase"."notification_events" ("created_at");
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."notification_events"'::regclass and conname = 'notification_events_priority_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."notification_events"', 'notification_events_priority_check', '"better_supabase"."notification_events"', 'notification_events_priority_check';
+    end;
+  end if;
+end;
+$$;
+alter table "better_supabase"."notification_events" enable row level security;
+grant select on "better_supabase"."notification_events" to authenticated;
+grant all on "better_supabase"."notification_events" to service_role;
+
+-- better_supabase.notification_recipients is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."notification_recipients" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."notification_recipients" add column if not exists "event_id" uuid references "better_supabase"."notification_events" ("id") on delete cascade;
+alter table "better_supabase"."notification_recipients" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_recipients" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."notification_recipients" add column if not exists "read_at" timestamptz;
+alter table "better_supabase"."notification_recipients" add column if not exists "dismissed_at" timestamptz;
+alter table "better_supabase"."notification_recipients" add column if not exists "resolved_at" timestamptz;
+alter table "better_supabase"."notification_recipients" add column if not exists "delivered_at" timestamptz not null default now();
+alter table "better_supabase"."notification_recipients" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index if not exists notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
+create index if not exists notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
+alter table "better_supabase"."notification_recipients" enable row level security;
+grant select on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant all on "better_supabase"."notification_recipients" to service_role;
+drop policy if exists "bsb_notification_recipients_read" on "better_supabase"."notification_recipients";
+create policy "bsb_notification_recipients_read" on "better_supabase"."notification_recipients" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bsb_notification_recipients_update" on "better_supabase"."notification_recipients";
+create policy "bsb_notification_recipients_update" on "better_supabase"."notification_recipients" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bsb_notification_events_read" on "better_supabase"."notification_events";
+create policy "bsb_notification_events_read" on "better_supabase"."notification_events" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  )
+);
+
+-- better_supabase.notification_deliveries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."notification_deliveries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."notification_deliveries" add column if not exists "recipient_id" uuid references "better_supabase"."notification_recipients" ("id") on delete cascade;
+alter table "better_supabase"."notification_deliveries" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_deliveries" add column if not exists "channel" text;
+alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider" text;
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_message_id" text;
+alter table "better_supabase"."notification_deliveries" add column if not exists "error" text;
+alter table "better_supabase"."notification_deliveries" add column if not exists "attempts" integer not null default 0;
+alter table "better_supabase"."notification_deliveries" add column if not exists "attempted_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "next_attempt_at" timestamptz not null default now();
+alter table "better_supabase"."notification_deliveries" add column if not exists "delivered_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists notification_deliveries_pending_idx on "better_supabase"."notification_deliveries" ("channel", "created_at") where "status" = 'pending';
+create index if not exists notification_deliveries_leased_idx on "better_supabase"."notification_deliveries" ("channel", "attempted_at") where "status" = 'pending' and "attempted_at" is not null;
+alter table "better_supabase"."notification_deliveries" enable row level security;
+grant select on "better_supabase"."notification_deliveries" to authenticated;
+grant all on "better_supabase"."notification_deliveries" to service_role;
+drop policy if exists "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries";
+create policy "bsb_notification_deliveries_read" on "better_supabase"."notification_deliveries" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
+
+-- better_supabase.notification_subscriptions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."notification_subscriptions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."notification_subscriptions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_subscriptions" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_type" text;
+alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_id" text;
+alter table "better_supabase"."notification_subscriptions" add column if not exists "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore'));
+alter table "better_supabase"."notification_subscriptions" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
+create index if not exists notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+alter table "better_supabase"."notification_subscriptions" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."notification_subscriptions";
+create trigger bsb_updated_at before update on "better_supabase"."notification_subscriptions"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."notification_subscriptions" enable row level security;
+grant select, insert, update, delete on "better_supabase"."notification_subscriptions" to authenticated;
+grant all on "better_supabase"."notification_subscriptions" to service_role;
+drop policy if exists "bsb_notification_subscriptions_own" on "better_supabase"."notification_subscriptions";
+drop policy if exists "bsb_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions";
+create policy "bsb_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bsb_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions";
+create policy "bsb_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bsb_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions";
+create policy "bsb_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bsb_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions";
+create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+
+-- better_supabase.notification_preferences is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."notification_preferences" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."notification_preferences" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."notification_preferences" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_preferences" add column if not exists "type" text;
+alter table "better_supabase"."notification_preferences" add column if not exists "channel" text;
+alter table "better_supabase"."notification_preferences" add column if not exists "enabled" boolean not null default true;
+alter table "better_supabase"."notification_preferences" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."notification_preferences" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."notification_preferences";
+create trigger bsb_updated_at before update on "better_supabase"."notification_preferences"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."notification_preferences" enable row level security;
+grant select, insert, update, delete on "better_supabase"."notification_preferences" to authenticated;
+grant all on "better_supabase"."notification_preferences" to service_role;
+drop policy if exists "bsb_notification_preferences_own" on "better_supabase"."notification_preferences";
+drop policy if exists "bsb_notification_preferences_own_read" on "better_supabase"."notification_preferences";
+create policy "bsb_notification_preferences_own_read" on "better_supabase"."notification_preferences" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bsb_notification_preferences_own_insert" on "better_supabase"."notification_preferences";
+create policy "bsb_notification_preferences_own_insert" on "better_supabase"."notification_preferences" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bsb_notification_preferences_own_update" on "better_supabase"."notification_preferences";
+create policy "bsb_notification_preferences_own_update" on "better_supabase"."notification_preferences" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bsb_notification_preferences_own_delete" on "better_supabase"."notification_preferences";
+create policy "bsb_notification_preferences_own_delete" on "better_supabase"."notification_preferences" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+
+create table if not exists "better_supabase"."notification_suppressions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "channel" text not null default 'email',
+  "address" text not null check ("address" = lower("address")),
+  "user_id" uuid references auth.users (id) on delete cascade,
+  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "provider" text,
+  "provider_event_id" text,
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now(),
+  unique ("channel", "address")
+);
+create index if not exists notification_suppressions_user_idx on "better_supabase"."notification_suppressions" ("user_id");
+alter table "better_supabase"."notification_suppressions" enable row level security;
+revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
+grant select on "better_supabase"."notification_suppressions" to authenticated;
+grant all on "better_supabase"."notification_suppressions" to service_role;
+drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
+create policy "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions" for select to authenticated using ("user_id" = (select auth.uid()));
+
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
+alter table "better_supabase"."notification_deliveries" add column if not exists "template_key" text;
+create index if not exists notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
+
+create table if not exists "better_supabase"."notification_delivery_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
+  "organization_id" uuid,
+  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "provider" text,
+  "provider_event_id" text unique,
+  "occurred_at" timestamptz not null default now(),
+  "detail" jsonb not null default '{}',
+  "created_at" timestamptz not null default now()
+);
+create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
+alter table "better_supabase"."notification_delivery_events" enable row level security;
+revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+grant select on "better_supabase"."notification_delivery_events" to authenticated;
+grant all on "better_supabase"."notification_delivery_events" to service_role;
+drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
+create policy "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events" for select to authenticated using (
+  exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  )
+);
 
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -6419,7 +6627,7 @@ grant execute on function "better_supabase"."list_notification_preferences"(uuid
 
 drop function if exists "better_supabase"."claim_notification_deliveries"(text, integer, interval);
 drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);
-drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text);
+drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer);
 -- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
 create or replace function "better_supabase"."claim_notification_deliveries"(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
@@ -6459,20 +6667,23 @@ begin
     'attempts', l."attempts",
     'user_id', rc."user_id",
     'email', u.email,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at")
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at"),
+    'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
   join "better_supabase"."notification_recipients" rc on rc."id" = l."recipient_id"
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
-  left join auth.users u on u.id = rc."user_id";
+  left join auth.users u on u.id = rc."user_id"
+  left join "better_supabase"."notification_suppressions" s on s."channel" = l."channel" and s."address" = lower(u.email);
   return claimed;
 end;
 $$;
 
 -- Records the outcome: sent, failed, skipped, or pending to retry. A retry
 -- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.
-create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+-- and after max_attempts the delivery is failed instead. template_key
+-- names the template the channel composed, for list_subject_deliveries.
+create or replace function "better_supabase"."complete_notification_delivery"(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5, template_key text default null)
 returns text
 language plpgsql
 security definer
@@ -6496,6 +6707,7 @@ begin
     "provider" = coalesce(complete_notification_delivery.provider, d."provider"),
     "provider_message_id" = coalesce(complete_notification_delivery.provider_message_id, d."provider_message_id"),
     "error" = complete_notification_delivery.error,
+    "template_key" = coalesce(complete_notification_delivery.template_key, d."template_key"),
     "delivered_at" = case when v_status = 'sent' then now() else d."delivered_at" end,
     "attempted_at" = case when v_status = 'pending' then null else d."attempted_at" end,
     "next_attempt_at" = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, greatest(d."attempts", 1) - 1)))) else d."next_attempt_at" end
@@ -6505,10 +6717,208 @@ end;
 $$;
 revoke execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."claim_notification_deliveries"(text, integer, interval, integer) to service_role;
-revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer) to service_role;
+revoke execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer, text) to service_role;
 
+-- Stops a channel from sending to an address after a bounce, a complaint
+-- or by hand. The first suppression wins; returns whether it is new.
+create or replace function "better_supabase"."suppress_notification_address"(address text, reason text, channel text default 'email', provider text default null, provider_event_id text default null, detail jsonb default '{}')
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_address text := lower(btrim(suppress_notification_address.address));
+begin
+  if v_address is null or v_address = '' then
+    raise exception 'address is required' using errcode = '22023', hint = 'NOTIFICATION_SUPPRESSION_ADDRESS';
+  end if;
+  if suppress_notification_address.reason is null or suppress_notification_address.reason not in ('bounce', 'complaint', 'manual') then
+    raise exception 'reason must be bounce, complaint or manual' using errcode = '22023', hint = 'NOTIFICATION_SUPPRESSION_REASON';
+  end if;
+  insert into "better_supabase"."notification_suppressions" ("channel", "address", "user_id", "reason", "provider", "provider_event_id", "detail")
+  values (
+    coalesce(suppress_notification_address.channel, 'email'),
+    v_address,
+    (select u.id from auth.users u where lower(u.email) = v_address order by u.created_at limit 1),
+    suppress_notification_address.reason,
+    suppress_notification_address.provider,
+    suppress_notification_address.provider_event_id,
+    coalesce(suppress_notification_address.detail, '{}')
+  )
+  on conflict ("channel", "address") do nothing;
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."suppress_notification_address"(text, text, text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."suppress_notification_address"(text, text, text, text, text, jsonb) to service_role;
 
+create or replace function "better_supabase"."unsuppress_notification_address"(address text, channel text default 'email')
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."notification_suppressions" s
+  where s."channel" = coalesce(unsuppress_notification_address.channel, 'email')
+    and s."address" = lower(btrim(unsuppress_notification_address.address));
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."unsuppress_notification_address"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."unsuppress_notification_address"(text, text) to service_role;
+
+-- The caller's suppressions, newest first; the service sees every row.
+create or replace function "better_supabase"."list_notification_suppressions"(max_items integer default 50)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'channel', s."channel",
+    'address', s."address",
+    'user_id', s."user_id",
+    'reason', s."reason",
+    'provider', s."provider",
+    'created_at', s."created_at"
+  ) order by s."created_at" desc), '[]')
+  from (
+    select * from "better_supabase"."notification_suppressions" s
+    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    order by s."created_at" desc
+    limit least(greatest(coalesce(max_items, 50), 1), 200)
+  ) s
+$$;
+revoke execute on function "better_supabase"."list_notification_suppressions"(integer) from public, anon;
+grant execute on function "better_supabase"."list_notification_suppressions"(integer) to authenticated, service_role;
+
+-- Records what a provider reported about a sent message (a webhook): finds
+-- the delivery by the provider's message id, stores the event once per
+-- provider event id, moves provider_status forward, suppresses the
+-- recipient's address on a bounce or a complaint (unless suppress is
+-- false), and writes notification.<kind>. Null when no delivery matches.
+create or replace function "better_supabase"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_kind text := record_delivery_event.kind;
+  v_at timestamptz := coalesce(record_delivery_event.occurred_at, now());
+  v_delivery uuid;
+  v_channel text;
+  v_user uuid;
+  v_event uuid;
+  v_type text;
+  v_tenant uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_row uuid;
+  v_email text;
+begin
+  if v_kind is null or not (v_kind = any(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[])) then
+    raise exception 'kind must be delayed, delivered, opened, clicked, bounced, complained' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_EVENT_KIND';
+  end if;
+  if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
+    raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
+  end if;
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+    coalesce(ev."subject_type", 'notification'),
+    coalesce(ev."subject_id", ev."id"::text)
+  into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
+  from "better_supabase"."notification_deliveries" d
+  join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+  where d."provider_message_id" = record_delivery_event.provider_message_id
+    and (record_delivery_event.provider is null or d."provider" = record_delivery_event.provider)
+  order by d."created_at" desc
+  limit 1;
+  if v_delivery is null then
+    return null;
+  end if;
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
+  on conflict ("provider_event_id") do nothing
+  returning "id" into v_row;
+  if v_row is not null then
+    update "better_supabase"."notification_deliveries" d
+    set "provider_status" = v_kind, "provider_status_at" = v_at
+    where d."id" = v_delivery
+      and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
+    if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
+      select u.email into v_email from auth.users u where u.id = v_user;
+      if v_email is not null and btrim(v_email) <> '' then
+        perform "better_supabase"."suppress_notification_address"(
+          v_email,
+          case when v_kind = 'bounced' then 'bounce' else 'complaint' end,
+          v_channel,
+          record_delivery_event.provider,
+          record_delivery_event.provider_event_id,
+          coalesce(record_delivery_event.detail, '{}')
+        );
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'delivery_id', v_delivery,
+    'notification_id', v_event,
+    'tenant', v_tenant,
+    'type', v_type,
+    'channel', v_channel,
+    'user_id', v_user,
+    'subject_type', v_subject_type,
+    'subject_id', v_subject_id,
+    'kind', v_kind,
+    'provider_status', (select d."provider_status" from "better_supabase"."notification_deliveries" d where d."id" = v_delivery),
+    'recorded', v_row is not null
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_delivery_event"(text, text, text, text, timestamptz, jsonb, boolean) to service_role;
+
+-- The deliveries of the notifications about one record, newest first, each
+-- with its provider events: for a record's "emails sent" panel. The service
+-- reads every tenant's; a member needs the send permission in tenant.
+create or replace function "better_supabase"."list_subject_deliveries"(subject_type text, subject_id text, tenant uuid default null, max_items integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Not allowed to read this record''s deliveries' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+    from (
+      select jsonb_build_object('id', d."id", 'notification_id', ev."id", 'type', ev."type", 'channel', d."channel", 'user_id', rc."user_id", 'status', d."status", 'provider_message_id', d."provider_message_id", 'created_at', d."created_at", 'provider', d."provider", 'provider_status', d."provider_status", 'provider_status_at', d."provider_status_at", 'template_key', d."template_key", 'error', d."error", 'attempts', d."attempts", 'delivered_at', d."delivered_at", 'events', (
+        select coalesce(jsonb_agg(jsonb_build_object('kind', de."kind", 'occurred_at', de."occurred_at", 'detail', de."detail") order by de."occurred_at", de."created_at"), '[]')
+        from "better_supabase"."notification_delivery_events" de where de."delivery_id" = d."id"
+      )) as item,
+        d."created_at" as created_at, d."id" as id
+      from "better_supabase"."notification_deliveries" d
+      join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+      join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+      where ev."subject_type" = list_subject_deliveries.subject_type
+        and ev."subject_id" = list_subject_deliveries.subject_id
+        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+      order by d."created_at" desc, d."id" desc
+      limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
+    ) x
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_subject_deliveries"(text, text, uuid, integer) to service_role;
 
 -- Deletes up to batch notifications past their retention, with their recipients
 -- and deliveries, and returns how many. Run it until it returns less than batch.
@@ -6570,6 +6980,80 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -6583,16 +7067,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:2c40ba2560396f8310b5f7506d1d33e26cc9a8164a795f03a25392de9b816ab4
+-- @bsb-hash sha256:88e2e0b8de370edbca884a9a755a5c5054ff743897904d9402b94a1d0c11dcd9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 8, 'adopt')
+values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

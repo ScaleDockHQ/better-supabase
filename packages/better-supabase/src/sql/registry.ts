@@ -451,7 +451,6 @@ export function resolveBlocks(
 export function checkModules(
   config: AnyBlocksConfig = {},
   registry: Readonly<Record<string, BlockSql>> = SQL_MODULES,
-  ownTables?: Readonly<Record<string, string>>,
 ): void {
   for (const [name, entry] of Object.entries(config)) {
     const module = registry[name];
@@ -483,14 +482,23 @@ export function checkModules(
       );
     }
   }
+}
 
+/**
+ * Throws on a migration-only option (`migrationOptionUses`) for a block that
+ * runs over none of the app's tables (`ownTables`).
+ */
+export function checkMigrationOptions(
+  config: AnyBlocksConfig = {},
+  ownTables?: Readonly<Record<string, string>>,
+): void {
   for (const use of migrationOptionUses(config)) {
     const overAppTables =
       ownTables !== undefined &&
       moduleContext(use.module, { modules: config, ownTables }).appOwned
         .length > 0;
 
-    if (!use.adopted && !overAppTables) {
+    if (!overAppTables) {
       throw new TypeError(
         `${use.message} It fits only a block over a table your schema already has: remove the option, or keep it while you migrate that table.`,
       );

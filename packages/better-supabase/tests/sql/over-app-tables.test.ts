@@ -5,7 +5,12 @@ import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 import { canBeAppTable } from "../../src/sql/app-owned.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { runsOverAppTables } from "../../src/sql/module-types.ts";
-import { overAppTables } from "../../src/sql/over-app-tables.ts";
+import {
+  overAppTables,
+  withoutAppTableEdits,
+  withoutUnmappedColumns,
+  withoutUnmappedTables,
+} from "../../src/sql/over-app-tables.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 import { declaredTables } from "../../src/sql/schema-scan.ts";
@@ -199,5 +204,82 @@ describe("blocks over the app's tables", () => {
         return definition === undefined || !runsOverAppTables(definition);
       }),
     ).toEqual([]);
+  });
+});
+
+describe("withoutAppTableEdits", () => {
+  const sql = `alter table public.members drop constraint if exists members_role_check;
+alter table public.members
+  add constraint members_role_check check (role in ('owner', 'member'));
+alter table public.members alter column role drop not null;
+alter table public.members add column if not exists note text;
+alter table public.members enable row level security;
+revoke all on public.members from anon, authenticated;
+grant select on public.members to authenticated;
+alter table public.other add constraint other_check check (true);
+`;
+
+  it("leaves out constraints, column changes and revokes on the app's tables", () => {
+    expect(withoutAppTableEdits(sql, new Set(["public.members"]))).toBe(
+      `alter table public.members add column if not exists note text;
+alter table public.members enable row level security;
+grant select on public.members to authenticated;
+alter table public.other add constraint other_check check (true);
+`,
+    );
+  });
+
+  it("changes nothing without app tables", () => {
+    expect(withoutAppTableEdits(sql, new Set())).toBe(sql);
+  });
+});
+
+describe("withoutUnmappedColumns", () => {
+  it("drops the column additions and indexes of columns mapped to null", () => {
+    expect(
+      withoutUnmappedColumns(
+        `alter table t add column if not exists "bsb_unmapped:t.note" text;
+create index if not exists t_note on t ("bsb_unmapped:t.note");
+select 1;
+`,
+        "notes",
+      ),
+    ).toBe("select 1;\n");
+  });
+
+  it("throws when the block needs the column elsewhere", () => {
+    expect(() =>
+      withoutUnmappedColumns(`select "bsb_unmapped:t.note" from t;`, "notes"),
+    ).toThrow(
+      'Module "notes" needs t.note, which blocks.notes.columns maps to null',
+    );
+  });
+});
+
+describe("withoutUnmappedTables", () => {
+  it("drops the statements that build or change a table mapped to null", () => {
+    expect(
+      withoutUnmappedTables(
+        `create table if not exists s."bsb_unmapped_table:extras" (id uuid);
+create index if not exists extras_idx on s."bsb_unmapped_table:extras" (id);
+create policy bsb_unmapped_table:extras_read on s."bsb_unmapped_table:extras" for select using (true);
+create function f() returns int language sql as $$ select 1; $$;
+`,
+        "notes",
+      ),
+    ).toBe(
+      "\ncreate function f() returns int language sql as $$ select 1; $$;\n",
+    );
+  });
+
+  it("throws when a function needs the table", () => {
+    expect(() =>
+      withoutUnmappedTables(
+        `create function f() returns int language sql as $$ select count(*) from s."bsb_unmapped_table:extras"; $$;`,
+        "notes",
+      ),
+    ).toThrow(
+      'Module "notes" needs table "extras", which blocks.notes.tables maps to null',
+    );
   });
 });

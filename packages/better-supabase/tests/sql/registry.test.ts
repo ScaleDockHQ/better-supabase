@@ -1029,13 +1029,16 @@ describe("entitlements with provider memberships", () => {
     expect(file!.contents).toContain('from "better_supabase"."memberships" m');
   });
 
-  it("needs a customer column unless the managed organizations module adds one", () => {
+  it("needs a customer column unless the block's own organizations table gets one", () => {
     expect(() => renderBlocks(["entitlements"])).toThrow(
       "The entitlements module needs auth.entitlements.customer",
     );
     expect(() =>
       renderBlocks(["entitlements", "organizations"], {
-        modules: { organizations: { mode: "adopt" } },
+        modules: {
+          organizations: { tables: { organizations: "public.organizations" } },
+        },
+        ownTables: { "public.organizations": "supabase/schemas/app.sql" },
       }),
     ).toThrow("The entitlements module needs auth.entitlements.customer");
     const files = renderBlocks(["entitlements", "organizations"]);

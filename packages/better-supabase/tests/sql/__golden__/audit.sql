@@ -5174,10 +5174,10 @@ values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_003_audit.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 adopt
--- @bsb-hash sha256:3d3bee1ebd3a11fcbfb5a420f661c26bfa73b15f56b35b6ff857fd09cf945bc1
+-- @bsb-block audit@9 managed
+-- @bsb-hash sha256:e0e541c26d5c5e92bc0e3e1378ab4ac9c118acf8a1b8fbf19e892dc2c6edaf69
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5277,6 +5277,47 @@ exception when others then
   return null;
 end;
 $$;
+
+-- better_supabase.audit_events is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."audit_events" add column if not exists "id" bigint generated always as identity;
+alter table "better_supabase"."audit_events" add column if not exists "table_name" text;
+alter table "better_supabase"."audit_events" add column if not exists "record_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "op" text;
+alter table "better_supabase"."audit_events" add column if not exists "old_record" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "new_record" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "changed" text[];
+alter table "better_supabase"."audit_events" add column if not exists "actor_id" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "actor_role" text;
+alter table "better_supabase"."audit_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "occurred_at" timestamptz not null default now();
+-- Set when an admin acted as the user (the act claim).
+alter table "better_supabase"."audit_events" add column if not exists "impersonated_by" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "impersonation_reason" text;
+alter table "better_supabase"."audit_events" add column if not exists "support_session_id" uuid;
+-- Semantic events (audit_event) and the per-table registry fill these.
+alter table "better_supabase"."audit_events" add column if not exists "event_type" text;
+alter table "better_supabase"."audit_events" add column if not exists "category" text;
+alter table "better_supabase"."audit_events" add column if not exists "outcome" text;
+alter table "better_supabase"."audit_events" add column if not exists "source" text;
+alter table "better_supabase"."audit_events" add column if not exists "target_type" text;
+alter table "better_supabase"."audit_events" add column if not exists "metadata" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "idempotency_key" text;
+-- Who acted and on what, as it was then, for audit pages.
+alter table "better_supabase"."audit_events" add column if not exists "actor_kind" text;
+alter table "better_supabase"."audit_events" add column if not exists "actor_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "tenant_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "target_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "summary" text;
+alter table "better_supabase"."audit_events" add column if not exists "request_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "correlation_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "scope" text;
+create index if not exists audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
+create index if not exists audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index if not exists audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
+create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
+create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."audit_events" enable row level security;
+grant select on "better_supabase"."audit_events" to service_role;
 
 create or replace function better_supabase.audit_row_change()
 returns trigger
@@ -6232,10 +6273,10 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:25a905a4c8cbd0def5a959b11e8f836e9b4a0fbbb1806a2c0c2486b432413ce8
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6251,6 +6292,6 @@ delete from better_supabase.audited_tables a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'adopt')
+values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

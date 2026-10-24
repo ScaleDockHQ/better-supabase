@@ -658,7 +658,7 @@ export const INVENTORY: BlockSqlDefinition = {
       : [...REQUIRES],
   integrates: ["outbox", "assets"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

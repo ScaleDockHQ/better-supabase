@@ -442,7 +442,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "relations", "hiring", "time-tracking"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

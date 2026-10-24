@@ -5,9 +5,9 @@ import { sqlIdent } from "../../core/template.ts";
 import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
 
 /**
- * Whether the module writes and honours suppressions. An adopted module needs
- * the table mapped explicitly, so an adopter that predates it keeps
- * installing.
+ * Whether the module writes and honours suppressions. A module over the app's
+ * tables needs the table mapped explicitly, so an adopter that predates it
+ * keeps installing.
  */
 export const suppressing = (ctx: BlockSqlContext): boolean =>
   ctx.hasTable("deliveries") &&

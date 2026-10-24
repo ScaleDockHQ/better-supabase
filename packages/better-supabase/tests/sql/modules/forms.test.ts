@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -9,6 +12,11 @@ const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
     .filter((file) => file.module === "forms")
     .map((file) => file.contents)
     .join("\n");
+
+const overApp = (modules: AnyBlocksConfig): Layout => ({
+  modules,
+  ownTables: ownTablesOf(modules),
+});
 
 const withOptions = (options: Record<string, unknown>): Layout => ({
   modules: { forms: { options } },
@@ -67,15 +75,15 @@ describe("forms module", () => {
     );
   });
 
-  it("skips the options lookup when adopted custom fields have no options table", () => {
-    const sql = sqlOf(["custom-fields", "forms"], {
-      modules: {
+  it("skips the options lookup when the app's custom fields have no options table", () => {
+    const sql = sqlOf(
+      ["custom-fields", "forms"],
+      overApp({
         "custom-fields": {
-          mode: "adopt",
           tables: { definitions: "app.field_defs", options: null },
         },
-      },
-    });
+      }),
+    );
 
     expect(sql).toContain(`from "app"."field_defs" d`);
     expect(sql).not.toContain("to_regclass");
@@ -131,11 +139,11 @@ describe("forms module", () => {
     ]);
   });
 
-  it("works on adopted tables without creating them", () => {
-    const sql = sqlOf(["forms"], {
-      modules: {
+  it("works on the app's tables without creating them", () => {
+    const sql = sqlOf(
+      ["forms"],
+      overApp({
         forms: {
-          mode: "adopt",
           tables: {
             forms: "app.surveys",
             versions: "app.survey_versions",
@@ -143,11 +151,12 @@ describe("forms module", () => {
           },
           columns: { forms: { tenant: "org_id" } },
         },
-      },
-    });
+      }),
+    );
 
+    expect(sql).not.toMatch(/create table if not exists "app"/);
     expect(sql).not.toMatch(
-      /create table if not exists "?(app|better_supabase)"?\."?(surveys|form)/,
+      /create table if not exists "better_supabase"\."(forms|form_versions|form_submissions)"/,
     );
     expect(sql).toContain(`"app"."surveys"`);
     expect(sql).toContain(`"org_id"`);
@@ -173,15 +182,15 @@ describe("forms module", () => {
     expect(sql).toContain("'day', 'week', 'month', 'quarter', 'year'");
   });
 
-  it("refuses correct answers on adopted tables without the score columns", () => {
-    const adopted = (
+  it("adds the score columns to the app's tables, and refuses correct answers when they map them to null", () => {
+    const appForms = (
       tables: Record<string, string> = {},
-      columns: Record<string, Record<string, string>> = {},
+      columns: Record<string, Record<string, string | null>> = {},
     ): string =>
-      sqlOf(["forms"], {
-        modules: {
+      sqlOf(
+        ["forms"],
+        overApp({
           forms: {
-            mode: "adopt",
             tables: {
               forms: "app.surveys",
               versions: "app.survey_versions",
@@ -190,14 +199,27 @@ describe("forms module", () => {
             },
             columns,
           },
-        },
-      });
+        }),
+      );
 
-    const plain = adopted();
-    expect(plain).toContain("FORM_SCORING_UNAVAILABLE");
-    expect(plain).not.toContain("v_grade :=");
+    const plain = appForms();
+    expect(plain).toContain(
+      `alter table "app"."survey_answers" add column if not exists "max_score" numeric;`,
+    );
+    expect(plain).toContain(
+      `create table if not exists "better_supabase"."form_answer_keys"`,
+    );
+    expect(plain).toContain("v_grade :=");
 
-    const scored = adopted(
+    const unscored = appForms(
+      {},
+      { submissions: { score: null, maxScore: null, passed: null } },
+    );
+
+    expect(unscored).toContain("FORM_SCORING_UNAVAILABLE");
+    expect(unscored).not.toContain("v_grade :=");
+
+    const scored = appForms(
       { answerKeys: "app.survey_keys" },
       {
         submissions: {

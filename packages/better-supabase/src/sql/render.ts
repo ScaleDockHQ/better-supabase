@@ -29,9 +29,19 @@ import { moduleContext } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
-import { overAppTables } from "./over-app-tables.ts";
+import {
+  overAppTables,
+  withoutAppTableEdits,
+  withoutUnmappedColumns,
+  withoutUnmappedTables,
+} from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
+import {
+  checkMigrationOptions,
+  checkModules,
+  resolveBlocks,
+  SQL_MODULES,
+} from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
@@ -75,7 +85,8 @@ export function moduleBody(
   name: string,
   layout: BlockSqlLayout = {},
 ): string | undefined {
-  checkModules(layout.modules, SQL_MODULES, layout.ownTables);
+  checkModules(layout.modules);
+  checkMigrationOptions(layout.modules, layout.ownTables);
   const modules = resolveBlocks([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
 
@@ -87,7 +98,47 @@ export function moduleBody(
 
   return ctx.mode === "custom"
     ? undefined
-    : renameQualifiers(moduleSql(module, ctx, layout), ctx);
+    : overApp(
+        renameQualifiers(moduleSql(module, ctx, layout), ctx),
+        ctx,
+        layout,
+      );
+}
+
+/**
+ * `sql` over the app's tables: their `create table` becomes the missing
+ * columns, and what would change their data rules or access is left out.
+ */
+function overApp(
+  sql: string,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
+  const appTables = appTableSet(ctx);
+
+  return withoutUnmappedColumns(
+    withoutUnmappedTables(
+      withoutAppTableEdits(
+        overAppTables(sql, appTables, layout.ownColumns),
+        appTables,
+      ),
+      ctx.instance,
+    ),
+    ctx.instance,
+  );
+}
+
+/** The app's tables a module runs over, as `schema.table`. */
+function appTableSet(ctx: BlockSqlContext): Set<string> {
+  return new Set(
+    ctx.manages
+      ? ctx.appOwned.map((table) => {
+          const parts = ctx.tableName(table);
+
+          return `${parts.schema}.${parts.name}`;
+        })
+      : [],
+  );
 }
 
 /** The table `moduleRow` writes to, created by every schema module's file. */
@@ -141,7 +192,8 @@ export function renderBlocks(
   names: readonly string[],
   layout: BlockSqlLayout = {},
 ): BlockSqlFile[] {
-  checkModules(layout.modules, SQL_MODULES, layout.ownTables);
+  checkModules(layout.modules);
+  checkMigrationOptions(layout.modules, layout.ownTables);
   const modules = resolveBlocks(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
@@ -192,16 +244,6 @@ function moduleFiles(
         instancePrefix(ctx.instance),
       );
 
-  const appTables = new Set(
-    ctx.manages
-      ? ctx.appOwned.map((table) => {
-          const parts = ctx.tableName(table);
-
-          return `${parts.schema}.${parts.name}`;
-        })
-      : [],
-  );
-
   const collisions = ownTablesCreatedBy(module, ctx, layout);
 
   const scoped = (sql: string): string => {
@@ -220,7 +262,7 @@ function moduleFiles(
       );
     }
 
-    return overAppTables(renamed, appTables, layout.ownColumns);
+    return overApp(renamed, ctx, layout);
   };
 
   const title = `-- better-supabase module: ${ctx.instance}`;

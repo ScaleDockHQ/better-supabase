@@ -168,7 +168,7 @@ describe("flattenConfig and groupConfig", () => {
     adapters: ["next"],
     tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
     blocks: {
-      teams: { ownership: "adopt", owner: "user" },
+      teams: { ownership: "custom", owner: "user" },
       memberships: { names: { organization: "workspace" } },
     },
   } satisfies BetterSupabaseConfig;
@@ -189,7 +189,7 @@ describe("flattenConfig and groupConfig", () => {
         notes: { scope: "user", columns: { body: { type: "text" } } },
       },
       blocks: {
-        teams: { mode: "adopt", scope: "user" },
+        teams: { mode: "custom", scope: "user" },
         memberships: { entities: { organization: "workspace" } },
       },
     });

@@ -10,13 +10,16 @@ import {
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("webhooks-out", { modules })!;
 
+const overApp = (modules: AnyBlocksConfig) =>
+  moduleBody("webhooks-out", { modules, ownTables: ownTablesOf(modules) })!;
+
 const CENTRAKIT: AnyBlocksConfig = {
   "webhooks-out": {
-    mode: "adopt",
     schema: "public",
     idType: "uuid",
     columns: {
@@ -59,9 +62,13 @@ describe("webhooks-out module", () => {
     expect(sql).toContain("security definer");
   });
 
-  it("adopts CentraKit's tables with plain secrets and uuid ids", () => {
-    const sql = body(CENTRAKIT);
-    expect(sql).not.toContain("create table if not exists");
+  it("runs over CentraKit's tables with plain secrets and uuid ids", () => {
+    const sql = renderBlocks(["webhooks-out"], {
+      modules: CENTRAKIT,
+      ownTables: ownTablesOf(CENTRAKIT),
+    }).find((file) => file.module === "webhooks-out")!.contents;
+
+    expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("vault.");
     expect(sql).not.toContain('"failing_since"');
     expect(sql).not.toContain('"expires_at"');
@@ -212,9 +219,8 @@ describe("webhooks-out module", () => {
       );
 
       const untenanted = publish(
-        body({
+        overApp({
           "webhooks-out": {
-            mode: "adopt",
             columns: {
               endpoints: { tenant: null, permissions: null, batch: null },
               deliveries: { tenant: null, subject: null },
@@ -230,9 +236,8 @@ describe("webhooks-out module", () => {
       );
 
       const ownerless = publish(
-        body({
+        overApp({
           "webhooks-out": {
-            mode: "adopt",
             columns: {
               endpoints: { createdBy: null, permissions: "held_permissions" },
             },
@@ -246,27 +251,29 @@ describe("webhooks-out module", () => {
       );
       expect(
         publish(
-          body({
-            "webhooks-out": {
-              mode: "adopt",
-              options: { defaultFormat: "cloudevents" },
-            },
+          overApp({
+            "webhooks-out": { options: { defaultFormat: "cloudevents" } },
           }),
         ),
       ).toContain("else publish_webhook_event.read_permission is null end");
     });
 
-    it("leaves the new columns out of an adopted table unless they are mapped", () => {
-      const sql = body(CENTRAKIT);
+    it("leaves the new columns out of the app's table unless they are mapped", () => {
+      const sql = overApp(CENTRAKIT);
       expect(sql).not.toContain('"permissions"');
-      expect(sql).not.toContain("add column if not exists");
+      expect(sql).not.toMatch(
+        /add column if not exists "(?:permissions|format)"/,
+      );
       expect(sql).not.toContain("'subject', c.");
     });
   });
 
   describe("format", () => {
     const upgrade = (modules: AnyBlocksConfig = {}) =>
-      upgradePlan([{ module: "webhooks-out", version: 2 }], { modules })[0]!
+      upgradePlan([{ module: "webhooks-out", version: 2 }], {
+        modules,
+        ownTables: ownTablesOf(modules),
+      })[0]!
         .steps.map((step) => step.sql)
         .join("\n");
 
@@ -291,11 +298,11 @@ describe("webhooks-out module", () => {
       );
     });
 
-    it("sets the default on a mapped adopted column only, and refuses a bad format", () => {
-      expect(body(CENTRAKIT)).not.toContain("set default");
+    it("sets the default on a mapped column of the app's table only, and refuses a bad format", () => {
+      expect(overApp(CENTRAKIT)).not.toContain("set default");
       expect(upgrade(CENTRAKIT)).not.toContain("format");
 
-      const mapped = body({
+      const mapped = overApp({
         "webhooks-out": {
           ...CENTRAKIT["webhooks-out"],
           columns: {
@@ -317,15 +324,15 @@ describe("webhooks-out module", () => {
       ).toThrow(/defaultFormat "x'; drop" must match/);
     });
 
-    it("requires defaultFormat for an adopted table that maps no format column", () => {
+    it("requires defaultFormat for the app's table when it maps no format column", () => {
       const { defaultFormat: _, ...options } =
         CENTRAKIT["webhooks-out"]!.options!;
 
       expect(() =>
-        body({ "webhooks-out": { ...CENTRAKIT["webhooks-out"], options } }),
+        overApp({ "webhooks-out": { ...CENTRAKIT["webhooks-out"], options } }),
       ).toThrow(ADOPTED_FORMAT_ERROR);
       expect(() =>
-        body({
+        overApp({
           "webhooks-out": {
             ...CENTRAKIT["webhooks-out"],
             options,

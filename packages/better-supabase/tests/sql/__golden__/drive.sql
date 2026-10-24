@@ -3733,10 +3733,10 @@ values ('drive', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_032_drive.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 adopt
--- @bsb-hash sha256:ec8482de42682127271c7fabcc64dd5d064f0907642c3cdabff9de045ce1f3bd
+-- @bsb-block drive@1 managed
+-- @bsb-hash sha256:5e8b9c093496f0dbec8cab6fc3ee59df6ac887f12e7f108d1eabebb4f9ebbe43
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3777,6 +3777,41 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.drive_nodes is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."drive_nodes" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."drive_nodes" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."drive_nodes" add column if not exists "parent_id" uuid references "better_supabase"."drive_nodes" ("id") on delete cascade;
+alter table "better_supabase"."drive_nodes" add column if not exists "kind" text check ("kind" in ('folder', 'file'));
+alter table "better_supabase"."drive_nodes" add column if not exists "name" text check (length(btrim("name")) between 1 and 255 and "name" !~ '[/[:cntrl:]]');
+alter table "better_supabase"."drive_nodes" add column if not exists "attachment_id" uuid;
+alter table "better_supabase"."drive_nodes" add column if not exists "path" text not null default '';
+alter table "better_supabase"."drive_nodes" add column if not exists "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."drive_nodes" add column if not exists "deleted_at" timestamptz;
+alter table "better_supabase"."drive_nodes" add column if not exists "created_by" uuid default auth.uid();
+alter table "better_supabase"."drive_nodes" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."drive_nodes" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null;
+create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
+create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
+alter table "better_supabase"."drive_nodes" enable row level security;
+grant select on "better_supabase"."drive_nodes" to authenticated;
+grant all on "better_supabase"."drive_nodes" to service_role;
+
+-- better_supabase.drive_grants is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."drive_grants" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."drive_grants" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."drive_grants" add column if not exists "node_id" uuid references "better_supabase"."drive_nodes" ("id") on delete cascade;
+alter table "better_supabase"."drive_grants" add column if not exists "principal_type" text check ("principal_type" in ('user', 'team', 'role'));
+alter table "better_supabase"."drive_grants" add column if not exists "principal_id" text;
+alter table "better_supabase"."drive_grants" add column if not exists "role" text;
+alter table "better_supabase"."drive_grants" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."drive_grants" add column if not exists "created_by" uuid default auth.uid();
+alter table "better_supabase"."drive_grants" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
+alter table "better_supabase"."drive_grants" enable row level security;
+grant all on "better_supabase"."drive_grants" to service_role;
 
 -- The node's ancestors and itself, root first.
 create or replace function "better_supabase"."drive_ancestors"(node uuid)
@@ -3867,6 +3902,10 @@ as $$
   select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at")
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
+
+drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
+create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
+  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -4524,6 +4563,18 @@ $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4537,16 +4588,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:af24252546cdc908ac9969d76c62d6bfa20417ab6205cd8b55293395eac2b03f
+-- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'adopt')
+values ('drive', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

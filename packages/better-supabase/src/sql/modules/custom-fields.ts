@@ -567,7 +567,7 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "field-encryption", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 3,
   upgrades: [
     {

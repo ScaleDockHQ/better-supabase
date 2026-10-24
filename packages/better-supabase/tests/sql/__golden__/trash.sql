@@ -1573,10 +1573,10 @@ values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_075_trash.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 adopt
--- @bsb-hash sha256:1a4395a644ef5cadbf021fc0a4c6c9626e520da26ea21b1c231c9330559359ba
+-- @bsb-block trash@2 managed
+-- @bsb-hash sha256:dfebf241adc40250ccfd6333dc3d8b9d551e624bba5ead252f42ccbf407c269e
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,6 +1617,25 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.trash_items is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."trash_items" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."trash_items" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "subject_type" text;
+alter table "better_supabase"."trash_items" add column if not exists "subject_id" text;
+alter table "better_supabase"."trash_items" add column if not exists "title" text;
+alter table "better_supabase"."trash_items" add column if not exists "batch_id" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "depth" integer not null default 0 check ("depth" >= 0);
+alter table "better_supabase"."trash_items" add column if not exists "trashed_by" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "trashed_at" timestamptz not null default now();
+alter table "better_supabase"."trash_items" add column if not exists "purge_after" timestamptz;
+create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
+create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
+alter table "better_supabase"."trash_items" enable row level security;
+grant select on "better_supabase"."trash_items" to authenticated;
+grant all on "better_supabase"."trash_items" to service_role;
+drop policy if exists "trash_items_read" on "better_supabase"."trash_items";
+create policy "trash_items_read" on "better_supabase"."trash_items" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')));
 
 -- Marks one subject row trashed, records it, then trashes the rows the
 -- subject's children options point at, in the same batch.
@@ -1879,6 +1898,18 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1892,16 +1923,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
--- @bsb-hash sha256:019ed8ab2f9b2b5e7ac10944fa0f587d690e07517027769d6001942cdcdc11b1
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'adopt')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

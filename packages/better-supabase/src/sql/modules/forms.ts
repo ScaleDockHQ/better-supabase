@@ -1048,7 +1048,7 @@ export const FORMS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "jsonb-schemas"],
   integrates: ["custom-fields", "share-links", "rate-limit", "outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

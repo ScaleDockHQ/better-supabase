@@ -3660,10 +3660,10 @@ values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@3 adopt
--- @bsb-hash sha256:b083439471d9fcf055bf57831981ede962c0df9aaf945decb5d899760a10ad3c
+-- @bsb-block time-tracking@3 managed
+-- @bsb-hash sha256:530e638caea7b9f0e6aa6cd5f52b677b1ef2901d41ed78c238f1d742d147b8a0
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3704,6 +3704,80 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create extension if not exists btree_gist with schema extensions;
+
+-- better_supabase.time_entries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."time_entries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."time_entries" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."time_entries" add column if not exists "user_id" uuid;
+alter table "better_supabase"."time_entries" add column if not exists "subject_type" text;
+alter table "better_supabase"."time_entries" add column if not exists "subject_id" text;
+alter table "better_supabase"."time_entries" add column if not exists "started_at" timestamptz;
+alter table "better_supabase"."time_entries" add column if not exists "ended_at" timestamptz;
+alter table "better_supabase"."time_entries" add column if not exists "billable" boolean not null default false;
+alter table "better_supabase"."time_entries" add column if not exists "rate" bigint check ("rate" is null or "rate" >= 0);
+alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;
+alter table "better_supabase"."time_entries" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."time_entries" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."time_entries" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."time_entries" add column if not exists "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored;
+alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_currency_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."time_entries"', 'time_entries_rate_currency_check', '"better_supabase"."time_entries"', 'time_entries_rate_currency_check';
+    end;
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_pair_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."time_entries"', 'time_entries_rate_pair_check', '"better_supabase"."time_entries"', 'time_entries_rate_pair_check';
+    end;
+  end if;
+end;
+$$;
+create unique index if not exists "time_entries_running_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id") where "ended_at" is null;
+create index if not exists "time_entries_user_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id", "started_at" desc);
+create index if not exists "time_entries_subject_idx" on "better_supabase"."time_entries" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
+alter table "better_supabase"."time_entries" enable row level security;
+grant select on "better_supabase"."time_entries" to authenticated;
+grant all on "better_supabase"."time_entries" to service_role;
+drop policy if exists time_entries_read on "better_supabase"."time_entries";
+create policy time_entries_read on "better_supabase"."time_entries" for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
+
+-- better_supabase.timesheets is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."timesheets" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."timesheets" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."timesheets" add column if not exists "user_id" uuid;
+alter table "better_supabase"."timesheets" add column if not exists "week" date check (extract(isodow from "week") = 1);
+alter table "better_supabase"."timesheets" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null;
+alter table "better_supabase"."timesheets" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."timesheets" add column if not exists "submitted_at" timestamptz;
+alter table "better_supabase"."timesheets" add column if not exists "approved_at" timestamptz;
+alter table "better_supabase"."timesheets" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
+create index if not exists "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
+alter table "better_supabase"."timesheets" enable row level security;
+grant select on "better_supabase"."timesheets" to authenticated;
+grant all on "better_supabase"."timesheets" to service_role;
+drop policy if exists timesheets_read on "better_supabase"."timesheets";
+create policy timesheets_read on "better_supabase"."timesheets" for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
 -- The Monday of the week an instant falls in, in options.timeZone.
 create or replace function "better_supabase"."time_week"(at timestamptz)
@@ -4390,6 +4464,26 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
+create policy bsb_tenant_scope on "better_supabase"."timesheets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4403,16 +4497,18 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_088_time_tracking.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block-data time-tracking
--- @bsb-hash sha256:f9fd3b3b6d989ed95d3927b15ecbf5a0194fa53c02736e9a98c3f3339e26863e
+-- @bsb-hash sha256:cbca636a87fb7e287885e64e34603f4dbdacbf5b55e5e4d6bc02aac85dea8fb2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create extension if not exists "btree_gist" with schema "extensions";
+
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 3, 'adopt')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

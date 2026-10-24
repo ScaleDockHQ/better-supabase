@@ -2,7 +2,7 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
 -- @bsb-hash sha256:0e1e896af34e949481a7fca560d157fc59e7de51ab7206b05695e60e3d2b4ea4
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -381,7 +381,7 @@ on conflict (name) do update
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
 -- @bsb-hash sha256:d73d0ac9a42c4e51d1989c7086dcc2a1c62c4d616aff3e50bd395f1428f07701
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -760,7 +760,7 @@ on conflict (name) do update
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
 -- @bsb-hash sha256:5ba750789c01a7725ff0a333162c6258431596604c3624b9679c0ecfc873cda4
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1141,7 +1141,7 @@ on conflict (name) do update
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
 -- @bsb-hash sha256:dcaaf1f7dba1a626e48ffbee9639c2ef2fd7c349320d45423986c6c918a16a58
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1613,11 +1613,11 @@ values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_059_tags.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
--- @bsb-block tags@2 adopt
--- @bsb-hash sha256:35bedf5b15ad11252ba996f720afd60ea318bd583b0c13d2889f3ed6a5377714
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- @bsb-block tags@2 managed
+-- @bsb-hash sha256:4f7f1ab433a5af7ebec15a9158405880f67291b35f494bb8ca56ba6601e57e5e
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1673,6 +1673,30 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.tags is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."tags" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."tags" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."tags" add column if not exists "kind" text;
+alter table "better_supabase"."tags" add column if not exists "name" text check (length("name") between 1 and 80);
+alter table "better_supabase"."tags" add column if not exists "slug" text;
+alter table "better_supabase"."tags" add column if not exists "color" text;
+alter table "better_supabase"."tags" add column if not exists "description" text;
+alter table "better_supabase"."tags" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."tags" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."tags" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."tags" enable row level security;
+grant select on "better_supabase"."tags" to authenticated;
+grant all on "better_supabase"."tags" to service_role;
+-- better_supabase.taggings is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."taggings" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."taggings" add column if not exists "tag_id" uuid references "better_supabase"."tags" ("id") on delete cascade;
+alter table "better_supabase"."taggings" add column if not exists "subject_type" text;
+alter table "better_supabase"."taggings" add column if not exists "subject_id" text;
+alter table "better_supabase"."taggings" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+alter table "better_supabase"."taggings" enable row level security;
+grant select on "better_supabase"."taggings" to authenticated;
+grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
@@ -1937,6 +1961,20 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1950,16 +1988,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block-data tags
--- @bsb-hash sha256:38ac1393aacd7d01efbc3f8778c3839f6c86b672069ea9d260eae045f65d0dee
+-- @bsb-hash sha256:baa1d5b6721528e763808c231522383a33db513a6254d0a316c15c1087308cb6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tags', 2, 'adopt')
+values ('tags', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

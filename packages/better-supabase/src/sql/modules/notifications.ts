@@ -849,7 +849,7 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   integrates: ["permissions", "profiles", "memberships", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 8,
   names: NAMES,
   contract,

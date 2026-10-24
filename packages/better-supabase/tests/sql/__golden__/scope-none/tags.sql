@@ -2,7 +2,7 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
 -- @bsb-hash sha256:c8043d77fbd438152151798f16706ed422c8b92dcdb523e8a8e2090709de39b8
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

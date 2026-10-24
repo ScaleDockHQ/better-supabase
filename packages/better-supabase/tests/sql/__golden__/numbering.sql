@@ -1456,10 +1456,10 @@ values ('numbering', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_057_numbering.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
--- @bsb-block numbering@1 adopt
--- @bsb-hash sha256:14798c0589462c8f662fef9e76e906de6c5390a3f3581107fb6717155fca54c4
+-- @bsb-block numbering@1 managed
+-- @bsb-hash sha256:3e3864ff10b3387d0df0b93cfa242192ce09cdf20e60d2ae29114f92a59e50c1
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1519,6 +1519,15 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
+-- better_supabase.number_sequences is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."number_sequences" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."number_sequences" add column if not exists "entity" text;
+alter table "better_supabase"."number_sequences" add column if not exists "period" text not null default '';
+alter table "better_supabase"."number_sequences" add column if not exists "last_number" bigint;
+alter table "better_supabase"."number_sequences" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."number_sequences" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."number_sequences" enable row level security;
+grant all on "better_supabase"."number_sequences" to service_role;
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)
 returns text
@@ -1773,16 +1782,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_057_numbering.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block-data numbering
--- @bsb-hash sha256:6008470c9e79fd474802bfe66f1d5785c2e1dbc8f6324927147e4124be54d086
+-- @bsb-hash sha256:a66767a6e66d7ecf17d8a2fc5db1a3382c51337c245be2005a35a304ae3d1155
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('numbering', 1, 'adopt')
+values ('numbering', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -9,11 +9,24 @@ import {
   callerOnlyProvider,
   moduleProvider,
 } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (
   modules: AnyBlocksConfig,
   accessProvider: BlockSqlAccessProvider = callerOnlyProvider,
 ) => moduleBody("invitations", { modules, accessProvider })!;
+
+/** `body` with the tables of `blocks` already in the app's schema. */
+const overApp = (
+  modules: AnyBlocksConfig,
+  blocks: readonly string[],
+  accessProvider: BlockSqlAccessProvider = callerOnlyProvider,
+) =>
+  moduleBody("invitations", {
+    modules,
+    accessProvider,
+    ownTables: ownTablesOf(modules, blocks),
+  })!;
 
 describe("invitations module", () => {
   it("keeps the 0.4 table and create_invitation signature", () => {
@@ -45,32 +58,35 @@ describe("invitations module", () => {
     );
   });
 
-  it("adopts CentraKit's organization_invitations with plain tokens and system invites", () => {
-    const sql = body({
-      permissions: {
-        model: "catalog",
-        tables: { platformAssignments: "public.user_roles" },
-      },
-      invitations: {
-        mode: "adopt",
-        tables: {
-          invitations: "public.organization_invitations",
-          platformInvitations: "public.organization_invitations",
+  it("runs over CentraKit's organization_invitations with plain tokens and system invites", () => {
+    const sql = overApp(
+      {
+        permissions: {
+          model: "catalog",
+          tables: { platformAssignments: "public.user_roles" },
         },
-        columns: {
-          invitations: {
-            tenant: "organization_id",
-            role: "role_id",
-            tokenHash: "token",
-            acceptedBy: null,
-            revokedAt: null,
+        invitations: {
+          tables: {
+            invitations: "public.organization_invitations",
+            platformInvitations: "public.organization_invitations",
           },
+          columns: {
+            invitations: {
+              tenant: "organization_id",
+              role: "role_id",
+              tokenHash: "token",
+              acceptedBy: null,
+              revokedAt: null,
+            },
+          },
+          options: { tokenStorage: "plain", requireConfirmedEmail: false },
         },
-        options: { tokenStorage: "plain", requireConfirmedEmail: false },
       },
-    });
+      ["invitations"],
+    );
 
-    expect(sql).not.toContain("create table if not exists");
+    expect(sql).not.toContain('create table if not exists "public"');
+    expect(sql).not.toContain('"better_supabase"."invitations"');
     expect(sql).not.toContain("extensions.digest(token");
     expect(sql).toContain(
       "using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER'",
@@ -260,28 +276,30 @@ describe("platform invitations under the provider model", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
 
     const sql = (where?: string, tenantWhere?: string) =>
-      body({
-        ...PROVIDER,
-        memberships: {
-          mode: "adopt" as const,
-          tables: { memberships: "public.team_members" },
-          columns: { memberships: { role: "role_id" } },
-          options: {
-            roleThrough:
-              tenantWhere === undefined
-                ? through
-                : { ...through, where: tenantWhere },
+      overApp(
+        {
+          ...PROVIDER,
+          memberships: {
+            tables: { memberships: "public.team_members" },
+            columns: { memberships: { role: "role_id" } },
+            options: {
+              roleThrough:
+                tenantWhere === undefined
+                  ? through
+                  : { ...through, where: tenantWhere },
+            },
           },
-        },
-        invitations: {
-          options: {
-            platformRoles: {
-              ...roles,
-              through: where === undefined ? through : { ...through, where },
+          invitations: {
+            options: {
+              platformRoles: {
+                ...roles,
+                through: where === undefined ? through : { ...through, where },
+              },
             },
           },
         },
-      });
+        ["memberships"],
+      );
 
     const tenantScope = "{row}.scope = 'organization'";
     expect(() => sql(undefined, tenantScope)).toThrow(
@@ -305,7 +323,6 @@ describe("platform invitations under the provider model", () => {
     const modules = (tenantWhere?: string): AnyBlocksConfig => ({
       ...PROVIDER,
       memberships: {
-        mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
         columns: { memberships: { role: "role_id" } },
         options: {
@@ -326,23 +343,34 @@ describe("platform invitations under the provider model", () => {
       },
     });
 
-    expect(() => body(modules())).toThrow(
+    const overMemberships = (config: AnyBlocksConfig) =>
+      overApp(config, ["memberships"]);
+
+    expect(() => overMemberships(modules())).toThrow(
       /roleThrough\.where: "public"\."roles" also holds the platform roles/,
     );
-    expect(() => body(modules("scope = 'organization'"))).toThrow(
+    expect(() => overMemberships(modules("scope = 'organization'"))).toThrow(
       /where\?: "<condition on \{row\}>"/,
     );
     const scoped = modules("{row}.scope = 'organization'");
     const tenantOnly = `or r."key"::text = (invitee_role)::text) and (r.scope = 'organization') order by`;
-    expect(body(scoped)).toContain(tenantOnly);
-    expect(body(scoped)).toMatch(
+    expect(overMemberships(scoped)).toContain(tenantOnly);
+    expect(overMemberships(scoped)).toMatch(
       /if \(select r\."id" from "public"\."roles" r where \(r\."id"::text = \(invite\."role"\)::text or r\."key"::text = \(invite\."role"\)::text\) and \(r\.scope = 'organization'\)[^\n]* is null then\n\s*raise exception 'Unknown role %'/,
     );
-    expect(moduleBody("organizations", { modules: scoped })).toContain(
+    expect(
+      moduleBody("organizations", {
+        modules: scoped,
+        ownTables: ownTablesOf(scoped, ["memberships"]),
+      }),
+    ).toContain(
       `or r."key"::text = (role)::text) and (r.scope = 'organization')`,
     );
     expect(
-      body({ ...scoped, invitations: { options: { platformRoles: roles } } }),
+      overMemberships({
+        ...scoped,
+        invitations: { options: { platformRoles: roles } },
+      }),
     ).toContain(tenantOnly);
   });
 
@@ -352,7 +380,6 @@ describe("platform invitations under the provider model", () => {
     const modules = (where: boolean): AnyBlocksConfig => ({
       ...PROVIDER,
       memberships: {
-        mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
         columns: { memberships: { role: "role_id" } },
         options: {
@@ -377,7 +404,13 @@ describe("platform invitations under the provider model", () => {
       },
     });
 
-    const tenant = moduleBody("memberships", { modules: modules(true) })!;
+    const memberships = (config: AnyBlocksConfig) =>
+      moduleBody("memberships", {
+        modules: config,
+        ownTables: ownTablesOf(config, ["memberships"]),
+      })!;
+
+    const tenant = memberships(modules(true));
     expect(tenant).toContain(
       `where r."id"::text = new."role_id"::text and (r.scope = 'organization')`,
     );
@@ -385,7 +418,7 @@ describe("platform invitations under the provider model", () => {
     expect(tenant).toContain(
       `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."team_members"`,
     );
-    const platform = body(modules(true));
+    const platform = overApp(modules(true), ["memberships"]);
     expect(platform).toContain(
       `where r."id"::text = new."role_id"::text and (r.scope = 'system')`,
     );
@@ -393,12 +426,12 @@ describe("platform invitations under the provider model", () => {
     expect(platform).toContain(
       `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
     );
-    const unscoped = moduleBody("memberships", { modules: modules(false) })!;
+    const unscoped = memberships(modules(false));
     expect(unscoped).toContain(
       `drop trigger if exists "bsb_role_scope" on "public"."team_members";`,
     );
     expect(unscoped).not.toContain('create trigger "bsb_role_scope"');
-    const unscopedPlatform = body(modules(false));
+    const unscopedPlatform = overApp(modules(false), ["memberships"]);
     expect(unscopedPlatform).toContain(
       `drop trigger if exists "bsb_role_scope" on "public"."user_roles";`,
     );

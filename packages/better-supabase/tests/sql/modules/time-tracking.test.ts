@@ -191,18 +191,18 @@ describe("time-tracking module", () => {
     ]);
   });
 
-  it("works on adopted tables without creating them", () => {
+  it("works on the app's tables without creating them", () => {
     const sql = sqlOf(BASE, {
       modules: {
         "time-tracking": {
-          mode: "adopt",
           tables: { entries: "app.hours", timesheets: "app.weeks" },
         },
       },
+      ownTables: { "app.hours": "app.sql", "app.weeks": "app.sql" },
     });
 
     expect(sql).not.toMatch(/create table if not exists "app"/);
-    expect(sql).not.toContain("btree_gist");
+    expect(sql).not.toContain("exclude using gist");
     expect(sql).toContain(`"app"."hours"`);
     expect(sql).toContain(`"app"."weeks"`);
   });

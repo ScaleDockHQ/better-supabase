@@ -569,9 +569,9 @@ values ('credentials', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_041_credentials.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
--- @bsb-block credentials@1 adopt
+-- @bsb-block credentials@1 managed
 -- @bsb-hash sha256:e1343114152af146795d06cb961acf5f57bee7326ea2e6c92a337b1eb4e9320b
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -771,16 +771,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block-data credentials
--- @bsb-hash sha256:01320a732b465a7ed00fc17fed715677e5f048117006181b3a8937bfccadc82b
+-- @bsb-hash sha256:3d1dc5f51081386b5208cc7fc619b0d93bf725b4d1b8f33978d7c8eaf0c602c6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('credentials', 1, 'adopt')
+values ('credentials', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

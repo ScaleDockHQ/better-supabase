@@ -2282,9 +2282,9 @@ values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@4 adopt
+-- @bsb-block webhooks-in@4 managed
 -- @bsb-hash sha256:a7cb0d22becc5366eb9e29b56c254ba198ff7bdd75b5695d0ecb23d5e54b8fea
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2734,16 +2734,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block-data webhooks-in
--- @bsb-hash sha256:6090e73f7544f584ae30b941a59f7be059403b1db39ed3e3e428861ddc8a5bac
+-- @bsb-hash sha256:91fd97bedb171e9fd711c35ce8cf6c3a3a9330f6edd2527203b23660fc557297
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 4, 'adopt')
+values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

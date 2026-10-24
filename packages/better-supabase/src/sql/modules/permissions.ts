@@ -1060,7 +1060,7 @@ export const ACCESS: BlockSqlDefinition = {
     return model === "roles" || model === "catalog" ? ["memberships"] : [];
   },
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: {
     options: ["platformRoleScope", "scope", "tenantRoleScope"],
     tables: {

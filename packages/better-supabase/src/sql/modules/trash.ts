@@ -660,7 +660,7 @@ export const TRASH: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

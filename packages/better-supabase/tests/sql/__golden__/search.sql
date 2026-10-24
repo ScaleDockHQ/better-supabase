@@ -1738,10 +1738,10 @@ values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_070_search.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 adopt
--- @bsb-hash sha256:20db2d3b698f0fbf92b2ad12e5e467456c16665d9370d4170b04bf8728b98e7c
+-- @bsb-block search@2 managed
+-- @bsb-hash sha256:a93f6e1e8aed2c816313dcf52b8cedc65a759ff54bb011df3d52d469f5f44b38
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1750,6 +1750,27 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
+-- better_supabase.search_documents is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."search_documents" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."search_documents" add column if not exists "subject_type" text;
+alter table "better_supabase"."search_documents" add column if not exists "subject_id" text;
+alter table "better_supabase"."search_documents" add column if not exists "title" text;
+alter table "better_supabase"."search_documents" add column if not exists "title_search" text not null default '';
+alter table "better_supabase"."search_documents" add column if not exists "body" text;
+alter table "better_supabase"."search_documents" add column if not exists "url" text;
+alter table "better_supabase"."search_documents" add column if not exists "tsv" tsvector;
+alter table "better_supabase"."search_documents" add column if not exists "content_hash" text;
+alter table "better_supabase"."search_documents" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."search_documents" enable row level security;
+grant select on "better_supabase"."search_documents" to authenticated;
+grant all on "better_supabase"."search_documents" to service_role;
+create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+
+drop policy if exists "search_documents_read" on "better_supabase"."search_documents";
+create policy "search_documents_read" on "better_supabase"."search_documents" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
 -- can change; pinning the dictionary makes this safe to index.
@@ -2075,6 +2096,18 @@ $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2088,10 +2121,10 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_070_search.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:467526786a1f69d0ffe5ef28eee47f893efe5f9b1ee134a5036c5689f8829d02
+-- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2101,6 +2134,6 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'adopt')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

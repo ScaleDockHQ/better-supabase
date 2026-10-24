@@ -680,7 +680,7 @@ export const SIGNATURES: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "versions"],
   integrates: ["approvals", "attachments", "outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

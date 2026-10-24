@@ -1021,7 +1021,7 @@ export const BOOKINGS: BlockSqlDefinition = {
     "outbox",
   ],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

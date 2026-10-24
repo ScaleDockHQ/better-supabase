@@ -135,21 +135,20 @@ describe("metrics module", () => {
     ).toThrow("is not an IANA time zone");
   });
 
-  it("renders nothing in custom mode, and adopts an existing points table", () => {
+  it("renders nothing in custom mode, and runs over the app's points table", () => {
     expect(
       sqlOf({}, { modules: { metrics: { mode: "custom" } } }),
     ).not.toContain("metric_series");
 
-    const adopted = sqlOf(
+    const overApp = sqlOf(
       { metrics: [orders] },
       {
-        modules: {
-          metrics: { mode: "adopt", tables: { points: "analytics.points" } },
-        },
+        modules: { metrics: { tables: { points: "analytics.points" } } },
+        ownTables: { "analytics.points": "app.sql" },
       },
     );
 
-    expect(adopted).not.toContain('"better_supabase"."metric_points"');
-    expect(adopted).toContain(`delete from "analytics"."points"`);
+    expect(overApp).not.toContain('"better_supabase"."metric_points"');
+    expect(overApp).toContain(`delete from "analytics"."points"`);
   });
 });

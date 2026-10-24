@@ -2165,10 +2165,10 @@ values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_023_outbox.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 adopt
--- @bsb-hash sha256:686cd3483d21e33d7d25137bebc9c233a85afe0fd49aabec372f4e20813e2f0a
+-- @bsb-block outbox@5 managed
+-- @bsb-hash sha256:82125128a6393dd4d93ab6e1bac9c52f93801a8fbff5b00d3283c3cc8055b09c
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2177,45 +2177,36 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."outbox_events" add column if not exists "xid" xid8 not null default pg_current_xact_id();
 create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
-create table if not exists "better_supabase"."outbox_consumers" (
-  "name" text primary key,
-  -- The last event passed, ordered by (transaction id, position). Without
-  -- the xid column, cursor_xid stays 0 and the position alone orders.
-  "cursor_xid" xid8 not null default '0',
-  "cursor_position" bigint not null default 0,
-  -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
-  "types" text[],
-  "lease_owner" text,
-  "lease_until" timestamptz,
-  -- Failed claims in a row since the cursor last moved, and when to try again.
-  "attempts" integer not null default 0,
-  "last_error" text,
-  "retry_at" timestamptz,
-  "updated_at" timestamptz not null default now()
-);
+-- better_supabase.outbox_consumers is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."outbox_consumers" add column if not exists "name" text;
+alter table "better_supabase"."outbox_consumers" add column if not exists "cursor_xid" xid8 not null default '0';
+alter table "better_supabase"."outbox_consumers" add column if not exists "cursor_position" bigint not null default 0;
+alter table "better_supabase"."outbox_consumers" add column if not exists "types" text[];
+alter table "better_supabase"."outbox_consumers" add column if not exists "lease_owner" text;
+alter table "better_supabase"."outbox_consumers" add column if not exists "lease_until" timestamptz;
+alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
+alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
+alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
+alter table "better_supabase"."outbox_consumers" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
 alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
 alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
-revoke all on "better_supabase"."outbox_consumers" from anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
 -- event, so one bad event can't stop the consumer.
-create table if not exists "better_supabase"."outbox_dead_letters" (
-  "consumer" text not null references "better_supabase"."outbox_consumers" ("name") on delete cascade,
-  "position" bigint not null,
-  "event_id" text not null,
-  "type" text not null,
-  "event" jsonb not null,
-  "attempts" integer not null,
-  "error" text,
-  "dead_at" timestamptz not null default now(),
-  primary key ("consumer", "position")
-);
+-- better_supabase.outbox_dead_letters is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "consumer" text references "better_supabase"."outbox_consumers" ("name") on delete cascade;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "position" bigint;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "event_id" text;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "type" text;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "event" jsonb;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "attempts" integer;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "error" text;
+alter table "better_supabase"."outbox_dead_letters" add column if not exists "dead_at" timestamptz not null default now();
 create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
-revoke all on "better_supabase"."outbox_dead_letters" from anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
@@ -2649,16 +2640,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:1546b166cacc86ed5619557cac1dfc40969f4496325802099e250210e98c0192
+-- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'adopt')
+values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -2,7 +2,6 @@ import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { BlockSqlContext } from "./context.ts";
 import type { BlockSqlLayout } from "./module-types.ts";
 
-import { canBeAppTable } from "./app-owned.ts";
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
 import { moduleBody } from "./render.ts";
@@ -15,8 +14,8 @@ import {
 import { computedWrites } from "./text-writes.ts";
 
 /**
- * A table of the app's that a module reads and writes (in adopt mode, or one
- * `ownTables` lists), with the columns it uses.
+ * A table of the app's that a module reads and writes (one `ownTables` lists,
+ * or a subject table it writes columns of), with the columns it uses.
  */
 export interface AdoptedTable {
   readonly module: string;
@@ -138,31 +137,24 @@ function unusedColumns(
 }
 
 /**
- * A module's context. An adopted module's context throws on what it refuses; a
- * managed one's problems are reported when it renders, so it has none here.
+ * A module's context, or `undefined` when it refuses the config: rendering
+ * reports that, so it has no tables here.
  */
 function contextOf(
   name: string,
   layout: BlockSqlLayout & { readonly modules: AnyBlocksConfig },
-  adopted: boolean,
 ): BlockSqlContext | undefined {
-  const installed = Object.keys(layout.modules);
-
-  if (adopted) {
-    return moduleContext(name, layout, installed);
-  }
-
   try {
-    return moduleContext(name, layout, installed);
+    return moduleContext(name, layout, Object.keys(layout.modules));
   } catch {
     return undefined;
   }
 }
 
 /**
- * Every table of the app's that the modules in `modules` use, in adopt mode or
- * because `ownTables` lists it, with the columns their SQL names: mapped to
- * `null` and unused optional columns are left out.
+ * Every table of the app's that the modules in `modules` use, because
+ * `ownTables` lists it or `blocks.<name>.on` names it, with the columns their
+ * SQL names: mapped to `null` and unused optional columns are left out.
  */
 export function adoptedTables(
   modules: AnyBlocksConfig,
@@ -174,17 +166,15 @@ export function adoptedTables(
   const contexts = Object.keys(modules).flatMap((name) => {
     const mode = modules[name]?.mode ?? "managed";
 
-    if (
-      SQL_MODULES[name]?.names?.tables === undefined ||
-      mode === "custom" ||
-      (mode === "managed" && ownTables === undefined)
-    ) {
+    if (SQL_MODULES[name]?.names?.tables === undefined || mode === "custom") {
       return [];
     }
 
-    const ctx = contextOf(name, layout, mode === "adopt");
+    const ctx = contextOf(name, layout);
 
-    return ctx !== undefined && ctx.appOwned.length > 0
+    return ctx !== undefined &&
+      (ctx.appOwned.length > 0 ||
+        (SQL_MODULES[name].appSubjectTables?.(ctx).length ?? 0) > 0)
       ? [[name, ctx] as const]
       : [];
   });
@@ -262,9 +252,10 @@ export function adoptedTables(
 }
 
 /**
- * Adopt-mode modules that default an optional column to its physical name while
- * the adopted `create table` has no such column. `upgrade` refuses those
- * configs so `has()` does not treat a missing column as present.
+ * The columns the modules write on the app's other tables (`appSubjectTables`,
+ * such as a tag link table) that those tables lack, and the enum columns they
+ * write as text. `upgrade` refuses those configs. A column missing from a
+ * block's own logical table isn't one: the block adds it.
  */
 export function adoptedColumnProblems(
   modules: AnyBlocksConfig,
@@ -273,77 +264,24 @@ export function adoptedColumnProblems(
   ownTables?: Readonly<Record<string, string>>,
 ): readonly string[] {
   const declared = declaredTableColumns(files, schemas);
-  const problems: string[] = [];
 
-  for (const name of Object.keys(modules)) {
-    if ((modules[name]?.mode ?? "managed") !== "adopt") {
-      continue;
+  const problems = adoptedTables(modules, ownTables).flatMap((table) => {
+    const columns = declared.get(`${table.schema}.${table.table}`);
+
+    if (
+      columns === undefined ||
+      SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined
+    ) {
+      return [];
     }
 
-    const spec = SQL_MODULES[name]?.names?.tables;
-
-    if (spec === undefined) {
-      continue;
-    }
-
-    const ctx = moduleContext(name, { modules }, Object.keys(modules));
-    const unchecked = unusedColumns(name, ctx);
-
-    for (const [logical, table] of Object.entries(spec)) {
-      if (
-        !ctx.hasTable(logical) ||
-        !canBeAppTable(table, ctx.config.tables[logical])
-      ) {
-        continue;
-      }
-
-      const { schema, name: tableName } = ctx.tableName(logical);
-      const columns = declared.get(`${schema}.${tableName}`);
-
-      if (columns === undefined) {
-        continue;
-      }
-
-      for (const [column, physical] of Object.entries(table.columns)) {
-        if (
-          !table.optional?.includes(column) ||
-          !ctx.has(logical, column) ||
-          unchecked[logical]?.includes(column)
-        ) {
-          continue;
-        }
-
-        const mapped = ctx.config.columns[logical]?.[column];
-        const used = mapped ?? physical;
-
-        if (columns.has(used)) {
-          continue;
-        }
-
-        problems.push(
-          `blocks.${name} is in adopt mode and uses ${schema}.${tableName}.${used} (${logical}.${column}), but that column is not in the table. Map blocks.${name}.columns.${logical}.${column} to null, or add the column.`,
-        );
-      }
-    }
-
-    for (const extra of SQL_MODULES[name]?.appSubjectTables?.(ctx) ?? []) {
-      const columns = declared.get(`${extra.schema}.${extra.table}`);
-
-      if (columns === undefined) {
-        continue;
-      }
-
-      for (const [column, physical] of Object.entries(extra.columns)) {
-        if (physical === null || columns.has(physical)) {
-          continue;
-        }
-
-        problems.push(
-          `blocks.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set blocks.${name}.on so that column matches the table, or add the column.`,
-        );
-      }
-    }
-  }
+    return Object.entries(table.columns)
+      .filter(([, physical]) => !columns.has(physical))
+      .map(
+        ([column, physical]) =>
+          `blocks.${table.module} uses ${table.schema}.${table.table}.${physical} (${table.logical}.${column}), but that column is not in the table. Set blocks.${table.module}.on so that column matches the table, or add the column.`,
+      );
+  });
 
   return [
     ...problems,

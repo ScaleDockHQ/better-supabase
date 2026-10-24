@@ -75,11 +75,11 @@ const provider = (
 function providerLayout(schema: string, canAssignFor?: string): BlockSqlLayout {
   return {
     accessProvider: provider(schema, canAssignFor),
+    ownTables: { [`${schema}.team_members`]: "app.sql" },
     modules: {
       permissions: { model: "provider" },
       memberships: {
         schema,
-        mode: "adopt",
         tables: { memberships: `${schema}.team_members` },
         columns: { memberships: { updatedAt: null, lastUsedAt: null } },
       },
@@ -88,7 +88,7 @@ function providerLayout(schema: string, canAssignFor?: string): BlockSqlLayout {
   };
 }
 
-describe.skipIf(!live)("invitations in adopted tables", () => {
+describe.skipIf(!live)("invitations over the app's own tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -566,11 +566,14 @@ function sharedLayout(schema: string): BlockSqlLayout {
 
   return {
     accessProvider: provider(schema),
+    ownTables: {
+      [`${schema}.team_members`]: "app.sql",
+      [`${schema}.invitations`]: "app.sql",
+    },
     modules: {
       permissions: { model: "provider" },
       memberships: {
         schema,
-        mode: "adopt",
         tables: { memberships: `${schema}.team_members` },
         columns: {
           memberships: { role: "role_id", updatedAt: null, lastUsedAt: null },
@@ -581,7 +584,6 @@ function sharedLayout(schema: string): BlockSqlLayout {
       },
       invitations: {
         schema,
-        mode: "adopt",
         tables: {
           invitations: `${schema}.invitations`,
           platformInvitations: `${schema}.invitations`,

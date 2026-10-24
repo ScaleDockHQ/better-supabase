@@ -3303,10 +3303,10 @@ values ('impersonation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_020_impersonation.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
--- @bsb-block impersonation@2 adopt
--- @bsb-hash sha256:70ae55802dd51824a571a64dc008a121513903d128ab84b29657de55dc3c06d1
+-- @bsb-block impersonation@2 managed
+-- @bsb-hash sha256:e0296c8be69e8044155761414e130b426108578fa09f7911c277400e53d8fed2
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3347,31 +3347,48 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.support_sessions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."support_sessions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."support_sessions" add column if not exists "admin_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."support_sessions" add column if not exists "target_user_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."support_sessions" add column if not exists "reason" text;
+alter table "better_supabase"."support_sessions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."support_sessions" add column if not exists "read_only" boolean not null default true;
+alter table "better_supabase"."support_sessions" add column if not exists "started_at" timestamptz not null default now();
+alter table "better_supabase"."support_sessions" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."support_sessions" add column if not exists "ended_at" timestamptz;
+alter table "better_supabase"."support_sessions" add column if not exists "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked'));
+alter table "better_supabase"."support_sessions" add column if not exists "metadata" jsonb not null default '{}';
+create index if not exists support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
+create index if not exists support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
+create unique index if not exists support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
+alter table "better_supabase"."support_sessions" enable row level security;
+grant select on "better_supabase"."support_sessions" to service_role;
+-- Platform staff read every session.
+drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
+create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+  using ((select "better_supabase"."is_platform"('support.read')));
+grant select on "better_supabase"."support_sessions" to authenticated;
+
 -- A support session waits for a second admin: the requester asks here, and
 -- another admin approves. Rows are written only through the functions below.
-create table if not exists "better_supabase"."support_requests" (
-  "id" uuid primary key default gen_random_uuid(),
-  "admin_id" uuid not null references auth.users (id) on delete cascade,
-  "target_user_id" uuid not null references auth.users (id) on delete cascade,
-  "reason" text not null,
-  "organization_id" uuid,
-  "read_only" boolean not null default true,
-  "metadata" jsonb not null default '{}',
-  "requested_at" timestamptz not null default now(),
-  "expires_at" timestamptz not null,
-  "approved_by" uuid references auth.users (id) on delete set null,
-  "approved_at" timestamptz,
-  -- The session the approval started; an approval starts one session.
-  "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
-);
+-- better_supabase.support_requests is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."support_requests" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."support_requests" add column if not exists "admin_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."support_requests" add column if not exists "target_user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."support_requests" add column if not exists "reason" text;
+alter table "better_supabase"."support_requests" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."support_requests" add column if not exists "read_only" boolean not null default true;
+alter table "better_supabase"."support_requests" add column if not exists "metadata" jsonb not null default '{}';
+alter table "better_supabase"."support_requests" add column if not exists "requested_at" timestamptz not null default now();
+alter table "better_supabase"."support_requests" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."support_requests" add column if not exists "approved_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."support_requests" add column if not exists "approved_at" timestamptz;
+alter table "better_supabase"."support_requests" add column if not exists "session_id" uuid;
 create index if not exists support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index if not exists support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
 create index if not exists support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
 alter table "better_supabase"."support_requests" enable row level security;
-revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
@@ -4017,6 +4034,14 @@ grant execute on function "better_supabase"."expire_support_sessions"() to servi
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
 create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
   for all to authenticated
@@ -4040,16 +4065,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_020_impersonation.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block-data impersonation
--- @bsb-hash sha256:39a20fc03c6d2b8cd9871162352275e55c1d02933dca376759c76eeb409f5308
+-- @bsb-hash sha256:5b75ec6020bd1354c5949a5872776c45a105f49ad9d7557d8968fcebf0428695
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('impersonation', 2, 'adopt')
+values ('impersonation', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

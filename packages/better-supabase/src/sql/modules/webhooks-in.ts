@@ -848,7 +848,7 @@ export const WEBHOOKS_IN: BlockSqlDefinition = {
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",
   requires: ["permissions", "updated-at", "webhook-inbox"],
   target: "schema",
-  modes: ["managed", "adopt"],
+  modes: ["managed"],
   names: {
     events: EVENTS,
     tables: {

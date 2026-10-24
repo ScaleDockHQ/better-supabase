@@ -6,16 +6,23 @@ import { moduleContext } from "../../../src/sql/module-context.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const audit = (config: BlockConfig = {}) =>
   moduleBody("audit", { modules: { audit: config } })!;
+
+/** The audit module over the app's own log tables. */
+const appAudit = (config: BlockConfig) => {
+  const modules = { audit: config };
+
+  return moduleBody("audit", { modules, ownTables: ownTablesOf(modules) })!;
+};
 
 /**
  * CentraKit's audit tables: uuid ids, no row snapshots, restricted details
  * apart.
  */
 const CENTRAKIT: BlockConfig = {
-  mode: "adopt",
   tables: {
     log: "public.audit_logs",
     restricted: "public.audit_log_restricted_details",
@@ -79,8 +86,8 @@ describe("audit module", () => {
     expect(file!.contents).not.toContain("audit_log;");
   });
 
-  it("maps onto adopted tables without creating them", () => {
-    const sql = audit(CENTRAKIT);
+  it("maps onto the app's tables without creating them", () => {
+    const sql = appAudit(CENTRAKIT);
     expect(sql).not.toContain("create table if not exists public");
     expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).toContain(
@@ -216,8 +223,8 @@ describe("audit module", () => {
     expect(sql).not.toContain("'x-correlation-id'");
   });
 
-  it("records the ids on an adopted log that maps them, and indexes only managed logs", () => {
-    const sql = audit({
+  it("records the ids on the app's log when it maps them, and indexes them", () => {
+    const sql = appAudit({
       ...CENTRAKIT,
       columns: {
         ...CENTRAKIT.columns,
@@ -228,7 +235,9 @@ describe("audit module", () => {
     expect(sql).toMatch(
       /insert into "public"\."audit_logs" \([^)]*"trace_group"/,
     );
-    expect(sql).not.toContain("audit_events_correlation_idx");
+    expect(sql).toMatch(
+      /audit_events_correlation_idx on "public"\."audit_logs" \("trace_group"\)/,
+    );
   });
 
   it("upgrades from versions 5 to 8 without SQL of their own", () => {
@@ -254,7 +263,7 @@ describe("audit module", () => {
       'drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";',
     );
     expect(audit()).not.toContain("verify_audit_chain");
-    expect(audit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
+    expect(appAudit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
       "audit_chain",
     );
 
@@ -321,8 +330,7 @@ describe("audit module", () => {
 });
 
 describe("audit value mapping", () => {
-  const ADOPTED: BlockConfig = {
-    mode: "adopt",
+  const APP_LOG: BlockConfig = {
     tables: { log: "public.activity_log" },
     columns: {
       log: {
@@ -345,9 +353,9 @@ describe("audit value mapping", () => {
     },
   };
 
-  it("fills an adopted log's own columns from metadata keys", () => {
-    const sql = audit({
-      ...ADOPTED,
+  it("fills the app's log columns from metadata keys", () => {
+    const sql = appAudit({
+      ...APP_LOG,
       options: { metadataColumns: { ticket_id: "ticketId" } },
     });
 
@@ -364,15 +372,15 @@ describe("audit value mapping", () => {
       `'columns', jsonb_build_object('ticket_id', l."ticket_id")`,
     );
     expect(
-      audit({
-        ...ADOPTED,
+      appAudit({
+        ...APP_LOG,
         options: {
           metadataColumns: { ticket_id: "ticketId" },
           keepMappedMetadata: true,
         },
       }),
     ).toContain("'metadata', coalesce(metadata, '{}'),");
-    expect(audit(ADOPTED)).not.toContain("entry_row");
+    expect(appAudit(APP_LOG)).not.toContain("entry_row");
     expect(sql).toContain(
       "request_id text default null,\n  scope text default null",
     );
@@ -380,15 +388,18 @@ describe("audit value mapping", () => {
       audit({ options: { metadataColumns: { ticket_id: "ticketId" } } }),
     ).toThrow(/your own log table/);
     expect(() =>
-      audit({ ...ADOPTED, options: { metadataColumns: { scope: "scope" } } }),
+      appAudit({
+        ...APP_LOG,
+        options: { metadataColumns: { scope: "scope" } },
+      }),
     ).toThrow(/already fills it/);
     expect(() =>
-      audit({ ...ADOPTED, options: { metadataColumns: { ticket_id: 1 } } }),
+      appAudit({ ...APP_LOG, options: { metadataColumns: { ticket_id: 1 } } }),
     ).toThrow(/metadata key/);
   });
 
-  it("writes the adopted log's values and reads them back as the module's", () => {
-    const sql = audit(ADOPTED);
+  it("writes the app's log values and reads them back as the module's", () => {
+    const sql = appAudit(APP_LOG);
     expect(sql).toContain(
       "case (case when row_tenant is null then 'platform' else 'tenant' end) when 'tenant' then 'workspace' when 'platform' then 'global' else",
     );
@@ -427,33 +438,36 @@ describe("audit value mapping", () => {
     expect(sql).not.toContain("case ('success')");
   });
 
-  it("accepts values only in adopt mode and checks their shape", () => {
+  it("accepts values only over the app's log and checks their shape", () => {
     expect(() =>
       audit({ options: { values: { outcome: { success: "ok" } } } }),
     ).toThrow(/It fits only a block over a table your schema already has/);
     expect(() =>
-      audit({ ...ADOPTED, options: { values: { op: { insert: "i" } } } }),
+      appAudit({ ...APP_LOG, options: { values: { op: { insert: "i" } } } }),
     ).toThrow(/unknown column "op"/);
     expect(() =>
-      audit({
-        ...ADOPTED,
+      appAudit({
+        ...APP_LOG,
         options: { values: { outcome: { success: "ok", failure: "ok" } } },
       }),
     ).toThrow(/two values map to "ok"/);
     expect(() =>
-      audit({ ...ADOPTED, options: { values: { outcome: { success: 1 } } } }),
+      appAudit({
+        ...APP_LOG,
+        options: { values: { outcome: { success: 1 } } },
+      }),
     ).toThrow(/must be a string/);
     expect(() =>
-      audit({ ...ADOPTED, options: { tenantLabel: "workspaces" } }),
+      appAudit({ ...APP_LOG, options: { tenantLabel: "workspaces" } }),
     ).toThrow(/must be "schema.table.column"/);
-    expect(() => audit({ ...ADOPTED, options: { tenantLabel: 5 } })).toThrow(
+    expect(() => appAudit({ ...APP_LOG, options: { tenantLabel: 5 } })).toThrow(
       /tenantLabel must be a string/,
     );
-    expect(() => audit({ ...ADOPTED, options: { values: "ok" } })).toThrow(
+    expect(() => appAudit({ ...APP_LOG, options: { values: "ok" } })).toThrow(
       /values must be an object/,
     );
     expect(() =>
-      audit({ ...ADOPTED, options: { values: { outcome: "ok" } } }),
+      appAudit({ ...APP_LOG, options: { values: { outcome: "ok" } } }),
     ).toThrow(/must map values to values/);
   });
 
@@ -529,8 +543,9 @@ describe("audit revert", () => {
   const sqlOf = (
     config: BlockConfig = {},
     modules = ["permissions", "audit"],
+    ownTables: Record<string, string> = {},
   ) =>
-    renderBlocks(modules, { modules: { audit: config } })
+    renderBlocks(modules, { modules: { audit: config }, ownTables })
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)
       .join("\n");
@@ -550,7 +565,13 @@ describe("audit revert", () => {
 
   it("needs the access module and the row snapshots", () => {
     expect(sqlOf({}, ["audit"])).not.toContain("revert_audit_entries");
-    expect(sqlOf(CENTRAKIT)).not.toContain("revert_audit_entries");
+    expect(
+      sqlOf(
+        CENTRAKIT,
+        ["permissions", "audit"],
+        ownTablesOf({ audit: CENTRAKIT }),
+      ),
+    ).not.toContain("revert_audit_entries");
   });
 });
 

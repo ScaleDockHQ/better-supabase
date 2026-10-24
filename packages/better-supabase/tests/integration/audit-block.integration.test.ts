@@ -86,7 +86,7 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
-  it("maps an adopted log's values and labels tenants from the app's table", async () => {
+  it("maps values in the app's own log and labels tenants from the app's table", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
     const log = `public.bsb_activity_${suffix}`;
@@ -104,9 +104,9 @@ describe.skipIf(!live)("audit block", () => {
           scope text, workspace_name text, metadata jsonb
         );`);
       await s.install(["audit"], {
+        ownTables: { [log]: "app.sql" },
         modules: {
           audit: {
-            mode: "adopt",
             tables: { log },
             columns: {
               log: {
@@ -269,7 +269,7 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
-  it("fills an adopted log's column derived from the actor through a generated column", async () => {
+  it("fills a column of the app's own log derived from the actor through a generated column", async () => {
     const s = await BlockSession.open(pool);
     const log = `public.bsb_staff_log_${crypto.randomUUID().slice(0, 8)}`;
 
@@ -286,9 +286,9 @@ describe.skipIf(!live)("audit block", () => {
             generated always as (coalesce(actor_kind = 'platform_admin', false)) stored
         );`);
       await s.install(["audit"], {
+        ownTables: { [log]: "app.sql" },
         modules: {
           audit: {
-            mode: "adopt",
             tables: { log },
             columns: {
               log: {
@@ -353,7 +353,7 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
-  it("records events with a request id, a scope and metadata in adopted columns", async () => {
+  it("records events with a request id, a scope and metadata in the app's columns", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
     const log = `public.bsb_activity_${suffix}`;
@@ -370,9 +370,9 @@ describe.skipIf(!live)("audit block", () => {
           priority integer not null default 3
         );`);
       await s.install(["audit"], {
+        ownTables: { [log]: "app.sql" },
         modules: {
           audit: {
-            mode: "adopt",
             tables: { log },
             columns: {
               log: {

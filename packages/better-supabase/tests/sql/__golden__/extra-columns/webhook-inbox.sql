@@ -2,7 +2,7 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@8 managed
 -- @bsb-hash sha256:ce21863503890fd3680c39a4a806e6fd59ab712f6a1fdbe8aab8d212ca8ab05c
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

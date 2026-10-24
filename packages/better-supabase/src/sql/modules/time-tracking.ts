@@ -1056,7 +1056,7 @@ export const TIME_TRACKING: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "approvals"],
   integrates: ["outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 3,
   upgrades: [
     {

@@ -1936,10 +1936,10 @@ values ('versions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_074_versions.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 adopt
--- @bsb-hash sha256:650a124157139b1ba14d62c4967f12a266e7f6c948826bb8bf3f3f8ea453f861
+-- @bsb-block versions@1 managed
+-- @bsb-hash sha256:60f7a7925e57863b8bb890b3be2b70169ce0931e1ee2f070c43154b052b2eb7d
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1980,6 +1980,27 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.versions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."versions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."versions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."versions" add column if not exists "subject_type" text;
+alter table "better_supabase"."versions" add column if not exists "subject_id" text;
+alter table "better_supabase"."versions" add column if not exists "number" integer check ("number" > 0);
+alter table "better_supabase"."versions" add column if not exists "label" text check (length("label") between 1 and 120);
+alter table "better_supabase"."versions" add column if not exists "content" jsonb;
+alter table "better_supabase"."versions" add column if not exists "storage_path" text;
+alter table "better_supabase"."versions" add column if not exists "content_hash" text;
+alter table "better_supabase"."versions" add column if not exists "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore'));
+alter table "better_supabase"."versions" add column if not exists "frozen" boolean not null default false;
+alter table "better_supabase"."versions" add column if not exists "created_by" uuid;
+alter table "better_supabase"."versions" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
+alter table "better_supabase"."versions" enable row level security;
+grant select on "better_supabase"."versions" to authenticated;
+grant all on "better_supabase"."versions" to service_role;
+drop policy if exists versions_read on "better_supabase"."versions";
+create policy versions_read on "better_supabase"."versions" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
 -- content matches the latest is not written again; an auto snapshot within
@@ -2321,6 +2342,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2334,16 +2367,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:36c5518309eb34b7c57ac13f85600b0cd4d7b3b4e95d3638690e161632bbe1b5
+-- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'adopt')
+values ('versions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

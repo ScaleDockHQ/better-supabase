@@ -626,7 +626,7 @@ export const SAVED_VIEWS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "teams", "collections"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

@@ -822,7 +822,7 @@ export const RELATIONS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

@@ -910,7 +910,7 @@ export const INVITATIONS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor", "isPlatformFor", "canAssignFor"],
   target: "schema",
   version: 2,
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract: (ctx) => [
     {

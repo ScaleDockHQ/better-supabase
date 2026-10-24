@@ -1025,10 +1025,10 @@ values ('service-accounts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
--- @bsb-block service-accounts@1 adopt
--- @bsb-hash sha256:5329e07484086fbd4cfc35d8e87efd2ce8eb4f6e8d6f7889ba7572d9d944eb99
+-- @bsb-block service-accounts@1 managed
+-- @bsb-hash sha256:35a6648dc9b3402d5d90eb363415b64c47e591b8995fe64373e8aea9410777e4
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1040,6 +1040,22 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
+-- better_supabase.service_principals is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."service_principals" add column if not exists "id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."service_principals" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."service_principals" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."service_principals" add column if not exists "role" text check (length("role") between 1 and 200);
+alter table "better_supabase"."service_principals" add column if not exists "is_default" boolean not null default false;
+alter table "better_supabase"."service_principals" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."service_principals" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."service_principals" add column if not exists "disabled_at" timestamptz;
+create index if not exists service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
+create index if not exists service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
+create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
+  where "is_default" and "disabled_at" is null;
+alter table "better_supabase"."service_principals" enable row level security;
+grant select on "better_supabase"."service_principals" to authenticated;
+grant all on "better_supabase"."service_principals" to service_role;
 
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals" for select to authenticated
@@ -1228,16 +1244,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block-data service-accounts
--- @bsb-hash sha256:01fb5076c92ec3ea7dc8c6650c18491a99497195aee20c9d181de03b094b8a12
+-- @bsb-hash sha256:2d9091abeb693d8556dc11a1b6b34bbc1e216cb6c5198c9d7c58f6dad7b37ec1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('service-accounts', 1, 'adopt')
+values ('service-accounts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

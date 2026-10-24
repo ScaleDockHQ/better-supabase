@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (
   modules: readonly string[],
@@ -66,36 +67,35 @@ describe("employees module", () => {
     ).toThrow(/depth/);
   });
 
-  it("adopts an employees table without the optional columns and tables", () => {
-    const layout = {
-      modules: {
-        employees: {
-          mode: "adopt" as const,
-          tables: {
-            employees: "hr.staff",
-            privateDetails: null,
-            contracts: null,
-          },
-          columns: {
-            employees: {
-              tenant: "organization_id",
-              email: null,
-              jobTitle: null,
-              team: null,
-              employmentType: null,
-              startDate: null,
-              endDate: null,
-              offboardReason: null,
-              originType: null,
-              originId: null,
-              createdBy: null,
-              createdAt: null,
-              updatedAt: null,
-            },
+  it("runs over the app's employees table without the optional columns and tables", () => {
+    const modules = {
+      employees: {
+        tables: {
+          employees: "hr.staff",
+          privateDetails: null,
+          contracts: null,
+        },
+        columns: {
+          employees: {
+            tenant: "organization_id",
+            email: null,
+            jobTitle: null,
+            team: null,
+            employmentType: null,
+            startDate: null,
+            endDate: null,
+            offboardReason: null,
+            originType: null,
+            originId: null,
+            createdBy: null,
+            createdAt: null,
+            updatedAt: null,
           },
         },
       },
     };
+
+    const layout = { modules, ownTables: ownTablesOf(modules) };
 
     const sql = body(["outbox", "hiring", "pipelines", "employees"], layout);
     expect(sql).not.toContain('create table if not exists "hr"');

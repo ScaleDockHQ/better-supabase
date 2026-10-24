@@ -510,7 +510,7 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   integrates: ["permissions", "service-accounts", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 5,
   names: NAMES,
   contract,

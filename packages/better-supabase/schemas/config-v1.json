@@ -3013,7 +3013,7 @@
           }
         },
         "ownership": {
-          "enum": ["managed", "adopt", "custom"],
+          "enum": ["managed", "custom"],
           "type": "string",
           "default": "managed"
         },
@@ -3194,7 +3194,7 @@
           }
         },
         "ownership": {
-          "enum": ["managed", "adopt", "custom"],
+          "enum": ["managed", "custom"],
           "type": "string",
           "default": "managed"
         },

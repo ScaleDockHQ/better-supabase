@@ -841,7 +841,7 @@ export const STATE_MACHINE: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "approvals"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

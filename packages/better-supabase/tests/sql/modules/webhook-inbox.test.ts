@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 describe("webhook-inbox module", () => {
-  const adopted = (columns: Record<string, string | null> = {}) =>
-    moduleBody("webhook-inbox", {
+  const overApp = (columns: Record<string, string | null> = {}) =>
+    renderBlocks(["webhook-inbox"], {
+      ownTables: { "public.inbound_events": "app.sql" },
       modules: {
         "webhook-inbox": {
-          mode: "adopt",
           tables: { messages: "public.inbound_events" },
           columns: {
             messages: {
@@ -21,7 +21,10 @@ describe("webhook-inbox module", () => {
           },
         },
       },
-    })!;
+    })
+      .filter((file) => file.module === "webhook-inbox")
+      .map((file) => file.contents)
+      .join("\n");
 
   it("owns its table in managed mode and refuses renames there", () => {
     const sql = moduleBody("webhook-inbox")!;
@@ -39,9 +42,9 @@ describe("webhook-inbox module", () => {
     ).toThrow(/declare your own table/);
   });
 
-  it("adopts an app's table with renamed and missing columns", () => {
-    const sql = adopted();
-    expect(sql).not.toContain("create table");
+  it("runs over the app's table with renamed and missing columns", () => {
+    const sql = overApp();
+    expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).toContain('insert into "public"."inbound_events"');
     expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
     expect(sql).toContain(
@@ -63,6 +66,6 @@ describe("webhook-inbox module", () => {
   });
 
   it("needs the columns its leases run on", () => {
-    expect(() => adopted({ lockedUntil: null })).toThrow(/lockedUntil/);
+    expect(() => overApp({ lockedUntil: null })).toThrow(/lockedUntil/);
   });
 });

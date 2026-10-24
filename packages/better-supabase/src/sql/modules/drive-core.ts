@@ -299,7 +299,7 @@ ${
     ? `
 drop policy if exists ${ctx.naming.rename("drive_nodes_read")} on ${T};
 create policy ${ctx.naming.rename("drive_nodes_read")} on ${T} for select to authenticated
-  using (${n("deletedAt")} is null and ${canRead(n("id"))});
+  using (${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${canRead(n("id"))});
 `
     : ""
 }${pathTriggers}

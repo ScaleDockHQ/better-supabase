@@ -947,7 +947,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
     "reserved-slugs",
   ],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract: (ctx) =>
     functionsOf(ctx, "{id}").map(([name, args]) => ({

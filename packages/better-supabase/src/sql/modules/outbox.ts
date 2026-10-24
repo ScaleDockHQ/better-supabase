@@ -106,8 +106,8 @@ function names(ctx: BlockSqlContext): Names {
   };
 }
 
-// Cursors and dead letters are module state no app has yet, so adopt mode
-// still creates them.
+// Cursors and dead letters are module state no app has yet, so the block
+// creates them over the app's events table too.
 function consumersTable(n: Names): string {
   return `
 create table if not exists ${n.c} (
@@ -150,8 +150,8 @@ ${lockTable(n.d)}
 }
 
 /**
- * Adopt mode adds the xid column; existing rows get the migration's transaction
- * id.
+ * Over the app's events table the block adds the xid column; existing rows get
+ * the migration's transaction id.
  */
 function adoptXid(n: Names): string {
   if (!n.has("xid")) {
@@ -820,7 +820,7 @@ export const OUTBOX: BlockSqlDefinition = {
     "Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.",
   requires: [],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 5,
   integrates: ["data-lifecycle"],
   names: NAMES,

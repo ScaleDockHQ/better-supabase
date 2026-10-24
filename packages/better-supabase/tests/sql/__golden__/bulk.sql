@@ -1263,10 +1263,10 @@ values ('bulk', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_069_bulk.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
--- @bsb-block bulk@1 adopt
--- @bsb-hash sha256:ad106997536569caf33c3ea3c599f1d60c89c6b1bb6a216f9d375c11f4833d92
+-- @bsb-block bulk@1 managed
+-- @bsb-hash sha256:487497b209c4c0fc15cfaffc919b24ca6cd8ad97b9c33e2f6c6613433e0c25e5
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1323,6 +1323,29 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.bulk_runs is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."bulk_runs" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."bulk_runs" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."bulk_runs" add column if not exists "subject_type" text;
+alter table "better_supabase"."bulk_runs" add column if not exists "action" text;
+alter table "better_supabase"."bulk_runs" add column if not exists "args" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."bulk_runs" add column if not exists "ids" text[];
+alter table "better_supabase"."bulk_runs" add column if not exists "position" integer not null default 0;
+alter table "better_supabase"."bulk_runs" add column if not exists "succeeded" integer not null default 0;
+alter table "better_supabase"."bulk_runs" add column if not exists "failed" integer not null default 0;
+alter table "better_supabase"."bulk_runs" add column if not exists "results" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."bulk_runs" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed'));
+alter table "better_supabase"."bulk_runs" add column if not exists "created_by" uuid;
+alter table "better_supabase"."bulk_runs" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."bulk_runs" add column if not exists "finished_at" timestamptz;
+create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
+alter table "better_supabase"."bulk_runs" enable row level security;
+grant select on "better_supabase"."bulk_runs" to authenticated;
+grant all on "better_supabase"."bulk_runs" to service_role;
+drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
+create policy bulk_runs_read on "better_supabase"."bulk_runs" for select to authenticated
+  using ("created_by" = (select auth.uid()));
 
 create or replace function "better_supabase"."bulk_row"(tenant uuid, subject_type text, subject_id text, action text, args jsonb)
 returns void
@@ -1509,6 +1532,18 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1522,16 +1557,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block-data bulk
--- @bsb-hash sha256:35f20102676fade99d855403d619c2df42d77d524e869a23cadc1bfaac762206
+-- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'adopt')
+values ('bulk', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -9,9 +9,11 @@ import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 const body = (
   sameTenant: unknown,
   tenant: NonNullable<AnyBlocksConfig["tenant"]> = {},
+  ownTables: Readonly<Record<string, string>> = {},
 ) =>
   moduleBody("memberships", {
     modules: { memberships: { ...tenant, options: { sameTenant } } },
+    ownTables,
   })!;
 
 describe("tenant module sameTenant", () => {
@@ -49,10 +51,10 @@ describe("tenant module sameTenant", () => {
     const sql = body(
       [{ table: "notes", column: "deal_id", references: "deals" }],
       {
-        mode: "adopt",
         tables: { memberships: "public.team_members" },
         columns: { memberships: { tenant: "team_id" } },
       },
+      { "public.team_members": "app.sql" },
     );
 
     expect(sql).toContain(

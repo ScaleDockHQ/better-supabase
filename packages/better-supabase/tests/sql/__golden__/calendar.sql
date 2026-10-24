@@ -5013,10 +5013,10 @@ values ('calendar', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_072_calendar.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
--- @bsb-block calendar@1 adopt
--- @bsb-hash sha256:d71eea8d1fa8f9b11655c96a822af14c30ea223082ec7914ea8d07ac9edf1727
+-- @bsb-block calendar@1 managed
+-- @bsb-hash sha256:4958a5f2c24309cb696da9bfccd44ce3cb6e2802e96bc224a6740e3bff6b3d1c
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5073,6 +5073,130 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.calendars is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."calendars" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."calendars" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."calendars" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."calendars" add column if not exists "tz" text not null default 'UTC';
+alter table "better_supabase"."calendars" add column if not exists "color" text;
+alter table "better_supabase"."calendars" add column if not exists "owner_type" text;
+alter table "better_supabase"."calendars" add column if not exists "owner_id" text;
+alter table "better_supabase"."calendars" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."calendars" enable row level security;
+grant select on "better_supabase"."calendars" to authenticated;
+grant all on "better_supabase"."calendars" to service_role;
+create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
+drop policy if exists calendars_read on "better_supabase"."calendars";
+create policy calendars_read on "better_supabase"."calendars" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
+-- better_supabase.calendar_events is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."calendar_events" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."calendar_events" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."calendar_events" add column if not exists "calendar_id" uuid references "better_supabase"."calendars" ("id") on delete cascade;
+alter table "better_supabase"."calendar_events" add column if not exists "uid" text;
+alter table "better_supabase"."calendar_events" add column if not exists "title" text not null default '';
+alter table "better_supabase"."calendar_events" add column if not exists "description" text;
+alter table "better_supabase"."calendar_events" add column if not exists "location" text;
+alter table "better_supabase"."calendar_events" add column if not exists "starts_at" timestamptz;
+alter table "better_supabase"."calendar_events" add column if not exists "ends_at" timestamptz;
+alter table "better_supabase"."calendar_events" add column if not exists "all_day" boolean not null default false;
+alter table "better_supabase"."calendar_events" add column if not exists "tz" text not null default 'UTC';
+alter table "better_supabase"."calendar_events" add column if not exists "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled'));
+alter table "better_supabase"."calendar_events" add column if not exists "rrule" text;
+alter table "better_supabase"."calendar_events" add column if not exists "exdates" timestamptz[] not null default '{}';
+alter table "better_supabase"."calendar_events" add column if not exists "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade;
+alter table "better_supabase"."calendar_events" add column if not exists "original_start" timestamptz;
+alter table "better_supabase"."calendar_events" add column if not exists "subject_type" text;
+alter table "better_supabase"."calendar_events" add column if not exists "subject_id" text;
+alter table "better_supabase"."calendar_events" add column if not exists "color" text;
+alter table "better_supabase"."calendar_events" add column if not exists "kind" text not null default 'event';
+alter table "better_supabase"."calendar_events" add column if not exists "transparency" text not null default 'opaque';
+alter table "better_supabase"."calendar_events" add column if not exists "auto_decline" boolean not null default false;
+alter table "better_supabase"."calendar_events" add column if not exists "created_by" uuid;
+alter table "better_supabase"."calendar_events" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."calendar_events" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
+create index if not exists calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
+alter table "better_supabase"."calendar_events" add column if not exists "kind" text not null default 'event';
+alter table "better_supabase"."calendar_events" add column if not exists "transparency" text not null default 'opaque';
+alter table "better_supabase"."calendar_events" add column if not exists "auto_decline" boolean not null default false;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_events"'::regclass and conname = 'calendar_events_kind_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_events"', 'calendar_events_kind_check', '"better_supabase"."calendar_events"', 'calendar_events_kind_check';
+    end;
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_events"'::regclass and conname = 'calendar_events_transparency_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_events"', 'calendar_events_transparency_check', '"better_supabase"."calendar_events"', 'calendar_events_transparency_check';
+    end;
+  end if;
+end;
+$$;
+alter table "better_supabase"."calendar_events" enable row level security;
+grant select on "better_supabase"."calendar_events" to authenticated;
+grant all on "better_supabase"."calendar_events" to service_role;
+drop policy if exists calendar_events_read on "better_supabase"."calendar_events";
+create policy calendar_events_read on "better_supabase"."calendar_events" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
+-- better_supabase.calendar_attendees is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."calendar_attendees" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."calendar_attendees" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."calendar_attendees" add column if not exists "event_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade;
+alter table "better_supabase"."calendar_attendees" add column if not exists "email" text;
+alter table "better_supabase"."calendar_attendees" add column if not exists "name" text;
+alter table "better_supabase"."calendar_attendees" add column if not exists "user_id" uuid;
+alter table "better_supabase"."calendar_attendees" add column if not exists "role" text not null default 'required';
+alter table "better_supabase"."calendar_attendees" add column if not exists "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative'));
+alter table "better_supabase"."calendar_attendees" enable row level security;
+grant select on "better_supabase"."calendar_attendees" to authenticated;
+grant all on "better_supabase"."calendar_attendees" to service_role;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check', '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check';
+    end;
+  end if;
+end;
+$$;
+drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
+create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
+-- better_supabase.calendar_working_hours is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."calendar_working_hours" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."calendar_working_hours" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."calendar_working_hours" add column if not exists "user_id" uuid;
+alter table "better_supabase"."calendar_working_hours" add column if not exists "weekday" smallint check ("weekday" between 1 and 7);
+alter table "better_supabase"."calendar_working_hours" add column if not exists "starts_at" time;
+alter table "better_supabase"."calendar_working_hours" add column if not exists "ends_at" time;
+alter table "better_supabase"."calendar_working_hours" add column if not exists "tz" text not null default 'UTC';
+alter table "better_supabase"."calendar_working_hours" enable row level security;
+grant select on "better_supabase"."calendar_working_hours" to authenticated;
+grant all on "better_supabase"."calendar_working_hours" to service_role;
+drop policy if exists calendar_working_hours_read on "better_supabase"."calendar_working_hours";
+create policy calendar_working_hours_read on "better_supabase"."calendar_working_hours" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 
 create or replace function "better_supabase"."create_calendar"(tenant uuid, name text, tz text, owner_type text, owner_id text)
 returns jsonb
@@ -6011,6 +6135,42 @@ for each row
 when (new."kind" <> 'event' and new."auto_decline" and new."status" <> 'cancelled' and new."rrule" is null)
 execute function "better_supabase"."calendar_block_auto_decline"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."calendars";
+create policy bsb_tenant_scope on "better_supabase"."calendars" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_events";
+create policy bsb_tenant_scope on "better_supabase"."calendar_events" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_attendees";
+create policy bsb_tenant_scope on "better_supabase"."calendar_attendees" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_working_hours";
+create policy bsb_tenant_scope on "better_supabase"."calendar_working_hours" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -6024,16 +6184,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_072_calendar.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block-data calendar
--- @bsb-hash sha256:bd0cd11ee964b00c7aa0d7f06acb150a991104888cfc89284f7e3caedb9cfb15
+-- @bsb-hash sha256:d394b8cd042344b4f2cc937a4b1a75f47403ab3daa823c307e6f4711cc462311
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('calendar', 1, 'adopt')
+values ('calendar', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

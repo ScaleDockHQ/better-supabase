@@ -127,7 +127,7 @@ export const DRIVE: BlockSqlDefinition = {
   before: "comments",
   integrates: [...INTEGRATES],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

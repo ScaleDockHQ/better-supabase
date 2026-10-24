@@ -961,7 +961,7 @@ export const AUDIT: BlockSqlDefinition = {
       ? ["permissions"]
       : [],
   target: "schema",
-  modes: ["managed", "adopt"],
+  modes: ["managed"],
   version: 9,
   names: NAMES,
   contract: (ctx) => [

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
+
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (layout: Parameters<typeof renderBlocks>[1] = {}): string =>
   renderBlocks(["tags"], layout)
@@ -9,12 +13,17 @@ const sqlOf = (layout: Parameters<typeof renderBlocks>[1] = {}): string =>
     .map((file) => file.contents)
     .join("\n");
 
+const overApp = (modules: AnyBlocksConfig): BlockSqlLayout => ({
+  modules,
+  ownTables: ownTablesOf(modules),
+});
+
 describe("tags module", () => {
-  it("deletes a per-subject link row in adopt mode", () => {
-    const sql = renderBlocks(["tags"], {
-      modules: {
+  it("deletes a per-subject link row over the app's tags table", () => {
+    const sql = renderBlocks(
+      ["tags"],
+      overApp({
         tags: {
-          mode: "adopt",
           tables: { tags: "public.organization_tags", taggings: null },
           on: {
             task: {
@@ -27,8 +36,8 @@ describe("tags module", () => {
             },
           },
         },
-      },
-    })
+      }),
+    )
       .map((file) => file.contents)
       .join("\n");
 
@@ -49,16 +58,15 @@ describe("tags module", () => {
     expect(sql).not.toContain("position");
   });
 
-  it("leaves rank out when an adopted table maps no rank column", () => {
-    const sql = sqlOf({
-      modules: {
+  it("leaves rank out when the app's tags table maps no rank column", () => {
+    const sql = sqlOf(
+      overApp({
         tags: {
-          mode: "adopt",
           tables: { tags: "public.labels", taggings: null },
           columns: { tags: { rank: null } },
         },
-      },
-    });
+      }),
+    );
 
     expect(sql).not.toContain("rank_tag");
     expect(sql).not.toContain(`"rank"`);
@@ -80,10 +88,9 @@ describe("tags module", () => {
   });
 
   it("limits a subject to its kinds and links rows with tenant and time", () => {
-    const sql = sqlOf({
-      modules: {
+    const sql = sqlOf(
+      overApp({
         tags: {
-          mode: "adopt",
           tables: { tags: "public.labels", taggings: null },
           columns: { tags: { rank: null } },
           on: {
@@ -100,8 +107,8 @@ describe("tags module", () => {
             },
           },
         },
-      },
-    });
+      }),
+    );
 
     expect(sql).toContain(`v_kind = any ('{label,topic}'::text[])`);
     expect(sql).toContain(
@@ -151,15 +158,11 @@ describe("tags module", () => {
     );
   });
 
-  it("skips the rank upgrade on an adopted table", () => {
-    const [plan] = upgradePlan([{ module: "tags", version: 1 }], {
-      modules: {
-        tags: {
-          mode: "adopt",
-          tables: { tags: "public.labels", taggings: null },
-        },
-      },
-    });
+  it("skips the rank upgrade on the app's tags table", () => {
+    const [plan] = upgradePlan(
+      [{ module: "tags", version: 1 }],
+      overApp({ tags: { tables: { tags: "public.labels", taggings: null } } }),
+    );
 
     expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
   });

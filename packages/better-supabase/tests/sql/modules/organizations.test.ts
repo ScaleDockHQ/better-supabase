@@ -5,11 +5,11 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   permissions: { model: "catalog", platformClaim: "system_permissions" },
   memberships: {
-    mode: "adopt",
     tables: { memberships: "public.organization_users" },
     columns: {
       memberships: {
@@ -20,7 +20,6 @@ const CENTRAKIT: AnyBlocksConfig = {
     },
   },
   organizations: {
-    mode: "adopt",
     tables: { organizations: "public.organizations" },
     columns: { organizations: { createdBy: null, deletedAt: null } },
     permissions: { removeMember: "organization.members.remove" },
@@ -35,8 +34,20 @@ const CENTRAKIT: AnyBlocksConfig = {
   },
 };
 
-const body = (modules: AnyBlocksConfig) =>
-  moduleBody("organizations", { modules, accessProvider: moduleProvider })!;
+const CENTRAKIT_TABLES = ownTablesOf(CENTRAKIT, [
+  "memberships",
+  "organizations",
+]);
+
+const body = (
+  modules: AnyBlocksConfig,
+  ownTables: Readonly<Record<string, string>> = {},
+) =>
+  moduleBody("organizations", {
+    modules,
+    ownTables,
+    accessProvider: moduleProvider,
+  })!;
 
 describe("organizations module", () => {
   it("lists the caller's organizations, members and invitations", () => {
@@ -55,14 +66,15 @@ describe("organizations module", () => {
   });
 
   it("resolves role keys among the tenant's own roles with a mapped roles.tenant", () => {
-    const sql = body({
+    const modules: AnyBlocksConfig = {
       permissions: {
         model: "catalog",
-        mode: "adopt",
         tables: { roles: "public.roles" },
         columns: { roles: { tenant: "organization_id", scope: null } },
       },
-    });
+    };
+
+    const sql = body(modules, ownTablesOf(modules, ["permissions"]));
 
     expect(sql).toContain(
       `(select r."id" from "public"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) and (r."organization_id" = organization or r."organization_id" is null) order by (r."id"::text = (role)::text) desc, (r."organization_id" is not null) desc limit 1)`,
@@ -192,9 +204,16 @@ describe("organizations module", () => {
     );
   });
 
-  it("adopts CentraKit's tables with catalog role ids and its seeding hook", () => {
-    const sql = body(CENTRAKIT);
-    expect(sql).not.toContain("create table if not exists");
+  it("runs over CentraKit's tables with catalog role ids and its seeding hook", () => {
+    const sql = renderBlocks(["organizations"], {
+      modules: CENTRAKIT,
+      ownTables: CENTRAKIT_TABLES,
+      accessProvider: moduleProvider,
+    }).find((file) => file.module === "organizations")!.contents;
+
+    expect(sql).not.toContain(
+      'create table if not exists "public"."organizations"',
+    );
     expect(sql).toContain(
       `'insert into "public"."organizations" ("name", "slug"%s) select r."name", r."slug"%s from`,
     );
@@ -259,16 +278,16 @@ describe("organizations module", () => {
     expect(body({})).not.toContain("attributes jsonb");
   });
 
-  it("returns adopted attribute columns from mine", () => {
-    const sql = moduleBody("organizations", {
-      modules: CENTRAKIT,
-      accessProvider: moduleProvider,
-    })!;
+  it("returns the app's attribute columns from mine", () => {
+    const sql = body(CENTRAKIT, CENTRAKIT_TABLES);
 
     expect(sql).toContain(
       `jsonb_build_object('website', o."website", 'default_currency', o."default_currency")`,
     );
-    expect(sql).not.toContain("add column if not exists");
+
+    for (const column of ["website", "default_currency"]) {
+      expect(sql).not.toContain(`add column if not exists "${column}"`);
+    }
   });
 
   it("calls before_organization_update and after_organization_update", () => {
@@ -282,17 +301,17 @@ describe("organizations module", () => {
   });
 
   it("leaves role checks to an external guard on request", () => {
-    const adopted: AnyBlocksConfig = {
-      memberships: {
-        mode: "adopt",
-        tables: { memberships: "public.team_members" },
-      },
+    const appMemberships: AnyBlocksConfig = {
+      memberships: { tables: { memberships: "public.team_members" } },
     };
 
-    const external = body({
-      ...adopted,
-      organizations: { options: { assignmentGuard: "external" } },
-    });
+    const external = body(
+      {
+        ...appMemberships,
+        organizations: { options: { assignmentGuard: "external" } },
+      },
+      ownTablesOf(appMemberships),
+    );
 
     expect(external).not.toContain(
       'create or replace function "better_supabase"."guard_membership"',
@@ -358,7 +377,6 @@ describe("roles through a lookup table", () => {
   const THROUGH: AnyBlocksConfig = {
     permissions: { model: "provider" },
     memberships: {
-      mode: "adopt",
       tables: { memberships: "public.team_members" },
       columns: { memberships: { tenant: "team_id", role: "role_id" } },
       options: {
@@ -367,8 +385,10 @@ describe("roles through a lookup table", () => {
     },
   };
 
+  const THROUGH_TABLES = ownTablesOf(THROUGH, ["memberships"]);
+
   it("stores role ids and checks and assigns by role name", () => {
-    const sql = body(THROUGH);
+    const sql = body(THROUGH, THROUGH_TABLES);
     expect(sql).toContain(
       `can_assign(target_tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (target_role)::text))`,
     );
@@ -379,6 +399,7 @@ describe("roles through a lookup table", () => {
 
     const tenant = moduleBody("memberships", {
       modules: THROUGH,
+      ownTables: THROUGH_TABLES,
       accessProvider: moduleProvider,
     })!;
 
@@ -387,7 +408,8 @@ describe("roles through a lookup table", () => {
     );
 
     const invitations = moduleBody("invitations", {
-      modules: { ...THROUGH, invitations: { mode: "adopt" } },
+      modules: { ...THROUGH, invitations: {} },
+      ownTables: THROUGH_TABLES,
       accessProvider: moduleProvider,
     })!;
 
@@ -413,12 +435,7 @@ describe("roles through a lookup table", () => {
     ).toThrow(/describes your own memberships table/);
     expect(() =>
       moduleBody("memberships", {
-        modules: {
-          memberships: {
-            mode: "adopt",
-            options: { roleThrough: "public.roles" },
-          },
-        },
+        modules: { memberships: { options: { roleThrough: "public.roles" } } },
       }),
     ).toThrow(/roleThrough must be/);
   });
@@ -428,6 +445,7 @@ describe("roles through a lookup table", () => {
 
     const layout = {
       modules: { ...THROUGH, memberships: tenant },
+      ownTables: THROUGH_TABLES,
       accessProvider: {
         ...moduleProvider,
         roleSources: [

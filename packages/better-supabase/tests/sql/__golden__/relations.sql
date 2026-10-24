@@ -2049,10 +2049,10 @@ values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_068_relations.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
--- @bsb-block relations@1 adopt
--- @bsb-hash sha256:dc4085ede68173528f3c96ef922a1aae19acb8a503263db752e3d49f5b3ddd23
+-- @bsb-block relations@1 managed
+-- @bsb-hash sha256:207fc04b9482ad5174e4dac4dbd5d8eb1917b76f2dcaec5339e1251d8d8c81ff
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2093,6 +2093,21 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.relations is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."relations" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."relations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."relations" add column if not exists "kind" text;
+alter table "better_supabase"."relations" add column if not exists "source_type" text;
+alter table "better_supabase"."relations" add column if not exists "source_id" text;
+alter table "better_supabase"."relations" add column if not exists "target_type" text;
+alter table "better_supabase"."relations" add column if not exists "target_id" text;
+alter table "better_supabase"."relations" add column if not exists "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192);
+alter table "better_supabase"."relations" add column if not exists "created_by" uuid;
+alter table "better_supabase"."relations" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+alter table "better_supabase"."relations" enable row level security;
+grant select on "better_supabase"."relations" to authenticated;
+grant all on "better_supabase"."relations" to service_role;
 
 drop policy if exists relations_read on "better_supabase"."relations";
 create policy relations_read on "better_supabase"."relations" for select to authenticated
@@ -2502,16 +2517,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
--- @bsb-hash sha256:3d0641eaa44d093d4de869f5586150d733aec3daf64817bcc2e514eb650f06fb
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('relations', 1, 'adopt')
+values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -1004,7 +1004,7 @@ export const CALENDAR: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["share-links", "reminders", "outbox", "leave"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

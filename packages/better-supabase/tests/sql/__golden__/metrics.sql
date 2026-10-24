@@ -664,16 +664,28 @@ values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_071_metrics.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
--- @bsb-block metrics@1 adopt
--- @bsb-hash sha256:7eaaa31e411448fa7b6e8ad944fa455c287f285cc7ebd339ceb9731a73913909
+-- @bsb-block metrics@1 managed
+-- @bsb-hash sha256:fc5246c11c4971e30420b9b13a83224f094fd2e013862ce05fb1d72d6f3b5f53
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.metric_points is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."metric_points" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."metric_points" add column if not exists "metric" text;
+alter table "better_supabase"."metric_points" add column if not exists "grain" text check ("grain" in ('hour', 'day', 'week', 'month'));
+alter table "better_supabase"."metric_points" add column if not exists "bucket_start" timestamptz;
+alter table "better_supabase"."metric_points" add column if not exists "dims" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."metric_points" add column if not exists "value" numeric;
+alter table "better_supabase"."metric_points" add column if not exists "count" bigint;
+alter table "better_supabase"."metric_points" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."metric_points" enable row level security;
+grant all on "better_supabase"."metric_points" to service_role;
+create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
 -- Re-aggregates the window [since, until), default the last 3 days, so
 -- rows that arrive late or change land in their buckets. Run it from cron or
@@ -791,16 +803,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block-data metrics
--- @bsb-hash sha256:442aebbcd378096c2b4d544fb7116e5a46a3309c8d1cb7be8c808a174745f24f
+-- @bsb-hash sha256:fcee29fea442efd6e7f2a62cbe985ebe2042e444f6d412430eb8b979ba0fb642
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('metrics', 1, 'adopt')
+values ('metrics', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

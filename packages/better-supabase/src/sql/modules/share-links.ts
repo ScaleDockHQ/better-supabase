@@ -546,7 +546,7 @@ export const SHARE_LINKS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "versions"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

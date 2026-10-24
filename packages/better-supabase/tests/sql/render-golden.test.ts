@@ -4,6 +4,7 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
+import { ownTablesOf } from "../fixtures/own-tables.ts";
 
 // Refactors of the module builders keep every file here byte-identical; an
 // intended change to the SQL goes in its own commit with the golden diff.
@@ -43,17 +44,22 @@ const VARIANTS: readonly Variant[] = [
     layout: (module) => ({ modules: { [module]: { api: "api" } } }),
   },
   {
-    name: "adopt",
-    applies: (module) => SQL_MODULES[module]?.modes?.includes("adopt") ?? false,
+    name: "over the app's tables",
+    applies: (module) =>
+      Object.values(SQL_MODULES[module]?.names?.tables ?? {}).some(
+        (table) => table.app !== undefined,
+      ),
     modules: (module) => [module],
-    layout: (module) => ({
-      modules: { [module]: { mode: "adopt", ...ADOPT_OPTIONS[module] } },
-    }),
+    layout: (module) => {
+      const modules = { [module]: { ...OVER_APP_OPTIONS[module] } };
+
+      return { modules, ownTables: ownTablesOf(modules, [module]) };
+    },
   },
 ];
 
-/** Options an adopted module refuses to render without. */
-const ADOPT_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
+/** Options a module refuses to render over the app's tables without. */
+const OVER_APP_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
   "webhooks-out": { options: { defaultFormat: "standard" } },
 };
 

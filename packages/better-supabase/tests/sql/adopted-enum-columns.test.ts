@@ -4,6 +4,7 @@ import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../src/sql/render.ts";
 import { liteStack } from "../../src/testing/lite.ts";
+import { ownTablesOf } from "../fixtures/own-tables.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const SUBJECT = "22222222-2222-4222-8222-222222222222";
@@ -62,7 +63,6 @@ create table public.org_taggings (
 
 const BLOCKS: AnyBlocksConfig = {
   numbering: {
-    mode: "adopt",
     tables: { sequences: "public.org_sequences" },
     columns: { sequences: { tenant: "organization_id" } },
     options: {
@@ -78,7 +78,6 @@ const BLOCKS: AnyBlocksConfig = {
     },
   },
   tags: {
-    mode: "adopt",
     tables: { tags: "public.org_tags", taggings: "public.org_taggings" },
     columns: {
       tags: { tenant: "organization_id", rank: null },
@@ -94,7 +93,10 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 const BOOT = { timeout: 60_000 };
 
 async function run(check: string): Promise<void> {
-  const files = renderBlocks(["numbering", "tags"], { modules: BLOCKS });
+  const files = renderBlocks(["numbering", "tags"], {
+    modules: BLOCKS,
+    ownTables: ownTablesOf(BLOCKS),
+  });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -116,7 +118,7 @@ async function run(check: string): Promise<void> {
   expect(stack.url).not.toBe("");
 }
 
-describe("adopted enum columns", BOOT, () => {
+describe("enum columns on the app's tables", BOOT, () => {
   it("numbers into an enum entity column", async () => {
     await expect(
       run(`do $$

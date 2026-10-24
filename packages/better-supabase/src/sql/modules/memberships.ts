@@ -556,7 +556,7 @@ export const TENANT: BlockSqlDefinition = {
   integrates: ["permissions", "invitations", "organizations"],
   target: "schema",
   version: 2,
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: {
     options: ["claimFormat", "roleThrough", "sameTenant"],
     entities: { organization: { singular: "organization", global: true } },

@@ -173,7 +173,7 @@ function withProviderRoles(
     ? mapped
     : `${tenant.schema ?? "better_supabase"}.${mapped}`;
 
-  if (tenant.mode !== "adopt" && layout.ownTables?.[table] === undefined) {
+  if (layout.ownTables?.[table] === undefined) {
     return modules;
   }
 

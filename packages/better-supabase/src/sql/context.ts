@@ -1191,6 +1191,12 @@ export function createModuleContext(
   const held = (kind: string, tenant: string): string =>
     lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
 
+  const owned = tableOwnership(
+    { module, tables: names.tables, config, source, tableName },
+    column,
+    requiredColumn,
+  );
+
   const context: BlockSqlContext = {
     module,
     instance,
@@ -1236,7 +1242,7 @@ export function createModuleContext(
       }),
     modules,
     manages: config.mode === "managed",
-    ...tableOwnership(module, names, config, source, tableName, requiredColumn),
+    ...owned,
     names,
     installedModules: [...installed],
     fn: (name) =>
@@ -1247,14 +1253,10 @@ export function createModuleContext(
     functionRenames: () => applied,
     unusedFunctions: () =>
       Object.keys(renames).filter((name) => !requested.has(name)),
-    tableName,
     table(logical) {
-      const parts = tableName(logical);
+      const parts = owned.tableName(logical);
 
       return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
-    },
-    col(table, logical) {
-      return sqlIdent(requiredColumn(table, logical));
     },
     colName: (table, logical) => requiredColumn(table, logical),
     has: (table, logical) =>

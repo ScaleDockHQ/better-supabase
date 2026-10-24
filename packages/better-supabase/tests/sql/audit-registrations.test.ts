@@ -100,7 +100,7 @@ describe("audit pgTAP files", () => {
     expect(deals).toContain(`'"crm"."Deals"'::regclass`);
   });
 
-  it("reads the snapshots from the restricted table and skips what an adopted log lacks", () => {
+  it("reads the snapshots from the restricted table and skips what the app's log lacks", () => {
     const restricted = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: { audit: { options: { restricted: true } } },
@@ -114,11 +114,11 @@ describe("audit pgTAP files", () => {
       auditedTables: audited.slice(0, 1),
       modules: {
         audit: {
-          mode: "adopt",
           tables: { log: "public.audit_log" },
           columns: { log: { table: null } },
         },
       },
+      ownTables: { "public.audit_log": "supabase/schemas/audit.sql" },
     }).find((entry) => entry.kind === "test");
 
     expect(bare!.contents).toContain("select extensions.plan(4);");

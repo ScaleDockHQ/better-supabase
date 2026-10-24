@@ -1609,16 +1609,84 @@ values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_022_profiles.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 adopt
--- @bsb-hash sha256:23e3412802d0e3c7b23fff2ed43f88b6d11ff33768c559e1ef194794efc5e1b9
+-- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:3c0af9d3fda9d6489f40b7751abd79615204aef94db3e2f13669cff118c92225
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.profiles is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."profiles" add column if not exists "id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."profiles" add column if not exists "email" text;
+alter table "better_supabase"."profiles" add column if not exists "username" text;
+alter table "better_supabase"."profiles" add column if not exists "full_name" text;
+alter table "better_supabase"."profiles" add column if not exists "first_name" text;
+alter table "better_supabase"."profiles" add column if not exists "last_name" text;
+alter table "better_supabase"."profiles" add column if not exists "avatar_url" text;
+alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
+alter table "better_supabase"."profiles" add column if not exists "active_organization_id" uuid;
+alter table "better_supabase"."profiles" add column if not exists "active_team_id" uuid;
+alter table "better_supabase"."profiles" add column if not exists "onboarding" jsonb not null default '{}';
+alter table "better_supabase"."profiles" add column if not exists "disabled_at" timestamptz;
+alter table "better_supabase"."profiles" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."profiles" add column if not exists "updated_at" timestamptz not null default now();
+
+create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+do $$
+begin
+exception when check_violation then
+  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
+end;
+$$;
+alter table "better_supabase"."profiles" enable row level security;
+drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
+create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+  using ("id" = (select auth.uid()));
+drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
+create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+  using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+grant select on "better_supabase"."profiles" to authenticated;
+grant all on "better_supabase"."profiles" to service_role;
+
 
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
@@ -1892,10 +1960,10 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:73d6da04f8bffba1be63b85185ef542457430923602b9980408b8e3e6c18175b
+-- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1905,6 +1973,6 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'adopt')
+values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

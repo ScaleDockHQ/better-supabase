@@ -358,7 +358,7 @@ export const SERVICE_PRINCIPALS: BlockSqlDefinition = {
   integrates: ["audit"],
   target: "schema",
   version: 1,
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract,
   build,

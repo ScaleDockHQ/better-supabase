@@ -11,6 +11,7 @@ import {
 import { isModuleDataFile, moduleFileVersion } from "../../src/sql/markers.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import {
+  checkMigrationOptions,
   checkModules,
   resolveBlocks,
   SQL_MODULES,
@@ -20,6 +21,7 @@ import {
   moduleBody,
   renderBlocks,
 } from "../../src/sql/render.ts";
+import { ownTablesOf } from "../fixtures/own-tables.ts";
 
 const names = {
   tables: {
@@ -36,7 +38,7 @@ const names = {
 };
 
 describe("createModuleContext", () => {
-  it("casts a typed column to its adopted type, and leaves a managed one as it is", () => {
+  it("casts a typed column to the type of the app's table, and leaves the block's own one as it is", () => {
     expect(
       createModuleContext("demo", () => names).cast(
         "items",
@@ -45,14 +47,15 @@ describe("createModuleContext", () => {
       ),
     ).toBe("p_label");
 
-    const adopted = createModuleContext("demo", () => names, {
-      modules: { demo: { mode: "adopt", tables: { items: "public.things" } } },
+    const overApp = createModuleContext("demo", () => names, {
+      modules: { demo: { tables: { items: "public.things" } } },
+      ownTables: { "public.things": "app.sql" },
     });
 
-    expect(adopted.cast("items", "label", "p_label")).toBe(
+    expect(overApp.cast("items", "label", "p_label")).toBe(
       'better_supabase.as_column_type(p_label, (null::"public"."things")."label")',
     );
-    expect(() => adopted.cast("items", "tenant", "p_tenant")).toThrow(
+    expect(() => overApp.cast("items", "tenant", "p_tenant")).toThrow(
       /doesn't list/,
     );
   });
@@ -73,7 +76,6 @@ describe("createModuleContext", () => {
     const ctx = createModuleContext("demo", () => names, {
       modules: {
         demo: {
-          mode: "adopt",
           schema: "app",
           tables: { items: "public.things", extras: null },
           columns: { items: { tenant: "organization_id", label: null } },
@@ -82,16 +84,19 @@ describe("createModuleContext", () => {
           options: { flavour: "map", size: 3, on: true, list: ["a"] },
         },
       },
+      ownTables: { "public.things": "app.sql" },
     });
 
-    expect(ctx.manages).toBe(false);
+    expect(ctx.owns("items")).toBe(false);
+    expect(ctx.appOwned).toEqual(["items"]);
     expect(ctx.table("items")).toBe('"public"."things"');
     expect(ctx.col("items", "tenant")).toBe('"organization_id"');
     expect(ctx.has("items", "label")).toBe(false);
     expect(ctx.has("items", "tenant")).toBe(true);
     expect(ctx.hasTable("extras")).toBe(false);
-    expect(() => ctx.table("extras")).toThrow(/maps to null/);
-    expect(() => ctx.col("items", "label")).toThrow(/maps to null/);
+    expect(ctx.table("extras")).toBe('"app"."bsb_unmapped_table:extras"');
+    expect(ctx.col("items", "label")).toBe('"bsb_unmapped:items.label"');
+    expect(() => ctx.colName("items", "label")).toThrow(/maps to null/);
     expect(ctx.schema).toBe('"app"');
     expect(ctx.idType).toBe("bigint");
     expect(ctx.trigger("audit")).toBe('"bsb_audit"');
@@ -305,29 +310,32 @@ describe("module modes", () => {
       checkModules({ nope: {} });
     }).toThrow(/no SQL module "nope"/);
     expect(() => {
-      checkModules({ mfa: { mode: "adopt" } });
-    }).toThrow(/supports managed, not adopt/);
+      checkModules({ mfa: { mode: "custom" } });
+    }).toThrow(/supports managed, not custom/);
     expect(() =>
       renderBlocks(["mfa"], { modules: { mfa: { mode: "custom" } } }),
     ).toThrow(/supports managed/);
   });
 
-  it("accepts migration-only options in adopt mode only", () => {
+  it("accepts migration-only options only over the app's tables", () => {
     expect(() => {
-      checkModules({ invitations: { options: { tokenStorage: "plain" } } });
+      checkMigrationOptions({
+        invitations: { options: { tokenStorage: "plain" } },
+      });
     }).toThrow(
       'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It fits only a block over a table your schema already has: remove the option, or keep it while you migrate that table.',
     );
     expect(() => {
-      checkModules({ outbox: { options: { blockSource: "domain" } } });
+      checkMigrationOptions({ outbox: { options: { blockSource: "domain" } } });
     }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
-      checkModules({ "webhooks-out": { options: { eventIdType: "bigint" } } });
+      checkMigrationOptions({
+        "webhooks-out": { options: { eventIdType: "bigint" } },
+      });
     }).toThrow(/eventIdType/);
-    checkModules({
-      invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
-    });
-    checkModules({
+    const invitations = { invitations: { options: { tokenStorage: "plain" } } };
+    checkMigrationOptions(invitations, ownTablesOf(invitations));
+    checkMigrationOptions({
       outbox: {
         options: {
           settle: "2 seconds",
@@ -336,12 +344,12 @@ describe("module modes", () => {
         },
       },
     });
-    checkModules({
+    checkMigrationOptions({
       "webhooks-out": {
         options: { secretStorage: "vault", eventIdType: "text" },
       },
     });
-    checkModules({
+    checkMigrationOptions({
       "webhooks-out": { options: { eventIdType: "uuid", runIdType: "uuid" } },
     });
   });
@@ -417,26 +425,30 @@ describe("module modes", () => {
     expect(customContracts(["mfa"])).toEqual([]);
   });
 
-  it("adopts an existing memberships table without creating it", () => {
-    const sql = moduleBody("memberships", {
+  it("lays functions over the app's memberships table without creating it", () => {
+    const sql = renderBlocks(["memberships"], {
       modules: {
         memberships: {
-          mode: "adopt",
           tables: { memberships: "public.organization_users" },
           columns: {
             memberships: { tenant: "organization_id", lastUsedAt: null },
           },
         },
       },
-    })!;
+      ownTables: { "public.organization_users": "app.sql" },
+    }).find(
+      (file) => file.module === "memberships" && file.kind === "schema",
+    )!.contents;
 
-    expect(sql).not.toMatch(/create table/);
-    expect(sql).not.toContain("bsb_memberships_read");
+    expect(sql).not.toContain('create table if not exists "public"');
+    expect(sql).toContain(
+      'alter table "public"."organization_users" add column if not exists "role" text',
+    );
+    expect(sql).not.toContain('"last_used_at"');
     expect(sql).toContain('from "public"."organization_users" m');
     expect(sql).toContain(
       'm."organization_id" = has_organization_role.organization',
     );
-    expect(sql).toContain("Adopted:");
   });
 
   it("keeps the managed tenant module's names and takes roles from blocks.permissions", () => {
@@ -841,10 +853,10 @@ describe("fixed functions", () => {
     const organizations = moduleContext("organizations", {
       modules: {
         organizations: {
-          mode: "adopt",
           columns: { organizations: { id: "team_id", slug: null } },
         },
       },
+      ownTables: { "better_supabase.organizations": "app.sql" },
     });
 
     expect(organizations.colName("organizations", "id")).toBe("team_id");
