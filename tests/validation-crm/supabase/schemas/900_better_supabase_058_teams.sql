@@ -1,6 +1,6 @@
 -- better-supabase module: teams
--- @bsb-block teams@1 adopt
--- @bsb-hash sha256:08cf9ee72e025e07fb247e2681fb3281d19a9d43713f49ab0438ce3939d96c3d
+-- @bsb-block teams@1 managed
+-- @bsb-hash sha256:8012572cfc23d6b131ceec4b64cebf9c43f25a74ea4c6b26f95d24c6d2aa7547
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,6 +42,23 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
+-- public.teams is the app's table, and it has every column this block needs.
+alter table "public"."teams" enable row level security;
+grant select on "public"."teams" to authenticated;
+grant all on "public"."teams" to service_role;
+drop policy if exists teams_read on "public"."teams";
+create policy teams_read on "public"."teams" for select to authenticated
+using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
+
+-- public.team_members is the app's table, and it has every column this block needs.
+create index if not exists team_members_user_idx on "public"."team_members" ("user_id");
+create index if not exists team_members_membership_idx on "public"."team_members" ("organization_id", "user_id");
+alter table "public"."team_members" enable row level security;
+grant select on "public"."team_members" to authenticated;
+grant all on "public"."team_members" to service_role;
+drop policy if exists team_members_read on "public"."team_members";
+create policy team_members_read on "public"."team_members" for select to authenticated
+using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 
 create or replace function "better_supabase"."team_ids_of"(member uuid)
@@ -275,6 +292,26 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_teams"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_teams"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "public"."teams";
+create policy bsb_tenant_scope on "public"."teams" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."team_members";
+create policy bsb_tenant_scope on "public"."team_members" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

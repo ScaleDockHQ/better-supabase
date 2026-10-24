@@ -1,6 +1,6 @@
 -- better-supabase module: teams
--- @bsb-block teams@1 adopt
--- @bsb-hash sha256:86ae5bb3ebfe770d9beee972542bc55aaf39c59761fe4fd9915e2b102a48f349
+-- @bsb-block teams@1 managed
+-- @bsb-hash sha256:92e82b3a4c45380c61c7eb22b3f77781d599fc1fdb1114e51e6d30faa899edc5
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,6 +42,23 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
+-- centrakit.teams is the app's table, and it has every column this block needs.
+alter table "centrakit"."teams" enable row level security;
+grant select on "centrakit"."teams" to authenticated;
+grant all on "centrakit"."teams" to service_role;
+drop policy if exists teams_read on "centrakit"."teams";
+create policy teams_read on "centrakit"."teams" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+
+-- centrakit.team_members is the app's table, and it has every column this block needs.
+create index if not exists team_members_user_idx on "centrakit"."team_members" ("user_id");
+create index if not exists team_members_membership_idx on "centrakit"."team_members" ("tenant_id", "user_id");
+alter table "centrakit"."team_members" enable row level security;
+grant select on "centrakit"."team_members" to authenticated;
+grant all on "centrakit"."team_members" to service_role;
+drop policy if exists team_members_read on "centrakit"."team_members";
+create policy team_members_read on "centrakit"."team_members" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 
 create or replace function "better_supabase"."team_ids_of"(member uuid)
@@ -323,6 +340,26 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_teams"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_teams"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."teams";
+create policy bsb_tenant_scope on "centrakit"."teams" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "centrakit"."team_members";
+create policy bsb_tenant_scope on "centrakit"."team_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

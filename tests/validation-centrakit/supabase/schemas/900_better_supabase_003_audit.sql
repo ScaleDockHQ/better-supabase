@@ -1,6 +1,6 @@
 -- better-supabase module: audit
--- @bsb-block audit@9 adopt
--- @bsb-hash sha256:2397e50d536169c7a487b35f18e9d7bea144737c968148e106474a0988725034
+-- @bsb-block audit@9 managed
+-- @bsb-hash sha256:7e0d1b2d40fc46c525999a4b27007d005b1104a55fe3a54ef0d56897a762078c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,6 +100,36 @@ exception when others then
   return null;
 end;
 $$;
+
+-- centrakit.audit_logs is the app's table, and it has every column this block needs.
+-- Set when an admin acted as the user (the act claim).
+-- Semantic events (audit_event) and the per-table registry fill these.
+alter table "centrakit"."audit_logs" add column if not exists "event_type" text;
+alter table "centrakit"."audit_logs" add column if not exists "category" text;
+alter table "centrakit"."audit_logs" add column if not exists "outcome" text;
+alter table "centrakit"."audit_logs" add column if not exists "source" text;
+alter table "centrakit"."audit_logs" add column if not exists "target_type" text;
+alter table "centrakit"."audit_logs" add column if not exists "safe_metadata" jsonb;
+alter table "centrakit"."audit_logs" add column if not exists "idempotency_key" text;
+-- Who acted and on what, as it was then, for audit pages.
+alter table "centrakit"."audit_logs" add column if not exists "actor_kind" text;
+alter table "centrakit"."audit_logs" add column if not exists "actor_label" text;
+alter table "centrakit"."audit_logs" add column if not exists "tenant_label" text;
+alter table "centrakit"."audit_logs" add column if not exists "target_label" text;
+alter table "centrakit"."audit_logs" add column if not exists "summary" text;
+alter table "centrakit"."audit_logs" add column if not exists "request_id" text;
+alter table "centrakit"."audit_logs" add column if not exists "correlation_id" text;
+alter table "centrakit"."audit_logs" add column if not exists "scope" text;
+create index if not exists audit_events_organization_idx on "centrakit"."audit_logs" ("organization_id", "occurred_at" desc);
+create index if not exists audit_events_occurred_at_idx on "centrakit"."audit_logs" ("occurred_at");
+create index if not exists audit_events_correlation_idx on "centrakit"."audit_logs" ("correlation_id") where "correlation_id" is not null;
+create unique index if not exists audit_events_idempotency_idx on "centrakit"."audit_logs" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+alter table "centrakit"."audit_logs" enable row level security;
+grant select on "centrakit"."audit_logs" to service_role;
+-- centrakit.audit_log_restricted_details is the app's table, and it has every column this block needs.
+alter table "centrakit"."audit_log_restricted_details" add column if not exists "session_id" text;
+alter table "centrakit"."audit_log_restricted_details" add column if not exists "changed_values" jsonb;
+alter table "centrakit"."audit_log_restricted_details" enable row level security;
 
 create or replace function better_supabase.audit_row_change()
 returns trigger

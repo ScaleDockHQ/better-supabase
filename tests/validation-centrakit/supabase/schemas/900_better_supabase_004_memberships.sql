@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
--- @bsb-block memberships@2 adopt
--- @bsb-hash sha256:fbc5882a550e59853bb1e4ee4cdccff2bff1530017e689cd0435affea4fbbebc
+-- @bsb-block memberships@2 managed
+-- @bsb-hash sha256:a7a52eb20bddd60fc7fcf2fe817dc0c16fb21af426019438b37eae69377803df
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,17 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
--- Adopted: "centrakit"."organization_users" belongs to the app (blocks.memberships.tables.memberships).
+-- centrakit.organization_users is the app's table, and it has every column this block needs.
+create index if not exists memberships_user_idx on "centrakit"."organization_users" ("user_id");
+alter table "centrakit"."organization_users" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "centrakit"."organization_users";
+create trigger bsb_updated_at before update on "centrakit"."organization_users"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "centrakit"."organization_users" add column if not exists "last_used_at" timestamptz;
+
+alter table "centrakit"."organization_users" enable row level security;
+grant select on "centrakit"."organization_users" to authenticated;
+grant all on "centrakit"."organization_users" to service_role;
 
 -- blocks.memberships.options.roleThrough.where names the tenant roles. Every
 -- write to "centrakit"."organization_users" stores one of them, whoever writes it: a client policy, the
@@ -173,6 +183,11 @@ as $$
   select (select r."key"::text from "centrakit"."roles" r where r."id"::text = (m."role_id")::text) from "centrakit"."organization_users" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."organization_id" in (select p.id from centrakit.authz_organization_member_ids_for(organization_member_role.member) as p(id))
 $$;
 
+drop policy if exists bsb_memberships_read on "centrakit"."organization_users";
+create policy bsb_memberships_read on "centrakit"."organization_users"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
+
 revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
 revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
 revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
@@ -208,6 +223,18 @@ $$;
 revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;
 reset check_function_bodies;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."organization_users";
+create policy bsb_tenant_scope on "centrakit"."organization_users" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

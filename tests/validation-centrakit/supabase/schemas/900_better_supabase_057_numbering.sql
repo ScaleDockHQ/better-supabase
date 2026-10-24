@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
--- @bsb-block numbering@1 adopt
--- @bsb-hash sha256:a17dc4c4e451f48524fc8450ae2cdd2fb5b6201167ea05f36f25fb09c9151e86
+-- @bsb-block numbering@1 managed
+-- @bsb-hash sha256:aba64cc196518e418039f431440562db79ff86fe51e50915e81a1f832b76417f
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,6 +60,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
+-- centrakit.organization_number_sequences is the app's table, and it has every column this block needs.
+alter table "centrakit"."organization_number_sequences" enable row level security;
+grant all on "centrakit"."organization_number_sequences" to service_role;
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)
 returns text

@@ -1,12 +1,66 @@
 -- better-supabase module: profiles
--- @bsb-block profiles@2 adopt
--- @bsb-hash sha256:2c66e07e0db7a63995986e7b6714b44bb134e1d3ed117e3060ab5c98284dd775
+-- @bsb-block profiles@2 managed
+-- @bsb-hash sha256:e47fd163abe4dbab4d7bf7ce1a6d26b49e6de01a611b876d6fd4c31060ca3996
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.profiles is the app's table, and it has every column this block needs.
+
+create unique index if not exists profiles_username_idx on "centrakit"."profiles" (lower("username"));
+do $$
+begin
+exception when check_violation then
+  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"centrakit"."profiles"';
+end;
+$$;
+alter table "centrakit"."profiles" enable row level security;
+drop policy if exists bsb_profiles_read on "centrakit"."profiles";
+create policy bsb_profiles_read on "centrakit"."profiles" for select to authenticated
+  using ("user_id" = (select auth.uid()));
+drop policy if exists bsb_profiles_update on "centrakit"."profiles";
+create policy bsb_profiles_update on "centrakit"."profiles" for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()));
+grant select on "centrakit"."profiles" to authenticated;
+grant all on "centrakit"."profiles" to service_role;
+
 
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security

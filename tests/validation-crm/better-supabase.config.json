@@ -5,7 +5,6 @@
     "updated-at": {},
     "memberships": {},
     "permissions": {
-      "ownership": "adopt",
       "tables": {
         "roles": "public.roles",
         "permissions": "public.permissions",
@@ -20,7 +19,6 @@
       }
     },
     "organizations": {
-      "ownership": "adopt",
       "tables": {
         "organizations": "public.organizations"
       },
@@ -32,7 +30,6 @@
       }
     },
     "profiles": {
-      "ownership": "adopt",
       "tables": {
         "profiles": "public.profiles"
       },
@@ -46,7 +43,6 @@
       }
     },
     "teams": {
-      "ownership": "adopt",
       "tables": {
         "teams": "public.teams",
         "members": "public.team_members"

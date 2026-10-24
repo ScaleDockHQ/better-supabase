@@ -305,7 +305,6 @@ export default defineConfig({
     // data that no example renders.
     tags: {},
     organizations: {
-      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: {
         organizations: { createdBy: null, deletedAt: null, disabledAt: null },

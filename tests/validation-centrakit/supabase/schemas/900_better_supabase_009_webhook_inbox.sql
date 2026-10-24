@@ -1,14 +1,14 @@
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@8 adopt
--- @bsb-hash sha256:694c332ccacf509d16b52c16f03c2640c1bdf126761e008a373796dd0e8ee5b5
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
+-- @bsb-block webhook-inbox@8 managed
+-- @bsb-hash sha256:9a24389bff02e87dd3703460ba245eb701584321038a806bed7c7f4e306bcd7c
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- The webhook inbox over an app's table (adopt mode): "centrakit"."inbound_webhook_events".
+-- The webhook inbox over an app's table: "centrakit"."inbound_webhook_events".
 -- The app owns its columns, a unique key per source, tenant and message id,
 -- and its indexes.
 

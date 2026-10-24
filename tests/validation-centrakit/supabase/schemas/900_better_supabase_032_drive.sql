@@ -1,6 +1,6 @@
 -- better-supabase module: drive
--- @bsb-block drive@1 adopt
--- @bsb-hash sha256:64e8185116b303468130e769fa2f39ba78140ea01a1c317a4860d737f619c9ff
+-- @bsb-block drive@1 managed
+-- @bsb-hash sha256:f1ce441a9e1077bc84d70b2beb5a17d2f5897d1449a568fdcb362156bed584e0
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,15 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.file_node is the app's table, and it has every column this block needs.
+create index if not exists "file_node_parent_fk_idx" on "centrakit"."file_node" ("parent_id") where "parent_id" is not null;
+alter table "centrakit"."file_node" enable row level security;
+grant select on "centrakit"."file_node" to authenticated;
+grant all on "centrakit"."file_node" to service_role;
+
+-- centrakit.file_node_grant is the app's table, and it has every column this block needs.
+alter table "centrakit"."file_node_grant" enable row level security;
+grant all on "centrakit"."file_node_grant" to service_role;
 
 -- The node's ancestors and itself, root first.
 create or replace function "better_supabase"."drive_ancestors"(node uuid)
@@ -137,6 +146,10 @@ as $$
   select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."organization_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', null, 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', null)
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
+
+drop policy if exists drive_nodes_read on "centrakit"."file_node";
+create policy drive_nodes_read on "centrakit"."file_node" for select to authenticated
+  using ("better_supabase"."drive_can"("id", 'viewer'));
 
 create or replace function "better_supabase"."drive_clean_name"(name text)
 returns text
@@ -769,6 +782,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."file_node";
+create policy bsb_tenant_scope on "centrakit"."file_node" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."drive_can"("id", 'viewer'))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

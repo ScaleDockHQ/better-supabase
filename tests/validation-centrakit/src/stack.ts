@@ -4,7 +4,11 @@ import type { BlockSqlAccessProvider } from "better-supabase/sql";
 import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import { moduleLayout, renderBlocks } from "better-supabase/sql";
+import {
+  declaredTables,
+  moduleLayout,
+  renderBlocks,
+} from "better-supabase/sql";
 import { readdir, readFile } from "node:fs/promises";
 import { DatabaseError, Pool } from "pg";
 
@@ -93,6 +97,19 @@ const SEED = `insert into centrakit.roles (id, scope, key, name, system) values
   ('${ROLES.systemSupport}', 'system', 'system-support', 'Support', true)`;
 
 const SUPABASE = new URL("../supabase/", import.meta.url);
+
+/** CentraKit's own tables, as `add` finds them in its schema file. */
+async function centrakitTables(): Promise<Record<string, string>> {
+  const path = "schemas/000_centrakit.sql";
+  const text = await readFile(new URL(path, SUPABASE), "utf-8");
+
+  return Object.fromEntries(
+    declaredTables([{ text }], resolved.schemas).map((table) => [
+      table,
+      `supabase/${path}`,
+    ]),
+  );
+}
 
 /** The files `upgrade` wrote in `dir`, in the order a reset applies them. */
 async function generated(dir: string): Promise<string[]> {
@@ -275,6 +292,7 @@ export async function withCentraKit(
       const layout: Writable<typeof base> = {
         ...base,
         modules: { ...base.modules, ...extra.config },
+        ownTables: await centrakitTables(),
       };
 
       if (extra.subjects) {

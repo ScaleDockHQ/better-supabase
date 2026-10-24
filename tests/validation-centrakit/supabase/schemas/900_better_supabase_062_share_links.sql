@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
--- @bsb-block share-links@1 adopt
--- @bsb-hash sha256:aa55df63048ae8cc0f1224b0e66c855b815e8057eae864b95c543835406ae7a1
+-- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:2660c22a008c0dfd8b3f36677196f87b9d5c2bb9e3b43c598c61b2885547b42c
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,22 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.share_links is the app's table, and it has every column this block needs.
+alter table "centrakit"."share_links" add column if not exists "use_count" integer not null default 0;
+alter table "centrakit"."share_links" enable row level security;
+grant select on "centrakit"."share_links" to authenticated;
+grant all on "centrakit"."share_links" to service_role;
+create index if not exists "share_links_subject_idx" on "centrakit"."share_links" ("tenant_id", "subject_type", "subject_id");
+-- centrakit.subject_views is the app's table, and it has every column this block needs.
+alter table "centrakit"."subject_views" enable row level security;
+grant select on "centrakit"."subject_views" to authenticated;
+grant all on "centrakit"."subject_views" to service_role;
+
+-- centrakit.subject_user_state is the app's table, and it has every column this block needs.
+alter table "centrakit"."subject_user_state" enable row level security;
+grant select on "centrakit"."subject_user_state" to authenticated;
+grant all on "centrakit"."subject_user_state" to service_role;
+
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
@@ -238,6 +254,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."share_links";
+create policy bsb_tenant_scope on "centrakit"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

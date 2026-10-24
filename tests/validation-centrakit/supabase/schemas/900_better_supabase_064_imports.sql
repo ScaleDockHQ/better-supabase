@@ -1,9 +1,25 @@
 -- better-supabase module: imports
--- @bsb-block imports@1 adopt
--- @bsb-hash sha256:d4167a4b1370a12be1e826200116eeb69d5e91ab46b06ecd210aadfecdaaaa47
+-- @bsb-block imports@1 managed
+-- @bsb-hash sha256:1d127685afad55c346137539b1efc6f60b0dc0f9d283ef52e3666486cbdc1f77
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -41,6 +57,11 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.import_runs is the app's table, and it has every column this block needs.
+alter table "centrakit"."import_runs" enable row level security;
+grant select on "centrakit"."import_runs" to authenticated;
+grant all on "centrakit"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "centrakit"."import_runs" ("tenant_id");
 
 create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb
@@ -97,7 +118,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  update "centrakit"."import_runs" set "status" = finish_import.status,
+  update "centrakit"."import_runs" set "status" = better_supabase.as_column_type(finish_import.status, (null::"centrakit"."import_runs")."status"),
     "counts" = jsonb_build_object('imported', finish_import.count),
     "errors" = case when finish_import.error is null then '[]'::jsonb else jsonb_build_array(finish_import.error) end
   where "id" = finish_import.id
@@ -115,6 +136,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
+create policy bsb_tenant_scope on "centrakit"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

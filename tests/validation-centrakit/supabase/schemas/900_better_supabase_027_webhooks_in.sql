@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@4 adopt
--- @bsb-hash sha256:3ed00dc2615d0bb2951a757b02c9b06cab27f881b248898bdd965c4f9182a875
+-- @bsb-block webhooks-in@4 managed
+-- @bsb-hash sha256:73d5239e94541124f722384c855885e6ab70668bb57efe86acd05ee219822e0c
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Trigger URLs over the app's table "centrakit"."inbound_webhooks" (adopt mode): the app owns its
+-- Trigger URLs over the app's table "centrakit"."inbound_webhooks" (the app's table): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()

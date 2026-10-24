@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
--- @bsb-block invitations@2 adopt
--- @bsb-hash sha256:3491523b0f00d7601994065584c6c23bc90f770f7617c2f7789f4688ae551657
+-- @bsb-block invitations@2 managed
+-- @bsb-hash sha256:684471d704b4b317156313e12c145288e62eecf7abda1034659ccd153679f51c
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,78 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- Adopted: "centrakit"."organization_invitations" belongs to the app (blocks.invitations.tables.invitations).
+-- centrakit.organization_invitations is the app's table, and it has every column this block needs.
+alter table "centrakit"."organization_invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
+alter table "centrakit"."organization_invitations" add column if not exists "created_at" timestamptz not null default now();
+alter table "centrakit"."organization_invitations" add column if not exists "declined_at" timestamptz;
+alter table "centrakit"."organization_invitations" add column if not exists "prefill" jsonb not null default '{}';
+
+drop index if exists "centrakit".invitations_open_idx;
+create unique index if not exists invitations_open_email_idx
+  on "centrakit"."organization_invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null;
+create index if not exists invitations_tenant_created_idx on "centrakit"."organization_invitations" ("organization_id", "created_at");
+alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "centrakit"."organization_invitations";
+create trigger bsb_updated_at before update on "centrakit"."organization_invitations"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+create index if not exists invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
+
+
+alter table "centrakit"."organization_invitations" enable row level security;
+grant select on "centrakit"."organization_invitations" to authenticated;
+grant all on "centrakit"."organization_invitations" to service_role;
+
+-- PL/pgSQL resolves tenant_ids_with when it runs, so this file installs
+-- before the access module's.
+create or replace function "better_supabase"."invitation_tenant_ids"()
+returns setof uuid
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query select better_supabase.tenant_ids_with('members.invite');
+end;
+$$;
+revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
+grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
+drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
+create policy bsb_invitations_read on "centrakit"."organization_invitations" for select to authenticated
+  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
+
+-- Invitations to a platform role (the catalog model's platform assignments).
+-- centrakit.organization_invitations is the app's table, and it has every column this block needs.
+alter table "centrakit"."organization_invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
+alter table "centrakit"."organization_invitations" add column if not exists "created_at" timestamptz not null default now();
+alter table "centrakit"."organization_invitations" add column if not exists "declined_at" timestamptz;
+
+create unique index if not exists platform_invitations_open_email_idx
+  on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null;
+alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "centrakit"."organization_invitations";
+create trigger bsb_updated_at before update on "centrakit"."organization_invitations"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+create index if not exists platform_invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
+
+alter table "centrakit"."organization_invitations" enable row level security;
+grant select on "centrakit"."organization_invitations" to authenticated;
+grant all on "centrakit"."organization_invitations" to service_role;
+create or replace function "better_supabase"."platform_invitations_readable"()
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return (select coalesce(better_supabase.is_platform('platform.invite'), false));
+end;
+$$;
+revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
+grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
+drop policy if exists bsb_platform_invitations_read on "centrakit"."organization_invitations";
+create policy bsb_platform_invitations_read on "centrakit"."organization_invitations" for select to authenticated
+  using ((select "better_supabase"."platform_invitations_readable"()));
 
 -- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to "centrakit"."user_roles" stores one of them,
@@ -1092,6 +1163,19 @@ revoke execute on function "better_supabase"."decline_invitation_by_id"(uuid) fr
 grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to authenticated;
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."organization_invitations";
+create policy bsb_tenant_scope on "centrakit"."organization_invitations" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
+    or ((select "better_supabase"."platform_invitations_readable"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

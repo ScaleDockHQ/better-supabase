@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
--- @bsb-block custom-fields@3 adopt
--- @bsb-hash sha256:aa85fdeeb478f01d10cb5fca2289c545496c407a6337d847b4bd9c62c16f6a98
+-- @bsb-block custom-fields@3 managed
+-- @bsb-hash sha256:13e209529e3db9e19c4ea8ad81acd764ca2df62ed7650baa1448f3b13c31f8b4
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,16 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
+-- centrakit.field_definitions is the app's table: this block adds only the columns it needs.
 alter table "centrakit"."field_definitions" add column if not exists "encrypted" boolean not null default false;
+alter table "centrakit"."field_definitions" enable row level security;
+grant select on "centrakit"."field_definitions" to authenticated;
+grant all on "centrakit"."field_definitions" to service_role;
+-- centrakit.field_values is the app's table, and it has every column this block needs.
+alter table "centrakit"."field_values" enable row level security;
+grant select on "centrakit"."field_values" to authenticated;
+grant all on "centrakit"."field_values" to service_role;
+create index if not exists field_values_definition_idx on "centrakit"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -179,6 +188,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_field_definitions"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."list_field_definitions"(uuid, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."field_definitions";
+create policy bsb_tenant_scope on "centrakit"."field_definitions" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "centrakit"."field_values";
+create policy bsb_tenant_scope on "centrakit"."field_values" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- better-supabase module: tags
--- @bsb-block tags@2 adopt
--- @bsb-hash sha256:06692c2488289f8c8626f035c095c8fa6fd3c54fbdfe2e2a3467a3659e4204eb
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
+-- @bsb-block tags@2 managed
+-- @bsb-hash sha256:ff3397c6c472ab45206861bba0d07f6c7f6e1384fdbb7e50196a16eee28f59df
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -57,6 +57,22 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.organization_tags is the app's table, and it has every column this block needs.
+alter table "centrakit"."organization_tags" enable row level security;
+grant select on "centrakit"."organization_tags" to authenticated;
+grant all on "centrakit"."organization_tags" to service_role;
+create table if not exists  (
+  "tenant_id" uuid not null,
+  "tag_id" uuid not null references "centrakit"."organization_tags" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("tag_id", "subject_type", "subject_id")
+);
+alter table  enable row level security;
+revoke all on  from anon, authenticated;
+grant select on  to authenticated;
+grant all on  to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
@@ -296,6 +312,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
+create policy bsb_tenant_scope on "centrakit"."organization_tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

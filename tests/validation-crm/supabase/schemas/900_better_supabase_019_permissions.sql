@@ -1,5 +1,5 @@
 -- better-supabase module: permissions
--- @bsb-block permissions@1 adopt
+-- @bsb-block permissions@1 managed
 -- @bsb-hash sha256:a8e343fa94c0cb8e30b82ea8756e791863c61f7f6b0a899a63b4becd6b60f541
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
--- @bsb-block reminders@1 adopt
--- @bsb-hash sha256:9a1a9b59b6e5a29b17574d4ec72c42bbb7807c7e6424837933db389ba96a7a96
+-- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:1528d3c7b42d5a5548133a01e2e0c364d6c0ad1640fba436fcd472e875adef04
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,36 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.recurrence_rules is the app's table, and it has every column this block needs.
+alter table "centrakit"."recurrence_rules" enable row level security;
+grant select on "centrakit"."recurrence_rules" to authenticated;
+grant all on "centrakit"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "centrakit"."recurrence_rules" ("subject_type", "subject_id");
+-- centrakit.reminders is the app's table, and it has every column this block needs.
+alter table "centrakit"."reminders" enable row level security;
+grant select on "centrakit"."reminders" to authenticated;
+grant all on "centrakit"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "centrakit"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "centrakit"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"centrakit"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"centrakit"."reminders"', 'reminders_offset_check', '"centrakit"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
+-- centrakit.reminder_deliveries is the app's table, and it has every column this block needs.
+alter table "centrakit"."reminder_deliveries" enable row level security;
+grant select on "centrakit"."reminder_deliveries" to authenticated;
+grant all on "centrakit"."reminder_deliveries" to service_role;
 
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
@@ -191,6 +221,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
+create policy bsb_tenant_scope on "centrakit"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "centrakit"."reminders";
+create policy bsb_tenant_scope on "centrakit"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

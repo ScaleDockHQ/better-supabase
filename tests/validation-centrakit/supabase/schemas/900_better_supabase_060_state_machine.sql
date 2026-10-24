@@ -1,12 +1,62 @@
 -- better-supabase module: state-machine
--- @bsb-block state-machine@2 adopt
--- @bsb-hash sha256:13b1edee3bd5800f92ffc0a232d71cd9fc682d50374603ac29d9a1ff71d5640b
+-- @bsb-block state-machine@2 managed
+-- @bsb-hash sha256:c6acca0001632d3200cdfb6c2702b5e96b23be95fe314094ae7166906a2be593
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- centrakit.status_history is the app's table, and it has every column this block needs.
+create index if not exists status_history_subject_idx on "centrakit"."status_history" ("subject_type", "subject_id", "created_at" desc);
+alter table "centrakit"."status_history" enable row level security;
+grant select on "centrakit"."status_history" to authenticated;
+grant all on "centrakit"."status_history" to service_role;
+drop policy if exists status_history_read on "centrakit"."status_history";
+create policy status_history_read on "centrakit"."status_history" for select to authenticated
+  using (false);
+create table if not exists "better_supabase"."status_stages" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "label" text not null,
+  "outcome" text,
+  "display" integer not null,
+  "cleared_at" timestamptz,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+alter table "better_supabase"."status_stages" enable row level security;
+revoke all on "better_supabase"."status_stages" from anon, authenticated;
+grant select on "better_supabase"."status_stages" to authenticated;
+grant all on "better_supabase"."status_stages" to service_role;
+drop policy if exists status_stages_read on "better_supabase"."status_stages";
+create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+  using (false);
+create table if not exists "better_supabase"."subject_lifecycles" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "version" integer not null default 1,
+  "flags" text[] not null default '{}',
+  "paused_at" timestamptz,
+  "paused_until" timestamptz,
+  "pause_reason" text,
+  "paused_by_user_id" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("subject_type", "subject_id")
+);
+create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+alter table "better_supabase"."subject_lifecycles" enable row level security;
+revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
+grant select on "better_supabase"."subject_lifecycles" to authenticated;
+grant all on "better_supabase"."subject_lifecycles" to service_role;
+drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+  using (false);
 
 
 
@@ -185,6 +235,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."status_history";
+create policy bsb_tenant_scope on "centrakit"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (false)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

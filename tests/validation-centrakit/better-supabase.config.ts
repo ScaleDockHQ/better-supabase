@@ -3,12 +3,14 @@ import { defineConfig } from "better-supabase/config";
 import { centrakitProvider } from "./src/provider.ts";
 
 // The module config CentraKit adopts better-supabase with: every module runs
-// on its existing tables (`adopt`) and its names, and the permissions are
+// on its existing tables (found in 000_centrakit.sql) and its names, and the permissions are
 // CentraKit's authorization provider's, read from a frozen snapshot of its
 // output (authorization-provider.json). Only support sessions, the realtime
 // registry and the blocks CentraKit had no tables for are new. CentraKit keeps
 // its tables in `public`; the fixture puts them in `centrakit`.
 export default defineConfig({
+  // add finds CentraKit's own tables in these schemas.
+  database: { schemas: ["public", "centrakit"] },
   auth: { authorization: centrakitProvider() },
   // The records comments attach to.
   records: {
@@ -25,7 +27,6 @@ export default defineConfig({
       },
     },
     memberships: {
-      ownership: "adopt",
       tables: { memberships: "centrakit.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
       options: {
@@ -91,7 +92,6 @@ export default defineConfig({
       },
     },
     organizations: {
-      ownership: "adopt",
       tables: { organizations: "centrakit.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       callbacks: {
@@ -106,7 +106,6 @@ export default defineConfig({
       },
     },
     invitations: {
-      ownership: "adopt",
       tables: {
         invitations: "centrakit.organization_invitations",
         platformInvitations: "centrakit.organization_invitations",
@@ -136,7 +135,6 @@ export default defineConfig({
       },
     },
     profiles: {
-      ownership: "adopt",
       tables: { profiles: "centrakit.profiles" },
       columns: {
         profiles: {
@@ -166,7 +164,6 @@ export default defineConfig({
       options: { auditCategory: "security", approval: "none" },
     },
     audit: {
-      ownership: "adopt",
       tables: {
         log: "centrakit.audit_logs",
         restricted: "centrakit.audit_log_restricted_details",
@@ -212,7 +209,6 @@ export default defineConfig({
       },
     },
     outbox: {
-      ownership: "adopt",
       tables: { events: "centrakit.workflow_events" },
       columns: {
         events: {
@@ -229,7 +225,6 @@ export default defineConfig({
       options: { defaultSource: "domain", blockSource: "domain" },
     },
     notifications: {
-      ownership: "adopt",
       schema: "better_supabase",
       tables: {
         events: "centrakit.notification_events",
@@ -252,7 +247,6 @@ export default defineConfig({
       },
     },
     "webhooks-out": {
-      ownership: "adopt",
       tables: {
         endpoints: "centrakit.webhook_destinations",
         secrets: "centrakit.webhook_destination_secrets",
@@ -287,7 +281,6 @@ export default defineConfig({
       },
     },
     credentials: {
-      ownership: "adopt",
       tables: { secrets: "centrakit.integration_credentials" },
       columns: {
         secrets: {
@@ -300,7 +293,6 @@ export default defineConfig({
       },
     },
     "webhooks-in": {
-      ownership: "adopt",
       tables: { endpoints: "centrakit.inbound_webhooks" },
       columns: {
         endpoints: {
@@ -329,7 +321,6 @@ export default defineConfig({
       },
     },
     "webhook-inbox": {
-      ownership: "adopt",
       tables: { messages: "centrakit.inbound_webhook_events" },
       columns: {
         messages: {
@@ -343,15 +334,12 @@ export default defineConfig({
       },
     },
     numbering: {
-      ownership: "adopt",
       tables: { sequences: "centrakit.organization_number_sequences" },
     },
     teams: {
-      ownership: "adopt",
       tables: { teams: "centrakit.teams", members: "centrakit.team_members" },
     },
     tags: {
-      ownership: "adopt",
       tables: { tags: "centrakit.organization_tags", taggings: null },
       // CentraKit orders tags by an integer position, not rank keys.
       columns: { tags: { rank: null } },
@@ -369,12 +357,8 @@ export default defineConfig({
         },
       },
     },
-    "state-machine": {
-      ownership: "adopt",
-      tables: { history: "centrakit.status_history" },
-    },
+    "state-machine": { tables: { history: "centrakit.status_history" } },
     "custom-fields": {
-      ownership: "adopt",
       tables: {
         definitions: "centrakit.field_definitions",
         options: "centrakit.field_options",
@@ -383,7 +367,6 @@ export default defineConfig({
       columns: { definitions: { rank: null }, options: { rank: null } },
     },
     "share-links": {
-      ownership: "adopt",
       tables: {
         links: "centrakit.share_links",
         views: "centrakit.subject_views",
@@ -392,18 +375,16 @@ export default defineConfig({
       columns: { links: { versionId: null } },
     },
     reminders: {
-      ownership: "adopt",
       tables: {
         rules: "centrakit.recurrence_rules",
         reminders: "centrakit.reminders",
         deliveries: "centrakit.reminder_deliveries",
       },
     },
-    imports: { ownership: "adopt", tables: { runs: "centrakit.import_runs" } },
+    imports: { tables: { runs: "centrakit.import_runs" } },
     // CentraKit keeps no attachment rows, sort keys or soft deletes on its
     // tree, so the drive adopts the tree and grants and leaves uploads to it.
     drive: {
-      ownership: "adopt",
       tables: {
         nodes: "centrakit.file_node",
         grants: "centrakit.file_node_grant",

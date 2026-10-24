@@ -1,5 +1,5 @@
 -- better-supabase module: outbox
--- @bsb-block outbox@5 adopt
+-- @bsb-block outbox@5 managed
 -- @bsb-hash sha256:f1b5fea8e78d9e83c8a6e9fe8e1e8a1ca74e0710da341df4722c9032e3f245d9
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
