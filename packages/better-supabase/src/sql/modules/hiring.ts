@@ -781,6 +781,7 @@ const CONTRIBUTES: BlockContributes = {
       {
         type: own.resolved.entityNaming.rename("application"),
         table: `${schema}.${name}`,
+        tenant: own.colName("applications", "tenant"),
         entry: applicationPipeline(own),
       },
     ];

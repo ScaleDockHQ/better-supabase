@@ -78,6 +78,8 @@ export interface PipelineContribution {
   readonly type: string;
   /** The qualified table its records live in. */
   readonly table: string;
+  /** Its tenant column, unquoted; `tenant_id` when left out. */
+  readonly tenant?: string;
   /** The binding; an app's own `on` entry is merged over it. */
   readonly entry: Readonly<Record<string, unknown>>;
 }

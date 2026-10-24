@@ -2,8 +2,8 @@ import type { FindingInput, Rule } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
 import { PLATFORM_SCHEMAS } from "../in-stack-diff.ts";
-import { ident as sqlIdent, literal as sqlString } from "./live.ts";
 import { scopeCheckName, scopedAppTables } from "./app-table-scope.ts";
+import { ident as sqlIdent, literal as sqlString } from "./live.ts";
 
 interface NotValidCheck {
   readonly schema: string;

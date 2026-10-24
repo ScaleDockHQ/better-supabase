@@ -57,6 +57,7 @@ export const CHANNELS_NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["visibility"],
     },
   },
 };
@@ -72,6 +73,8 @@ export interface ChannelsSql {
   readonly ch: (column: string) => string;
   /** A conversations column, through the messaging module. */
   readonly cv: (column: string) => string;
+  /** A text value cast to a conversations column's type. */
+  readonly cvCast: (column: string, value: string) => string;
   readonly mb: (column: string) => string;
   /** `messaging.<name>`. */
   readonly mfn: (name: string) => string;
@@ -96,6 +99,7 @@ export function channelsSql(ctx: BlockSqlContext): ChannelsSql {
     t: (table) => ctx.table(table),
     ch: (column) => ctx.col("channels", column),
     cv: (column) => messaging.col("conversations", column),
+    cvCast: (column, value) => messaging.cast("conversations", column, value),
     mb: (column) => messaging.col("members", column),
     mfn: (name) => messaging.fn(name),
     conversations: messaging.table("conversations"),

@@ -202,3 +202,54 @@ describe.each(MODULES)("%s over the app's tables", (module) => {
     expect(() => render(module, all, modules)).not.toThrow();
   });
 });
+
+describe("blocks next to the app's tables", () => {
+  const files = (
+    names: readonly string[],
+    ownTables: Record<string, string>,
+    modules: AnyBlocksConfig = {},
+  ): string =>
+    unquote(
+      renderBlocks([...names], { ownTables, modules })
+        .filter((file) => file.kind === "schema")
+        .map((file) => file.contents)
+        .join("\n"),
+    );
+
+  it("casts the conversation access channels write to the app's column type", () => {
+    const conversations = tablesOf("messaging").conversations!;
+
+    const sql = files(["messaging", "channels"], {
+      [conversations]: "app.sql",
+    });
+
+    const update = sql.slice(
+      sql.indexOf("function better_supabase.update_channel"),
+    );
+
+    expect(update).toMatch(/access = better_supabase\.as_column_type\(/);
+  });
+
+  it("binds pipelines to the tenant column the app's applications table names", () => {
+    const applications = tablesOf("hiring").applications!;
+
+    const sql = files(
+      ["hiring", "pipelines"],
+      { [applications]: "app.sql" },
+      { hiring: { columns: { applications: { tenant: "org_id" } } } },
+    );
+
+    expect(sql).toContain("default_pipeline(new.org_id, 'application'");
+    expect(sql).not.toContain("new.tenant_id");
+  });
+
+  it("moves stock movements onto a ledger without a memo column", () => {
+    expect(() =>
+      files(
+        ["ledger", "catalog", "inventory"],
+        {},
+        { ledger: { columns: { transactions: { memo: null } } } },
+      ),
+    ).not.toThrow();
+  });
+});

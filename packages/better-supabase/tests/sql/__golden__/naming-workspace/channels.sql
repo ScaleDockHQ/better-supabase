@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:37c24a627563baa616a0413ca6ce248f7c3797462cf671378b865e948cda1595
+-- @bsb-hash sha256:3d62e5c411ee2638e0f19243fe2ef03a9ef9d3633e0a1aabcbffbd23bdc56a21
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -188,7 +188,7 @@ begin
   if v_name !~ '^[a-z0-9][a-z0-9_-]{0,79}$' then
     raise exception 'a channel name is 1 to 80 lowercase letters, digits, - or _, starting with a letter or digit' using errcode = '22023', hint = 'CHANNELS_NAME_INVALID';
   end if;
-  v_visibility := coalesce(update_channel.attrs ->> 'visibility', v_ch."visibility");
+  v_visibility := coalesce(update_channel.attrs ->> 'visibility', v_ch."visibility"::text);
   if v_visibility not in ('public', 'private') then
     raise exception 'a channel is public or private' using errcode = '22023', hint = 'CHANNELS_VISIBILITY_INVALID';
   end if;

@@ -505,6 +505,7 @@ function stockMovementsUpgrade(ctx: BlockSqlContext): string {
   const old = `${ctx.schema}.stock_movements`;
   const read = ctx.permission("read", OPERATIONS["inventory.read"]);
   const accounts = ledger.table("accounts");
+  const memo = ledger.has("transactions", "memo");
 
   return `${ledgerTables(ledger)}
 do $upgrade$
@@ -521,8 +522,8 @@ begin
   select distinct m.tenant_id, 'stock_counter', ${counterCase("m.reason", 0)}, ${counterCase("m.reason", 1)}, 'item', true, ${read}, 'inventory'
   from ${old} m
   on conflict do nothing;
-  insert into ${ledger.table("transactions")} (${t("id")}, ${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}, ${t("memo")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")}, ${t("createdAt")})
-  select m.id, m.tenant_id, 'stock.' || m.reason, m.reference_type, m.reference_id, m.note,
+  insert into ${ledger.table("transactions")} (${t("id")}, ${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}, ${memo ? `${t("memo")}, ` : ""}${t("metadata")}, ${t("effectiveAt")}, ${t("actor")}, ${t("createdAt")})
+  select m.id, m.tenant_id, 'stock.' || m.reason, m.reference_type, m.reference_id,${memo ? " m.note," : ""}
     jsonb_build_object('variantId', m.variant_id, 'locationId', m.location_id, 'reason', m.reason), m.created_at, m.actor_id, m.created_at
   from ${old} m
   on conflict do nothing;
