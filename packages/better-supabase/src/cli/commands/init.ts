@@ -35,6 +35,7 @@ import {
   resolvePreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { contentMapperFiles } from "../content-mapper.ts";
 import {
   CONVENTION_ARGS,
   CONVENTION_COMPLETIONS,
@@ -130,6 +131,11 @@ const INIT_ARGS = {
     type: "boolean",
     description:
       "Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps",
+  },
+  "content-mapper": {
+    type: "boolean",
+    description:
+      "Serve the schema types through the TypeScript 7.1 content mapper: sets gen.contentMapper and adds it to tsconfig.json",
   },
 } as const;
 
@@ -386,6 +392,8 @@ export async function runInit(
     : workspaceProject;
 
   const lite = args.lite === true;
+  const contentMapper = args["content-mapper"] === true;
+  const mapperKey = contentMapper ? { contentMapper } : {};
 
   const installTarget: InstallTarget | undefined = inPackage
     ? { dir: target.dir, name: project.name }
@@ -462,9 +470,14 @@ export async function runInit(
               ...(keys.sql === undefined ? {} : { sql: keys.sql }),
               ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
               provider: conventions.access === "provider",
+              ...mapperKey,
               ...since,
             }
-          : { provider: conventions.access === "provider", ...since },
+          : {
+              provider: conventions.access === "provider",
+              ...mapperKey,
+              ...since,
+            },
       ),
       ...integrationFiles(integrations, templateContext),
       ...(chosen === null
@@ -516,6 +529,19 @@ export async function runInit(
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
   ];
+
+  const mapper = contentMapper
+    ? await contentMapperFiles(root)
+    : { files: [], notes: [] };
+
+  if (mapper.files.length > 0) {
+    const wrote = await applyPlan(
+      { root, regenerate: "better-supabase init", files: mapper.files },
+      { ...args, force: true },
+    );
+
+    lines.push(...changeLines(wrote));
+  }
 
   if (createUrlParam(args.preset, "authz") !== undefined) {
     lines.push("", AUTHZ_NOTE);
@@ -615,6 +641,7 @@ export async function runInit(
           "Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
         ]
       : []),
+    ...mapper.notes,
     ...integrations.flatMap((name) => TEMPLATES[name].next ?? []),
   ];
 

@@ -11,7 +11,11 @@ import type {
 } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import { renderFiles } from "../../../src/cli/gen/render.ts";
+import { schemaStampPath } from "../../../src/cli/content-mapper.ts";
+import {
+  MAPPER_FILE_CONTENTS,
+  renderFiles,
+} from "../../../src/cli/gen/render.ts";
 import { runGen } from "../../../src/cli/gen/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
@@ -411,6 +415,46 @@ describe("gen", () => {
     expect(await readFile(join(root, files[1]!.path), "utf-8")).toContain(
       "\r\n",
     );
+  });
+
+  it("switches to the content mapper, removing database.types.ts and stamping the schema", async () => {
+    await runGen({ config: configure({}), env: {}, check: false, snapshot });
+
+    const mapper = configure({ gen: { contentMapper: true } });
+
+    const written = await runGen({
+      config: mapper,
+      env: {},
+      check: false,
+      snapshot,
+    });
+
+    expect(written.output).toContain("Removed src/db/database.types.ts");
+    expect(existsSync(join(root, "src/db/database.types.ts"))).toBe(false);
+    expect(await readFile(join(root, "src/db/schema.bsb"), "utf-8")).toBe(
+      MAPPER_FILE_CONTENTS,
+    );
+    expect(
+      await readFile(join(root, "src/db/generated.ts"), "utf-8"),
+    ).toContain('export type * from "./schema.bsb";');
+
+    const stamp = schemaStampPath(root, mapper.output);
+    const key = await readFile(stamp, "utf-8");
+
+    await rm(stamp);
+    await runGen({ config: mapper, env: {}, check: false, snapshot });
+    expect(existsSync(stamp)).toBe(false);
+
+    await runGen({
+      config: configure({ gen: { contentMapper: true, casing: "snake" } }),
+      env: {},
+      check: false,
+      snapshot,
+    });
+    expect(await readFile(stamp, "utf-8")).not.toBe(key);
+    expect(
+      (await runGen({ config: mapper, env: {}, check: true, snapshot })).code,
+    ).toBe(1);
   });
 
   it("reports missing files with --check", async () => {

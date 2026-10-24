@@ -131,6 +131,54 @@ describe("init and add", () => {
     expect(init.stdout).not.toContain("supabase start");
   });
 
+  it("turns the content mapper on with --content-mapper", async () => {
+    await project(
+      {},
+      {
+        "package.json": JSON.stringify(
+          { name: "app", scripts: { typecheck: "tsc --noEmit" } },
+          null,
+          2,
+        ),
+        "tsconfig.json": '{\n  "compilerOptions": { "strict": true }\n}\n',
+      },
+    );
+    const init = await run(["init", "--content-mapper", "--cwd", dir]);
+    expect(init.code).toBe(0);
+    expect(
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
+    ).toContain("contentMapper: true");
+    expect(
+      JSON.parse(await readFile(join(dir, "tsconfig.json"), "utf-8")),
+    ).toEqual({
+      compilerOptions: { strict: true },
+      contentMappers: [{ package: "better-supabase", extensions: [".bsb"] }],
+    });
+    expect(
+      JSON.parse(await readFile(join(dir, "package.json"), "utf-8")).scripts,
+    ).toEqual({ typecheck: "tsc --runExternalCode --noEmit" });
+
+    await writeFile(
+      join(dir, "tsconfig.json"),
+      '{\n  // mine\n  "compilerOptions": {}\n}\n',
+    );
+
+    const again = await run([
+      "init",
+      "--content-mapper",
+      "--force",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(again.stdout).toContain(
+      'Add "contentMappers": [{"package":"better-supabase","extensions":[".bsb"]}] to tsconfig.json',
+    );
+    expect(await readFile(join(dir, "tsconfig.json"), "utf-8")).toContain(
+      "// mine",
+    );
+  });
+
   it("writes into the workspace package passed with --package", async () => {
     await project(
       {},

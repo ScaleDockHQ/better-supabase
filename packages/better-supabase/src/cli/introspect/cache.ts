@@ -178,19 +178,28 @@ async function readTypesModule(
 }
 
 /**
- * Stores the module the content mapper serves for `output`. One file per
- * generated module keeps the cache from growing.
+ * Stores the module the content mapper serves for `output`, and returns whether
+ * it replaced one under another key. One file per generated module keeps the
+ * cache from growing.
  */
 export async function storeTypesModule(
   root: string,
   output: string,
   key: string,
   contents: string,
-): Promise<void> {
+): Promise<boolean> {
+  const previous = await readTypesModule(root, output);
+
+  if (previous?.key === key) {
+    return false;
+  }
+
   await writeAtomic(
     typesModuleFile(root, output),
     JSON.stringify({ key, contents }),
   ).catch(() => undefined);
+
+  return true;
 }
 
 /**
@@ -210,7 +219,10 @@ export async function cachedTypesModule(
   }
 
   const contents = await produce();
-  await storeTypesModule(root, output, key, contents);
+  await writeAtomic(
+    typesModuleFile(root, output),
+    JSON.stringify({ key, contents }),
+  ).catch(() => undefined);
 
   return contents;
 }

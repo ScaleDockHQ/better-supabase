@@ -64,7 +64,7 @@ export function mapperFilePath(config: ResolvedConfig): string {
   return join(dirname(config.output), MAPPER_FILE);
 }
 
-const MAPPER_FILE_CONTENTS = `// The better-supabase content mapper serves the schema types for this file.
+export const MAPPER_FILE_CONTENTS: string = `// The better-supabase content mapper serves the schema types for this file.
 // Its contents are ignored. Run \`better-supabase gen\` after a config change.
 `;
 

@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
+import type { GeneratedFile } from "../../../src/config/types/codegen.ts";
 
 import {
   CACHE_DIR,
@@ -175,7 +176,7 @@ describe("cachedDatabaseTypes", () => {
 });
 
 describe("cachedTypesModule", () => {
-  const config = (generate: () => string) =>
+  const config = (generate: () => readonly GeneratedFile[]) =>
     resolveConfig(
       { gen: { generators: [{ name: "g", apiVersion: 1, generate }] } },
       "/app",
@@ -183,35 +184,35 @@ describe("cachedTypesModule", () => {
 
   it("keys on the config, its file and the snapshot", () => {
     const base = typesModuleKey(
-      config(() => "a"),
+      config(() => [{ path: "a", contents: "" }]),
       "x",
       snapshot("public"),
     );
 
     expect(
       typesModuleKey(
-        config(() => "a"),
+        config(() => [{ path: "a", contents: "" }]),
         "x",
         snapshot("public"),
       ),
     ).toBe(base);
     expect(
       typesModuleKey(
-        config(() => "b"),
+        config(() => [{ path: "b", contents: "" }]),
         "x",
         snapshot("public"),
       ),
     ).not.toBe(base);
     expect(
       typesModuleKey(
-        config(() => "a"),
+        config(() => [{ path: "a", contents: "" }]),
         "y",
         snapshot("public"),
       ),
     ).not.toBe(base);
     expect(
       typesModuleKey(
-        config(() => "a"),
+        config(() => [{ path: "a", contents: "" }]),
         "x",
         snapshot("app"),
       ),

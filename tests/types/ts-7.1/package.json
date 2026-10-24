@@ -1,0 +1,13 @@
+{
+  "name": "@better-supabase/types-ts71",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "transit": "true",
+    "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json"
+  },
+  "devDependencies": {
+    "@better-supabase/types-shared": "workspace:*",
+    "typescript": "catalog:ts71"
+  }
+}
