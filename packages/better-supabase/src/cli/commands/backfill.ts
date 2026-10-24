@@ -5,13 +5,13 @@ import type { CommandResult } from "../core/io.ts";
 import type { PgQueryable } from "../db.ts";
 import type { CliEnv } from "../env.ts";
 
-import { sqlIdent } from "../../core/template.ts";
 import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
+import { ident as sqlIdent } from "../doctor/live.ts";
 import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
 const DEFAULT_BATCH = 1000;

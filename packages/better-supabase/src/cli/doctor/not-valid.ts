@@ -1,9 +1,8 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
-import { sqlIdent, sqlString } from "../../core/template.ts";
-import { validateConstraint } from "../../sql/shared.ts";
 import { errorText } from "../core/errors.ts";
 import { PLATFORM_SCHEMAS } from "../in-stack-diff.ts";
+import { ident as sqlIdent, literal as sqlString } from "./live.ts";
 
 interface NotValidCheck {
   readonly schema: string;
@@ -113,7 +112,9 @@ order by 1, 2, 3`,
           }`,
           target,
           object,
-          fix: untimed(validateConstraint(table, check.name)),
+          fix: untimed(
+            `alter table ${table} validate constraint ${sqlIdent(check.name)};`,
+          ),
         });
       }
 
