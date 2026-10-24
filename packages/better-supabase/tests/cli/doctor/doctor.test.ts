@@ -2021,7 +2021,6 @@ uri = "https://example.com/hook"
               blocks: {
                 permissions: { model: "provider" },
                 memberships: {
-                  ownership: "adopt",
                   tables: { memberships: "public.team_members" },
                   columns: { memberships: { role: "role_id" } },
                   options: {

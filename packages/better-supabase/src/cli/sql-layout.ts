@@ -242,7 +242,7 @@ const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
 const BLOCK_MIGRATION = /_better_supabase_[a-z_]+\.sql$/;
 
 /** A file better-supabase wrote: a block file or a module migration. */
-function writtenByBlocks(source: {
+export function writtenByBlocks(source: {
   readonly path: string;
   readonly text: string;
 }): boolean {
@@ -250,9 +250,9 @@ function writtenByBlocks(source: {
 }
 
 /**
- * Under `workflow: migrations`, the tables in the saved snapshot
- * (`source.snapshot`) that no module migration created, mapped to `database`.
- * Without a snapshot, the migrations stand in for it.
+ * The tables in the saved snapshot (`source.snapshot`) that no block file or
+ * module migration created, mapped to `database`. Without a snapshot, the app's
+ * schema files and migrations stand in for it.
  */
 async function databaseTables(
   config: ResolvedConfig,
@@ -261,14 +261,9 @@ async function databaseTables(
   readonly columns: Readonly<Record<string, readonly string[]>>;
 }> {
   const none = { tables: {}, columns: {} };
-  const toml = await readSupabaseToml(config.root);
   const path = config.source.snapshot;
 
-  if (
-    sqlWorkflow(config, toml) !== "migrations" ||
-    path === undefined ||
-    !existsSync(resolve(config.root, path))
-  ) {
+  if (path === undefined || !existsSync(resolve(config.root, path))) {
     return none;
   }
 

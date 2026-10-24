@@ -82,6 +82,9 @@ const entityName = v.pipe(
   ),
 );
 
+const ADOPT_REMOVED =
+  'ownership "adopt" was removed: a block now leaves alone every table your schema already has. Delete the key, or run `better-supabase codemod`.';
+
 const instanceKeys = {
   block: v.optional(v.string()),
   on: v.optional(
@@ -93,7 +96,11 @@ const instanceKeys = {
 
 const blockEntries = {
   ...instanceKeys,
-  ownership: v.optional(v.picklist(["managed", "adopt", "custom"])),
+  ownership: v.optional(
+    v.picklist(["managed", "custom"], (issue) =>
+      issue.input === "adopt" ? ADOPT_REMOVED : issue.message,
+    ),
+  ),
   schema: v.optional(v.string()),
   columns: v.optional(
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),

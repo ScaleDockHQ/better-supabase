@@ -937,7 +937,7 @@ describe("module upgrades (BS309, BS310)", () => {
         context(
           snap,
           { sqlFiles },
-          { blocks: { memberships: { ownership: "adopt" } } },
+          { blocks: { memberships: { ownership: "custom" } } },
         ),
       ),
     ).toEqual([]);
@@ -1238,11 +1238,23 @@ describe("flags past their expiry (BS336)", () => {
   });
 });
 
-describe("adopted tables without a mapped column (BS330)", () => {
+describe("app tables without a mapped column (BS330)", () => {
+  const withTables = (...names: string[]) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+
+      for (const qualified of names) {
+        const [schema = "", name = ""] = qualified.split(".");
+
+        tables.push({ ...notes, schema, name, foreignKeys: [], triggers: [] });
+      }
+    });
+
+  const secrets = withTables("public.integration_secrets");
+
   const credentials = {
     blocks: {
       credentials: {
-        mode: "adopt" as const,
         tables: { secrets: "public.integration_secrets" },
         columns: {
           secrets: { name: "key", tenant: "organization_id", scope: null },
@@ -1271,7 +1283,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
     const findings = await run(
       "BS330",
       context(
-        base,
+        secrets,
         { database: live(columns("provider", "organization_id", "vault_id")) },
         credentials,
       ),
@@ -1291,9 +1303,9 @@ describe("adopted tables without a mapped column (BS330)", () => {
     );
   });
 
-  it("reports a missing table, and passes a complete one, managed modules and no database", async () => {
+  it("reports a missing table, and passes a complete one, the block's own tables and no database", async () => {
     expect(
-      await run("BS330", context(base, { database: live([]) }, credentials)),
+      await run("BS330", context(secrets, { database: live([]) }, credentials)),
     ).toEqual([
       expect.objectContaining({
         target: "public.integration_secrets",
@@ -1304,7 +1316,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
       await run(
         "BS330",
         context(
-          base,
+          secrets,
           {
             database: live(
               columns(
@@ -1323,37 +1335,47 @@ describe("adopted tables without a mapped column (BS330)", () => {
     expect(
       await run(
         "BS330",
-        context(base, { database: live([]) }, { blocks: { credentials: {} } }),
+        context(
+          secrets,
+          { database: live([]) },
+          { blocks: { credentials: {} } },
+        ),
       ),
     ).toEqual([]);
-    expect(await run("BS330", context(base, {}, credentials))).toEqual([]);
+    expect(
+      await run("BS330", context(base, { database: live([]) }, credentials)),
+    ).toEqual([]);
+    expect(await run("BS330", context(secrets, {}, credentials))).toEqual([]);
     expect(
       await run(
         "BS330",
-        context(base, { database: live(new Error("denied")) }, credentials),
+        context(secrets, { database: live(new Error("denied")) }, credentials),
       ),
     ).toEqual([]);
   });
 
-  it("checks tables an adopted module uses only when mapped, once they are mapped", async () => {
+  it("checks the app's tables a block uses only when mapped, once they are mapped", async () => {
+    const snap = withTables(
+      "better_supabase.notification_deliveries",
+      "better_supabase.notification_delivery_events",
+      "better_supabase.notification_suppressions",
+      "public.delivery_events",
+      "public.suppressed_addresses",
+    );
+
     const targets = async (tables: Record<string, string>) =>
       (
         await run(
           "BS330",
           context(
-            base,
+            snap,
             { database: live([]) },
-            { blocks: { notifications: { ownership: "adopt", tables } } },
+            { blocks: { notifications: { tables } } },
           ),
         )
       ).map((finding) => finding.target);
 
-    const unmapped = await targets({});
-    expect(unmapped).not.toContain(
-      "better_supabase.notification_delivery_events",
-    );
-    expect(unmapped).not.toContain("better_supabase.notification_suppressions");
-    expect(unmapped).toContain("better_supabase.notification_deliveries");
+    expect(await targets({})).toEqual([]);
 
     expect(
       await targets({
@@ -1369,7 +1391,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
   });
 });
 
-describe("adopted enum columns the module writes as text (BS342)", () => {
+describe("enum columns of the app's tables the module writes as text (BS342)", () => {
   const enumSnapshot = snapshot((tables, catalog) => {
     const notes = table(tables, "notes");
     const column = notes.columns[0]!;
@@ -1403,12 +1425,7 @@ describe("adopted enum columns the module writes as text (BS342)", () => {
   });
 
   const blocks = {
-    blocks: {
-      numbering: {
-        mode: "adopt" as const,
-        tables: { sequences: "public.number_sequences" },
-      },
-    },
+    blocks: { numbering: { tables: { sequences: "public.number_sequences" } } },
   };
 
   it("reports an enum column the module writes as text, not one it casts", async () => {
@@ -1423,13 +1440,13 @@ describe("adopted enum columns the module writes as text (BS342)", () => {
     ]);
   });
 
-  it("passes managed modules and tables the snapshot lacks", async () => {
+  it("passes the block's own tables and tables the snapshot lacks", async () => {
     expect(await run("BS342", context(enumSnapshot))).toEqual([]);
     expect(await run("BS342", context(base, {}, blocks))).toEqual([]);
   });
 });
 
-describe("adopted webhook endpoints without a format (BS344)", () => {
+describe("app webhook endpoints without a format (BS344)", () => {
   const withEndpoints = (columns: readonly string[]) =>
     snapshot((tables) => {
       const notes = table(tables, "notes");
@@ -1444,19 +1461,18 @@ describe("adopted webhook endpoints without a format (BS344)", () => {
       });
     });
 
-  const adopt = (extra: Record<string, unknown> = {}) => ({
+  const overApp = (extra: Record<string, unknown> = {}) => ({
     blocks: {
       "webhooks-out": {
-        mode: "adopt" as const,
         tables: { endpoints: "public.hook_endpoints" },
         ...extra,
       },
     },
   });
 
-  it("reports an adopted endpoints table with no format column and no defaultFormat", async () => {
+  it("reports the app's endpoints table with no format column and no defaultFormat", async () => {
     expect(
-      await run("BS344", context(withEndpoints(["id", "url"]), {}, adopt())),
+      await run("BS344", context(withEndpoints(["id", "url"]), {}, overApp())),
     ).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -1469,7 +1485,7 @@ describe("adopted webhook endpoints without a format (BS344)", () => {
     expect(
       await run(
         "BS344",
-        context(withEndpoints(["id", "url", "format"]), {}, adopt()),
+        context(withEndpoints(["id", "url", "format"]), {}, overApp()),
       ),
     ).toEqual([
       expect.objectContaining({
@@ -1480,13 +1496,13 @@ describe("adopted webhook endpoints without a format (BS344)", () => {
     ]);
   });
 
-  it("passes an explicit defaultFormat, a mapped column and managed tables", async () => {
+  it("passes an explicit defaultFormat, a mapped column and the block's own table", async () => {
     const snap = withEndpoints(["id", "url", "format"]);
 
     expect(
       await run(
         "BS344",
-        context(snap, {}, adopt({ options: { defaultFormat: "standard" } })),
+        context(snap, {}, overApp({ options: { defaultFormat: "standard" } })),
       ),
     ).toEqual([]);
     expect(
@@ -1495,7 +1511,7 @@ describe("adopted webhook endpoints without a format (BS344)", () => {
         context(
           snap,
           {},
-          adopt({ columns: { endpoints: { format: "format" } } }),
+          overApp({ columns: { endpoints: { format: "format" } } }),
         ),
       ),
     ).toEqual([]);
@@ -2104,12 +2120,8 @@ describe("migration-only module options (BS314)", () => {
         {},
         {
           blocks: {
-            invitations: {
-              ownership: "adopt",
-              options: { tokenStorage: "plain" },
-            },
+            invitations: { options: { tokenStorage: "plain" } },
             outbox: {
-              ownership: "adopt",
               options: {
                 blockSource: "better-supabase/{module}",
                 defaultSource: "domain",
@@ -2265,7 +2277,7 @@ describe("tables without an audit trigger (BS315)", () => {
     );
   });
 
-  it("skips exempt globs, adopted module tables and projects without the module", async () => {
+  it("skips exempt globs, the app's tables a block runs over and projects without the module", async () => {
     const [first = "", ...rest] = publicTables;
     expect(
       await run(
@@ -2280,10 +2292,7 @@ describe("tables without an audit trigger (BS315)", () => {
                   exempt: rest.map((table) => ({ table, reason: "archive" })),
                 },
               },
-              memberships: {
-                ownership: "adopt",
-                tables: { memberships: first },
-              },
+              memberships: { tables: { memberships: first } },
             },
           },
         ),

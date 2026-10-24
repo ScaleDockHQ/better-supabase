@@ -4,6 +4,7 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   adoptedTables,
+  SQL_MODULES,
   contractSignature,
   customContracts,
   moduleDeprecations,
@@ -17,6 +18,7 @@ import {
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
+import { appTablesOf } from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
@@ -184,7 +186,10 @@ async function danglingAuditRegistrations(
   }));
 }
 
-/** Tables and columns adopt-mode modules use that the live database lacks. */
+/**
+ * Columns the modules use on the app's tables that the live database lacks:
+ * every table the database has may be the app's.
+ */
 async function missingAdoptedColumns(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
@@ -194,7 +199,7 @@ async function missingAdoptedColumns(
     return [];
   }
 
-  const tables = adoptedTables(context.config.blocks);
+  const tables = adoptedTables(context.config.blocks, appTablesOf(context));
 
   if (tables.length === 0) {
     return [];
@@ -236,17 +241,25 @@ async function missingAdoptedColumns(
     if (present.size === 0) {
       return [
         {
-          message: `blocks.${table.module} is in adopt mode and maps its ${table.logical} table to ${target}, which the database does not have. Create it, or point blocks.${table.module}.tables.${table.logical} at the existing table.`,
+          message: `blocks.${table.module} uses ${target} for its ${table.logical} table, which the database does not have. Create it, or point blocks.${table.module} at the existing table.`,
           target,
           object,
         },
       ];
     }
 
+    const added =
+      SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined;
+
+    const fix = (logical: string): string =>
+      added
+        ? `Apply the block's migration (\`better-supabase upgrade\`), which adds it, or map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it.`
+        : `Map the column in blocks.${table.module}.on to the one that holds it, or add it.`;
+
     return Object.entries(table.columns)
       .filter(([, column]) => !present.has(column))
       .map(([logical, column]) => ({
-        message: `blocks.${table.module} is in adopt mode and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. Map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it, or to null when the module allows that.`,
+        message: `blocks.${table.module} runs over ${target} and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. ${fix(logical)}`,
         target: `${target}.${column}`,
         object,
       }));
@@ -838,7 +851,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Migration-only module option",
     description:
-      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets or credentials in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
+      "A module over the app's tables sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets or credentials in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
     check: migrationOptions,
   },
   {
@@ -916,9 +929,9 @@ export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS330",
     severity: "error",
-    title: "Adopted table without a mapped column",
+    title: "App table without a column a block uses",
     description:
-      "A module in adopt mode maps a table or column that the live database lacks, so its functions fail when they run. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped.",
+      "A block runs over a table of the app's, and the live database lacks a column its SQL names, so its functions fail until the block's migration adds it. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped. A column on a table that `blocks.<name>.on` names isn't added by the block: map it or add it.",
     check: missingAdoptedColumns,
   },
   {

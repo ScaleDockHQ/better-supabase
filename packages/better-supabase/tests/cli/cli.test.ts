@@ -662,7 +662,7 @@ describe("CHECK not null", () => {
   });
 
   it("makes numbering columns optional on insert", async () => {
-    const numbered = (mode: "adopt" | "custom") =>
+    const numbered = (mode: "managed" | "custom") =>
       customersWith((table) => table, {
         blocks: {
           numbering: {
@@ -682,14 +682,14 @@ describe("CHECK not null", () => {
         },
       });
 
-    const adopted = await numbered("adopt");
+    const managed = await numbered("managed");
 
-    expect(adopted("kvk").column).toMatchObject({
+    expect(managed("kvk").column).toMatchObject({
       nullable: false,
       optional: true,
     });
-    expect(adopted("kvk").meta?.hasDefault).toBe(true);
-    expect(adopted("name").column).toMatchObject({ optional: true });
+    expect(managed("kvk").meta?.hasDefault).toBe(true);
+    expect(managed("name").column).toMatchObject({ optional: true });
     expect((await numbered("custom"))("kvk").column).toMatchObject({
       optional: false,
     });

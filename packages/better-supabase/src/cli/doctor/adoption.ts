@@ -13,6 +13,7 @@ import {
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
+import { appTablesOf } from "./app-tables.ts";
 import { catalogOf, qualified } from "./shared.ts";
 
 const tagText = (notNull: true | readonly string[]): string =>
@@ -214,37 +215,38 @@ export const ADOPTION_RULES: readonly Rule[] = [
   {
     code: "BS344",
     severity: "warning",
-    title: "Adopted webhook endpoints without a format",
+    title: "App webhook endpoints without a format",
     description:
-      "An adopted `webhooks-out` endpoints table that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `upgrade` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
+      "A `webhooks-out` endpoints table of the app's that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `upgrade` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
     check: (context) => {
       const block = context.config.blocks["webhooks-out"];
 
       if (
-        block?.mode !== "adopt" ||
+        block === undefined ||
         block.options?.["defaultFormat"] !== undefined ||
         typeof block.columns?.["endpoints"]?.["format"] === "string"
       ) {
         return [];
       }
 
-      const adopted = adoptedTables(context.config.blocks).find(
+      const adopted = adoptedTables(
+        context.config.blocks,
+        appTablesOf(context),
+      ).find(
         (entry) =>
           entry.module === "webhooks-out" && entry.logical === "endpoints",
       );
 
-      const table =
-        adopted === undefined
-          ? undefined
-          : catalogOf(context).tables.find(
-              (entry) =>
-                entry.schema === adopted.schema && entry.name === adopted.table,
-            );
+      if (adopted === undefined) {
+        return [];
+      }
 
-      const name =
-        adopted === undefined
-          ? "The adopted endpoints table"
-          : `${adopted.schema}.${adopted.table}`;
+      const table = catalogOf(context).tables.find(
+        (entry) =>
+          entry.schema === adopted.schema && entry.name === adopted.table,
+      );
+
+      const name = `${adopted.schema}.${adopted.table}`;
 
       const unmapped = table?.columns.some(
         (column) => column.name === "format",

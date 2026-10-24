@@ -1,6 +1,6 @@
 /**
- * Proposes an adopt-mode entry for a block from tables the app already has:
- * each logical table of the module gets an existing table, and each logical
+ * Proposes a block entry over tables the app already has: each logical table
+ * the app's table can stand in for gets an existing table, and each logical
  * column the column that most likely holds it. The proposal is checked the way
  * `upgrade` and doctor check a config, so what can't map is reported before
  * anything is written.
@@ -12,8 +12,8 @@ import type { CatalogTable } from "../introspect/types.ts";
 import { toSnake } from "../../index.ts";
 import {
   adoptedColumnProblems,
-  adoptedTables,
   migrationOptionUses,
+  moduleBody,
   moduleIdType,
   SQL_MODULES,
 } from "../../sql/index.ts";
@@ -78,10 +78,16 @@ const ALIASES: Readonly<Record<string, readonly string[]>> = {
   note: ["notes", "note"],
 };
 
-/** The blocks with an adopt mode, in registry order. */
+/** Whether the app's table can stand in for one of the block's tables. */
+const overAppTables = (block: string): boolean =>
+  Object.values(SQL_MODULES[block]?.names?.tables ?? {}).some(
+    (table) => table.app !== undefined,
+  );
+
+/** The blocks with a table the app's table can stand in for, in registry order. */
 export function adoptableBlocks(): readonly string[] {
   return Object.values(SQL_MODULES)
-    .filter((module) => module.modes?.includes("adopt") === true)
+    .filter((module) => overAppTables(module.name))
     .map((module) => module.name);
 }
 
@@ -184,7 +190,11 @@ function matchTables(
   schemas: readonly string[],
   errors: string[],
 ): Map<string, ExistingTable | null> {
-  const spec = SQL_MODULES[block]?.names?.tables ?? {};
+  const spec = Object.fromEntries(
+    Object.entries(SQL_MODULES[block]?.names?.tables ?? {}).filter(
+      ([, table]) => table.app !== undefined,
+    ),
+  );
 
   const byName = new Map(
     tables.map((table) => [`${table.schema}.${table.name}`, table]),
@@ -225,7 +235,7 @@ function matchTables(
   }
 
   for (const [logical, table] of Object.entries(spec)) {
-    if (chosen.has(logical)) {
+    if (chosen.has(logical) || table.app?.onlyWhenMapped === true) {
       continue;
     }
 
@@ -237,11 +247,15 @@ function matchTables(
       chosen.set(logical, found);
     } else if (table.optionalTable === true) {
       chosen.set(logical, null);
-    } else {
-      errors.push(
-        `blocks.${block} needs a table for ${logical} (${table.name} by default) and none was found. Pass it with --tables.`,
-      );
     }
+  }
+
+  if (chosen.size === 0) {
+    errors.push(
+      `None of the ${block} tables (${Object.values(spec)
+        .map((table) => table.name)
+        .join(", ")}) is in the database. Pass yours with --tables.`,
+    );
   }
 
   return chosen;
@@ -251,7 +265,7 @@ const enumType = (column: ExistingTable["columns"][number]): string =>
   `"${column.typeSchema ?? "public"}"."${column.udt}"`;
 
 /**
- * A `create table` per adopted table, with its enum types, for
+ * A `create table` per table of the app's, with its enum types, for
  * `adoptedColumnProblems`.
  */
 const declaration = (table: ExistingTable): string =>
@@ -274,7 +288,7 @@ export interface ProposeOptions {
   readonly schemas?: readonly string[];
 }
 
-/** The adopt-mode entry for `block` over `tables`, and what can't map. */
+/** The entry for `block` over the app's `tables`, and what can't map. */
 export function proposeAdoption(
   block: string,
   tables: readonly ExistingTable[],
@@ -282,7 +296,7 @@ export function proposeAdoption(
 ): AdoptProposal {
   const module = SQL_MODULES[block];
 
-  if (module?.modes?.includes("adopt") !== true) {
+  if (module === undefined || !overAppTables(block)) {
     return {
       block,
       entry: {},
@@ -290,13 +304,14 @@ export function proposeAdoption(
       errors: [
         module === undefined
           ? `${block} is not a block. See \`better-supabase blocks list\`.`
-          : `${block} has no adopt mode. Blocks you can adopt: ${adoptableBlocks().join(", ")}.`,
+          : `${block} creates all its tables. Blocks that can run over yours: ${adoptableBlocks().join(", ")}.`,
       ],
       warnings: [],
     };
   }
 
   const errors: string[] = [];
+  const warnings: string[] = [];
   const spec = module.names?.tables ?? {};
 
   const chosen = matchTables(
@@ -336,8 +351,8 @@ export function proposeAdoption(
         if (table.optional?.includes(match.logical) === true) {
           mapped[match.logical] = null;
         } else {
-          errors.push(
-            `${name} has no column for ${logical}.${match.logical} (${table.columns[match.logical]} by default). Add the column, or map blocks.${block}.columns.${logical}.${match.logical} to the one that holds it.`,
+          warnings.push(
+            `${name} has no column for ${logical}.${match.logical}, so the block's migration adds ${table.columns[match.logical]}. Map blocks.${block}.columns.${logical}.${match.logical} instead when another column holds it.`,
           );
         }
 
@@ -370,7 +385,6 @@ export function proposeAdoption(
 
   const entry: BlockConfig = {
     ...current,
-    mode: "adopt",
     tables: entryTables,
     ...(Object.keys(entryColumns).length > 0 ? { columns: entryColumns } : {}),
     ...(idType === undefined || current?.idType !== undefined
@@ -378,24 +392,27 @@ export function proposeAdoption(
       : { idType }),
   };
 
-  const warnings: string[] = [];
-
   if (errors.length === 0) {
     const blocks = { ...options.blocks, [block]: entry };
 
-    try {
-      // Builds each adopted module's context, which throws on what it refuses.
-      adoptedTables(blocks);
+    const adopted = [...chosen.values()].filter(
+      (table): table is ExistingTable => table !== null,
+    );
 
-      const adopted = [...chosen.values()].filter(
-        (table): table is ExistingTable => table !== null,
-      );
+    const ownTables = Object.fromEntries(
+      tables.map((table) => [`${table.schema}.${table.name}`, "database"]),
+    );
+
+    try {
+      // Renders the block over these tables, which throws on what it refuses.
+      moduleBody(block, { modules: blocks, ownTables });
 
       errors.push(
         ...adoptedColumnProblems(
           blocks,
           adopted.map((table) => ({ text: declaration(table) })),
           [...new Set(adopted.map((table) => table.schema))],
+          ownTables,
         ),
       );
     } catch (error) {
