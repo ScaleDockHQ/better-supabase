@@ -1,6 +1,7 @@
 // The mapper serves the same types as the files `gen` writes without it: each
 // pair below must be identical, in both directions.
-import type * as files from "../shared/generated.ts";
+import type * as files from "@better-supabase/types-shared/generated";
+
 import type * as mapped from "./mapper/generated.ts";
 
 type Equal<A, B> =
