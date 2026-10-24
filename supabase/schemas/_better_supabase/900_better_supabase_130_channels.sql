@@ -433,6 +433,18 @@ $$;
 revoke execute on function "better_supabase"."channels_for_record"(text, text) from public, anon;
 grant execute on function "better_supabase"."channels_for_record"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels";
 create trigger "bsb_search_channel_index"
   after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"

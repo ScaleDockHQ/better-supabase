@@ -632,6 +632,30 @@ $$;
 revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope on "better_supabase"."webhook_endpoints" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."webhook_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.webhooks-out.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
