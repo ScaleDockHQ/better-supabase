@@ -4,6 +4,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { validateConstraint } from "../../sql/shared.ts";
 import { errorText } from "../core/errors.ts";
 import { PLATFORM_SCHEMAS } from "../in-stack-diff.ts";
+import { scopeCheckName, scopedAppTables } from "./app-table-scope.ts";
 
 interface NotValidCheck {
   readonly schema: string;
@@ -31,7 +32,7 @@ export const NOT_VALID_RULES: readonly Rule[] = [
     severity: "info",
     title: "Not valid check ready to validate",
     description:
-      "A check constraint was added `not valid`, the expand step for a column that existing rows don't fill yet, and no row fails it any more. `doctor --fix` runs `alter table ... validate constraint`, which scans the table without blocking writes. After that, `set not null` on the column needs no scan. A check that rows still fail is reported as info, with the `db backfill` command for a not-null check. Needs a database; saved snapshots skip it.",
+      "A check constraint was added `not valid`, the expand step for a column that existing rows don't fill yet, and no row fails it any more. `doctor --fix` runs `alter table ... validate constraint`, which scans the table without blocking writes. After that, `set not null` on the column needs no scan. A check that rows still fail is reported as info, with the `db backfill` command for a not-null check; BS238 reports the scope column of an enriched app table instead. Needs a database; saved snapshots skip it.",
     async check(context) {
       const db = context.database;
 
@@ -61,6 +62,15 @@ order by 1, 2, 3`,
       }
 
       const findings: FindingInput[] = [];
+
+      // BS238 reports these with the rows they leave without an owner.
+      const owned = new Set(
+        context.codes?.includes("BS238") === true
+          ? scopedAppTables(context)
+              .filter((table) => table.enriched)
+              .map((table) => `public.${table.name}:${scopeCheckName(table)}`)
+          : [],
+      );
 
       for (const check of checks) {
         const table = `${sqlIdent(check.schema)}.${sqlIdent(check.table)}`;
@@ -93,6 +103,10 @@ order by 1, 2, 3`,
         }
 
         if (failing) {
+          if (owned.has(target)) {
+            continue;
+          }
+
           findings.push({
             message: `${where} has the not valid check ${check.name} (${check.expression}), and rows still fail it.${
               column === undefined

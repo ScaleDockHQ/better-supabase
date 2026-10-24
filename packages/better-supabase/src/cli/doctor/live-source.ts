@@ -31,6 +31,7 @@ export const LIVE_CODES: ReadonlySet<string> = new Set([
   "BS212",
   "BS225",
   "BS236",
+  "BS238",
 ]);
 
 type Env = CliEnv;

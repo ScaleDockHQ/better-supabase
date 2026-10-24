@@ -762,12 +762,36 @@ carries the fix, and `doctor --fix` runs
 `alter table ... validate constraint ...` without a statement timeout. That
 scans the table but doesn't block reads or writes. After it, `set not null` on
 the column needs no scan. When rows still fail, the finding names the
-`db backfill` command for a not-null check. BS236 needs a database, so a saved
-snapshot skips it.
+`db backfill` command for a not-null check; for the scope column of an
+enriched app table, [BS238](#bs238) reports it instead. BS236 needs a
+database, so a saved snapshot skips it.
 
 Postgres checks a not valid constraint on every insert and update, so an
 update of a row the backfill hasn't reached yet fails until it fills the
 column. Add the check after the backfill when the app still writes those rows.
+
+### BS237
+
+**Warning: app table keeps permissive policies of its own.** When a
+`tables.<name>` entry enriches a table your schema already creates, your own
+policies on it stay. Postgres ORs permissive policies, so each one widens what
+the entry's scope allows. In `tenant` scope the restrictive `bsb_tenant_scope`
+policy still keeps every row inside the member's tenants, so BS237 is a hint
+(info): check that your policies need no role or permission the scope's
+policies ask for. In `user` scope, or without `bsb_tenant_scope`, nothing
+narrows them, and a signed-in user reaches every row they allow. Drop your
+policies, or recreate them `as restrictive`.
+
+### BS238
+
+**Warning: rows of an enriched app table without an owner.** Enriching a table
+that already has rows adds the scope column (`organization_id`, or `user_id` in
+`user` scope) nullable, with a not valid not-null check. The scope's policies
+match nobody for a row without a value, so only the service role reads or
+writes it, and updates to it fail the check. BS238 counts those rows and names
+the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
+`doctor --fix` validates the check ([BS236](#bs236)). BS238 needs a database,
+so a saved snapshot skips it.
 
 ## Drift
 

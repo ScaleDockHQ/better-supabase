@@ -241,6 +241,17 @@ const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
 
 const BLOCK_MIGRATION = /_better_supabase_[a-z_]+\.sql$/;
 
+/**
+ * The `schema.table`s that the files better-supabase wrote create, among
+ * `sources`; a table an app table entry enriches is not one of them.
+ */
+export function blockDeclaredTables(
+  sources: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlySet<string> {
+  return new Set(declaredTables(sources.filter(writtenByBlocks), schemas));
+}
+
 /** A file better-supabase wrote: a block file or a module migration. */
 function writtenByBlocks(source: {
   readonly path: string;
@@ -289,11 +300,9 @@ async function databaseTables(
     throw cause;
   }
 
-  const created = new Set(
-    declaredTables(
-      (await schemaTexts(config)).filter(writtenByBlocks),
-      config.schemas,
-    ),
+  const created = blockDeclaredTables(
+    await schemaTexts(config),
+    config.schemas,
   );
 
   const tables: Record<string, string> = {};
