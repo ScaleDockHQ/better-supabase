@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:777a565dbf04ab51459b1a54eda852ea98b08cb05df8c549d444cef4f8a4498b
+-- @bsb-hash sha256:5f1a387078621449b8f8dac5447dda501ea2383adbd9d45f3642fbc6010d2383
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -188,6 +188,36 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "better_supabase"."drive_grants" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
+  join "better_supabase"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and false)
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
 language sql
@@ -201,7 +231,7 @@ revoke execute on function "better_supabase"."drive_node_json"("better_supabase"
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -879,7 +909,7 @@ create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -913,7 +943,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:ee20771f156bc1c2f92227814c64729148280ab0a2b9f7805387c565932a60cc
+-- @bsb-hash sha256:d142b1fe82c5f5d256a4a00a847f265427b6d5c4685693373c665217b5947eed
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1100,6 +1130,36 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "better_supabase"."drive_grants" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
+  join "better_supabase"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = dg."principal_id"::text and tm."user_id" = auth.uid()))
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
 language sql
@@ -1113,7 +1173,7 @@ revoke execute on function "better_supabase"."drive_node_json"("better_supabase"
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -1841,7 +1901,7 @@ create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1875,7 +1935,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:34ecf271f216a994cf565cdb13835ed1b39314346d9751f0a49c666102b74cfa
+-- @bsb-hash sha256:c9db435aae1bb7d372c68abf2db847a616cdb78e18c80209d2fbdaabbf516369
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2064,6 +2124,36 @@ $$;
 revoke execute on function "app_private"."drive_can"(uuid, text) from public, anon;
 grant execute on function "app_private"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "app_private"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "app_private"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "app_private"."drive_grants" dg
+  cross join lateral "app_private"."drive_subtree"(dg."node_id") s
+  join "app_private"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and false)
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "app_private"."drive_readable_ids"() from public, anon;
+grant execute on function "app_private"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "app_private"."drive_node_json"(node "app_private"."drive_nodes")
 returns jsonb
 language sql
@@ -2077,7 +2167,7 @@ revoke execute on function "app_private"."drive_node_json"("app_private"."drive_
 
 drop policy if exists drive_nodes_read on "app_private"."drive_nodes";
 create policy drive_nodes_read on "app_private"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "app_private"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -2755,7 +2845,7 @@ create policy bsb_tenant_scope on "app_private"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "app_private"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2789,7 +2879,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:f9b1544a0ef8196fd5742aa0130b026c2bff9c703ddcc1e0808f8efd0705846f
+-- @bsb-hash sha256:894c92a929d3b0e9690a643d1531de369295cef7eb5fc25da95c506a851605c6
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2976,6 +3066,36 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "better_supabase"."drive_grants" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
+  join "better_supabase"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and false)
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
 language sql
@@ -2989,7 +3109,7 @@ revoke execute on function "better_supabase"."drive_node_json"("better_supabase"
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -3667,7 +3787,7 @@ create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -3710,6 +3830,15 @@ set search_path = ''
 as $$ select "better_supabase"."drive_can"($1, $2) $$;
 revoke execute on function "api"."drive_can"(uuid, text) from public, anon;
 grant execute on function "api"."drive_can"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."drive_readable_ids"()
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."drive_readable_ids"() $$;
+revoke execute on function "api"."drive_readable_ids"() from public, anon;
+grant execute on function "api"."drive_readable_ids"() to authenticated, service_role;
 
 create or replace function "api"."drive_create_folder"(tenant uuid, parent uuid, name text, conflict text default null, fields jsonb default null)
 returns jsonb
@@ -3840,7 +3969,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:f624403291e8e3e0150422d54442a6e5d5f828e3713420b99cc83a2cbd039bf6
+-- @bsb-hash sha256:e4ecd3e588578d036fa3a5dc5ff761580a5fdd4ffd044f714fd464d98d78b122
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4010,6 +4139,36 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "better_supabase"."drive_grants" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
+  join "better_supabase"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and false)
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
 language sql
@@ -4023,7 +4182,7 @@ revoke execute on function "better_supabase"."drive_node_json"("better_supabase"
 
 drop policy if exists bsb_drive_nodes_select on "better_supabase"."drive_nodes";
 create policy bsb_drive_nodes_select on "better_supabase"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -4701,7 +4860,7 @@ create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 

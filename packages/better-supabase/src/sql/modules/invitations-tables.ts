@@ -84,7 +84,7 @@ export interface InviteTable {
  * Whether platform invitations live in the tenant table, as rows without a
  * tenant.
  */
-function sharesTable(ctx: BlockSqlContext): boolean {
+export function sharesTable(ctx: BlockSqlContext): boolean {
   return (
     !ctx.owns("invitations") &&
     typeof ctx.config.tables["platformInvitations"] === "string" &&

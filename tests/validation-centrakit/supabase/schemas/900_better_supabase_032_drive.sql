@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:aa7b03efd974fa511e3fbe72e4ca93f88a2f7cc7d51d31455a40806640a2e045
+-- @bsb-hash sha256:5f10d6d6c561cda19f1ab58412c4295d14fa784a940cee1a2abf1d9e514d6d67
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,6 +150,34 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "centrakit"."file_node" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."organization_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."organization_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "centrakit"."file_node_grant" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."file_node_id") s
+  join "centrakit"."file_node" x on x."id" = s.node_id
+  where auth.uid() is not null
+    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'commenter', 'editor']::text[], 'viewer'), 0) > 0
+    and x."organization_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and (dg."user_id" = auth.uid() or (dg."team_id" is not null and exists (select 1 from "centrakit"."team_members" tm where tm."team_id"::text = dg."team_id"::text and tm."user_id" = auth.uid())))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "centrakit"."file_node")
 returns jsonb
 language sql
@@ -163,7 +191,7 @@ revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file
 
 drop policy if exists bsb_file_node_select on "centrakit"."file_node";
 create policy bsb_file_node_select on "centrakit"."file_node" for select to authenticated
-  using ("better_supabase"."drive_can"("id", 'viewer'));
+  using ("id" in (select "better_supabase"."drive_readable_ids"()));
 
 create or replace function "better_supabase"."drive_clean_name"(name text)
 returns text
@@ -817,7 +845,7 @@ create policy bsb_tenant_scope on "centrakit"."file_node" as restrictive
   for all to authenticated
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("better_supabase"."drive_can"("id", 'viewer'))
+    or ("id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
 

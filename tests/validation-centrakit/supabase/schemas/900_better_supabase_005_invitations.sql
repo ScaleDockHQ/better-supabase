@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:f439ace4c4adf73a98506e7449a9434a170342f78a4a8304094123bca4864acc
+-- @bsb-hash sha256:f6daa63688df49c83be62be81ebdbb71f95cd46389f231950f69363c38a83cd1
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,9 +121,11 @@ end;
 $$;
 revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
 grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
+-- Tenant and platform invitations share "centrakit"."organization_invitations", so one policy reads both.
 drop policy if exists bsb_platform_invitations_read on "centrakit"."organization_invitations";
-create policy bsb_platform_invitations_read on "centrakit"."organization_invitations" for select to authenticated
-  using ((select "better_supabase"."platform_invitations_readable"()));
+drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
+create policy bsb_invitations_read on "centrakit"."organization_invitations" for select to authenticated
+  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));
 
 -- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to "centrakit"."user_roles" stores one of them,
@@ -1195,7 +1197,7 @@ create policy bsb_tenant_scope on "centrakit"."organization_invitations" as rest
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
-    or ((select "better_supabase"."platform_invitations_readable"()))
+    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()))
   )
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
 

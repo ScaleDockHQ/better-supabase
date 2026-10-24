@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:c832b829a0d3ac2aeb618036273a6bc42bab7c5f899f0bad7c543bf894fdc01a
+-- @bsb-hash sha256:1f1541407fcc112eaa3446d11ef8d156fb3afc5519103314dc7bdcb65b3284b7
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -189,6 +189,36 @@ $$;
 revoke execute on function "better_supabase"."drive_can"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
+-- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages, and the subtree of each grant that names them.
+create or replace function "better_supabase"."drive_readable_ids"()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id" from "better_supabase"."drive_nodes" x
+  where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or (auth.uid() is not null
+      and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+      and (x."tenant_id" in (select better_supabase.tenant_ids_with('drive.manage'))))
+  union
+  select s.node_id from "better_supabase"."drive_grants" dg
+  cross join lateral "better_supabase"."drive_subtree"(dg."node_id") s
+  join "better_supabase"."drive_nodes" x on x."id" = s.node_id
+  where auth.uid() is not null and (dg."expires_at" is null or dg."expires_at" > now())
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0)
+    and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'viewer'), 0) > 0
+    and x."tenant_id" in (select better_supabase.tenant_ids_with('drive.read'))
+    and ((dg."principal_type" = 'user' and dg."principal_id" = auth.uid()::text)
+      or (dg."principal_type" = 'team' and false)
+      or (dg."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = x."tenant_id" and mr."user_id" = auth.uid() and mr."role"::text = dg."principal_id" and mr."disabled_at" is null)))
+$$;
+revoke execute on function "better_supabase"."drive_readable_ids"() from public, anon;
+grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
+
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
 language sql
@@ -202,7 +232,7 @@ revoke execute on function "better_supabase"."drive_node_json"("better_supabase"
 
 drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
-  using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
+  using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so
 -- any writer (a function, the service role, a migration) stays consistent.
@@ -880,7 +910,7 @@ create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
   for all to authenticated
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+    or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   )
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 

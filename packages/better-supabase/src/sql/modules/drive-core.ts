@@ -284,6 +284,33 @@ as $$
 $$;
 ${userGrant(`${fn("drive_can")}(uuid, text)`)}
 
+-- The nodes drive_can(node, ${sqlString(roles.read)}) is true for, as one set, so the read policy
+-- runs it once per statement instead of once per row: every node in an organization
+-- the caller manages${roles.member === undefined ? "" : " or reads with options.memberRole"}, and the subtree of each grant that names them.
+create or replace function ${fn("drive_readable_ids")}()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x.${n("id")} from ${T} x
+  where ${SERVICE_CALLER}
+    or (auth.uid() is not null
+      and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
+      and (x.${n("tenant")} in (select ${ctx.scope.ids(manage)})${roles.member === undefined ? "" : ` or ${rank(sqlString(roles.member))} >= ${rank(sqlString(roles.read))}`}))
+  union
+  select s.node_id from ${G} dg
+  cross join lateral ${fn("drive_subtree")}(dg.${g("node")}) s
+  join ${T} x on x.${n("id")} = s.node_id
+  where auth.uid() is not null${grantLive("dg")}
+    and ${rank(`dg.${g("role")}`)} >= ${rank(sqlString(roles.read))}
+    and ${rank(sqlString(roles.read))} > 0
+    and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
+    and ${principalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}
+$$;
+${userGrant(`${fn("drive_readable_ids")}()`)}
+
 create or replace function ${fn("drive_node_json")}(node ${T})
 returns jsonb
 language sql
@@ -299,7 +326,7 @@ ${
     ? `
 drop policy if exists ${ctx.naming.rename("drive_nodes_read")} on ${T};
 create policy ${ctx.naming.rename("drive_nodes_read")} on ${T} for select to authenticated
-  using (${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${canRead(n("id"))});
+  using (${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}()));
 `
     : ""
 }${pathTriggers}
