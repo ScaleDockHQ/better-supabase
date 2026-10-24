@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:1f525e10c7b2905df2d01996ad348702a5d54d3d8d62a81273efe1b39a906e34
+-- @bsb-hash sha256:411a424cd89737c3578c9810d5369a6094e64792e2278f93a82cf0287586c21e
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -714,7 +714,7 @@ grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to 
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

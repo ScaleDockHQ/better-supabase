@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:54a1bfcc105da7af3175f9b23b78d8a01844e4ccd20f68e798e7dc271597d71e
+-- @bsb-hash sha256:2992fb2fb3d51c9d9f208dd00372c9a58e09d18c9933f850f65f5802a889cc53
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -643,7 +643,7 @@ grant execute on function "better_supabase"."billing_seat_count"(uuid) to servic
 grant execute on function "better_supabase"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_status"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -697,7 +697,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:1855b9dc4358280ef52d9b4b7078909dbb1e0f64478f04368f9da39a49b1e86e
+-- @bsb-hash sha256:5cec319828bb275c9856cb6d5129cfd30a181ae1e521bd311b7b25be71214464
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1374,7 +1374,7 @@ grant execute on function "better_supabase"."billing_seat_count"(uuid) to servic
 grant execute on function "better_supabase"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_status"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1428,7 +1428,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:eece6c16f3f7f59c9e6fbe7456a1b1c5e6937c49f889a70172eb8a792bb44e43
+-- @bsb-hash sha256:1696ead24ebb0557e4e54e7d81e6ac3bfe08f1c99ccefa97ffd097969a67fcc0
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2072,7 +2072,7 @@ grant execute on function "app_private"."billing_seat_count"(uuid) to service_ro
 grant execute on function "app_private"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "app_private"."billing_status"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2126,7 +2126,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:823f5d696a1439166eaac760458e305bfa6583326077b67a954786d6eee59512
+-- @bsb-hash sha256:7bdf9e44238d2e439348bd235aaf29b53edec2e4034556a1ce1810a712f45eda
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2768,7 +2768,7 @@ grant execute on function "better_supabase"."billing_seat_count"(uuid) to servic
 grant execute on function "better_supabase"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_status"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

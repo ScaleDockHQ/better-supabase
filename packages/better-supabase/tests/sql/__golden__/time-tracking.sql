@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:7b8674ddecbc099113b61690210fc60c6a129031fb0589f4bda6bfabc999c692
+-- @bsb-hash sha256:2cb1c5bdefb69dae0da9c9ccbdeb5f517f14b3e5bfbb6cadffe248cb5bcf10a1
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -837,7 +837,7 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -901,7 +901,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:0af339357e78b126ee815c25ab89dfb1933eba90286646073b3178dcd8edb619
+-- @bsb-hash sha256:fa2bfd35483f62f22f07ce690169e60cf03c68c7023d5ea54d29943e9f3e47e5
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1764,7 +1764,7 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1828,7 +1828,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:d9548face4c24c7eb8fc52095caf0315d2d063aabe39e5fc1eefd2af5ee65b8b
+-- @bsb-hash sha256:faff47b8e5b56d19caa7d9611f58ab139b8a7ae7e87a5a5ca8276c597786aad7
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2666,7 +2666,7 @@ $$;
 revoke execute on function "app_private"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "app_private"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2730,7 +2730,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:90a7c2afcdaa42dd51175e0b5df610c6e5138d6004cd56165f600733098ad3e2
+-- @bsb-hash sha256:afc811576ce53198d76a09663676b1194687bb0976c926ec0dfc213eb47638a0
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3566,7 +3566,7 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -3767,7 +3767,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:e254ec8cf709f855721cf43dcb30b93300c1a86b9c46d2327157f8456d9abc48
+-- @bsb-hash sha256:13461ff526fc65318f79c60403607fd065cc5a4ec19f45d03a722c2b8a036ab4
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4582,7 +4582,7 @@ $$;
 revoke execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) from public, anon;
 grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, integer, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

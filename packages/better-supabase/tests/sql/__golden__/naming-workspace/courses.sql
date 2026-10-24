@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:d5264c6ded8e73c5885b557d3dc1a30a4b14eb3b949a2e29ed0f206c5232da2c
+-- @bsb-hash sha256:f6cc13e42d55f454ad51cce9f6259fb85c37c5d0de3f36c4e50ee07f596ae6fd
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1126,7 +1126,7 @@ $$;
 revoke execute on function "better_supabase"."verify_course_certificate"(text) from public;
 grant execute on function "better_supabase"."verify_course_certificate"(text) to anon, authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

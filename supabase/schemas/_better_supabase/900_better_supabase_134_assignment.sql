@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:1e794c40c96169d3f9690c846ba8f0fcd8115716c08c4319a7f017747b23d3f8
+-- @bsb-hash sha256:3c2f3b36e24a09fec3bf8c8464361aefecbe80fb5380ea81c3747f63ceee5048
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -403,7 +403,7 @@ $$;
 revoke execute on function "better_supabase"."assignment_history"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."assignment_history"(uuid, text, text, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

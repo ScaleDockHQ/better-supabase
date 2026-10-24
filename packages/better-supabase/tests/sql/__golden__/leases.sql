@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:b74a39aef8e71eb666fe5bdfb898f8c53ff7877fd8198ae9df563a93bd451fd0
+-- @bsb-hash sha256:14e90851c4373ed9d9b633276115862dd0b4fad9860d5868983ef9719bca58e2
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,7 +555,7 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:7fc59f00bae536338a447e0d87b13400cde10133cb9580e60a078621ca2e3481
+-- @bsb-hash sha256:b555963df46ddb2dfd9d66e81f895fe3aeef24714e10731c4b8140ddf5955946
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1230,7 +1230,7 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1292,7 +1292,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:0b22a844bceef48c837d50998581b0ada5f7027a41e79c5dcc29361e7f1dd10f
+-- @bsb-hash sha256:3099417ac1cf0f1c7d66bcd5d5f29ee00ab7b4011e6e33c67ce5c793ca2af4f8
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1848,7 +1848,7 @@ $$;
 revoke execute on function "app_private"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "app_private"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1910,7 +1910,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:27119a5a3a33fc632d7acfc09fda647ed8750252692627bf533136400e11e4a5
+-- @bsb-hash sha256:0b37f83a4fdcdda11105faf8d5585642dd16289500ef65690b7d8a32beda3462
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2464,7 +2464,7 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:99a89cb52c3085efa01042005dbc0b642a22e92e9e5e54d1f6bdc5180e4e488f
+-- @bsb-hash sha256:8121984d0c08562f6b3f4e8617ff2010bc51203baf105be48e46c05a94b509c8
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,7 +163,7 @@ $$;
 revoke execute on function "better_supabase"."target_progress"(uuid, date, uuid) from public, anon;
 grant execute on function "better_supabase"."target_progress"(uuid, date, uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

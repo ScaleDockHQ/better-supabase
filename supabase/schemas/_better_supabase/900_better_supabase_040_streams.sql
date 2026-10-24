@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:1a55081f91785e633425824bff268360818156c26d1146b0c129c9c02aaacc2a
+-- @bsb-hash sha256:82ce3787de19d37ea489f394aa30d7b98d8f07edf457721d195f932d818fcd1e
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -326,7 +326,7 @@ begin
 end;
 $$;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

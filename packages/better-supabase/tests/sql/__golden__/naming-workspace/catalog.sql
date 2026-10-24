@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:56f3ead7790416132e368e756d50ca585f731d83b09ae7b0bd3bc366a1208f73
+-- @bsb-hash sha256:8f2acc5bede613347b4cfa056a072c29ac7b075d793cc67e4b53fd9839e2f9ef
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1740,7 +1740,7 @@ drop policy if exists catalog_channel_products_storefront on "better_supabase"."
 drop policy if exists product_translations_storefront on "better_supabase"."product_translations";
 drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

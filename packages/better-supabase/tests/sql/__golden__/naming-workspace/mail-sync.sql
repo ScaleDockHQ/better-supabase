@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:5706c6c32e73920a011620e403ec197b2fc23b16b8c2aad9ce4e333dc50feb87
+-- @bsb-hash sha256:cbcdd4fe6638a1da8de918ed01830bff0b9df07dfe40ae7e28d5209e74724f5d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -842,7 +842,7 @@ $$;
 revoke execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) from public, anon;
 grant execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

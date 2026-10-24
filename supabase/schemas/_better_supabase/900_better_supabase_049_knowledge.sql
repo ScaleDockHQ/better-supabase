@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:dc0d63f689cd0a2fd26b34587a1297f8f14b341579a56d02fc9e8be3db64adea
+-- @bsb-hash sha256:804d81b261367036e6eeee563c27cce8298509b1f9b7b10c10a3cdd050a8d2be
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -515,7 +515,7 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

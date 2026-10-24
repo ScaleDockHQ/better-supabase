@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:c50c65cfb5dcf4fbfb5608ca33addf13eba9f459af0154a1bb6fbf70e7a5cf0b
+-- @bsb-hash sha256:bbb19f3acd264854192d331a26f69b0ed666fb5d06f0a047a08eb5669537df1a
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -826,7 +826,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -904,7 +904,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:34be7d1e2f36c0c5e3b10b51f2eb43f05a61c631ae69daa5b7f5f63b5a144a16
+-- @bsb-hash sha256:af6299aa61fe6a415a33c8bcd28a6b0f1d3478775939cff1d33a00a8cec1ef72
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1729,7 +1729,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1807,7 +1807,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:1a2048cc64e77b74561d72f791e7e952e81c4143cd421fe7ec042bf123edbab0
+-- @bsb-hash sha256:dbe3e7134aeb1ef7c734ee9f8ad0e3d691f93dcc3813b16d77b34a8dc2dc1394
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2634,7 +2634,7 @@ end;
 $$;
 revoke execute on function "app_private"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2712,7 +2712,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:5c45b324b9b8421dbc5bdd934c7ce00b44e115657e965ee110e91cafb7447bf4
+-- @bsb-hash sha256:516c565a353518c21ab0bdb6070cc832d01822689d926ce98135f384ef29e4f2
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3537,7 +3537,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from public, anon, authenticated;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

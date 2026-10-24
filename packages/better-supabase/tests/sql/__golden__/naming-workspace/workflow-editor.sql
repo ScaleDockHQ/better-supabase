@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:578d25b1c19cdaba02fd4e0f23e6d2bb1d98f2d7a8a6ef17429ef57bdd385738
+-- @bsb-hash sha256:b6b4ff1bc0242675654ef552e3c7c7eb8ec6fa70f3fe1820b794f707989e547b
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1926,7 +1926,7 @@ $$;
 revoke execute on function "better_supabase"."check_workflow_alerts"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."check_workflow_alerts"(integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

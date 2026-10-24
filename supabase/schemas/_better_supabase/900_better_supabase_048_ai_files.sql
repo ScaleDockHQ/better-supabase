@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:13f756b5df309f909f9762e737cb73794a2e61f6c0887d9945c2fc442770483c
+-- @bsb-hash sha256:d9ff61f7133e80a495e7dcc3c010ea026fd43047a0909e187ff735349f4b67c4
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -694,7 +694,7 @@ $$;
 revoke execute on function "better_supabase"."delete_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_ai_document"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

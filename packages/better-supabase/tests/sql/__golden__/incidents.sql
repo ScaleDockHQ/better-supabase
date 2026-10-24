@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:594224830c555c096dc5ee71336a7ad36e10034e0d423622f0af850788169094
+-- @bsb-hash sha256:83802deaa116243126e914fe93991f2ca10bdd8a471372fe4ce8e291e92f92c4
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -875,7 +875,7 @@ $$;
 revoke all on function "better_supabase"."public_status_page"(text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -977,7 +977,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:5183c07b0181b90780dccc2c90f39f48799bd3b498b577ca5e8219280f4d2304
+-- @bsb-hash sha256:0b2fe8d40a5f731963fb47481b80d5a659bc28aaa110568da3b33585f7ee3d21
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1909,7 +1909,7 @@ $$;
 revoke all on function "better_supabase"."public_status_page"(text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2011,7 +2011,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:55d96cc6ba3321dbc2a172c7b4bebfccdfd28a367eaa678e2423f87ac3e5b9dd
+-- @bsb-hash sha256:9f48a8f23c73681c283e04f28350b65b03ac6a42a5c872a4b2982c6806d50e42
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2887,7 +2887,7 @@ $$;
 revoke all on function "app_private"."public_status_page"(text, integer) from public, anon, authenticated;
 grant execute on function "app_private"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2989,7 +2989,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:12716aeb8597805678692ec43b79a041bfd6b85720040da8c0aefdc23ed9dd8a
+-- @bsb-hash sha256:b035bbb6ae739e592ca1e364dea3e25e72d9db9997a0a4a5d5ee8cb9b729dc7c
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3863,7 +3863,7 @@ $$;
 revoke all on function "better_supabase"."public_status_page"(text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

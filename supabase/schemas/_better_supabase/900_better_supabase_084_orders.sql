@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:b1cf304061f3f07fd6fedeb9f49fd06e54b665a6726d1eec7199aed6cce9b815
+-- @bsb-hash sha256:dc68c1a449c27e7f8c39f6bd5e644edf7451894ac35771be50874d58837f886f
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2316,7 +2316,7 @@ $$;
 revoke execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

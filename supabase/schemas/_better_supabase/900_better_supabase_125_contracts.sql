@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:1d98cf8d604b03a9e108c75480be602321a3c240de6db536540c11a61e387974
+-- @bsb-hash sha256:e1059ac79bba418563b19007ec055610bdefb217f741e402aa1221143b308e22
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -847,7 +847,7 @@ $$;
 revoke execute on function "better_supabase"."contracts_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."contracts_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

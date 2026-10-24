@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:8b2c3062e7c426af2144c1bbe57f74eb6c3b1018dcff1df8711077e63d752f54
+-- @bsb-hash sha256:154751baf46c1ac8daea61b8e878f6f641380ce21b1b2a288067549b82370116
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -281,7 +281,7 @@ $$;
 revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

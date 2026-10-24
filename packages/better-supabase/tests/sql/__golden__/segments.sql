@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:eaa77c149abddea0ca1563b2990d500620ce4315fa71afc4a2c4fc9e21ccde32
+-- @bsb-hash sha256:c697607cd946bcb62c11313ac0430fe7fef9af14815b3d36a763bb8004958a64
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -407,7 +407,7 @@ $$;
 revoke execute on function "better_supabase"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."refresh_due_segments"(integer, interval) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -469,7 +469,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:1825174c33c6218bbdb978676eca83cc8ad6f28ea03cee823f5d7e21ef2fee1e
+-- @bsb-hash sha256:3ec0a5fddd47a6e563e52d2a562637e8d0c09b550a9d20d931efe856295afb88
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -893,7 +893,7 @@ $$;
 revoke execute on function "better_supabase"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."refresh_due_segments"(integer, interval) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -955,7 +955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:0db5c4124cc0ad270eb7047fdec2eb9109f827e42827c9fb2a58f5555e06b4bd
+-- @bsb-hash sha256:4ee09b43a6d8cce7bdf3eac2e4c8b30931ff62c88cad5150b31b62b01f784caf
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1363,7 +1363,7 @@ $$;
 revoke execute on function "app_private"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "app_private"."refresh_due_segments"(integer, interval) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1425,7 +1425,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:68579d7897515f91c64fa698a90bffef6dbf6fcf4096525d7c82d428d4092082
+-- @bsb-hash sha256:6111d58757e77b340dd45b84080895d8015af8ee9dafb10a52097f17d7c9ac55
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1831,7 +1831,7 @@ $$;
 revoke execute on function "better_supabase"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."refresh_due_segments"(integer, interval) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:29a11d0c93ef2be99679112343745d261dde1a52087847ae2c87773c599c4f30
+-- @bsb-hash sha256:a73dada437f3243e2f87748cc0041d127b9e05e8d85edafed5b2c113192e99b1
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -537,7 +537,7 @@ create trigger "bsb_versions_project_auto"
   after insert or update of "name", "budget_minor", "currency" on "public"."projects"
   for each row execute function "better_supabase"."versions_capture"('project', 'id', 'organization_id', 'name,budget_minor,currency', '', '');
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

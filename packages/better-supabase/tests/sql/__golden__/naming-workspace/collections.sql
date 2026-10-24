@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:1f9553910adb64dec179d1564a6c63b465c64972cfbb77054ea6fd87db2e4f66
+-- @bsb-hash sha256:2e43f0f4575a4cdbbb41b6a955ef1bd9c28f433ac63302212f002aed4e8a81ec
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -942,7 +942,7 @@ $$;
 revoke execute on function "better_supabase"."remind_due_saved_items"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."remind_due_saved_items"(integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

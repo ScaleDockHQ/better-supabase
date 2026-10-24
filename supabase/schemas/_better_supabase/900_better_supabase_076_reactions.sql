@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:c5434695beea7f3b80396fdfeb4d493a016a397246fa5d3efa611163c59cfb67
+-- @bsb-hash sha256:cbab3990f3a54775826df68f4ac79adb41359539af80ecc763139e8d26f7a904
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,7 +620,7 @@ $$;
 revoke execute on function "better_supabase"."reactions_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."reactions_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

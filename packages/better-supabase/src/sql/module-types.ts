@@ -182,7 +182,7 @@ export interface BlockSql {
 }
 
 /**
- * How one of a module's tables can be a table the app already has (ADR 0097).
+ * How one of a module's tables can be a table the app already has (ADR 0098).
  * It sits on the table's entry in `names.tables` (`app`), next to `columns`,
  * `optional` and `typed`, which together make the table's spec:
  *

@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:494e812e8edc933f99bf9b2ad4a8ede615c6b69e10a7ca27c9e36c14754af93c
+-- @bsb-hash sha256:b03ca86734c0679975c2170758e83eb5015628ba5393aa82b4b4eb9fcf2fbf63
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -668,7 +668,7 @@ $$;
 revoke execute on function "better_supabase"."billable_time_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."billable_time_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

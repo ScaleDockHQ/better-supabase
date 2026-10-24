@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:67b23398c971a512f2b7d3c61518ba556bcd85b0e4014b979b6bd9795c468b90
+-- @bsb-hash sha256:723d245ce14fc166e338e07bc355583f510392a0c92a0edc5467b154bc4af35d
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -274,7 +274,7 @@ $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -336,7 +336,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:4b7d6350a06a10f2329d305b186953ff4c64320f07d27d37fd14f72a78a21b03
+-- @bsb-hash sha256:7007f88f28bdd0022e59d358fe77a1c8c68b7e3e455208c1f43e8dbe5bb63266
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -609,7 +609,7 @@ $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -671,7 +671,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:5af788f3a309683225afed7eb3f6515e1eb14388a9883cd196122070357b0d2f
+-- @bsb-hash sha256:8ec77cb77683c67b453708b8e75d9b23f3db37b7568a76b68462f2a2dc808b53
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -946,7 +946,7 @@ $$;
 revoke execute on function "app_private"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1008,7 +1008,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:31052adf0bb573a79a2e3003900c05aa1f5fe843ff6d320599dff6489410dcc4
+-- @bsb-hash sha256:566ab8b5f5a0c6e5bde4e4c1acd310817a8bd8ffea5a7bd1bbca8c8c69ebc444
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1281,7 +1281,7 @@ $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

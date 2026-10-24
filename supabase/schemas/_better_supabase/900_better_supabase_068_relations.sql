@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:a957bb172d5c7ecb169f91e34da2df6a9ca2286b3c7a3ff31b57c7b518dc6333
+-- @bsb-hash sha256:7c3f6170d8971dd859984b4860319af39e03d51999feae2bce3454bcc4a6c55c
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -736,7 +736,7 @@ $$;
 revoke execute on function "better_supabase"."relations_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."relations_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

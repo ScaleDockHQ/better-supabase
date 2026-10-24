@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:9b95d1d10bba5e702444c12ca7593ac23bc95ee0c1215c47adefd86896488c6e
+-- @bsb-hash sha256:6dcc0481fa92a49c9d0c46f3f7d2f015d0fe790eab6b8b2bb2222448829ebd67
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1034,7 +1034,7 @@ $$;
 revoke execute on function "better_supabase"."dispatch_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."dispatch_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:da8af808d43bdaabeeda034b96b6af38215c43f0aa5468532c059bac0607b7b1
+-- @bsb-hash sha256:2be5b71278cd1f664146be576890ba25a0f7c15e977c13a1a919a398b98f419d
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -343,7 +343,7 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

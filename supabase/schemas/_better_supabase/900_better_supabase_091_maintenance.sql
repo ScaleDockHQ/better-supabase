@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:f5c84744149aa45f21c8b219ca59010006f7b97292cb0d06d8ec4a479e19b722
+-- @bsb-hash sha256:cd38235fdfb2941d7c40e0c22a78eb9cf8c7f7ae100e88015daa4987a91ed88b
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -812,7 +812,7 @@ $$;
 revoke execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

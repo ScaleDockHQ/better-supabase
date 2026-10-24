@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:8127b52acab9168332e6bb08288d288e845a37ecd851f8a61ddf634bf0022595
+-- @bsb-hash sha256:c887009771080c57058206d3199b6d16453990766a23f4afa18855a4a3feff75
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -529,7 +529,7 @@ $$;
 revoke execute on function "better_supabase"."list_tracking_events"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_tracking_events"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -599,7 +599,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:2974aa6240636e7ed652708fd3283b7f6d8a88f4646f65d20fc5d111652ad504
+-- @bsb-hash sha256:eb9fddc0c43b4d4d207e1e8a74021b161e3de6291188d34a38adbfefcf5068a1
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1177,7 +1177,7 @@ $$;
 revoke execute on function "better_supabase"."list_tracking_events"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_tracking_events"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1247,7 +1247,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:8ee72ad0cf5e1c4ba928896a49a389a21e948cd14a887081656c5025458d6600
+-- @bsb-hash sha256:a4c06ec89f6f6231b1a732e62b024f4bc5ef7671f04afd62523ef63f66a1fd4e
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1777,7 +1777,7 @@ $$;
 revoke execute on function "app_private"."list_tracking_events"(uuid) from public, anon;
 grant execute on function "app_private"."list_tracking_events"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1847,7 +1847,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:8d66093bb03887146ee3fe10458b9c4f3d7fee3cd4b91326355d1220c3dab4b8
+-- @bsb-hash sha256:e47a5b5fad7bcd9d41563bb1f597ae5b067ab2a1416e5aafc6a564fbe444ac8e
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2375,7 +2375,7 @@ $$;
 revoke execute on function "better_supabase"."list_tracking_events"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_tracking_events"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2541,7 +2541,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:e82a762243dded873b20566763b35a2ab88685385820941fe7d366c58474dcc0
+-- @bsb-hash sha256:58f00f2fd496a8432796b7fdf6729c5624dd58c4db1f6616d586bc07961df806
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3075,7 +3075,7 @@ $$;
 revoke execute on function "better_supabase"."list_tracking_events"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_tracking_events"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1ebdb891186a4128f4531f91fbd99ff6ff88de8d60be362a790eb0926e51e8c7
+-- @bsb-hash sha256:c5c11171d2068076501b01c0ee7c1ab7d5702b37760bb9329427feaa27a886a0
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,7 @@ $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

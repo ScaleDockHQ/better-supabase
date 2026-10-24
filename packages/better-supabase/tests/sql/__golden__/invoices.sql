@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:7c3bcf369b601d39d8c395c595a46dc77268f286430a778520757c501ba41672
+-- @bsb-hash sha256:d0ab93b6a89754e6def33d01cb4f30c2f579a3b88bfa59b37f18eb6f5a65a40c
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,7 +672,7 @@ $$;
 revoke execute on function "better_supabase"."invoice_aging"(uuid, text, date) from public, anon;
 grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -734,7 +734,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:808b5d645ba1d35e7a19d7daee2df42203c3474c22cb8d265f08dadca9ee2049
+-- @bsb-hash sha256:3689d945210463023839c723e87f050d7dbac217603722be7c76b4d8cf279e48
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1496,7 +1496,7 @@ $$;
 revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1558,7 +1558,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:df49ef90fc9e4c2897974940c4b45d942f1ef84fbf7984435bd8135bb2797cbb
+-- @bsb-hash sha256:c6e6931b4bf83c22fb62791ebb6811ca813f46f69e6834bb6357e1449368cc84
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2231,7 +2231,7 @@ $$;
 revoke execute on function "app_private"."invoice_aging"(uuid, text, date) from public, anon;
 grant execute on function "app_private"."invoice_aging"(uuid, text, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -2293,7 +2293,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:b30822cd3e29913ccc63482c6589f3ca8b5dc1fa449a02f08b021d075c10f01b
+-- @bsb-hash sha256:819bacb66027cab45d5bfdd8c27a0f517ba96e6a7b95e314a6efcea7f576a3eb
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2964,7 +2964,7 @@ $$;
 revoke execute on function "better_supabase"."invoice_aging"(uuid, text, date) from public, anon;
 grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -3122,7 +3122,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:c788dfe08ef0c56155fdfd3ee26e8c19aad23e1a235f78b7f8cb23f78551f488
+-- @bsb-hash sha256:751085b7bb910f99a129661abe80ec00724c9ff8a115186bfc6430bfae335d75
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3803,7 +3803,7 @@ $$;
 revoke execute on function "better_supabase"."invoice_aging"(uuid, text, date) from public, anon;
 grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

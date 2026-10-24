@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:74405113d9f9f1ff70a6e18a9606a5ce5cbf78c9179834d21ce3633174bdbf38
+-- @bsb-hash sha256:0df789399914fcf0b84fc71ea06e25edce768abd47121183a859479a0d18ee36
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,7 +263,7 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -317,7 +317,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:1cda85573c1983efcd15170e12e7f2ad223f00a39daf92cc7b174bd7d3cef22b
+-- @bsb-hash sha256:1205e7ed392c9165d4149acbf76c918a5a3245245c48a471d24d8be03891d4b6
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -599,7 +599,7 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -653,7 +653,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:5a05b96bb8c2e42b9c41086e5e0fa63a20854403177bf124aa91fc049b77cc5f
+-- @bsb-hash sha256:9591512391be2cd4ddd4626bd4e4bb30d8d16581ce77ae4bde3b91c785b0fcb1
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -917,7 +917,7 @@ $$;
 revoke execute on function "app_private"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "app_private"."bulk_step"(uuid, integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -971,7 +971,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:8f32051262b1afb777c2302e28c7ecff14b7822b60f977300ed12a0e3f2d2cdb
+-- @bsb-hash sha256:5b60fd57e780b5f413272883bc4641b6824cc38c03944701d51c16b8f2509b15
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1233,7 +1233,7 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1354,7 +1354,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:0ae8da770f61c4d0b29cef02f8425efd8bda4d40cfc3f2bbd7bd5bc853c5cfe8
+-- @bsb-hash sha256:db38d01271c141e227d31a3eb5e3f90e84c33db1d22cc0bc5017f01cf0879881
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1630,7 +1630,7 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

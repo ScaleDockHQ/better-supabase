@@ -4,7 +4,7 @@ import { sqlString } from "../core/template.ts";
 import { closingParen } from "./actor-guard.ts";
 
 /**
- * The restrictive policy that keeps each organization's rows apart (ADR 0098).
+ * The restrictive policy that keeps each organization's rows apart (ADR 0099).
  * Postgres combines permissive policies with `or`, so any permissive policy the
  * app adds would widen a block's; a restrictive one is combined with `and`, so
  * no permissive policy reaches past it.
@@ -348,7 +348,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
       ? ""
       : `
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 ${ctx.module === "memberships" ? "" : membersStub(ctx)}${statements.join("\n")}`;

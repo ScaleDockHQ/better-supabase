@@ -1,4 +1,4 @@
--- The restrictive tenant scope on block tables (ADR 0098). The app adds its own
+-- The restrictive tenant scope on block tables (ADR 0099). The app adds its own
 -- permissive policies that let everything through; they still can't reach
 -- another organization's rows. Acme (…0001) has the seeded tags; the Globex
 -- owner (…a3) isn't an Acme member.

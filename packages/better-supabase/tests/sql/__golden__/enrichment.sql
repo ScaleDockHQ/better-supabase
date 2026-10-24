@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:057b9e5ce143abea5ef7e966b39ae468b2bfdf2ec370ccf81b12b0df96827a00
+-- @bsb-hash sha256:b7ed514f2b28fab710da983dca33e357fefa3d402931ae0ec3d2916a72d1d35d
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -305,7 +305,7 @@ $$;
 revoke execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -359,7 +359,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:415e72b69e328c60cbfcf85300131d03d11eeb1520d812a79c0ca26e255c8288
+-- @bsb-hash sha256:1a8c822c137aa52d911560cc0c9da2db6250c986cbc2b9a2be2cba6a93c8da97
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -663,7 +663,7 @@ $$;
 revoke execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -717,7 +717,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:fd837536a56e49806696481003e07e6c3464fb23ec240678e6a1518b48a44568
+-- @bsb-hash sha256:65a6983d957928e1b7e12c3b7c1ad0a6c21bccdd2e036f5fc8c61995c4970f94
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1023,7 +1023,7 @@ $$;
 revoke execute on function "app_private"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "app_private"."enrichment_due"(text, integer, interval, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1077,7 +1077,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:c86ec1b2abd614c6fb0b3c5481663899a7973c2643f27b46ff6d613636d9caf8
+-- @bsb-hash sha256:1405da20a2e7c0b95cf988771986959f2e246427eb174619209d4c0143175163
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1381,7 +1381,7 @@ $$;
 revoke execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

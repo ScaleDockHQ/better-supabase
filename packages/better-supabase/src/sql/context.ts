@@ -72,7 +72,7 @@ export interface BlockSqlTableSpec {
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
   /**
-   * How the table can be a table the app already has (ADR 0097). Without it the
+   * How the table can be a table the app already has (ADR 0098). Without it the
    * module always creates the table.
    */
   readonly app?: BlockSqlAppTable;

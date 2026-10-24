@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@1 managed
--- @bsb-hash sha256:adc238e7c16a985a652501eee0dc5bc157c7affb70f41a4a9459b4252ba0e9b7
+-- @bsb-hash sha256:130a2f8c53bd448d094871de389e37f3ecc51e30296d467569816acb2054f985
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -411,7 +411,7 @@ $$;
 revoke execute on function "better_supabase"."list_teams"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_teams"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

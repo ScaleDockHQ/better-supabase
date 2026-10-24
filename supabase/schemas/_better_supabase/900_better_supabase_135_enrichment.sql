@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:6350e99b409b70a6d09e3a7519619099f3a2ec71e6d6404863324df555a9d6b1
+-- @bsb-hash sha256:36b73e6a84580be0e441491c51ff86a782bad0270b5e97ca242a70b975ae23ed
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -304,7 +304,7 @@ $$;
 revoke execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

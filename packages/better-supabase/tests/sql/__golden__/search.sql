@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:aa4a66c85fca2ff9cba92cbe2b18e76b64720f44bd6072484f2e07f6b635b359
+-- @bsb-hash sha256:8b555b88a293d729d8fcfc0932744143416ee6881020d2a40d18b523f918ea37
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -369,7 +369,7 @@ $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -426,7 +426,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:cd45b193c629d6111b90b689b5342190dcad8f0760d4166fd7841730703f4779
+-- @bsb-hash sha256:b0e987f91d51144610d56f1024724beac1e04d78894b7828dece412b647f6cc1
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -840,7 +840,7 @@ $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -897,7 +897,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:8945b07fc3dbd5ac38cfc7fd35d6130a4658b95918b5eb26b42c5e05e75c26a6
+-- @bsb-hash sha256:28c7dc9222fd42a67c0ee8cd5f9fa4c1acb0c65f630c777944d2f465a7efdba0
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1267,7 +1267,7 @@ $$;
 revoke execute on function "app_private"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "app_private"."search_star"(text, text, boolean) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1324,7 +1324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:c2a8c48b647a6830f15282de3411339a7e163bac4c174f22c4dd3e261a16334a
+-- @bsb-hash sha256:533450f8797923a429537b336a4a2f261366344ec9923f662a9612daf4ce5077
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1692,7 +1692,7 @@ $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1829,7 +1829,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:08dedf1f5497ec6056d28fc22a215e66b1ef8dc5ed6daa1c1e3e844434221fca
+-- @bsb-hash sha256:f4ed908d8bed767560b6b90e0427e5a398492b0eb978fe50f703b131581f4a98
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2194,7 +2194,7 @@ $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

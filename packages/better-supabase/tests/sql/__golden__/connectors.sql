@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:d0b3203395a10b5303fb382314f9ecbff2f1540c1e821d14731816067aae0cec
+-- @bsb-hash sha256:41fe08b648f6a138e763be6aa286bf92ec43403106732dbfcaf1614b93ad3e73
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -513,7 +513,7 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -575,7 +575,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:430f636e3631eac2fab527e73ebf8ef169df815cfbce91f287e458a05101f9fe
+-- @bsb-hash sha256:d299520b72b22d5f1b7dbc55135006118e0633277c24021cc4a91c8f65088093
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1130,7 +1130,7 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1192,7 +1192,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:f05e2fdd697306d626cdb3af12917b793fe07fcadec36262ec5ee5639a3c0d8a
+-- @bsb-hash sha256:d33c3a6f14a7068d63de9940734cad3d78caf06de1d74f3e2e46eb08421e9946
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1706,7 +1706,7 @@ $$;
 revoke execute on function "app_private"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "app_private"."purge_connector_sessions"() to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1768,7 +1768,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:c499cf7229923ea529f66ca48801344eda3dde7e507560526124cf0fbad9ee8a
+-- @bsb-hash sha256:0bab9ec4cea413fc004c1f0298c5c3b70043d5e71ec32a4c75d8ed3811eff5d4
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2280,7 +2280,7 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

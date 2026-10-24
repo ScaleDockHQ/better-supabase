@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:cc54288ec2377b195de7a959d66021db71a4903f7568ee7491e19949a372f39b
+-- @bsb-hash sha256:6fb2a521a009be36f1648df327ed4ac697c15d7edc36f406288e2c66928825f1
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -441,7 +441,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -511,7 +511,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:2809dfa13a49321abf05dec39bd717bdbb00d882027afd01b93e3b84ba9ea414
+-- @bsb-hash sha256:e68d0ce46d703e634c6c7c84188735c7cef9d92c0891a74540787be459e9d3ee
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -969,7 +969,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1039,7 +1039,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:644a00e032b39fa1bdd13b6f5aedaaa6c78679e707e4222dbae9f5d9b2999c24
+-- @bsb-hash sha256:6dee71206f9ad62ba97f6d7da30cd8a5676a90a0d06921f0edd3e59342d906b1
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1481,7 +1481,7 @@ $$;
 revoke execute on function "app_private"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "app_private"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
@@ -1551,7 +1551,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:e556808b7d337ab813bc3e6e4e8a6749b748f275e54e0aaeb63f476bc917ca0b
+-- @bsb-hash sha256:17fd59da7db5912af9d9d9bf0ea1890526dbd66d88c972836d72c15da68a3f8b
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1991,7 +1991,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

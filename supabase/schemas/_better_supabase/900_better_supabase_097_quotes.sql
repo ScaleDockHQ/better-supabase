@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:e292a40dd517b22e487ae178a2eaf33d5dee51112bbb81e3934c9f79325394ab
+-- @bsb-hash sha256:924fa844827dc4fd457b1fb7a7cc59808366e4b66179365405557b35e4ec8e5c
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -902,7 +902,7 @@ $$;
 revoke execute on function "better_supabase"."quote_from_deal"(uuid) from public, anon;
 grant execute on function "better_supabase"."quote_from_deal"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

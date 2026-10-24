@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:8449d6c35772193190aeb6acbd6a147c68c67b450b47e392bc8a7a5bd06bd05b
+-- @bsb-hash sha256:926019e23fe573ce282f96fc23f2d05f2144db91fe23324ee07aacc94a11aecb
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -879,7 +879,7 @@ $$;
 revoke execute on function "better_supabase"."get_ledger_transaction"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ledger_transaction"(uuid) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

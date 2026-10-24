@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:95ff638aae6b3e7aa6107eaa3ab00f409e90728c25bc42c97d5fa890889f0417
+-- @bsb-hash sha256:12ea7c44c2210580bc7bb6f80ab8f91ae78a2b2e2a64373e4d23cc6711999d1d
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -379,7 +379,7 @@ drop trigger if exists "bsb_json_value_default_currency" on "better_supabase"."o
 create trigger "bsb_json_value_default_currency" before insert or update of "value", "key" on "better_supabase"."organization_settings"
   for each row execute function better_supabase.check_json_schema('value', '{"type":"string","pattern":"^[A-Z]{3}$"}', 'key', 'default_currency');
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

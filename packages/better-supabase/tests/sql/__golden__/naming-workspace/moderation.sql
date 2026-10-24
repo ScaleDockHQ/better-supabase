@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:d806dd86bdb81712eb0aea9009d3e044fd80600177e58f833aefb7b5925b40ca
+-- @bsb-hash sha256:fe42e9b341596dd73df74d00fd5c6a33b60aa2a7ba368dcf061aeefba41a76a8
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -580,7 +580,7 @@ $$;
 revoke execute on function "better_supabase"."list_bans"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) to authenticated, service_role;
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.

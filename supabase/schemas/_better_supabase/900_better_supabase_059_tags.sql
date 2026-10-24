@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:b1426dcfb9b0990b9ca0067ade4284aac5aaaff64e40f59186810aca6461a3c3
+-- @bsb-hash sha256:c792157baa35d4ab50de9294701aeca213bab2c3f0917afb253e98cd74c48d18
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -531,7 +531,7 @@ $$;
 revoke execute on function "better_supabase"."tags_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."tags_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
--- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
 -- Until memberships installs, the caller is a member of no organization.
