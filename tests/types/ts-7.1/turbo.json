@@ -1,5 +1,16 @@
 {
   "$schema": "https://v2-11-7.turborepo.dev/schema.json",
   "extends": ["//"],
-  "tags": ["test"]
+  "tags": ["test"],
+  "tasks": {
+    "typecheck:matrix": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tests/types/shared/*.json",
+        "$TURBO_ROOT$/tests/types/shared/*.ts",
+        "$TURBO_ROOT$/tests/types/shared/*.js",
+        "$TURBO_ROOT$/supabase/snapshot.json"
+      ]
+    }
+  }
 }

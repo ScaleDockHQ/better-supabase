@@ -3,11 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
     "transit": "true",
-    "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json"
+    "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json && tsc --runExternalCode -p tsconfig.json"
   },
   "devDependencies": {
     "@better-supabase/types-shared": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
     "typescript": "catalog:ts71"
   }
 }
