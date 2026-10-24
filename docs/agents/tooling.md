@@ -15,8 +15,10 @@
 ## TypeScript 7.1 upgrade checklist
 
 The repo stays on TypeScript 7.0.2 until a 7.1 release and a matching
-`oxlint-tsgolint` build both pass `minimumReleaseAge`. The bump is one
-commit series:
+`oxlint-tsgolint` build both pass `minimumReleaseAge`. Until then the `ts71`
+catalog pins `7.1.0-beta` for `tests/types/ts-7.1` and the type benchmark
+only, which run the content mapper (ADR 0097); nothing else installs it. The
+bump is one commit series:
 
 1. Move `typescript` in the default catalog and the two `peerDependencyRules`
    entries (`jsonv-ts>typescript`, `@sveltejs/kit>typescript`) together.
@@ -35,6 +37,10 @@ commit series:
    on every WinterTC target decides it (invariant 6), not the compiler.
 6. Consider bringing back `fumadocs-typescript` hover types once its API
    for the native compiler is stable.
+7. Point `tests/types/ts-7.1` and the benchmark at the default catalog,
+   delete the `ts71` catalog and its row in the AGENTS.md "Pre-release
+   pins", and check whether the content mapper protocol in
+   `SPEC_PINS.typescriptContentMapper` moved.
 
 ## Scripts and hooks
 
