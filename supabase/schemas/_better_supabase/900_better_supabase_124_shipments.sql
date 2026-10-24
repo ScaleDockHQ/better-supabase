@@ -1,7 +1,8 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
+-- @bsb-hash sha256:ed61e9cdfc24107c98972a0b30fc6ed07be791265c2b2b3a4a6af7ed86a6303f
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

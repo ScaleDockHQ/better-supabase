@@ -1,7 +1,8 @@
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
+-- @bsb-hash sha256:d9bd3148e723d599d4c720358c21c896a377180fcb847f0f34b704bfdae84e01
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

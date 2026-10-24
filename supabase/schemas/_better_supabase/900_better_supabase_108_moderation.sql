@@ -1,7 +1,8 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
+-- @bsb-hash sha256:6c457393f07974b8ef51a5b70365c33feef93eddb575e5c37c7850bc0ada9102
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

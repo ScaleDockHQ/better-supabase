@@ -1,7 +1,8 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
+-- @bsb-hash sha256:b4e0f1b40116dab987a627c560eb320512ac8b6cc118072c45d2594a27abbbe4
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

@@ -1,7 +1,8 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
+-- @bsb-hash sha256:7cf0bdeb451057fed522a2409f538a9d5c3486a66509249703e12e46e42ed7db
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;

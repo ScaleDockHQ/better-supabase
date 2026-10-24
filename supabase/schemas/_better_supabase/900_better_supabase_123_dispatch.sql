@@ -1,7 +1,8 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
+-- @bsb-hash sha256:861b0d22dea4d1a2f3bdd8e3e52cbf99888d88025dbe07c2480cc06ef14a6765
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

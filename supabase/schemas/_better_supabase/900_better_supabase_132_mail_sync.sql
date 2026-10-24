@@ -1,7 +1,8 @@
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
+-- @bsb-hash sha256:fc766683ba919726d726a1fb29b2ad04d4591376174f500f407284583ecabdef
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

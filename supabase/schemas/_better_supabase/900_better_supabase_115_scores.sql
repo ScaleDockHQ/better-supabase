@@ -1,7 +1,8 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
+-- @bsb-hash sha256:71a0b247a1d07226b2de643a1b237696c629ba528d373eb72aa77dc17f4ab653
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

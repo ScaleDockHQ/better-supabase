@@ -1,7 +1,8 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
+-- @bsb-hash sha256:c0acfc6472243171b13dab32bed57b71f57f4bb53bb774cf5c23c77a1bb14bd7
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;

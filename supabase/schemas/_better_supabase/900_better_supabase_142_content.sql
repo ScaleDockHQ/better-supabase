@@ -1,7 +1,8 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
+-- @bsb-hash sha256:4fed872c82ca3341642f7e7c81c57529841404c706bed6a26bbcddb8f70e150d
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

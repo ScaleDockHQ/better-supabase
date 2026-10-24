@@ -1,7 +1,8 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
+-- @bsb-hash sha256:a8ed6635cba4e60661abc0693ceea161ec499ffe2a53d18a05fea3001b356802
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

@@ -1,7 +1,8 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
+-- @bsb-hash sha256:1aef25a9bdd3342df4997db6a677e8d511ad50b307cb7f48570fd364ead53793
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

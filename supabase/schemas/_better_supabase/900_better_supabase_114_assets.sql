@@ -1,7 +1,8 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
+-- @bsb-hash sha256:149b9e276d612fcb0886c0fc901acc108bfe0fb4bc876ce3dfa46dbca1fbd408
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

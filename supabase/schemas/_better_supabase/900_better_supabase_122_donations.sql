@@ -1,7 +1,8 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
+-- @bsb-hash sha256:0fc02a3acf9a61439aa7ef38feaa409be006a744988245cfbc0fb1a311c665ef
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

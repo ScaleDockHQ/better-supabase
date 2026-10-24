@@ -1,8 +1,9 @@
 -- better-supabase module: content
 -- @bsb-block-data content
+-- @bsb-hash sha256:78b4b31928c1c0b3a9d4eb7cb70fbd3b44101cf04a994fc6fab9c1ca23d555c3
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

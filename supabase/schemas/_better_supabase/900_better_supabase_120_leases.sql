@@ -1,7 +1,8 @@
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
+-- @bsb-hash sha256:9d1de006cba66b2e9fee9f742920dd4921b418764870854f8d71fc300abec275
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

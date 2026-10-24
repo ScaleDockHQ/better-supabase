@@ -1,7 +1,8 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
+-- @bsb-hash sha256:7167deb3be5b4cc6b4dcf89b2c90daed9de3af29fd2217bf77371372998f73fa
 -- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 create table if not exists "public"."projects" (

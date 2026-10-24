@@ -1,7 +1,8 @@
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
+-- @bsb-hash sha256:0586b40e13a9ad3e95e5057953e406624066d9890cce0afd101549195ac8f1f7
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

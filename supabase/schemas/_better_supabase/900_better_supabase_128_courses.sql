@@ -1,7 +1,8 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
+-- @bsb-hash sha256:2d28e0bfd4bd2b7dc41b892233dada9a04e8fb1695a8eddb7565ff739c3857a2
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

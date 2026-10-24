@@ -1,7 +1,8 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
+-- @bsb-hash sha256:108d75efa0342b931f76c872133a70868bc7e0a2ab4d05f7dc37f8d41d3e7ddd
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

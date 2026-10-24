@@ -1,7 +1,8 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
+-- @bsb-hash sha256:555349b695215151d76dea88cc8113ade5f01b3416d4ee942263e3f3c56f5752
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

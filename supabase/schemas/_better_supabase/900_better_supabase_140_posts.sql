@@ -1,7 +1,8 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
+-- @bsb-hash sha256:9d58e63248f2fddce74304b08644babfd58cc445928c35a93c06a6c73976b106
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

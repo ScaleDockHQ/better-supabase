@@ -1,7 +1,8 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
+-- @bsb-hash sha256:57bf825103f63bfb47d993b4ebd0e198ccb221a7c155a3fbedf6b33012e021ed
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

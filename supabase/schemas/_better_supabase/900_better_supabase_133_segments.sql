@@ -1,7 +1,8 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
+-- @bsb-hash sha256:767ee87bfd58a90ae2e506503589d332d3231f1308eda449fdc825b4ceb4c5bd
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

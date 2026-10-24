@@ -1,7 +1,8 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
+-- @bsb-hash sha256:e8ad8c359875e1ed056e22d291306a10a398e2c2fd0dc62160940cdb074706bc
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

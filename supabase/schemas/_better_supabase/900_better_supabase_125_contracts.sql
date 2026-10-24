@@ -1,7 +1,8 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
+-- @bsb-hash sha256:91de54207f278eeb98f55424c990d085989952d2588ed2d3eec4274656b3e0ab
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

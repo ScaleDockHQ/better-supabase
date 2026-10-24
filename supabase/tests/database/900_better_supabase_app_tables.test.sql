@@ -1,6 +1,7 @@
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- @bsb-hash sha256:f033638e386f88d6bcf9190fffe5c0ff9b547393e84ef983d466d915471d236c
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 begin;
