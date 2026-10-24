@@ -50,7 +50,7 @@ const isBlockName = (name: string): boolean =>
   unquote(name).startsWith(BLOCK_PREFIX);
 
 /** `bsb_<name>` for a trigger the block adds to the app's table. */
-export const blockTriggerName = (name: string): string =>
+const blockTriggerName = (name: string): string =>
   fit(`${BLOCK_PREFIX}${name}`);
 
 /**

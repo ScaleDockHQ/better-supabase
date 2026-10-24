@@ -226,14 +226,6 @@ export interface BlockSqlAppSubjectTable {
   readonly columns: Readonly<Record<string, string | null>>;
 }
 
-/** The `app` spec of a module's logical table, when it can be the app's. */
-export function appTableSpec(
-  module: Pick<BlockSql, "names">,
-  logical: string,
-): BlockSqlAppTable | undefined {
-  return module.names?.tables[logical]?.app;
-}
-
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
 export interface BlockSqlTestFile {
   /** The file name's suffix, after the module's slug. */
