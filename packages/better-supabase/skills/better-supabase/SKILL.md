@@ -126,6 +126,20 @@ the `better-supabase-auth` skill.
   missing env key (BS504) or an unwired required provider (BS505).
 - A preset can write instances too (`preset: { blocks, instances }`); your
   own `blocks` entry for the same key wins.
+- Keep your own tables in your own files in `supabase/schemas`. A block
+  whose table your schema already creates runs over it: it adds only the
+  missing columns, names its policies and triggers there `bsb_...`, and
+  never recreates the table or revokes grants. There is no `ownership:
+  "adopt"` any more (`codemod 0.15` removes it). Don't edit block files: an
+  edited file fails `upgrade` until you move the change into your own file
+  or pass `--force`.
+- A `tables.<name>` entry over a table you already have adds the scope
+  column with a `not valid` not-null check: new rows need an owner, old rows
+  stay reachable only by the service role. Fill them with
+  `pnpm better-supabase db backfill <table>.<column> --from <table.column> via <column>`
+  (or `--value`), then run `pnpm better-supabase doctor --fix` to validate
+  the check. Doctor reports the rows as BS238. See
+  https://bettersupabase.com/docs/blocks/own-schemas.
 - A block's React hooks are registry items: `npx shadcn add
   @better-supabase/use-<block>` writes `hooks/use-<block>.ts`, and the app
   imports from `@/hooks/use-<block>`. Vue, Svelte and Solid call

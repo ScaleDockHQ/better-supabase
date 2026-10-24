@@ -131,7 +131,7 @@ A preset that can't install, such as one whose blocks need tenants under
 scope `user`, stops `init` with the reason. In a terminal without
 `--preset`, a convention flag or `--integration`, `init` first asks for a preset; None
 keeps the steps above out. To apply a preset to a project that already has
-a config, use [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset).
+a config, use [`add --preset`](/docs/cli/presets#applying-a-preset).
 
 ### A design from Create
 
@@ -160,7 +160,7 @@ npx better-supabase init --preset ./better-supabase.design.json
 The file holds the design as JSON with its preset, with no length limit,
 and `init` reads it like a URL: the same checks, the same config keys and the
 same module files. A path ending in `.json` is read as a design file, relative
-to `--cwd`. [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset) takes the same file. The format
+to `--cwd`. [`add --preset`](/docs/cli/presets#applying-a-preset) takes the same file. The format
 is on [Designs and the resolver](/docs/presets/designs#design-files).
 
 ## Supabase Lite
@@ -336,5 +336,7 @@ file or a SQL hook, or pass `--force` to overwrite it. `upgrade` also renames
 files from earlier releases (2-digit positions such as
 `900_better_supabase_04_memberships.sql` become `..._004_...`) and removes
 block files that no installed block writes, unless they were edited by hand.
+Over a table your own schema already creates, a block adds only the columns it
+lacks; see [Your own schemas](/docs/blocks/own-schemas).
 
 Side effects: Writes files.

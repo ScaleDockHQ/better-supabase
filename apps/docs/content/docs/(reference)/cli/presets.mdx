@@ -162,7 +162,8 @@ migration-only options the entry keeps. With an error `add --adopt` exits
 1 and writes nothing. Otherwise it prints the diff of the config and writes
 it; `--dry-run` writes nothing, and `--check` exits 1 when the config doesn't
 hold the mapping yet. Run `better-supabase upgrade` afterwards to
-write the block's module over your tables. `--json` prints the entry,
+write the block's module over your tables; [Your own schemas](/docs/blocks/own-schemas)
+describes what it writes there. `--json` prints the entry,
 the mapping and the report as data. The tables are read like `gen`
 reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.
 

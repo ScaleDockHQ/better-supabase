@@ -807,7 +807,8 @@ match nobody for a row without a value, so only the service role reads or
 writes it, and updates to it fail the check. BS238 counts those rows and names
 the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
 `doctor --fix` validates the check ([BS236](#bs236)). BS238 needs a database,
-so a saved snapshot skips it.
+so a saved snapshot skips it. The check is `not valid` on purpose; see
+[Your own schemas](/docs/blocks/own-schemas#why-the-check-is-not-valid).
 
 ## Drift
 
@@ -987,7 +988,7 @@ export default defineConfig({
 
 The same rule runs in pgTAP with
 `select tests.every_table_audited('public', array['sessions', '%_archive'])`
-(see [testing](/docs/testing#pgtap-helpers)).
+(see [testing](/docs/testing#pgtap)).
 
 ### BS316
 

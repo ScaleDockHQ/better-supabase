@@ -215,4 +215,10 @@ alter table invoices
   add constraint invoices_currency_not_null check (currency is not null) not valid;
 ```
 
+A `tables.<name>` entry that enriches a table you already have adds that check
+to the scope column itself, so the order there is the other way round: new
+rows must name an owner at once, and `db backfill` fills the existing rows
+that [doctor reports as BS238](/docs/cli/doctor#bs238). See
+[Your own schemas](/docs/blocks/own-schemas#fill-the-owner-with-db-backfill).
+
 Side effects: Writes to the database.

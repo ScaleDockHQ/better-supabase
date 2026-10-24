@@ -1,0 +1,197 @@
+---
+title: Your own schemas
+description: Keep your own declarative schema files next to the block files. The CLI detects your tables, and each block runs over the ones you already have and creates the rest.
+---
+
+You can keep writing your own declarative schema files in `supabase/schemas`
+and install blocks next to them. There is no setting for it: the CLI reads
+which tables your files create, and per table, a block whose table you
+already declare runs over yours instead of creating its own. The tables you
+don't have, the block creates as usual. `tables.<name>` entries do the same
+for the [app tables](/docs/repository/tables#enriching-a-table-you-already-have):
+over a table of yours, they add only what the scope needs.
+
+## What the CLI detects
+
+Before it renders anything, `add` and `upgrade` collect the tables that are
+yours:
+
+- every table created by a file in `supabase/schemas`, or by a migration,
+  that better-supabase didn't write (block files carry a `-- @bsb-block`
+  line, and module migrations end in `_better_supabase_<name>.sql`);
+- every table in the saved schema snapshot (`database.source.snapshot`, see
+  [`gen --save-snapshot`](/docs/cli/gen)) that no block file or module
+  migration created. This covers tables that exist in the database but in
+  none of your files.
+
+For each table it also keeps the columns your files declare and any trigger
+that already keeps `updated_at` current. A block table counts as yours when
+one of these tables is at the block's default name, or at the name
+`blocks.<name>.tables` maps it to. A table you create only by hand in the
+dashboard, outside both your files and the snapshot, isn't seen; save a
+snapshot after you create it.
+
+Most block tables can run over yours. A few belong to the block alone, and a
+table of yours with that name stops `upgrade` with an error that names it.
+
+## What a block does over your table
+
+Over a table of yours, a block:
+
+- skips its `create table` and adds only the columns it needs that your
+  table lacks, each with `add column if not exists`, nullable unless the
+  column has a default, and without `primary key` or `unique`;
+- leaves out every statement that would change your table's data rules or
+  access: check and other constraints, `alter column` and `revoke`. It
+  never recreates your table and never revokes your grants;
+- writes its functions, row level security, grants, policies, triggers and
+  indexes over your table;
+- casts what it writes to your column's type where a column may be an enum or
+  a domain, such as a `status` column of your own enum type, through
+  `better_supabase.as_column_type`, and compares as text. Other text columns
+  the block writes a parameter into must take a text value; doctor reports
+  an enum there as [BS342](/docs/cli/doctor#bs342). The
+  [Block SQL page](/docs/blocks/sql#over-your-own-tables) lists the columns
+  that may differ.
+
+Map your own names with `tables` and `columns`, and set an optional column to
+`null` to turn its feature off:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    audit: {
+      tables: { log: "public.activity_log" },
+      columns: { log: { tenant: "workspace_id" } },
+    },
+  },
+});
+```
+
+### Names on your tables
+
+The policies and triggers a block adds to your table start with `bsb_`, so
+they never replace or drop one of yours, even one with the same name. A
+policy is named `bsb_<table>_<command>` (`bsb_tickets_select`), with the rest
+of the block's own name after it when the block has more than one policy for
+that command. A trigger is named `bsb_<name>` (`bsb_updated_at`). A
+`drop policy` for a policy the block doesn't create there is left out, so
+your policies stay.
+
+When your table already has a trigger that keeps `updated_at` current (one
+that calls `set_updated_at`, `moddatetime` or a function that sets
+`new.updated_at`), the block adds no `bsb_updated_at` trigger, and doctor
+reports it as [BS348](/docs/cli/doctor#bs348). Postgres combines permissive
+policies with `or`, so a block's `bsb_` policy next to your own can open rows
+your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports that pair.
+On tenant tables, a restrictive `bsb_tenant_scope` policy keeps every row
+inside the caller's organizations, so your own permissive policy can't widen
+access beyond them.
+
+## Enriching a table with tables.name
+
+A `tables.<name>` entry over a table your schema already creates enriches it
+instead of creating it. In the app tables file it adds, each with
+`add column if not exists`, only what the table lacks:
+
+- `id` (a unique `uuid` with a default, or a `bigint` identity with
+  `id: "bigint"`), unique rather than the primary key your table may have;
+- the scope column, `organization_id` (the tenant column) or `user_id` in
+  `user` scope, nullable;
+- `created_at` and `updated_at`, unless `timestamps: false`;
+- the columns of the entry that your table lacks, nullable unless they have a
+  default.
+
+Then it writes the scope's row level security, grants and policies as for a
+table it creates, with two differences. The policies are named
+`bsb_<table>_<command>`, and your own grants stay: the file adds the grants
+the scope needs instead of revoking first. In `tenant` scope it also adds the
+restrictive `bsb_tenant_scope` policy. Last, the scope column gets a not-null
+check that is `not valid`, added once:
+
+```sql
+alter table "public"."projects" add column if not exists "organization_id" uuid;
+-- inside a do block that skips it when the constraint exists
+alter table "public"."projects" add constraint projects_organization_id_not_null
+  check ("organization_id" is not null) not valid;
+```
+
+[App tables](/docs/repository/tables#enriching-a-table-you-already-have)
+shows the full file.
+
+## Why the check is not valid
+
+The `not valid` check is deliberate. Postgres checks it on every insert and
+update but not against the rows already in the table, so:
+
+- a new row must name its owner right away;
+- an existing row without an owner matches none of the scope's policies, so
+  only the service role reads or writes it;
+- an update to such a row fails the check until its scope column is filled.
+
+pg-delta keeps the clause when it writes the migration: a check that is
+`not valid` in the schema files becomes `add constraint ... not valid` with
+no `validate constraint`, so the migration doesn't scan your existing rows.
+Your schema files keep `not valid`. Validating is a step on the live database
+only, and it comes after the backfill.
+
+## Fill the owner with db backfill
+
+[`better-supabase db backfill`](/docs/cli/db#backfill) fills the scope column
+of the existing rows in batches, locking only the rows of one batch at a
+time, so the app keeps writing while it runs. Copy the owner from a table a
+foreign key points at, or write one value:
+
+```bash
+pnpm better-supabase db backfill projects.organization_id --from clients.organization_id via client_id
+pnpm better-supabase db backfill projects.organization_id --value "'0b7c...'::uuid" --dry-run
+```
+
+It touches only rows where the column is null, so you can run it again until
+nothing is left. Then run `better-supabase doctor --fix`: it validates the
+check ([BS236](/docs/cli/doctor#bs236)), which scans the table without
+blocking reads or writes.
+
+## What doctor reports
+
+| Code                            | What it means                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| [BS236](/docs/cli/doctor#bs236) | a `not valid` check that no row fails any more; `doctor --fix` validates it                                                      |
+| [BS237](/docs/cli/doctor#bs237) | an enriched table keeps permissive policies or grants of its own beyond what its scope grants                                    |
+| [BS238](/docs/cli/doctor#bs238) | an enriched table has rows without an owner; it names the `db backfill` command, and after it `doctor --fix` validates the check |
+| [BS342](/docs/cli/doctor#bs342) | a column of your table has a type the block can't write into                                                                     |
+| [BS347](/docs/cli/doctor#bs347) | a block's `bsb_` policy can let a user reach rows your own policies keep closed                                                  |
+| [BS348](/docs/cli/doctor#bs348) | your table keeps its own `updated_at` trigger, so the block adds none                                                            |
+
+BS236 and BS238 need a database, so a saved snapshot skips them.
+
+## Block files are protected
+
+Each block file carries a `-- @bsb-hash sha256:...` line over its SQL. When
+the SQL no longer matches, the file was edited by hand, and `upgrade` leaves
+it alone and exits 1 naming it. Put the change in your own schema file or a
+[SQL hook](/docs/extending/events#sql-hooks) instead, or pass `--force` to
+overwrite it. When you remove a block from the config, `upgrade` removes the
+files no installed block writes any more, unless they were edited by hand.
+Only files with a block marker count, so your own files are never removed.
+
+## Steps for an existing app
+
+1. Move the schema into `supabase/schemas` on pg-delta, as
+   [Existing apps](/docs/migration/existing-apps#move-the-schema-into-files)
+   describes, or save a snapshot with `better-supabase gen --save-snapshot`
+   when you keep migrations only.
+2. When you come from 0.14, run `better-supabase codemod 0.15`. It removes
+   `ownership: "adopt"` from the config and keeps `tables` and `columns`; a
+   config that still sets it fails to load.
+3. Add the blocks, map your names with `tables` and `columns`
+   (`better-supabase add --adopt <block> --tables <schema.table>` proposes
+   them), and add `tables.<name>` entries for the tables of your own that
+   need a scope.
+4. Run `better-supabase upgrade` and read the comment it writes over each of
+   your tables (it says the table is the app's and which columns it adds),
+   then write the migration with `supabase db schema declarative sync`.
+5. Apply the migration, then run `better-supabase db backfill` for each scope
+   column BS238 reports, and `better-supabase doctor --fix` to validate the
+   checks.
+6. Run `better-supabase doctor` and work through BS237, BS347 and BS348.

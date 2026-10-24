@@ -498,9 +498,13 @@ table. Tables the app doesn't have are created as usual. Most block tables can
 run this way, and an optional column can still map to `null` to turn its
 feature off.
 
-There is no setting for this: delete an `ownership: "adopt"` left from an
-older version, or run [`better-supabase codemod`](/docs/cli/codemod), and
-config validation names the key until you do.
+There is no setting for this. An `ownership: "adopt"` left from an older
+version fails config validation until you delete it or run
+[`better-supabase codemod`](/docs/cli/codemod). The block's policies and
+triggers on your table are named `bsb_<table>_<command>` and `bsb_<name>`,
+and it never recreates your table or revokes your grants.
+[Your own schemas](/docs/blocks/own-schemas) explains what the CLI detects,
+the names, the doctor findings and how block files are protected.
 
 The other keys rename what the module reads and writes, so an app keeps its
 own names:

@@ -324,8 +324,8 @@ indexes over your table. `tables` and `columns` work as before, and an
 optional column mapped to `null` still turns its feature off.
 
 A config that still sets `ownership: "adopt"` fails to load with a message
-that names the key. `better-supabase codemod 0.15` deletes it and keeps the
-block's `tables` and `columns`:
+that names the key. Run `better-supabase codemod 0.15`, which deletes it and
+keeps the block's `tables` and `columns`, then `better-supabase upgrade`:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -343,7 +343,8 @@ because the block's migration adds it. The migration-only options
 are accepted when the block runs over a table your app already has, and
 doctor still reports them as [BS314](/docs/cli/doctor#bs314). `custom`
 ownership is unchanged. See
-[Over your own tables](/docs/blocks/sql#over-your-own-tables).
+[Over your own tables](/docs/blocks/sql#over-your-own-tables) and
+[Your own schemas](/docs/blocks/own-schemas).
 
 ## Blocks contribute to approvals, pipelines and the other generic blocks
 
