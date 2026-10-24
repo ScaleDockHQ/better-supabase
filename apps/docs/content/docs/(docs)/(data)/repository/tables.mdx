@@ -74,6 +74,71 @@ A tenant-scoped table needs the `memberships` block. The tenant column follows
 `blocks.memberships.names.organization`, and the client sends its value on insert; the insert
 policy rejects a tenant the user isn't a member of.
 
+A tenant-scoped table also gets a restrictive `bsb_tenant_scope` policy that
+keeps every row inside the caller's organizations. Postgres combines
+permissive policies with `or`, so a permissive policy you add to the table
+can widen access within those organizations, but never beyond them.
+
+## Enriching a table you already have
+
+An entry can name a table your own schema files already create, or one in the
+saved schema snapshot. `upgrade` then enriches it instead of creating it, and
+leaves your `create table`, your columns and your grants as they are. It adds,
+each with `add column if not exists`, only what the table lacks: `id` (unique
+instead of a primary key, since your table may have one), the scope column
+(nullable), `created_at` and `updated_at` unless `timestamps: false`, and the
+columns of the entry, nullable unless they have a default.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: ["memberships"],
+  tables: {
+    projects: { columns: { name: { type: "text", nullable: false } } },
+  },
+});
+```
+
+Over a `projects` table of yours without `organization_id`, the file writes:
+
+```sql title="supabase/schemas/900_better_supabase_app_tables.sql"
+-- "public"."projects" is the app's table (supabase/schemas/projects.sql): tables.projects adds only the columns it lacks.
+alter table "public"."projects" add column if not exists "organization_id" uuid;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"public"."projects"'::regclass and conname = 'projects_organization_id_not_null'
+  ) then
+    alter table "public"."projects" add constraint projects_organization_id_not_null
+      check ("organization_id" is not null) not valid;
+  end if;
+end;
+$$;
+```
+
+The scope column takes the tenant id type, `uuid` by default. With the
+`organizations` block installed, it also references the organizations table
+with `on delete cascade`.
+
+The rest renders as for a table it creates: row level security, the scope's
+policies, `bsb_tenant_scope`, indexes and the pgTAP file. Its policies are
+named `bsb_<table>_<command>`, so they never replace one of yours, and the
+grants the scope needs are added without revoking yours first. Doctor lists
+your own permissive policies and broader grants as
+[BS237](/docs/cli/doctor#bs237).
+
+The not-null check on the scope column is `not valid` on purpose. New rows
+must name their owner right away. Existing rows without one match none of
+the scope's policies, so only the service role reads or writes them, and an
+update to one fails the check until its column is filled. Fill the column
+with [`better-supabase db backfill`](/docs/cli/db#backfill), then run
+`better-supabase doctor --fix`, which validates the check
+([BS236](/docs/cli/doctor#bs236)). Doctor counts the rows still without an
+owner as [BS238](/docs/cli/doctor#bs238). The migration pg-delta writes
+keeps the check `not valid`, so it doesn't scan your rows; validating
+happens on the live database only.
+[Your own schemas](/docs/blocks/own-schemas) covers the same steps for blocks.
+
 ## Columns
 
 | Key          | Values                                                                                                     |

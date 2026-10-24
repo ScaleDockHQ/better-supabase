@@ -1,7 +1,8 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
+-- @bsb-hash sha256:8121984d0c08562f6b3f4e8617ff2010bc51203baf105be48e46c05a94b509c8
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -38,6 +39,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Targets: a goal per period for a metric, for a member, a team or the
@@ -151,6 +162,30 @@ as $$
 $$;
 revoke execute on function "better_supabase"."target_progress"(uuid, date, uuid) from public, anon;
 grant execute on function "better_supabase"."target_progress"(uuid, date, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
+create policy bsb_tenant_scope on "better_supabase"."targets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.goals.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_43_workflow_sdk.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@2 managed
+-- @bsb-hash sha256:80278591ef63ee665dec7fa09d79251edfb3e14922b56380adc86c2c237745f0
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -448,12 +449,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_43_workflow_sdk.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
+-- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -461,11 +463,12 @@ values ('workflow-sdk', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_43_workflow_sdk.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@2 managed
+-- @bsb-hash sha256:80278591ef63ee665dec7fa09d79251edfb3e14922b56380adc86c2c237745f0
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -911,12 +914,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_43_workflow_sdk.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
+-- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -924,11 +928,12 @@ values ('workflow-sdk', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_43_workflow_sdk.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@2 managed
+-- @bsb-hash sha256:51b8fa9cd5831ec9d27fb969adf71e8aa1ba295d723b43a47220d5dcf8abf6be
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1376,12 +1381,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_43_workflow_sdk.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
+-- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1389,11 +1395,12 @@ values ('workflow-sdk', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_43_workflow_sdk.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@2 managed
+-- @bsb-hash sha256:78570b7b890993d26737051a8afbcdcdbff40ac7c5cdf1bc649f138b087876df
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1852,12 +1859,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_43_workflow_sdk.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
+-- @bsb-hash sha256:73bb4504cb97d0078e4caf3a087531a42fbc583e026fe96f6db9c5e91987056b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

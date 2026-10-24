@@ -1,8 +1,9 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
+-- @bsb-hash sha256:63aa10cead0a5b03ce66a02a51859268b41dd99f63a157564a94fc1422be3b3b
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
@@ -357,9 +372,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block-data passes
+-- @bsb-hash sha256:8ce9cd04377f76de85e1d62902a4c9015c59b4fbe8ead634899d989972b2e02b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -370,8 +386,9 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
+-- @bsb-hash sha256:3770f9e03968012fe5c510777f75fe99c272440531d5c27122fcfa3fa67974c8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -408,6 +425,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
@@ -857,9 +888,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block-data passes
+-- @bsb-hash sha256:8ce9cd04377f76de85e1d62902a4c9015c59b4fbe8ead634899d989972b2e02b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -870,8 +902,9 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
+-- @bsb-hash sha256:ca5272e74cb121293ee843880fd3fda71201ac7234651c8da491fab775c47fda
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -908,6 +941,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."passes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."pass_check_ins";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -1228,9 +1275,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block-data passes
+-- @bsb-hash sha256:8ce9cd04377f76de85e1d62902a4c9015c59b4fbe8ead634899d989972b2e02b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1241,8 +1289,9 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
+-- @bsb-hash sha256:12e32d47c96887aa4ef8583c66270e8a544ed0fb012430efae0c11546addbff8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1279,6 +1328,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
@@ -1682,9 +1745,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block-data passes
+-- @bsb-hash sha256:8ce9cd04377f76de85e1d62902a4c9015c59b4fbe8ead634899d989972b2e02b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

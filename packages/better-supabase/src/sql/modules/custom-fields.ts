@@ -52,6 +52,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     definitions: {
       name: "field_definitions",
+      app: { unused: () => ["encrypted"] },
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -71,6 +72,7 @@ const NAMES: BlockSqlNames = {
     },
     options: {
       name: "field_options",
+      app: {},
       optionalTable: true,
       columns: {
         id: "id",
@@ -83,6 +85,7 @@ const NAMES: BlockSqlNames = {
     },
     values: {
       name: "field_values",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -564,7 +567,7 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "field-encryption", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 3,
   upgrades: [
     {
@@ -572,7 +575,10 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
       description:
         "Field definitions order by a fractional rank key instead of an integer position; rank_field_definition sets it.",
       sql: (ctx) => {
-        if (!ctx.manages || ctx.text("layout", "normalized") === "inline") {
+        if (
+          !ctx.owns("definitions") ||
+          ctx.text("layout", "normalized") === "inline"
+        ) {
           return "";
         }
 
@@ -599,7 +605,7 @@ alter table ${definitions} drop column if exists position;`;
       description:
         "Field definitions gain an encrypted flag; encrypt_field_definition encrypts a text field's values with the tenant's data key.",
       sql: (ctx) =>
-        !ctx.manages ||
+        !ctx.owns("definitions") ||
         ctx.text("layout", "normalized") === "inline" ||
         !ctx.has("definitions", "encrypted")
           ? ""
@@ -607,7 +613,6 @@ alter table ${definitions} drop column if exists position;`;
     },
   ],
   names: NAMES,
-  adoptOptional: () => ({ definitions: ["encrypted"] }),
   contract,
   build,
 };

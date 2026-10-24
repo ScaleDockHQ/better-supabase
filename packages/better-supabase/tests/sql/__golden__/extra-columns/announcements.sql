@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_39_announcements.sql
+-- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
+-- @bsb-hash sha256:ed5c035fcd78c67efb02945380b692c29de454ba3cd2448e6f1586e926e64fa2
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -303,12 +304,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_39_announcements.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block-data announcements
+-- @bsb-hash sha256:60ebe88a3adfda6790a201adc72f29be4d50593ece2281d013078f8e48a2dc8d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

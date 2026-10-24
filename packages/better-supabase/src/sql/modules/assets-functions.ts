@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** Whether the module stores points and areas as PostGIS geography (ADR 0066). */
@@ -13,6 +14,15 @@ export const GEOGRAPHY = "extensions.geography";
 /** A geography point from latitude and longitude columns or expressions. */
 export const geographyPoint = (latitude: string, longitude: string): string =>
   `extensions.st_setsrid(extensions.st_makepoint(${longitude}, ${latitude}), 4326)::${GEOGRAPHY}`;
+
+/**
+ * Whether `table` has both coordinate columns. The app maps them to `null`
+ * together; one without the other turns coordinates off.
+ */
+export const hasCoordinates = (
+  ctx: BlockSqlContext,
+  table: "locations" | "assets",
+): boolean => ctx.has(table, "latitude") && ctx.has(table, "longitude");
 
 /** The great-circle distance in meters between two points (haversine). */
 const haversine = (
@@ -38,6 +48,81 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
   const manage = ctx.permission("manage", permissions.manage);
   const assign = ctx.permission("assign", permissions.assign);
   const postgis = assetsPostgis(ctx);
+  const placed = hasCoordinates(ctx, "locations");
+  const tracked = hasCoordinates(ctx, "assets");
+
+  // Whether a logical column is there; coordinates count only as a pair.
+  const present = (table: string, logical: string): boolean =>
+    logical === "latitude" || logical === "longitude"
+      ? hasCoordinates(ctx, table === "locations" ? "locations" : "assets")
+      : ctx.has(table, logical);
+
+  // A column of row, or null when the app maps it to null.
+  const or = (table: string, row: string, logical: string): string =>
+    present(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    present(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // value when the column exists, for lines().
+  const value = (
+    table: string,
+    logical: string,
+    expr: string,
+  ): string | undefined => (present(table, logical) ? expr : undefined);
+
+  // The values of an insert, the present ones of each group on a line.
+  const lines = (...groups: readonly (string | undefined)[][]): string =>
+    groups
+      .map((group) => group.filter((item) => item !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(",\n    ");
+
+  // Refuses a non-null argument for a column the app maps to null.
+  const refuse = (
+    table: string,
+    logical: string,
+    arg: string,
+    thing: string,
+  ): string =>
+    present(table, logical)
+      ? ""
+      : `\n  if ${arg} is not null then
+    ${fail(`ASSETS_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this ${table} table has no ${thing} column`, "22023")}
+  end if;`;
+
+  // Refuses a non-null patch key for a column the app maps to null.
+  const refusePatch = (
+    table: string,
+    logical: string,
+    patch: string,
+    key: string,
+    thing: string,
+  ): string =>
+    refuse(
+      table,
+      logical,
+      `nullif(${patch} -> '${key}', 'null'::jsonb)`,
+      thing,
+    );
+
+  // ",\n    column = case when patch ? key then value else x.column end",
+  // when the column exists.
+  const patchSet = (
+    table: string,
+    logical: string,
+    patch: string,
+    key: string,
+    expr: string,
+  ): string =>
+    present(table, logical)
+      ? `\n    ${ctx.col(table, logical)} = case when ${patch} ? '${key}' then ${expr} else x.${ctx.col(table, logical)} end,`
+      : "";
+
+  // A status read compared with text.
+  const status = (row: string): string =>
+    asText(ctx, "assets", `${row}.${s("status")}`);
 
   const bookings =
     ctx.installed("bookings") && ctx.of("bookings").manages
@@ -82,13 +167,13 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
     `extensions.st_multi(extensions.st_setsrid(extensions.st_geomfromgeojson(${geojson}::text), 4326))::extensions.geography`;
 
   const locationJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'parentId', ${row}.${l("parent")}, 'kind', ${row}.${l("kind")}, 'name', ${row}.${l("name")}, 'code', ${row}.${l("code")}, 'address', ${row}.${l("address")}, 'latitude', ${row}.${l("latitude")}, 'longitude', ${row}.${l("longitude")}, 'area', ${postgis ? `extensions.st_asgeojson(${row}.area::extensions.geometry)::jsonb` : "null::jsonb"}, 'metadata', ${row}.${l("metadata")}, 'archivedAt', ${row}.${l("archivedAt")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'parentId', ${row}.${l("parent")}, 'kind', ${row}.${l("kind")}, 'name', ${row}.${l("name")}, 'code', ${or("locations", row, "code")}, 'address', ${or("locations", row, "address")}, 'latitude', ${or("locations", row, "latitude")}, 'longitude', ${or("locations", row, "longitude")}, 'area', ${postgis ? `extensions.st_asgeojson(${row}.area::extensions.geometry)::jsonb` : "null::jsonb"}, 'metadata', ${or("locations", row, "metadata")}, 'archivedAt', ${row}.${l("archivedAt")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")})`;
 
   const assetJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'locationId', ${row}.${s("location")}, 'kind', ${row}.${s("kind")}, 'name', ${row}.${s("name")}, 'tag', ${row}.${s("tag")}, 'serialNumber', ${row}.${s("serial")}, 'status', ${row}.${s("status")}, 'assigneeType', ${row}.${s("assigneeType")}, 'assigneeId', ${row}.${s("assigneeId")}, 'latitude', ${row}.${s("latitude")}, 'longitude', ${row}.${s("longitude")}, 'metadata', ${row}.${s("metadata")}, 'retiredAt', ${row}.${s("retiredAt")}, 'createdBy', ${row}.${s("createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'locationId', ${row}.${s("location")}, 'kind', ${row}.${s("kind")}, 'name', ${row}.${s("name")}, 'tag', ${or("assets", row, "tag")}, 'serialNumber', ${or("assets", row, "serial")}, 'status', ${row}.${s("status")}, 'assigneeType', ${row}.${s("assigneeType")}, 'assigneeId', ${row}.${s("assigneeId")}, 'latitude', ${or("assets", row, "latitude")}, 'longitude', ${or("assets", row, "longitude")}, 'metadata', ${or("assets", row, "metadata")}, 'retiredAt', ${or("assets", row, "retiredAt")}, 'createdBy', ${or("assets", row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
 
   const assignmentJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${g("id")}, 'assetId', ${row}.${g("asset")}, 'assigneeType', ${row}.${g("assigneeType")}, 'assigneeId', ${row}.${g("assigneeId")}, 'note', ${row}.${g("note")}, 'assignedBy', ${row}.${g("assignedBy")}, 'assignedAt', ${row}.${g("assignedAt")}, 'releasedAt', ${row}.${g("releasedAt")})`;
+    `jsonb_build_object('id', ${row}.${g("id")}, 'assetId', ${row}.${g("asset")}, 'assigneeType', ${row}.${g("assigneeType")}, 'assigneeId', ${row}.${g("assigneeId")}, 'note', ${or("assignments", row, "note")}, 'assignedBy', ${or("assignments", row, "assignedBy")}, 'assignedAt', ${row}.${g("assignedAt")}, 'releasedAt', ${row}.${g("releasedAt")})`;
 
   const locationRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -220,16 +305,45 @@ begin
   if not ${allowed("create_asset_location.tenant", manage)} then
     ${forbidden("not allowed to manage locations")}
   end if;
-  ${postgis ? "" : `if create_asset_location.area is not null then\n    ${needsPostgis}\n  end if;`}
+  ${postgis ? "" : `if create_asset_location.area is not null then\n    ${needsPostgis}\n  end if;`}${refuse("locations", "code", "create_asset_location.code", "code")}${refuse("locations", "address", "create_asset_location.address", "address")}${refuse("locations", "latitude", "coalesce(create_asset_location.latitude, create_asset_location.longitude)", "coordinates")}${refuse("locations", "metadata", "create_asset_location.metadata", "metadata")}${
+    ctx.has("locations", "code")
+      ? `
   if create_asset_location.code is not null and exists (
     select 1 from ${locations} x where x.${l("tenant")} = create_asset_location.tenant and x.${l("code")} = create_asset_location.code
   ) then
     ${fail("ASSETS_CODE_TAKEN", "a location with this code already exists", "23505")}
-  end if;
-  insert into ${locations} (${l("tenant")}, ${l("parent")}, ${l("kind")}, ${l("name")}, ${l("code")}, ${l("address")}, ${l("latitude")}, ${l("longitude")}, ${postgis ? "area, " : ""}${l("metadata")})
-  values (create_asset_location.tenant, create_asset_location.parent_id, create_asset_location.kind, trim(create_asset_location.name),
-    create_asset_location.code, coalesce(create_asset_location.address, '{}'::jsonb), create_asset_location.latitude,
-    create_asset_location.longitude, ${postgis ? `case when create_asset_location.area is null then null else ${area("create_asset_location.area")} end, ` : ""}coalesce(create_asset_location.metadata, '{}'::jsonb))
+  end if;`
+      : ""
+  }
+  insert into ${locations} (${l("tenant")}, ${l("parent")}, ${l("kind")}, ${l("name")}${also("locations", "code")}${also("locations", "address")}${also("locations", "latitude")}${also("locations", "longitude")}${postgis ? ", area" : ""}${also("locations", "metadata")})
+  values (${lines(
+    [
+      "create_asset_location.tenant",
+      "create_asset_location.parent_id",
+      "create_asset_location.kind",
+      "trim(create_asset_location.name)",
+    ],
+    [
+      value("locations", "code", "create_asset_location.code"),
+      value(
+        "locations",
+        "address",
+        "coalesce(create_asset_location.address, '{}'::jsonb)",
+      ),
+      value("locations", "latitude", "create_asset_location.latitude"),
+    ],
+    [
+      value("locations", "longitude", "create_asset_location.longitude"),
+      postgis
+        ? `case when create_asset_location.area is null then null else ${area("create_asset_location.area")} end`
+        : undefined,
+      value(
+        "locations",
+        "metadata",
+        "coalesce(create_asset_location.metadata, '{}'::jsonb)",
+      ),
+    ],
+  )})
   returning * into v_row;
   ${locationRecord("asset_location.created", "v_row", "created location")}
   return ${locationJson("v_row")};
@@ -259,21 +373,20 @@ begin
   if jsonb_typeof(update_asset_location.patch) is distinct from 'object' then
     ${invalid("ASSETS_PATCH_INVALID", "patch must be an object")}
   end if;
-  ${postgis ? "" : `if update_asset_location.patch ? 'area' and jsonb_typeof(update_asset_location.patch -> 'area') <> 'null' then\n    ${needsPostgis}\n  end if;`}
+  ${postgis ? "" : `if update_asset_location.patch ? 'area' and jsonb_typeof(update_asset_location.patch -> 'area') <> 'null' then\n    ${needsPostgis}\n  end if;`}${refusePatch("locations", "code", "update_asset_location.patch", "code", "code")}${refusePatch("locations", "address", "update_asset_location.patch", "address", "address")}${refuse("locations", "latitude", "coalesce(nullif(update_asset_location.patch -> 'latitude', 'null'::jsonb), nullif(update_asset_location.patch -> 'longitude', 'null'::jsonb))", "coordinates")}${refusePatch("locations", "metadata", "update_asset_location.patch", "metadata", "metadata")}${
+    ctx.has("locations", "code")
+      ? `
   if update_asset_location.patch ? 'code' and update_asset_location.patch ->> 'code' is not null and exists (
     select 1 from ${locations} x where x.${l("tenant")} = v_row.${l("tenant")} and x.${l("code")} = update_asset_location.patch ->> 'code' and x.${l("id")} <> v_row.${l("id")}
   ) then
     ${fail("ASSETS_CODE_TAKEN", "a location with this code already exists", "23505")}
-  end if;
+  end if;`
+      : ""
+  }
   update ${locations} x set
     ${l("kind")} = case when update_asset_location.patch ? 'kind' then update_asset_location.patch ->> 'kind' else x.${l("kind")} end,
     ${l("name")} = case when update_asset_location.patch ? 'name' then trim(update_asset_location.patch ->> 'name') else x.${l("name")} end,
-    ${l("parent")} = case when update_asset_location.patch ? 'parentId' then (update_asset_location.patch ->> 'parentId')::uuid else x.${l("parent")} end,
-    ${l("code")} = case when update_asset_location.patch ? 'code' then update_asset_location.patch ->> 'code' else x.${l("code")} end,
-    ${l("address")} = case when update_asset_location.patch ? 'address' then coalesce(nullif(update_asset_location.patch -> 'address', 'null'::jsonb), '{}'::jsonb) else x.${l("address")} end,
-    ${l("latitude")} = case when update_asset_location.patch ? 'latitude' then (update_asset_location.patch ->> 'latitude')::double precision else x.${l("latitude")} end,
-    ${l("longitude")} = case when update_asset_location.patch ? 'longitude' then (update_asset_location.patch ->> 'longitude')::double precision else x.${l("longitude")} end,
-    ${postgis ? `area = case when update_asset_location.patch ? 'area' then case when jsonb_typeof(update_asset_location.patch -> 'area') = 'null' then null else ${area("(update_asset_location.patch -> 'area')")} end else x.area end,\n    ` : ""}${l("metadata")} = case when update_asset_location.patch ? 'metadata' then coalesce(nullif(update_asset_location.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb) else x.${l("metadata")} end,
+    ${l("parent")} = case when update_asset_location.patch ? 'parentId' then (update_asset_location.patch ->> 'parentId')::uuid else x.${l("parent")} end,${patchSet("locations", "code", "update_asset_location.patch", "code", "update_asset_location.patch ->> 'code'")}${patchSet("locations", "address", "update_asset_location.patch", "address", "coalesce(nullif(update_asset_location.patch -> 'address', 'null'::jsonb), '{}'::jsonb)")}${patchSet("locations", "latitude", "update_asset_location.patch", "latitude", "(update_asset_location.patch ->> 'latitude')::double precision")}${patchSet("locations", "longitude", "update_asset_location.patch", "longitude", "(update_asset_location.patch ->> 'longitude')::double precision")}${postgis ? `\n    area = case when update_asset_location.patch ? 'area' then case when jsonb_typeof(update_asset_location.patch -> 'area') = 'null' then null else ${area("(update_asset_location.patch -> 'area')")} end else x.area end,` : ""}${patchSet("locations", "metadata", "update_asset_location.patch", "metadata", "coalesce(nullif(update_asset_location.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb)")}
     ${l("updatedAt")} = now()
   where x.${l("id")} = v_row.${l("id")}
   returning * into v_row;
@@ -377,15 +490,37 @@ begin
   if not ${allowed("create_asset.tenant", manage)} then
     ${forbidden("not allowed to manage assets")}
   end if;
-  ${checkLocation("create_asset.tenant", "create_asset.location_id")}
+  ${checkLocation("create_asset.tenant", "create_asset.location_id")}${refuse("assets", "tag", "create_asset.tag", "tag")}${refuse("assets", "serial", "create_asset.serial_number", "serial number")}${refuse("assets", "latitude", "coalesce(create_asset.latitude, create_asset.longitude)", "coordinates")}${refuse("assets", "metadata", "create_asset.metadata", "metadata")}${
+    ctx.has("assets", "tag")
+      ? `
   if create_asset.tag is not null and exists (
     select 1 from ${assets} x where x.${s("tenant")} = create_asset.tenant and x.${s("tag")} = create_asset.tag
   ) then
     ${fail("ASSETS_TAG_TAKEN", "an asset with this tag already exists", "23505")}
-  end if;
-  insert into ${assets} (${s("tenant")}, ${s("location")}, ${s("kind")}, ${s("name")}, ${s("tag")}, ${s("serial")}, ${s("latitude")}, ${s("longitude")}, ${s("metadata")}, ${s("createdBy")})
-  values (create_asset.tenant, create_asset.location_id, create_asset.kind, trim(create_asset.name), create_asset.tag,
-    create_asset.serial_number, create_asset.latitude, create_asset.longitude, coalesce(create_asset.metadata, '{}'::jsonb), auth.uid())
+  end if;`
+      : ""
+  }
+  insert into ${assets} (${s("tenant")}, ${s("location")}, ${s("kind")}, ${s("name")}${also("assets", "tag")}${also("assets", "serial")}${also("assets", "latitude")}${also("assets", "longitude")}${also("assets", "metadata")}${also("assets", "createdBy")})
+  values (${lines(
+    [
+      "create_asset.tenant",
+      "create_asset.location_id",
+      "create_asset.kind",
+      "trim(create_asset.name)",
+      value("assets", "tag", "create_asset.tag"),
+    ],
+    [
+      value("assets", "serial", "create_asset.serial_number"),
+      value("assets", "latitude", "create_asset.latitude"),
+      value("assets", "longitude", "create_asset.longitude"),
+      value(
+        "assets",
+        "metadata",
+        "coalesce(create_asset.metadata, '{}'::jsonb)",
+      ),
+      value("assets", "createdBy", "auth.uid()"),
+    ],
+  )})
   returning * into v_row;
   ${assetRecord("asset.created", "v_row", "created asset")}
   return ${assetJson("v_row")};
@@ -421,28 +556,26 @@ begin
   if v_location is distinct from v_row.${s("location")} then
     ${checkLocation(`v_row.${s("tenant")}`, "v_location")}
   end if;
-  v_status := case when update_asset.patch ? 'status' then update_asset.patch ->> 'status' else v_row.${s("status")} end;
+  v_status := case when update_asset.patch ? 'status' then update_asset.patch ->> 'status' else ${status("v_row")} end;${refusePatch("assets", "tag", "update_asset.patch", "tag", "tag")}${refusePatch("assets", "serial", "update_asset.patch", "serialNumber", "serial number")}${refuse("assets", "latitude", "coalesce(nullif(update_asset.patch -> 'latitude', 'null'::jsonb), nullif(update_asset.patch -> 'longitude', 'null'::jsonb))", "coordinates")}${refusePatch("assets", "metadata", "update_asset.patch", "metadata", "metadata")}${
+    ctx.has("assets", "tag")
+      ? `
   if update_asset.patch ? 'tag' and update_asset.patch ->> 'tag' is not null and exists (
     select 1 from ${assets} x where x.${s("tenant")} = v_row.${s("tenant")} and x.${s("tag")} = update_asset.patch ->> 'tag' and x.${s("id")} <> v_row.${s("id")}
   ) then
     ${fail("ASSETS_TAG_TAKEN", "an asset with this tag already exists", "23505")}
-  end if;
+  end if;`
+      : ""
+  }
   if v_status = 'retired' and v_row.${s("status")} <> 'retired' then
     ${releaseOpen(`v_row.${s("id")}`)}
   end if;
   update ${assets} x set
     ${s("kind")} = case when update_asset.patch ? 'kind' then update_asset.patch ->> 'kind' else x.${s("kind")} end,
     ${s("name")} = case when update_asset.patch ? 'name' then trim(update_asset.patch ->> 'name') else x.${s("name")} end,
-    ${s("location")} = v_location,
-    ${s("tag")} = case when update_asset.patch ? 'tag' then update_asset.patch ->> 'tag' else x.${s("tag")} end,
-    ${s("serial")} = case when update_asset.patch ? 'serialNumber' then update_asset.patch ->> 'serialNumber' else x.${s("serial")} end,
-    ${s("status")} = v_status,
-    ${s("latitude")} = case when update_asset.patch ? 'latitude' then (update_asset.patch ->> 'latitude')::double precision else x.${s("latitude")} end,
-    ${s("longitude")} = case when update_asset.patch ? 'longitude' then (update_asset.patch ->> 'longitude')::double precision else x.${s("longitude")} end,
-    ${s("metadata")} = case when update_asset.patch ? 'metadata' then coalesce(nullif(update_asset.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb) else x.${s("metadata")} end,
+    ${s("location")} = v_location,${patchSet("assets", "tag", "update_asset.patch", "tag", "update_asset.patch ->> 'tag'")}${patchSet("assets", "serial", "update_asset.patch", "serialNumber", "update_asset.patch ->> 'serialNumber'")}
+    ${s("status")} = ${ctx.cast("assets", "status", "v_status")},${patchSet("assets", "latitude", "update_asset.patch", "latitude", "(update_asset.patch ->> 'latitude')::double precision")}${patchSet("assets", "longitude", "update_asset.patch", "longitude", "(update_asset.patch ->> 'longitude')::double precision")}${patchSet("assets", "metadata", "update_asset.patch", "metadata", "coalesce(nullif(update_asset.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb)")}
     ${s("assigneeType")} = case when v_status = 'retired' then null else x.${s("assigneeType")} end,
-    ${s("assigneeId")} = case when v_status = 'retired' then null else x.${s("assigneeId")} end,
-    ${s("retiredAt")} = case when v_status = 'retired' then coalesce(x.${s("retiredAt")}, now()) else null end,
+    ${s("assigneeId")} = case when v_status = 'retired' then null else x.${s("assigneeId")} end,${ctx.has("assets", "retiredAt") ? `\n    ${s("retiredAt")} = case when v_status = 'retired' then coalesce(x.${s("retiredAt")}, now()) else null end,` : ""}
     ${s("updatedAt")} = now()
   where x.${s("id")} = v_row.${s("id")}
   returning * into v_row;
@@ -482,15 +615,24 @@ begin
     or not ${ctx.scope.canUser("assign_asset.assignee_id::uuid", `v_row.${s("tenant")}`, read)}
   ) then
     ${invalid("ASSETS_ASSIGNEE_INVALID", "the member can't see this organization's assets")}
-  end if;
+  end if;${refuse("assignments", "note", "nullif(trim(assign_asset.note), '')", "note")}
   ${ctx.hook("before_asset_assign", [
     ["uuid", `v_row.${s("id")}`],
     ["text", "assign_asset.assignee_type"],
     ["text", "assign_asset.assignee_id"],
   ])}
   ${releaseOpen(`v_row.${s("id")}`)}
-  insert into ${assignments} (${g("tenant")}, ${g("asset")}, ${g("assigneeType")}, ${g("assigneeId")}, ${g("note")}, ${g("assignedBy")})
-  values (v_row.${s("tenant")}, v_row.${s("id")}, assign_asset.assignee_type, assign_asset.assignee_id, nullif(trim(assign_asset.note), ''), auth.uid());
+  insert into ${assignments} (${g("tenant")}, ${g("asset")}, ${g("assigneeType")}, ${g("assigneeId")}${also("assignments", "note")}${also("assignments", "assignedBy")})
+  values (${[
+    `v_row.${s("tenant")}`,
+    `v_row.${s("id")}`,
+    "assign_asset.assignee_type",
+    "assign_asset.assignee_id",
+    value("assignments", "note", "nullif(trim(assign_asset.note), '')"),
+    value("assignments", "assignedBy", "auth.uid()"),
+  ]
+    .filter((item) => item !== undefined)
+    .join(", ")});
   update ${assets} x set ${s("assigneeType")} = assign_asset.assignee_type, ${s("assigneeId")} = assign_asset.assignee_id, ${s("updatedAt")} = now()
     where x.${s("id")} = v_row.${s("id")}
     returning * into v_row;
@@ -577,10 +719,10 @@ as $$
     where (list_assets.tenant is null or x.${s("tenant")} = list_assets.tenant)
       and (list_assets.location_id is null or x.${s("location")} in (select below.id from below))
       and (list_assets.kind is null or x.${s("kind")} = list_assets.kind)
-      and (list_assets.status is null or x.${s("status")} = list_assets.status)
+      and (list_assets.status is null or ${status("x")} = list_assets.status)
       and (list_assets.assignee_type is null or x.${s("assigneeType")} = list_assets.assignee_type)
       and (list_assets.assignee_id is null or x.${s("assigneeId")} = list_assets.assignee_id)
-      and (list_assets.query is null or x.${s("name")} ilike '%' || list_assets.query || '%' or x.${s("tag")} = list_assets.query or x.${s("serial")} = list_assets.query)
+      and (list_assets.query is null or x.${s("name")} ilike '%' || list_assets.query || '%'${ctx.has("assets", "tag") ? ` or x.${s("tag")} = list_assets.query` : ""}${ctx.has("assets", "serial") ? ` or x.${s("serial")} = list_assets.query` : ""})
       and (list_assets.before is null or x.${s("createdAt")} < list_assets.before)
       and ${readsAsset("x")}
     order by x.${s("createdAt")} desc, x.${s("id")}
@@ -642,7 +784,9 @@ begin
     ${invalid("ASSETS_RADIUS_INVALID", "radius_meters must be above 0 and at most 1000000")}
   end if;
   return jsonb_build_object(
-    'assets', coalesce((
+    'assets', ${
+      tracked
+        ? `coalesce((
       select jsonb_agg(z.item || jsonb_build_object('distanceMeters', z.distance) order by z.distance, z.id)
       from (
         select ${assetJson("x")} as item, ${distance("x", "assets")} as distance, x.${s("id")} as id
@@ -653,8 +797,12 @@ begin
         order by 2, 3
         limit v_limit
       ) z
-    ), '[]'::jsonb),
-    'locations', coalesce((
+    ), '[]'::jsonb)`
+        : "'[]'::jsonb"
+    },
+    'locations', ${
+      placed
+        ? `coalesce((
       select jsonb_agg(z.item || jsonb_build_object('distanceMeters', z.distance) order by z.distance, z.id)
       from (
         select ${locationJson("x")} as item, ${distance("x", "locations")} as distance, x.${l("id")} as id
@@ -664,7 +812,9 @@ begin
         order by 2, 3
         limit v_limit
       ) z
-    ), '[]'::jsonb));
+    ), '[]'::jsonb)`
+        : "'[]'::jsonb"
+    });
 end;
 $$;
 ${userGrant(`${fn("assets_near")}(${idType}, double precision, double precision, double precision, text, integer)`)}

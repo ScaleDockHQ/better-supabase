@@ -7,9 +7,16 @@ import {
   moduleBody,
   renderBlocks,
 } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
+
+const overApp = (modules: AnyBlocksConfig) =>
+  renderBlocks(["notifications"], { modules, ownTables: ownTablesOf(modules) })
+    .filter((file) => file.module === "notifications")
+    .map((file) => file.contents)
+    .join("\n");
 
 const rendered = (names: Parameters<typeof renderBlocks>[0]) =>
   renderBlocks(names)
@@ -20,9 +27,8 @@ const rendered = (names: Parameters<typeof renderBlocks>[0]) =>
 const DELIVERIES = '"better_supabase"."notification_deliveries"';
 const EVENTS = '"better_supabase"."notification_delivery_events"';
 
-const ADOPTED: AnyBlocksConfig = {
+const APP_TABLES: AnyBlocksConfig = {
   notifications: {
-    mode: "adopt",
     schema: "public",
     idType: "uuid",
     columns: {
@@ -134,17 +140,30 @@ describe("notification delivery tracking", () => {
     );
   });
 
-  it("leaves tracking out without deliveries, when mapped to null, and for an adopter that does not map it", () => {
+  it("leaves tracking out without deliveries and when mapped to null", () => {
     for (const modules of [
       { notifications: { tables: { deliveries: null } } },
       { notifications: { tables: { deliveryEvents: null } } },
-      ADOPTED,
     ] satisfies AnyBlocksConfig[]) {
       const sql = body(modules);
       expect(sql).not.toContain("notification_delivery_events");
       expect(sql).not.toContain("record_delivery_event");
       expect(sql).not.toContain("template_key");
     }
+  });
+
+  it("creates its own events table over the app's deliveries when the app maps none", () => {
+    const sql = overApp(APP_TABLES);
+    expect(sql).toContain(
+      `create table if not exists "public"."notification_delivery_events" (`,
+    );
+    expect(sql).toContain(
+      `references "public"."notification_deliveries" ("id") on delete cascade`,
+    );
+    expect(sql).not.toContain(
+      `create table if not exists "public"."notification_deliveries" (`,
+    );
+    expect(sql).toContain("record_delivery_event");
   });
 
   it("adds the functions to a custom contract only when the table is mapped", () => {

@@ -602,7 +602,7 @@ export interface BlockNameRegistry {
       readonly "nodes": "id" | "tenant" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "grants": "id" | "tenant" | "node" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
     };
-    readonly functions: "drive_ancestors" | "drive_can" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_free_name" | "drive_get" | "drive_grants" | "drive_insert_node" | "drive_list" | "drive_lock_siblings" | "drive_move" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_path" | "drive_rename" | "drive_role" | "drive_share" | "drive_shared" | "drive_subtree" | "drive_unshare";
+    readonly functions: "drive_ancestors" | "drive_can" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_free_name" | "drive_get" | "drive_grants" | "drive_insert_node" | "drive_list" | "drive_lock_siblings" | "drive_move" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_path" | "drive_readable_ids" | "drive_rename" | "drive_role" | "drive_share" | "drive_shared" | "drive_subtree" | "drive_unshare";
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {

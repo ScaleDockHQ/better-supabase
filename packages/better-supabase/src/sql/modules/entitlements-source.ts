@@ -101,7 +101,10 @@ export function customerSource(
     };
   }
 
-  if (ctx.installed("organizations") && ctx.of("organizations").manages) {
+  if (
+    ctx.installed("organizations") &&
+    ctx.of("organizations").owns("organizations")
+  ) {
     const organizations = ctx.of("organizations");
     const table = organizations.tableName("organizations");
 

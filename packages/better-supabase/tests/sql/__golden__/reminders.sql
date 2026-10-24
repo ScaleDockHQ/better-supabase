@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_63_reminders.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:256ff0e47c77c2b2a05859096a41c79efb565a7479b3455e604ea6387a5aafe7
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."recurrence_rules" (
@@ -251,6 +266,32 @@ $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -264,12 +305,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_63_reminders.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -277,11 +319,12 @@ values ('reminders', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_63_reminders.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:25e1e294bcd100ed416fb3d422187d6121b9a9b46e4e12fa5cff57a5e4b46f53
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -318,6 +361,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."recurrence_rules" (
@@ -530,6 +587,32 @@ $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -543,12 +626,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_63_reminders.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -556,11 +640,12 @@ values ('reminders', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_63_reminders.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:76ac837f163074503f6609074c3887e52d2a2901b8f25be95397a2578990def2
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -597,6 +682,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."reminders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -811,6 +910,32 @@ $$;
 revoke execute on function "app_private"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "app_private"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
+create policy bsb_tenant_scope on "app_private"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."reminders";
+create policy bsb_tenant_scope on "app_private"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -824,12 +949,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_63_reminders.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -837,11 +963,12 @@ values ('reminders', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_63_reminders.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:fae7009e15962f78130d3a729098536f14d817476df5b44a3f8a49bc4e9300f6
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -878,6 +1005,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."recurrence_rules" (
@@ -1090,6 +1231,32 @@ $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1181,12 +1348,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_63_reminders.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1194,11 +1362,12 @@ values ('reminders', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_63_reminders.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
--- @bsb-block reminders@1 adopt
+-- @bsb-block reminders@1 managed
+-- @bsb-hash sha256:dca33d626590bbf7d321a332bc74381fcc422c82646a8d5530f535c4503de7f7
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1235,8 +1404,70 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.recurrence_rules is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."recurrence_rules" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."recurrence_rules" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."recurrence_rules" add column if not exists "subject_type" text;
+alter table "better_supabase"."recurrence_rules" add column if not exists "subject_id" text;
+alter table "better_supabase"."recurrence_rules" add column if not exists "dtstart" timestamptz;
+alter table "better_supabase"."recurrence_rules" add column if not exists "tzid" text not null default 'UTC';
+alter table "better_supabase"."recurrence_rules" add column if not exists "rrule" text;
+alter table "better_supabase"."recurrence_rules" enable row level security;
+grant select on "better_supabase"."recurrence_rules" to authenticated;
+grant all on "better_supabase"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
+-- better_supabase.reminders is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."reminders" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."reminders" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."reminders" add column if not exists "subject_type" text;
+alter table "better_supabase"."reminders" add column if not exists "subject_id" text;
+alter table "better_supabase"."reminders" add column if not exists "user_id" uuid;
+alter table "better_supabase"."reminders" add column if not exists "method" text not null default 'notification';
+alter table "better_supabase"."reminders" add column if not exists "offset_minutes" integer not null default 0;
+alter table "better_supabase"."reminders" enable row level security;
+grant select on "better_supabase"."reminders" to authenticated;
+grant all on "better_supabase"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    begin
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
+-- better_supabase.reminder_deliveries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."reminder_deliveries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."reminder_deliveries" add column if not exists "reminder_id" uuid references "better_supabase"."reminders" ("id") on delete cascade;
+alter table "better_supabase"."reminder_deliveries" add column if not exists "occurrence_at" timestamptz;
+alter table "better_supabase"."reminder_deliveries" add column if not exists "sent_at" timestamptz;
+alter table "better_supabase"."reminder_deliveries" enable row level security;
+grant select on "better_supabase"."reminder_deliveries" to authenticated;
+grant all on "better_supabase"."reminder_deliveries" to service_role;
 
 drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)
@@ -1388,6 +1619,32 @@ $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1401,15 +1658,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_63_reminders.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block-data reminders
+-- @bsb-hash sha256:d2fe5d73d65cd57fa991248140b2f47de077d33f44e6e190b9e0d3012d0ab3b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('reminders', 1, 'adopt')
+values ('reminders', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

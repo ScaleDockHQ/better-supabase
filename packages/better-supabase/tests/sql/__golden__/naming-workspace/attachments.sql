@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_34_attachments.sql
+-- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@5 managed
+-- @bsb-hash sha256:b1f7ac3399505b9513d958431b58b8590f72d7fea82a18d3960415bd8208a9a7
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Files linked to records. Each object lives at options.path (default
@@ -626,6 +641,44 @@ grant execute on function "better_supabase"."list_attachments"(uuid, text, text)
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "workspace_id"))
+    or ("uploaded_by" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and coalesce(better_supabase.can('tenant', "workspace_id", 'attachments.upload'), false)
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "workspace_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -639,12 +692,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_34_attachments.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
+-- @bsb-hash sha256:91f69e309684d353eb80cd247b721263f85dbcadcbe8333d5a5ad42debd23d0e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

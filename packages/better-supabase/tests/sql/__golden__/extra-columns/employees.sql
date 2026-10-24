@@ -1,8 +1,9 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
+-- @bsb-hash sha256:9333085f15aa41a4764189c71e338b50b342aaac2fe503aba5dc87bfd0268497
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Employees: the people an organization employs, with or without an
@@ -685,6 +704,47 @@ $$;
 revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
+create policy bsb_tenant_scope on "better_supabase"."employees" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
+create policy bsb_tenant_scope on "better_supabase"."employee_private_details" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
+create policy bsb_tenant_scope on "better_supabase"."employee_contracts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -701,9 +761,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block-data employees
+-- @bsb-hash sha256:ef71d36ecb32da43d32d40924d438f2ce86d6101484d71d537c5801e7d00355c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

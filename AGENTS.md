@@ -212,6 +212,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0095: one token verification per request across cache scopes, through a session memo keyed by the token hash.
 - 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast.
 - 0097: `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only.
+- 0098: blocks detect the app's tables per table (`ownTables`) and run over them; `ownership: "adopt"` is removed (breaking).
+- 0099: tenant isolation renders as one restrictive `bsb_tenant_scope` policy per tenant table; an app's permissive policy can't widen it.
 
 ## Pre-release pins
 

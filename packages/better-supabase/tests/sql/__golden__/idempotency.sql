@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_08_idempotency.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
+-- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -248,12 +249,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_08_idempotency.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
+-- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -261,11 +263,12 @@ values ('idempotency', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_08_idempotency.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
+-- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -511,12 +514,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_08_idempotency.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
+-- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -524,11 +528,12 @@ values ('idempotency', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_08_idempotency.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
+-- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -774,12 +779,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_08_idempotency.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
+-- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -787,11 +793,12 @@ values ('idempotency', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_08_idempotency.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
+-- @bsb-hash sha256:0ad643c897cd387014d79fa0a9dfe8773b7e6e98e4223a329c19f1598c92461b
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1117,12 +1124,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_08_idempotency.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
+-- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

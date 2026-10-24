@@ -85,6 +85,7 @@ export const NAMES: BlockSqlNames = {
   tables: {
     nodes: {
       name: "drive_nodes",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -111,6 +112,12 @@ export const NAMES: BlockSqlNames = {
     },
     grants: {
       name: "drive_grants",
+      app: {
+        unused: (ctx) =>
+          ctx.has("grants", "principalType")
+            ? ["user", "team"]
+            : ["principalType", "principalId"],
+      },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",

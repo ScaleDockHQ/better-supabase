@@ -140,7 +140,7 @@ The three tables declare their tenant to `data-lifecycle`, so an organization ex
 
 ## Adopting a table
 
-An app with its own employees table adopts it with `ownership: "adopt"`, maps its columns, and maps the ones it lacks to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables.
+An app with its own employees table keeps it: the module runs over it, maps its columns, and adds the columns it lacks unless you map them to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables.
 
 ## Events
 

@@ -537,13 +537,19 @@ function toTableModels(
   const { config, keyOf, optionsOf } = ctx;
   const flagsConfig = config.extensions;
   const subjectDeletedAt = new Map<string, { db: string; source: string }>();
+  const subjectTenant = new Map<string, string>();
 
   for (const [type, subject] of Object.entries(config.subjects)) {
-    if (subject.deletedAt !== undefined) {
-      const table = subject.table.includes(".")
-        ? subject.table
-        : `public.${subject.table}`;
+    const table = subject.table.includes(".")
+      ? subject.table
+      : `public.${subject.table}`;
 
+    // A block over the app's table names the app's tenant column here.
+    if (typeof subject.tenant === "string") {
+      subjectTenant.set(table, subject.tenant);
+    }
+
+    if (subject.deletedAt !== undefined) {
       subjectDeletedAt.set(table, {
         db: subject.deletedAt,
         source: `subjects.${type}.deletedAt`,
@@ -618,7 +624,11 @@ function toTableModels(
       }
 
       if (flagsConfig.tenant) {
-        const column = has(flagsConfig.tenant.column);
+        const mapped = subjectTenant.get(id);
+
+        const column =
+          (mapped === undefined ? undefined : has(mapped)) ??
+          has(flagsConfig.tenant.column);
 
         if (column) {
           flags.tenant = column;

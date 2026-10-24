@@ -1,8 +1,9 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
+-- @bsb-hash sha256:852f38d1a0d4c4cbccdfdaa862466ed46899faa4771f7981256b7c2d803163ea
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -854,9 +855,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block-data oauth-server
+-- @bsb-hash sha256:fab570c8a0c09333723619c92dc55f7398532ffcd876d492a19b0cb2362b9a2f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -867,8 +869,9 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
+-- @bsb-hash sha256:c1228648814492a4c9319f605f2567efe545d0b38552ed7918eaab45ce2dae34
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1766,9 +1769,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block-data oauth-server
+-- @bsb-hash sha256:fab570c8a0c09333723619c92dc55f7398532ffcd876d492a19b0cb2362b9a2f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1779,8 +1783,9 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
+-- @bsb-hash sha256:c16e9bc47885b92f7530aa4b4f6c6b323d3e829b18afb72e96ff2d2c10790e9e
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -2634,9 +2639,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block-data oauth-server
+-- @bsb-hash sha256:fab570c8a0c09333723619c92dc55f7398532ffcd876d492a19b0cb2362b9a2f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -2647,8 +2653,9 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
+-- @bsb-hash sha256:4994bffe03fa64f4d465261a566901434f3ecb4b04ecf5ce8cf52a30de4e8f30
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -3707,9 +3714,10 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block-data oauth-server
+-- @bsb-hash sha256:fab570c8a0c09333723619c92dc55f7398532ffcd876d492a19b0cb2362b9a2f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

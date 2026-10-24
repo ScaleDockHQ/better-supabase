@@ -187,7 +187,7 @@ describe("apply", () => {
     ).toEqual({ blocks: { tags: {} }, preset: "minimal" });
     expect(
       existsSync(
-        join(dir, "supabase/schemas/900_better_supabase_22_profiles.sql"),
+        join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
       ),
     ).toBe(true);
     expect(
@@ -696,7 +696,7 @@ describe("init --preset", () => {
     );
     expect(
       existsSync(
-        join(dir, "supabase/schemas/900_better_supabase_22_profiles.sql"),
+        join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
       ),
     ).toBe(true);
   });
@@ -856,7 +856,7 @@ describe("init --preset", () => {
     expect(sql).toContain('"public"."notes"');
     expect(
       await readFile(
-        join(dir, "supabase/schemas/900_better_supabase_22_profiles.sql"),
+        join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
         "utf-8",
       ),
     ).toContain("nickname");

@@ -204,9 +204,9 @@ Run it after anything that writes numbered rows directly. After seeding, end `su
 allocation (see [extending blocks](/docs/extending/blocks)). The sequences
 table takes no app columns: its rows are counters the module owns.
 
-## Adopt mode
+## Over your own tables
 
-Map `tables.sequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`. The adopted `entity` column may be an enum, such as `entity public.workflow_subject_type`: `next_number` casts the entity name to the column's type.
+Map `tables.sequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`. Your `entity` column may be an enum, such as `entity public.workflow_subject_type`: `next_number` casts the entity name to the column's type.
 
 ## Without the client
 

@@ -59,6 +59,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     endpoints: {
       name: "webhook_endpoints",
+      app: { unused: () => ADDED_COLUMNS["endpoints"] ?? [] },
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
       columns: {
         id: "id",
@@ -96,6 +97,13 @@ const NAMES: BlockSqlNames = {
     },
     secrets: {
       name: "webhook_endpoint_secrets",
+      app: {
+        unused: (ctx) => [
+          ctx.text("secretStorage", "vault") === "column"
+            ? "vaultId"
+            : "secret",
+        ],
+      },
       // Purged with the tenant (a trigger drops the Vault secret), never exported.
       lifecycle: { tenant: "tenant", export: false },
       columns: {
@@ -111,6 +119,7 @@ const NAMES: BlockSqlNames = {
     },
     deliveries: {
       name: "webhook_deliveries",
+      app: { unused: () => ADDED_COLUMNS["deliveries"] ?? [] },
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -179,7 +188,7 @@ function formatDefault(ctx: BlockSqlContext, n: HookNames): string {
 }
 
 export const ADOPTED_FORMAT_ERROR =
-  'blocks.webhooks-out: the adopted endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
+  'blocks.webhooks-out: your endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
 
 /**
  * Without a format column every endpoint uses `defaultFormat`, whose default
@@ -188,7 +197,7 @@ export const ADOPTED_FORMAT_ERROR =
  */
 function requireAdoptedFormat(ctx: BlockSqlContext, n: HookNames): void {
   if (
-    ctx.mode === "adopt" &&
+    !ctx.owns("endpoints") &&
     !n.has("endpoints", "format") &&
     ctx.option("defaultFormat") === undefined
   ) {
@@ -447,7 +456,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   requireAdoptedFormat(ctx, n);
 
   return [
-    `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.manages ? "" : formatDefault(ctx, n)}`,
+    `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.owns("endpoints") ? "" : formatDefault(ctx, n)}`,
     reenable(ctx, n),
     vaultCleanup(ctx, n),
     functions(ctx, n),
@@ -501,15 +510,9 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   integrates: ["permissions", "service-accounts", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 5,
   names: NAMES,
-  adoptOptional: (ctx) => ({
-    ...ADDED_COLUMNS,
-    secrets: [
-      ctx.text("secretStorage", "vault") === "column" ? "vaultId" : "secret",
-    ],
-  }),
   contract,
   upgrades: [
     {
@@ -531,7 +534,7 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
       sql: (ctx) => {
         const n = hookNames(ctx);
 
-        return ctx.manages && n.has("endpoints", "format")
+        return ctx.owns("endpoints") && n.has("endpoints", "format")
           ? `alter table ${n.table("endpoints")} add column if not exists ${n.col("endpoints", "format")} ${formatColumn(n.col("endpoints", "format"), "standard")};`
           : "";
       },

@@ -152,6 +152,7 @@ import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import { WORKFLOW_BUILDER } from "./modules/workflow-editor.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
+import { applyTenantScope } from "./tenant-scope.ts";
 
 function built(definition: BlockSqlDefinition): BlockSql {
   let cached: string | undefined;
@@ -159,10 +160,16 @@ function built(definition: BlockSqlDefinition): BlockSql {
   return {
     ...definition,
     get sql() {
-      return (cached ??= applyActorWriteGuards(
-        definition.build(moduleContext(definition.name, {}), {}),
-        {},
-      ));
+      if (cached === undefined) {
+        const ctx = moduleContext(definition.name, {});
+
+        cached = applyActorWriteGuards(
+          applyTenantScope(definition.build(ctx, {}), ctx),
+          {},
+        );
+      }
+
+      return cached;
     },
   };
 }
@@ -434,7 +441,12 @@ export function resolveBlocks(
     visit(name);
   }
 
-  return ordered.toSorted((a, b) => renderPosition(a) - renderPosition(b));
+  // Modules that share a position sort by name, so the rendered SQL doesn't
+  // depend on the order of the app's `blocks` keys.
+  return ordered.toSorted(
+    (a, b) =>
+      renderPosition(a) - renderPosition(b) || a.name.localeCompare(b.name),
+  );
 }
 
 /**
@@ -475,11 +487,25 @@ export function checkModules(
       );
     }
   }
+}
 
+/**
+ * Throws on a migration-only option (`migrationOptionUses`) for a block that
+ * runs over none of the app's tables (`ownTables`).
+ */
+export function checkMigrationOptions(
+  config: AnyBlocksConfig = {},
+  ownTables?: Readonly<Record<string, string>>,
+): void {
   for (const use of migrationOptionUses(config)) {
-    if (!use.adopted) {
+    const overAppTables =
+      ownTables !== undefined &&
+      moduleContext(use.module, { modules: config, ownTables }).appOwned
+        .length > 0;
+
+    if (!overAppTables) {
       throw new TypeError(
-        `${use.message} Only adopt mode accepts it: set blocks.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
+        `${use.message} It fits only a block over a table your schema already has: remove the option, or keep it while you migrate that table.`,
       );
     }
   }

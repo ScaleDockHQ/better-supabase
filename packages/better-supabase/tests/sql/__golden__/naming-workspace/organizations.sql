@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_21_organizations.sql
+-- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
+-- @bsb-hash sha256:d3ecdd4a0216178e4ffeab9372b07bec135b53ffba90ab6ac334a2d30137d215
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -740,12 +741,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block-data organizations
+-- @bsb-hash sha256:0d61554664bed8777168e5f25e0b8597db7416b5b7439e346866162aed0f4f0b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

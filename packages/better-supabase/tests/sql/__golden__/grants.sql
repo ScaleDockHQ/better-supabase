@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_13_grants.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
+-- @bsb-hash sha256:cbbc5fcfe79d496056a8b5d22a0ff4048657a6454055721c2588d39f841564f8
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
@@ -22,12 +23,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
+-- @bsb-hash sha256:0ba55323e7817c5de5e92708f94298e2bd72c705930cd43976ed48b1cad04b56
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -35,11 +37,12 @@ values ('grants', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_13_grants.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
+-- @bsb-hash sha256:cbbc5fcfe79d496056a8b5d22a0ff4048657a6454055721c2588d39f841564f8
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
@@ -59,12 +62,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
+-- @bsb-hash sha256:0ba55323e7817c5de5e92708f94298e2bd72c705930cd43976ed48b1cad04b56
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -72,11 +76,12 @@ values ('grants', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_13_grants.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
+-- @bsb-hash sha256:cbbc5fcfe79d496056a8b5d22a0ff4048657a6454055721c2588d39f841564f8
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
@@ -96,12 +101,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
+-- @bsb-hash sha256:0ba55323e7817c5de5e92708f94298e2bd72c705930cd43976ed48b1cad04b56
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -109,11 +115,12 @@ values ('grants', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_13_grants.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
+-- @bsb-hash sha256:cbbc5fcfe79d496056a8b5d22a0ff4048657a6454055721c2588d39f841564f8
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
@@ -133,12 +140,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
+-- @bsb-hash sha256:0ba55323e7817c5de5e92708f94298e2bd72c705930cd43976ed48b1cad04b56
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

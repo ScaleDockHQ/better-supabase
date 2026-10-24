@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (
   modules: readonly string[] = ["saved-views"],
@@ -82,10 +85,13 @@ describe("saved-views module", () => {
   });
 
   it("leaves preferences out when the app maps no table", () => {
+    const modules: AnyBlocksConfig = {
+      "saved-views": { tables: { preferences: null } },
+    };
+
     const sql = sqlOf(["saved-views"], {
-      modules: {
-        "saved-views": { mode: "adopt", tables: { preferences: null } },
-      },
+      modules,
+      ownTables: ownTablesOf(modules),
     });
 
     expect(sql).not.toContain("saved_view_preferences");

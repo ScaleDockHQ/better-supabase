@@ -5,6 +5,7 @@
     "create-blocks",
     "typed-blocks",
     "sql",
+    "own-schemas",
     "composing-blocks",
     "entity-forms"
   ]

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formerBlockPath,
+  formerPaths,
   renamedBlocksIn,
   renamedBlocksSql,
   withCurrentBlockNames,
@@ -61,5 +62,26 @@ describe("renamedBlocksSql", () => {
     expect(sql).toContain("where name = 'actor'");
     expect(sql).toContain("b.name = 'created-by'");
     expect(sql).toContain("to_regclass('better_supabase.blocks')");
+  });
+});
+
+describe("formerPaths", () => {
+  it("lists the 2-digit name of a position below 100", () => {
+    expect(
+      formerPaths("schemas/900_better_supabase_031_comments.sql", "comments"),
+    ).toEqual(["schemas/900_better_supabase_31_comments.sql"]);
+    expect(
+      formerPaths("schemas/900_better_supabase_131_comments.sql", "comments"),
+    ).toEqual([]);
+  });
+
+  it("adds the 0.14 block name at both widths for a renamed block", () => {
+    expect(
+      formerPaths("schemas/900_better_supabase_012_tasks.sql", "tasks"),
+    ).toEqual([
+      "schemas/900_better_supabase_12_tasks.sql",
+      "schemas/900_better_supabase_012_work_items.sql",
+      "schemas/900_better_supabase_12_work_items.sql",
+    ]);
   });
 });

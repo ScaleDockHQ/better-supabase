@@ -6,34 +6,38 @@ import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
+const APP_TABLES = {
+  "public.organization_users": "app.sql",
+  "public.organizations": "app.sql",
+};
+
 const render = (modules: AnyBlocksConfig, names = Object.keys(modules)) => {
   const files = renderBlocks(names, {
     modules,
     accessProvider: moduleProvider,
+    ownTables: APP_TABLES,
   });
 
   return (module: string): string =>
     files.find((file) => file.module === module)?.contents ?? "";
 };
 
-const ADOPTED: AnyBlocksConfig = {
+const APP_OWNED: AnyBlocksConfig = {
   memberships: {
-    mode: "adopt",
     tables: { memberships: "public.organization_users" },
     columns: { memberships: { lastUsedAt: null, updatedAt: null } },
   },
   permissions: {},
   organizations: {
-    mode: "adopt",
     tables: { organizations: "public.organizations" },
     columns: { organizations: { createdBy: null, deletedAt: null } },
   },
 };
 
 const SUSPENDABLE: AnyBlocksConfig = {
-  ...ADOPTED,
+  ...APP_OWNED,
   memberships: {
-    ...ADOPTED["memberships"],
+    ...APP_OWNED["memberships"],
     columns: {
       memberships: {
         lastUsedAt: null,
@@ -73,8 +77,8 @@ describe("membership suspension", () => {
     );
   });
 
-  it("leaves an adopted table alone until the column is mapped", () => {
-    const sql = render(ADOPTED);
+  it("leaves the app's table alone until the column is mapped", () => {
+    const sql = render(APP_OWNED);
     expect(sql("memberships")).not.toContain('"disabled_at"');
     expect(sql("permissions")).not.toContain('"disabled_at"');
     expect(sql("organizations")).toContain(
@@ -88,13 +92,14 @@ describe("membership suspension", () => {
     );
     expect(
       adoptedColumnProblems(
-        ADOPTED,
+        APP_OWNED,
         [
           {
             text: "create table public.organization_users (organization_id uuid, user_id uuid, role text, created_at timestamptz);\ncreate table public.organizations (id uuid, name text, slug text, created_at timestamptz, updated_at timestamptz, disabled_at timestamptz);",
           },
         ],
         ["public"],
+        APP_TABLES,
       ),
     ).toEqual([]);
   });
@@ -102,7 +107,10 @@ describe("membership suspension", () => {
   it("reads a mapped column and guards owners and role changes", () => {
     const sql = render(SUSPENDABLE);
     const organizations = sql("organizations");
-    expect(sql("memberships")).not.toContain("add column");
+    expect(sql("memberships")).not.toContain('"disabled_at"');
+    expect(sql("memberships")).toContain(
+      'alter table "public"."organization_users" add column if not exists "suspended_at" timestamptz;',
+    );
     expect(sql("memberships")).toContain('and m."suspended_at" is null');
     expect(organizations).toContain(
       `"role" = 'owner' and m."suspended_at" is null`,

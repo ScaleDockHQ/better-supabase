@@ -64,7 +64,6 @@ describe("proposeAdoption", () => {
     const proposal = proposeAdoption("teams", [TEAMS, MEMBERS]);
     expect(proposal.errors).toEqual([]);
     expect(proposal.entry).toEqual({
-      mode: "adopt",
       tables: { teams: "public.teams", members: "public.team_members" },
       columns: {
         teams: { tenant: "organization_id" },
@@ -91,7 +90,7 @@ describe("proposeAdoption", () => {
     });
   });
 
-  it("maps optional columns the table lacks to null, and reports required ones", () => {
+  it("maps optional columns the table lacks to null, and warns that the block adds required ones", () => {
     const organizations = table("organizations", {
       id: "uuid",
       name: "text",
@@ -111,9 +110,11 @@ describe("proposeAdoption", () => {
       MEMBERS,
     ]);
 
-    expect(missing.errors.join("\n")).toContain(
-      "public.teams has no column for teams.name (name by default)",
+    expect(missing.errors).toEqual([]);
+    expect(missing.warnings).toContain(
+      "public.teams has no column for teams.name, so the block's migration adds name. Map blocks.teams.columns.teams.name instead when another column holds it.",
     );
+    expect(missing.entry.columns?.["teams"]).not.toHaveProperty("name");
   });
 
   it("reports an enum column the block computes text for, and takes one it casts or writes literals to", () => {
@@ -189,9 +190,9 @@ describe("proposeAdoption", () => {
   it("reports tables it can't find or match", () => {
     expect(
       proposeAdoption("teams", [MEMBERS], { from: ["public.nope"] }).errors,
-    ).toEqual([
-      "public.nope is not a table in the database.",
-      "blocks.teams needs a table for teams (teams by default) and none was found. Pass it with --tables.",
+    ).toEqual(["public.nope is not a table in the database."]);
+    expect(proposeAdoption("teams", []).errors).toEqual([
+      "None of the teams tables (teams, team_members) is in the database. Pass yours with --tables.",
     ]);
     const unrelated = table("invoices", { total: "numeric" });
     expect(
@@ -203,9 +204,9 @@ describe("proposeAdoption", () => {
     ]);
   });
 
-  it("refuses blocks without an adopt mode", () => {
-    expect(proposeAdoption("comments", []).errors[0]).toContain(
-      "comments has no adopt mode. Blocks you can adopt: ",
+  it("refuses blocks that create all their tables", () => {
+    expect(proposeAdoption("queue", []).errors[0]).toContain(
+      "queue creates all its tables. Blocks that can run over yours: ",
     );
     expect(proposeAdoption("nope", []).errors).toEqual([
       "nope is not a block. See `better-supabase blocks list`.",
@@ -268,7 +269,7 @@ describe("describeProposal", () => {
 
     expect(lines).toContain("  teams: public.teams");
     expect(lines).toContain("    tenant       organization_id (guessed)");
-    expect(lines).toContain("    name         null (not in the table)");
-    expect(lines.some((line) => line.startsWith("  error  "))).toBe(true);
+    expect(lines).toContain("    name         name (the block adds it)");
+    expect(lines.some((line) => line.startsWith("  warn   "))).toBe(true);
   });
 });

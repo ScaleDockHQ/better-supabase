@@ -35,10 +35,11 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
 | `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
 | `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
+| `--fix`                | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
 
-Side effects: Reads the database, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+Side effects: Reads the database, writes to the database with `--fix`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
 ## In CI
 
@@ -187,7 +188,10 @@ an error, so an update or delete matches 0 rows and the UI looks like it
 worked. Add the missing policies, or a restrictive `using (false)` policy to
 make a read-only table explicit, and cover the table with
 [`expectTenantIsolation`](/docs/testing#tenant-isolation). The tenant table
-itself (the one the tenant column references) is skipped.
+itself (the one the tenant column references) is skipped. On an app table a
+block runs over, only your own policies decide whether the table is reported:
+the block reads it through its `bsb_` policies and writes it through its own
+functions, so a table with only block policies is left alone.
 
 ### BS108
 
@@ -333,7 +337,8 @@ runs once per row. Call it as `(select helper(...))` when its arguments don't
 come from the row, so Postgres evaluates it once per statement as an
 InitPlan, or have it return the allowed ids as a set and compare with
 `organization_id in (select helper())`. A policy whose every call to the
-helper already reads `(select helper())`, with no arguments, doesn't count.
+helper already reads `(select helper(...))` with constant arguments, such as
+`(select tenant_ids_with('crm.read'))`, doesn't count.
 
 ### BS207
 
@@ -344,7 +349,11 @@ lists each command and role with its policies; a policy for `public` counts
 for every role. Merge each group into one policy with `or`. When
 [BS200](#bs200) runs, splinter's `multiple_permissive_policies` reports the
 tables it covers and this check skips them; on a saved snapshot, or when the
-advisor can't run, this check reports every table.
+advisor can't run, this check reports every table. On one of your tables that a
+block runs over, one of your policies next to the block's `bsb_` policy for the
+same command is left to [BS347](#bs347): it reports the pair when the block's
+condition is wider. When your policy already covers the block's, the block
+adds no policy there.
 
 ### BS208
 
@@ -696,7 +705,10 @@ can't run inside a transaction.
 key or a check scans the whole table while it holds a lock that blocks writes.
 Add the constraint with `not valid`, then run
 `alter table ... validate constraint ...` in a later statement, which scans
-without blocking writes.
+without blocking writes. A `references` or `check` written inline in
+`add column` can't be `not valid`, so BS230 flags it too: add the column,
+then the constraint. For a check, [BS236](#bs236) tells you when the rows
+pass and `doctor --fix` validates it.
 
 ### BS231
 
@@ -706,7 +718,9 @@ types are binary compatible. `set not null` scans the table under the same
 lock. For a type change, add a new column, backfill it, and switch reads to
 it. For `set not null`, first add `check (column is not null) not valid`,
 validate it, and then set not null, which Postgres then accepts without a
-scan.
+scan. BS231 also flags `add column ... not null` without a default, which
+fails once the table has rows: add the column nullable, fill it with
+[`db backfill`](/docs/cli/db#backfill), and then add the check.
 
 ### BS232
 
@@ -722,7 +736,9 @@ default, backfill it in batches, and then set the default.
 alters an existing table waits behind long-running queries for its lock, and
 every query that arrives after it waits too. Start the migration with
 `set lock_timeout = '5s';` so it fails fast and can be retried instead of
-stalling the app.
+stalling the app. A statement that only runs `validate constraint` takes a
+share update exclusive lock, which doesn't block reads or writes, so it
+doesn't count.
 
 ### BS234
 
@@ -742,6 +758,58 @@ names the old argument list, fails once the migration runs. Doctor flags a
 the same file creates that function again with the same number of arguments.
 Read the [upgrade notes](/docs/migration) for the release, call the function
 with named arguments, and grant on the new signature in the same migration.
+
+### BS236
+
+**Info: not valid check ready to validate.** Expand and contract adds a
+column nullable, adds `check (column is not null) not valid` so new rows must
+fill it, backfills the old rows with [`db backfill`](/docs/cli/db#backfill),
+and then validates the check. BS236 reads the checks the database holds as not
+valid and tests each one against the rows. When no row fails it, the finding
+carries the fix, and `doctor --fix` runs
+`alter table ... validate constraint ...` without a statement timeout. That
+scans the table but doesn't block reads or writes. After it, `set not null` on
+the column needs no scan. When rows still fail, the finding names the
+`db backfill` command for a not-null check; for the scope column of an
+enriched app table, [BS238](#bs238) reports it instead. BS236 needs a
+database, so a saved snapshot skips it.
+
+Postgres checks a not valid constraint on every insert and update, so an
+update of a row the backfill hasn't reached yet fails until it fills the
+column. Add the check after the backfill when the app still writes those rows.
+
+### BS237
+
+**Warning: app table keeps permissive policies or grants of its own.** When a
+`tables.<name>` entry enriches a table your schema already creates, your own
+policies on it stay: the entry names its policies `bsb_<table>_<command>`, so it
+never replaces one of yours, even one named `<table>_select`. Postgres ORs permissive policies, so each one widens what
+the entry's scope allows. In `tenant` scope the restrictive `bsb_tenant_scope`
+policy still keeps every row inside the member's tenants, so BS237 is a hint
+(info): check that your policies need no role or permission the scope's
+policies ask for. In `user` scope, or without `bsb_tenant_scope`, nothing
+narrows them, and a signed-in user reaches every row they allow. Drop your
+policies, or recreate them `as restrictive`.
+
+Enriching never revokes your grants either; it only adds the ones the scope
+needs. BS237 lists the select, insert, update and delete grants that `anon` and
+`authenticated` hold beyond that. While row level security filters the rows
+this is a hint (info). It is a warning when the entry restricts columns
+(`access` or `encrypted`), because a table-level grant reaches every column:
+revoke it in your schema and the entry's column grants take over. BS111 reports
+truncate, references and trigger grants.
+
+### BS238
+
+**Warning: rows of an enriched app table without an owner.** Enriching a table
+that already has rows adds the scope column (`organization_id`, or `user_id` in
+`user` scope) nullable, with a not valid not-null check. The scope's policies
+match nobody for a row without a value, so only the service role reads or
+writes it, and updates to it fail the check. BS238 counts those rows and names
+the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
+`doctor --fix` validates the check ([BS236](#bs236)). BS238 needs a database,
+so a saved snapshot skips it. The check is `not valid` on purpose; see
+[Your own schemas](/docs/blocks/own-schemas#why-the-check-is-not-valid).
 
 ## Drift
 
@@ -805,11 +873,12 @@ primary key, or run `alter table ... replica identity full`.
 ### BS307
 
 **Error: custom SQL module without its contract.** A module in `blocks` uses
-`mode: 'custom'`, so the app writes the functions other modules and the
+`ownership: "custom"`, so the app writes the functions other modules and the
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
 for a `create function` in `supabase/schemas` and the migrations. Write the
-function, or switch the module to `adopt` or `managed`. `better-supabase blocks
+function, or switch the module to `managed`, which also runs over tables you
+already have. `better-supabase blocks
 view <module> --sql` lists the signatures.
 
 ### BS308
@@ -833,8 +902,8 @@ one minor release; a removed one fails at run time. The message names the
 replacement. A renamed column such as `memberships.org_id` also counts
 unqualified (`m.org_id`) in a statement that names its table. Block files and
 migrations are skipped, and so is a claim the config maps in `claims`. Tables
-and columns of a module in adopt or custom mode are the app's names and are
-never reported.
+and columns a block maps onto the app's own, and those of a module in custom
+mode, are the app's names and are never reported.
 
 ### BS310
 
@@ -880,13 +949,14 @@ function. Doctor needs a database connection for this check. With
 ### BS314
 
 **Warning: migration-only block option.** A module in `blocks` sets an option
-that only exists to match a schema you are adopting: `tokenStorage: "plain"`
+that only exists to match a schema the app already has: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` for credentials,
-`secretStorage: "column"` or an `eventIdType` or `runIdType` other than
-`text` for webhooks-out, a `blockSource` or `defaultSource` for
-the outbox, or `values` for the audit log. The config only accepts them with
-`ownership: "adopt"`. Move the data to the managed default (hash the tokens, move
-the secrets into Vault), then remove the option.
+`secretStorage: "column"`, `statuses` or an `eventIdType` or `runIdType`
+other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+the outbox, or `values` or `metadataColumns` for the audit log. The config
+only accepts them when the block runs over a table the app already has.
+Move the data to the managed default (hash the tokens, move the secrets into
+Vault), then remove the option.
 
 ### BS315
 
@@ -895,7 +965,7 @@ the secrets into Vault), then remove the option.
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
-skips the block schemas and the tables SQL modules adopt; list other tables in
+skips the block schemas and the app's tables that blocks run over; list other tables in
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
 its changes need no audit entry. A bare glob string still works, but doctor
@@ -919,7 +989,7 @@ export default defineConfig({
 
 The same rule runs in pgTAP with
 `select tests.every_table_audited('public', array['sessions', '%_archive'])`
-(see [testing](/docs/testing#pgtap-helpers)).
+(see [testing](/docs/testing#pgtap)).
 
 ### BS316
 
@@ -996,7 +1066,7 @@ that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
 until it expires. Set `blocks.sessions.options.policies` to `true` and
 run `better-supabase upgrade` to write the policy on every table, or add it
-by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
+by hand. Doctor skips the block schemas and the app's tables that blocks run over; list
 other tables in `blocks.sessions.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 
@@ -1093,20 +1163,20 @@ with `supabase lite upgrade`.
 
 ### BS330
 
-**Error: adopted table without a mapped column.** A module in adopt mode
-maps a table, or a column of it, that the live database lacks, so the
-module's functions fail when they run. Doctor reads every column the
-module's SQL names: the ones in `blocks.<name>.columns` and the
-defaults for the unmapped ones, leaving out the columns mapped to `null`.
-Tables that an adopted module uses only when `blocks.<name>.tables` maps
-them (the notifications `deliveryEvents` and `suppressions`, the audit
+**Error: app table without a column a block uses.** A block runs over a
+table of the app's, and the live database lacks a column the block's SQL
+names, so the block's functions fail until that column exists. Doctor reads
+every column the module's SQL names: the ones in `blocks.<name>.columns`
+and the defaults for the unmapped ones, leaving out the columns mapped to
+`null`. Tables that a block uses only when `blocks.<name>.tables` maps them
+(the notifications `deliveryEvents` and `suppressions`, the audit
 `restricted` table and the invitations `platformInvitations`) are checked
 once they are mapped, and skipped otherwise, as the generated SQL skips them.
-Map the logical column to the column that holds it, map it to `null` when
-the module allows that, or add the column. `better-supabase upgrade`
-refuses an optional column that the `create table` in `supabase/schemas`
-lacks; this check compares every column with the live database. Needs a
-database.
+Apply the block's migration, which adds the missing column with
+`add column if not exists`, or map the logical column to the column that
+holds it, or to `null` when the module allows that. A column on a table that
+`blocks.<name>.on` names isn't added by the block: map it or add it yourself.
+Needs a database.
 
 ### BS331
 
@@ -1232,16 +1302,18 @@ exports with `export: false` or `autoTables.exclude`, or set
 
 ### BS342
 
-**Error: an adopted enum column that the module writes as text.** A module
-in adopt mode writes a text parameter or a computed text value into a column
-that the snapshot declares as an enum; string literals are fine. Postgres has
+**Error: an enum column of the app's that a module writes as text.** A
+module writes a text parameter or a computed text value into a column of a
+table the app already has, and the snapshot declares that column as an enum;
+string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
-The columns the module casts to their declared type may stay enums: the tags
-`kind` and `subjectType`, and the numbering `entity`. `upgrade` and
+The columns the module casts to their declared type may stay enums or
+domains: status columns, the tags `kind` and `subjectType`, and the numbering
+`entity`. `upgrade` and
 `better-supabase add --adopt` refuse the same columns when the schema files declare
 the enum. See
-[existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
+[existing tables](/docs/blocks/sql#over-your-own-tables).
 
 ### BS343
 
@@ -1259,8 +1331,8 @@ In pgTAP, `tests.partitions_have_rls('schema')` checks the same thing.
 
 ### BS344
 
-**Warning: adopted webhook endpoints without a format.** `webhooks-out` is
-in adopt mode, its endpoints table maps no `format` column, and
+**Warning: app webhook endpoints without a format.** `webhooks-out` runs
+over an endpoints table of the app's, that table maps no `format` column, and
 `blocks.webhooks-out.options.defaultFormat` isn't set. Every endpoint then
 gets `defaultFormat`, whose default changed from the 0.8 body (`standard`)
 to `cloudevents` in 0.9, so receivers built for the old body break with no
@@ -1299,6 +1371,37 @@ lists a type, or has a key, that `config.records` doesn't register. The
 block's SQL refuses such a type when `gen` renders the migration, so doctor
 reports it first. Register the type in `config.records`, or remove it from
 `on`. See [record types](/docs/blocks#record-types).
+
+### BS347
+
+**Warning: block policy widens an app table's access.** A block that runs
+over one of your tables adds its own permissive policies there, named
+`bsb_<table>_<command>` (such as `bsb_teams_select`), so they never replace
+one of yours. Postgres ORs permissive policies, so when you have policies for
+that command and none has the same condition, or `true`, for the same roles,
+the block's policy can let a user reach rows yours keep closed. A block
+condition that is yours with more `and` operands (such as the block's
+`authz_actor_may_write()` check) is narrower, so it isn't reported either,
+and so is the block's condition when it is one of the `or` operands of yours. A
+command you have no policy for is the block's to grant, so doctor doesn't
+report it. Doctor compares the conditions as text, so it also reports a
+condition that means the same thing written differently. If the block's
+condition is what you mean, repeat
+it in your policy. Otherwise narrow the permission key the block checks, or
+drop the `bsb_` policy in a schema file that runs after the block's. Your
+policy and the block's for the same command don't also count as an overlap
+under [BS207](#bs207). When one of your policies covers the block's in this
+sense, `upgrade` leaves the block's policy out of its file and says so in a
+comment, so Postgres doesn't evaluate two policies for the same rows.
+
+### BS348
+
+**Info: app table keeps its own updated_at trigger.** A block that runs over
+one of your tables found a trigger of yours that keeps `updated_at` current
+(one that calls `set_updated_at`, `moddatetime` or a function that sets
+`new.updated_at`), so it adds no `bsb_updated_at` trigger there. Keep your
+trigger firing on update. If you drop it, run `better-supabase upgrade` to add
+the block's.
 
 ## Auth config
 

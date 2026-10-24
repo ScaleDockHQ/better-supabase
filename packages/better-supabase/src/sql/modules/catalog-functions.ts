@@ -234,7 +234,7 @@ ${edges}
     ${fail("CATALOG_TRANSITION_INVALID", "the product can't move to this status", "22023")}
   end if;
 `
-}  update ${products} x set ${p("status")} = set_product_status.status, ${p("updatedAt")} = now()
+}  update ${products} x set ${p("status")} = ${ctx.cast("products", "status", "set_product_status.status")}, ${p("updatedAt")} = now()
   where x.${p("id")} = set_product_status.product;
   ${ctx.record({
     type: "product.status_changed",

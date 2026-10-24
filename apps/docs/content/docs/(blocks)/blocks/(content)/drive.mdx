@@ -65,7 +65,7 @@ Each node has a role for the caller: the highest role granted on the node or any
 | `editor` | Create, upload, rename, move, trash and restore revisions under it |
 | `owner`  | Share and unshare, and everything an editor can do                 |
 
-The creator of a node gets the top role on it. Grants with an `expiresAt` stop applying after that time. `drive_role(node)` and `drive_can(node, role)` are SQL functions, so your own policies can use them too.
+The creator of a node gets the top role on it. Grants with an `expiresAt` stop applying after that time. `drive_role(node)` and `drive_can(node, role)` are SQL functions, so your own policies can use them too. The block's own read policy uses `id in (select drive_readable_ids())` instead, which returns every node `drive_can(node, read)` is true for in one call, so Postgres runs it once per statement rather than once per row; prefer it in your policies on large drives.
 
 ## Configure
 
@@ -169,13 +169,12 @@ import { driveSubject } from "better-supabase/blocks/drive";
 export default defineConfig({ records: { drive_node: driveSubject() } });
 ```
 
-## Adopt
+## Over your own tables
 
-`ownership: "adopt"` runs the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
 
 ```ts title="better-supabase.config.ts"
 drive: {
-  ownership: "adopt",
   tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
   columns: {
     nodes: { tenant: "organization_id", attachment: null, path: null, rank: null, deletedAt: null },

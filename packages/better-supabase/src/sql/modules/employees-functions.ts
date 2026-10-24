@@ -154,7 +154,7 @@ export function employeeFunctions(
         ? `coalesce(${attr(field)}, (${n.types})[1])`
         : attr(field),
     ),
-    "v_status",
+    ctx.cast("employees", "status", "v_status"),
     ...(origin
       ? [
           "create_employee.attrs -> 'origin' ->> 'type'",
@@ -313,7 +313,7 @@ ${writes}
         if (v_change ->> 'value') not in ('preboarding', 'active', 'on_leave') then
           ${fail("EMPLOYEE_STATUS_INVALID", "status is preboarding, active or on_leave; offboard to end employment", "22023")}
         end if;
-        update ${table} x set ${e("status")} = v_change ->> 'value'${touched} where x.${e("id")} = v_id returning * into v_row;
+        update ${table} x set ${e("status")} = ${ctx.cast("employees", "status", "v_change ->> 'value'")}${touched} where x.${e("id")} = v_id returning * into v_row;
         if v_was.${e("status")} = 'offboarded' then${
           rehire.length === 0
             ? ""

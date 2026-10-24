@@ -13,6 +13,7 @@ import type { ExplainRequest, LiveDatabase } from "./live.ts";
 import type { LocalStackCheck } from "./stacks.ts";
 
 import {
+  blockFileState,
   moduleFileVersion,
   blockSqlVersion,
   sameBlockFile,
@@ -23,10 +24,13 @@ import { byCodePoint } from "../compare.ts";
 import { sameText } from "../core/io.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
+import { orphanedBlockFiles } from "../sql/orphans.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
+import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
+import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { ENV_RULES } from "./env.ts";
@@ -38,6 +42,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
+import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { REALTIME_RULES } from "./realtime.ts";
@@ -89,6 +94,8 @@ export interface Finding {
   readonly location?: Location;
   readonly object?: SqlObject;
   readonly help: string;
+  /** SQL that `doctor --fix` runs against the database to resolve it. */
+  readonly fix?: string;
 }
 
 /** Rules fill in code, severity, title and help; advisor findings override them. */
@@ -420,7 +427,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant table without a policy for every command",
     description:
-      "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.",
+      "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`. On an app table a block runs over, only the app's own policies decide whether it's reported, since the block writes through its own functions.",
     check: (context) => {
       const column = context.config.extensions.tenant?.column;
 
@@ -434,6 +441,7 @@ const OWN_RULES: readonly Rule[] = [
       ];
 
       const tables = exposed(context);
+      const blocked = blockTargets(context);
 
       const roots = new Set(
         tables.flatMap((table) =>
@@ -473,8 +481,16 @@ const OWN_RULES: readonly Rule[] = [
             ["authenticated", "public"].includes(role),
           );
 
-        const granting = table.policies.filter(
+        // A block reads the app tables it runs over through its own policies
+        // and writes them through its own functions, so only the app's count.
+        const blockTable = blocked.has(qualified(table));
+
+        const permissive = table.policies.filter(
           (policy) => policy.permissive && forAuthenticated(policy),
+        );
+
+        const granting = permissive.filter(
+          (policy) => !(blockTable && policy.name.startsWith(BLOCK_PREFIX)),
         );
 
         if (granting.length === 0) {
@@ -509,7 +525,7 @@ const OWN_RULES: readonly Rule[] = [
         );
 
         const covered = new Set(
-          [...granting, ...denying].flatMap((policy) =>
+          [...permissive, ...denying].flatMap((policy) =>
             policy.command === "all" ? COMMANDS : [policy.command],
           ),
         );
@@ -784,19 +800,28 @@ const OWN_RULES: readonly Rule[] = [
       const stale: FindingInput[] = [];
       const workflow = workflowOf(context);
 
-      for (const { file, path, current, behind } of await moduleFiles(
-        context,
-      )) {
-        if (behind || sameBlockFile(current, file.contents)) {
+      const states = await moduleFiles(context);
+
+      for (const { file, path, current, behind } of states) {
+        const migrated = workflow === "migrations" && file.kind !== "test";
+        const name = file.instance ?? file.module;
+
+        if (
+          current !== undefined &&
+          !migrated &&
+          blockFileState(current) === "edited"
+        ) {
+          stale.push({
+            message: `${path} (${name}) was edited by hand. Move the change to an override file or a SQL hook, or run \`better-supabase upgrade --force\`.`,
+            target: path,
+            location: { file: path, line: 1 },
+          });
           continue;
         }
 
-        const migrated = workflow === "migrations" && file.kind !== "test";
-
-        const edited =
-          current === undefined || migrated
-            ? ""
-            : ` If you edited it, move the change to \`blocks.${file.instance ?? file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+        if (behind || sameBlockFile(current, file.contents)) {
+          continue;
+        }
 
         const next =
           file.kind === "data" && !migrated
@@ -804,24 +829,51 @@ const OWN_RULES: readonly Rule[] = [
             : `Run \`better-supabase upgrade\`, then \`${migrationCommand(workflow)}\`.`;
 
         const subject = migrated
-          ? `${file.instance ?? file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
-          : `${path} (${file.instance ?? file.module}) is ${current === undefined ? "missing" : "out of date"}`;
+          ? `${name} in ${path} is ${current === undefined ? "missing" : "out of date"}`
+          : `${path} (${name}) is ${current === undefined ? "missing" : "out of date"}`;
 
         if (
-          stale.some(
-            (finding) => finding.message === `${subject}. ${next}${edited}`,
-          )
+          stale.some((finding) => finding.message === `${subject}. ${next}`)
         ) {
           continue;
         }
 
         stale.push({
-          message: `${subject}. ${next}${edited}`,
+          message: `${subject}. ${next}`,
           target: path,
           ...(current === undefined
             ? {}
             : { location: { file: path, line: 1 } }),
         });
+      }
+
+      if (workflow !== "migrations") {
+        const orphans = await orphanedBlockFiles(
+          context.config,
+          {
+            dir: context.config.sql.dir,
+            prefix: context.config.sql.prefix,
+            schemasDir: context.config.sql.dir,
+          },
+          new Set(states.map((state) => state.file.path)),
+        );
+
+        for (const path of orphans) {
+          const current = await readFile(
+            resolve(context.config.root, path),
+            "utf-8",
+          ).catch(() => "");
+
+          const edited = blockFileState(current) === "edited";
+
+          stale.push({
+            message: edited
+              ? `${path} is left from a block that is no longer installed, and it was edited by hand. Move the change out, then delete the file or run \`better-supabase upgrade --force\`.`
+              : `${path} is left from a block that is no longer installed. Run \`better-supabase upgrade\` to remove it.`,
+            target: path,
+            location: { file: path, line: 1 },
+          });
+        }
       }
 
       return stale;
@@ -1078,6 +1130,8 @@ export const RULES: readonly Rule[] = [
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
+  ...NOT_VALID_RULES,
+  ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,

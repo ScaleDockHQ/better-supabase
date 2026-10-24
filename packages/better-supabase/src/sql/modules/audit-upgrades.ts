@@ -11,7 +11,7 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "Renames audit_log to audit_events (with a read-only audit_log view, dropped in 0.6), at to occurred_at, org_id to organization_id and audit_trigger() to audit_row_change(); audit() takes redact, category, event_prefix, target_type and tenant_column; audit_event() records semantic events; purge_audit_log() takes a tenant.",
     sql: (ctx) =>
       [
-        ctx.manages
+        ctx.owns("log")
           ? renameSql({
               schema: ctx.tableName("log").schema,
               table: "audit_log",

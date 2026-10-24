@@ -33,7 +33,7 @@ export const chrome = defineReadSet(defineSupabase(schema), "chrome", { params: 
 }));
 `;
 
-const READ_SET_FILE = "supabase/schemas/900_better_supabase_14_read_sets.sql";
+const READ_SET_FILE = "supabase/schemas/900_better_supabase_014_read_sets.sql";
 
 describe("gen", () => {
   let root: string;
@@ -214,7 +214,7 @@ describe("gen", () => {
     expect(result.code).toBe(0);
     expect(
       await readFile(
-        join(root, "stack/schemas/900_better_supabase_14_read_sets.sql"),
+        join(root, "stack/schemas/900_better_supabase_014_read_sets.sql"),
         "utf-8",
       ),
     ).toContain("create or replace function public.rs_chrome(p jsonb)");

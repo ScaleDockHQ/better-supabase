@@ -3,6 +3,7 @@ import type { BuilderSql } from "./workflow-editor-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail } from "../shared.ts";
+import { asText } from "./over-app.ts";
 
 export const GRANT_PRINCIPALS = ["user", "team", "role"] as const;
 
@@ -35,7 +36,54 @@ export function builderStartsSql(ctx: BlockSqlContext, s: BuilderSql): string {
     callable,
     definitionJson,
     versionJson,
+    scoped,
+    forked,
+    subjectTyped,
+    runModes,
+    runSubjects,
   } = s;
+
+  const appGrants = ctx.appOwned.includes("grants");
+
+  const grantKind = asText(ctx, "grants", `x.${cg("principalKind")}`);
+  const grantAction = asText(ctx, "grants", `x.${cg("action")}`);
+
+  const subjectStart =
+    subjectTyped && runSubjects
+      ? undefined
+      : subjectTyped
+        ? fail(
+            "WORKFLOW_SUBJECT_UNSUPPORTED",
+            "this workflow runs table has no subject columns",
+            "22023",
+          )
+        : fail(
+            "WORKFLOW_SUBJECT_UNSUPPORTED",
+            "this workflow definitions table has no subject types column",
+            "22023",
+          );
+
+  const forkBody =
+    (): string => `  select * into v_src from ${d} x where x.${cd("id")} = source;
+  if not found or not (${scoped ? `v_src.${cd("scope")} = 'system' or ` : ""}v_src.${cd("tenant")} is not distinct from tenant) then
+    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
+  end if;
+  if not ${allowed("tenant", "edit")} then
+    ${forbidden("You may not edit workflows here")}
+  end if;
+  if ${scoped ? `v_src.${cd("scope")} = 'tenant' and ` : ""}not ${granted("source", "tenant", "edit")} then
+    ${forbidden("You may not fork this workflow")}
+  end if;
+  select * into v_version from ${v} x where x.${cv("definition")} = source and x.${cv("status")} = 'published';
+  if not found then
+    ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow has no published version", "P0002")}
+  end if;
+  insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}${subjectTyped ? `, ${cd("subjectTypes")}` : ""}, ${cd("forkedFrom")}, ${cd("forkedFromVersion")}, ${cd("createdBy")})
+  values (tenant, slug, v_src.${cd("name")}, v_src.${cd("description")}${subjectTyped ? `, v_src.${cd("subjectTypes")}` : ""}, v_src.${cd("id")}, v_version.${cv("version")}, (select auth.uid()))
+  returning * into v_row;
+  insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")})
+  values (v_row.${cd("id")}, 1, v_version.${cv("graph")}, v_version.${cv("inputSchema")}, (select auth.uid()));
+  return ${definitionJson("v_row")} || jsonb_build_object('draft', true, 'upstreamVersion', v_version.${cv("version")}, 'behind', false);`;
 
   return `-- What a run of definition starts from: the tenant it runs in and the
 -- published version. workflow.run in that tenant (and a run grant on a
@@ -60,10 +108,14 @@ begin
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
-  v_tenant := case when v_def.${cd("scope")} = 'system' then tenant else v_def.${cd("tenant")} end;
+${
+  scoped
+    ? `  v_tenant := case when v_def.${cd("scope")} = 'system' then tenant else v_def.${cd("tenant")} end;
   if v_def.${cd("scope")} = 'system' and v_tenant is null then
     ${fail("WORKFLOW_TENANT_REQUIRED", "Pass the tenant a system workflow runs in", "22023")}
-  end if;
+  end if;`
+    : `  v_tenant := v_def.${cd("tenant")};`
+}
   if not (${allowed("v_tenant", "run")} and ${granted("definition", "v_tenant", "run")}) then
     ${forbidden("You may not run this workflow")}
   end if;
@@ -97,11 +149,16 @@ as $$
 #variable_conflict use_variable
 declare
   v_types text[];
-begin
+begin${
+    subjectStart === undefined
+      ? ""
+      : `
+  ${subjectStart}`
+  }
   if subject_type is null or subject_id is null or length(subject_type) not between 1 and 100 or length(subject_id) not between 1 and 200 then
     ${fail("WORKFLOW_SUBJECT_INVALID", "A subject has a type of 1 to 100 and an id of 1 to 200 characters", "22023")}
   end if;
-  select x.${cd("subjectTypes")} into v_types from ${d} x where x.${cd("id")} = definition;
+  select ${subjectTyped ? `x.${cd("subjectTypes")}` : "'{}'::text[]"} into v_types from ${d} x where x.${cd("id")} = definition;
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
@@ -147,7 +204,12 @@ declare
   v_errors jsonb;
   v_triggers text[];
   v_node text := trigger_node;
-begin
+begin${
+    runModes
+      ? ""
+      : `
+  ${fail("WORKFLOW_TEST_UNSUPPORTED", "this workflow runs table has no mode column, so there are no test runs", "22023")}`
+  }
   select * into v_def from ${d} x where x.${cd("id")} = definition;
   if not found then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
@@ -208,26 +270,7 @@ declare
   v_version ${v}%rowtype;
   v_row ${d}%rowtype;
 begin
-  select * into v_src from ${d} x where x.${cd("id")} = source;
-  if not found or not (v_src.${cd("scope")} = 'system' or v_src.${cd("tenant")} is not distinct from tenant) then
-    ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
-  end if;
-  if not ${allowed("tenant", "edit")} then
-    ${forbidden("You may not edit workflows here")}
-  end if;
-  if v_src.${cd("scope")} = 'tenant' and not ${granted("source", "tenant", "edit")} then
-    ${forbidden("You may not fork this workflow")}
-  end if;
-  select * into v_version from ${v} x where x.${cv("definition")} = source and x.${cv("status")} = 'published';
-  if not found then
-    ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow has no published version", "P0002")}
-  end if;
-  insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}, ${cd("subjectTypes")}, ${cd("forkedFrom")}, ${cd("forkedFromVersion")}, ${cd("createdBy")})
-  values (tenant, slug, v_src.${cd("name")}, v_src.${cd("description")}, v_src.${cd("subjectTypes")}, v_src.${cd("id")}, v_version.${cv("version")}, (select auth.uid()))
-  returning * into v_row;
-  insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")})
-  values (v_row.${cd("id")}, 1, v_version.${cv("graph")}, v_version.${cv("inputSchema")}, (select auth.uid()));
-  return ${definitionJson("v_row")} || jsonb_build_object('draft', true, 'upstreamVersion', v_version.${cv("version")}, 'behind', false);
+${forked ? forkBody() : `  ${fail("WORKFLOW_FORK_UNSUPPORTED", "this workflow definitions table has no fork columns", "22023")}`}
 end;
 $$;
 ${callable(`${fn("fork_workflow_definition")}(uuid, ${id}, text)`)}
@@ -251,7 +294,7 @@ begin
   end if;
   if not exists (
     select 1 from ${d} x
-    where x.${cd("id")} = definition and (x.${cd("scope")} = 'system' or x.${cd("tenant")} = tenant)
+    where x.${cd("id")} = definition and ${scoped ? `(x.${cd("scope")} = 'system' or x.${cd("tenant")} = tenant)` : `x.${cd("tenant")} = tenant`}
   ) then
     ${fail("WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
@@ -301,12 +344,12 @@ begin
   end if;
   if coalesce(granted, true) then
     insert into ${g} (${cg("definition")}, ${cg("principalKind")}, ${cg("principalId")}, ${cg("action")}, ${cg("createdBy")})
-    values (definition, principal_kind, principal_id, action, (select auth.uid()))
-    on conflict on constraint ${ctx.naming.rename("workflow_definition_grants_key")} do nothing;
+    values (definition, ${ctx.cast("grants", "principalKind", "principal_kind")}, principal_id, ${ctx.cast("grants", "action", "action")}, (select auth.uid()))
+    on conflict ${appGrants ? "" : `on constraint ${ctx.naming.rename("workflow_definition_grants_key")} `}do nothing;
   else
     delete from ${g} x
-    where x.${cg("definition")} = definition and x.${cg("principalKind")} = principal_kind
-      and x.${cg("principalId")} = principal_id and x.${cg("action")} = action;
+    where x.${cg("definition")} = definition and ${grantKind} = principal_kind
+      and x.${cg("principalId")} = principal_id and ${grantAction} = action;
   end if;
   return coalesce(granted, true);
 end;

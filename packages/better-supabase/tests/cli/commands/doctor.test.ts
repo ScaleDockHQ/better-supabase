@@ -241,6 +241,175 @@ describe("doctor command", () => {
     });
   });
 
+  it("runs the fixes with --fix after consent, and drops the fixed findings", async () => {
+    const ran: string[] = [];
+
+    const database = {
+      describe: "test",
+      session: true,
+      query: async (sql: string) => {
+        ran.push(sql);
+
+        if (sql.includes("pg_constraint")) {
+          return [
+            {
+              schema: "public",
+              table: "invoices",
+              name: "invoices_currency_not_null",
+              expression: "(currency IS NOT NULL)",
+            },
+          ];
+        }
+
+        return sql.startsWith("select exists") ? [{ failing: false }] : [];
+      },
+    };
+
+    const requireConsent = vi.fn();
+    const log = vi.fn();
+    const snapshot = await parseSnapshot(fixture);
+
+    const result = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake returns the rows BS236 asks for.
+      { snapshot, database, requireConsent, log } as Parameters<
+        typeof runDoctor
+      >[3],
+      {},
+      { DATABASE_URL: "postgres://u:p@db.example.com:5432/postgres" },
+    );
+
+    expect(ran).toContain(
+      'begin; set local statement_timeout = 0; alter table "public"."invoices" validate constraint "invoices_currency_not_null"; commit;',
+    );
+    expect(log).toHaveBeenCalledWith(
+      "Fixed BS236 public.invoices:invoices_currency_not_null.",
+    );
+    expect(findings(result)).toEqual([]);
+
+    const local = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: as above, with a fix that fails.
+      {
+        snapshot,
+        requireConsent,
+        database: {
+          ...database,
+          query: async (sql: string) => {
+            if (sql.startsWith("begin;")) {
+              throw new Error("check constraint is violated by some row");
+            }
+
+            return database.query(sql);
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+      {},
+      { DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:54322/postgres" },
+    );
+
+    expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
+      effect: "database-write",
+      detail: "doctor --fix runs 1 fix(es) against db.example.com:5432",
+    });
+    expect(findings(local)).toEqual([
+      expect.objectContaining({
+        code: "BS236",
+        message: expect.stringContaining(
+          "doctor --fix failed: check constraint is violated by some row",
+        ),
+      }),
+    ]);
+    expect(ran.at(-1)).toBe("rollback");
+  });
+
+  it("asks no consent when nothing is fixable, and names the database without a URL", async () => {
+    const snapshot = await parseSnapshot(fixture);
+    const requireConsent = vi.fn();
+
+    const constraints = [
+      {
+        schema: "public",
+        table: "invoices",
+        name: "invoices_currency_not_null",
+        expression: "(currency IS NOT NULL)",
+      },
+    ];
+
+    const clean = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake answers BS236 with no not valid checks.
+      {
+        snapshot,
+        requireConsent,
+        database: { describe: "test", session: true, query: async () => [] },
+      },
+    );
+
+    expect(findings(clean)).toEqual([]);
+    expect(requireConsent).not.toHaveBeenCalled();
+
+    const quiet = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake returns BS236's rows and runs the fix; no log is passed.
+      {
+        snapshot,
+        database: {
+          describe: "test",
+          session: true,
+          query: async (sql: string) => {
+            if (sql.includes("pg_constraint")) {
+              return constraints;
+            }
+
+            return sql.startsWith("select exists") ? [{ failing: false }] : [];
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+      {},
+      { DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:54322/postgres" },
+    );
+
+    expect(findings(quiet)).toEqual([]);
+
+    const failed = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake returns BS236's rows, then fails the fix and its rollback.
+      {
+        snapshot,
+        requireConsent,
+        database: {
+          describe: "test",
+          session: true,
+          query: async (sql: string) => {
+            if (sql.startsWith("begin;") || sql === "rollback") {
+              throw new Error("connection lost");
+            }
+
+            if (sql.includes("pg_constraint")) {
+              return constraints;
+            }
+
+            return sql.startsWith("select exists") ? [{ failing: false }] : [];
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+    );
+
+    expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
+      effect: "database-write",
+      detail: "doctor --fix runs 1 fix(es) against the database",
+    });
+    expect(findings(failed)).toEqual([
+      expect.objectContaining({
+        code: "BS236",
+        message: expect.stringContaining(
+          "doctor --fix failed: connection lost",
+        ),
+      }),
+    ]);
+  });
+
   it("scans doctor.sources, skipping node_modules", async () => {
     const snapshot = await parseSnapshot({
       ...fixture,
@@ -278,10 +447,10 @@ describe("doctor command", () => {
 
     expect(findings(loaded).map((finding) => finding.message)).toEqual([
       expect.stringContaining(
-        "supabase/schemas/900_better_supabase_14_read_sets.sql",
+        "supabase/schemas/900_better_supabase_014_read_sets.sql",
       ),
       expect.stringContaining(
-        "supabase/better-supabase-data/900_better_supabase_14_read_sets.sql",
+        "supabase/better-supabase-data/900_better_supabase_014_read_sets.sql",
       ),
     ]);
 

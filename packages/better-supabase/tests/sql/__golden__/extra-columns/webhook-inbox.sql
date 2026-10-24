@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_09_webhook_inbox.sql
+-- ==== schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@8 managed
--- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints; adopt mode runs over an app's table.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- @bsb-hash sha256:ce21863503890fd3680c39a4a806e6fd59ab712f6a1fdbe8aab8d212ca8ab05c
+-- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -318,12 +319,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_09_webhook_inbox.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
+-- @bsb-hash sha256:f1b5389c5480df1f232a153ec54c86baa5a08c9f236eb6930f1a161a18d994b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { entryOf } from "../../fixtures/block-entry.ts";
 
 describe("webhooks-in module", () => {
@@ -179,14 +179,14 @@ describe("webhooks-in module", () => {
     );
   });
 
-  const adopted = (
+  const overApp = (
     columns: Record<string, string | null> = {},
     options: Record<string, unknown> = {},
   ) =>
-    moduleBody("webhooks-in", {
+    renderBlocks(["webhooks-in"], {
+      ownTables: { "public.hooks": "app.sql" },
       modules: {
         "webhooks-in": {
-          mode: "adopt",
           tables: { endpoints: "public.hooks" },
           columns: {
             endpoints: {
@@ -207,13 +207,18 @@ describe("webhooks-in module", () => {
           ...entryOf(options),
         },
       },
-    })!;
+    })
+      .filter((file) => file.module === "webhooks-in")
+      .map((file) => file.contents)
+      .join("\n");
 
-  it("adopts an app's endpoints table with renamed and missing columns", () => {
-    const sql = adopted();
-    expect(sql).not.toContain("create table");
+  it("runs over the app's endpoints table with renamed and missing columns", () => {
+    const sql = overApp();
+    expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("create policy");
-    expect(sql).not.toContain("enable row level security");
+    expect(sql).not.toContain(
+      'alter table "public"."hooks" enable row level security',
+    );
     expect(sql).toContain('from "public"."hooks" e');
     expect(sql).toContain(
       "where e.\"token_digest\" = encode(extensions.digest(incoming_webhook_by_token.token, 'sha256'), 'hex')",
@@ -236,13 +241,13 @@ describe("webhooks-in module", () => {
           "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
         },
       }),
-    ).toThrow(/ownership "adopt"/);
+    ).toThrow(/declare your own table/);
     expect(() =>
-      adopted({}, { on: { project: { table: "public.projects" } } }),
+      overApp({}, { on: { project: { table: "public.projects" } } }),
     ).toThrow(/subjectType and subjectId/);
-    expect(() => adopted({ secretId: null })).toThrow(/secretId/);
+    expect(() => overApp({ secretId: null })).toThrow(/secretId/);
     expect(
-      adopted(
+      overApp(
         { secret: "secret", secretId: null },
         { secretStorage: "column" },
       ),

@@ -1,2 +1,9 @@
+audit
+outbox
+notifications
+webhooks-out
+streams
+chat-sdk-state
+ai-cache
 tags
 timeline

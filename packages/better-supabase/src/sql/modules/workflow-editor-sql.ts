@@ -10,6 +10,7 @@ import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
   activeMembership,
+  ensureCheck,
   fail,
   SERVICE_CALLER,
   serviceGrant,
@@ -50,6 +51,21 @@ export interface BuilderSql {
   readonly cg: (value: string) => string;
   readonly r: string;
   readonly cr: (value: string) => string;
+  /**
+   * Whether definitions have a scope column; without it every one is a
+   * tenant's.
+   */
+  readonly scoped: boolean;
+  /** Whether definitions have both fork columns. */
+  readonly forked: boolean;
+  /** Whether definitions have a subject types column. */
+  readonly subjectTyped: boolean;
+  /** Whether runs have a mode column; without it every run is live. */
+  readonly runModes: boolean;
+  /** Whether runs have both subject columns. */
+  readonly runSubjects: boolean;
+  /** `value`, a text expression, as the type of the node run status column. */
+  readonly nodeRunStatus: (value: string) => string;
   readonly permission: (action: BuilderAction) => string;
   /**
    * `{ "<step>": "<permission>" }` as a jsonb literal: the provider's
@@ -190,6 +206,17 @@ export function builderSql(
   const r = workflows.table("runs");
   const cr = (column: string): string => workflows.col("runs", column);
   const permissions = moduleOperations("workflow-editor");
+  const scoped = ctx.has("definitions", "scope");
+
+  const forked =
+    ctx.has("definitions", "forkedFrom") &&
+    ctx.has("definitions", "forkedFromVersion");
+
+  const subjectTyped = ctx.has("definitions", "subjectTypes");
+
+  // A definition column of row, or fallback when the app maps it to null.
+  const or = (row: string, logical: string, fallback: string): string =>
+    ctx.has("definitions", logical) ? `${row}.${cd(logical)}` : fallback;
 
   const permission = (action: BuilderAction): string =>
     ctx.permission(action, permissions[action]);
@@ -266,10 +293,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'slug', ${alias}.${cd("slug")},
     'name', ${alias}.${cd("name")},
     'description', ${alias}.${cd("description")},
-    'subjectTypes', to_jsonb(${alias}.${cd("subjectTypes")}),
-    'scope', ${alias}.${cd("scope")},
-    'forkedFrom', ${alias}.${cd("forkedFrom")},
-    'forkedFromVersion', ${alias}.${cd("forkedFromVersion")},
+    'subjectTypes', ${subjectTyped ? `to_jsonb(${alias}.${cd("subjectTypes")})` : "'[]'::jsonb"},
+    'scope', ${or(alias, "scope", "'tenant'")},
+    'forkedFrom', ${or(alias, "forkedFrom", "null")},
+    'forkedFromVersion', ${or(alias, "forkedFromVersion", "null")},
     'restricted', ${alias}.${cd("restricted")},
     'createdBy', ${alias}.${cd("createdBy")},
     'createdAt', ${alias}.${cd("createdAt")},
@@ -399,6 +426,14 @@ grant execute on function ${signature} to authenticated, service_role;`;
     cg,
     r,
     cr,
+    scoped,
+    forked,
+    subjectTyped,
+    runModes: workflows.has("runs", "mode"),
+    runSubjects:
+      workflows.has("runs", "subjectType") &&
+      workflows.has("runs", "subjectId"),
+    nodeRunStatus: (value) => ctx.cast("nodeRuns", "status", value),
     permission,
     nodeOperations,
     operationKeys,
@@ -435,6 +470,66 @@ grant execute on function ${signature} to authenticated, service_role;`;
 }
 
 /** Triggers, credentials, the step library, node runs and alerts. */
+/**
+ * The columns a definition gains after its first version, the checks on them
+ * and the fork index, for the columns the definitions table has.
+ */
+export function definitionColumnsSql(
+  ctx: BlockSqlContext,
+  s: BuilderSql,
+): string {
+  const { d, cd, scoped } = s;
+  const app = ctx.appOwned.includes("definitions");
+  const has = (column: string): boolean => ctx.has("definitions", column);
+
+  const add = (column: string, type: string): string =>
+    `alter table ${d} add column if not exists ${cd(column)} ${type};`;
+
+  return [
+    has("subjectTypes")
+      ? add("subjectTypes", "text[] not null default '{}'")
+      : undefined,
+    scoped
+      ? add(
+          "scope",
+          `text not null default 'tenant'\n  check (${cd("scope")} in ('tenant', 'system'))`,
+        )
+      : undefined,
+    has("forkedFrom")
+      ? add(
+          "forkedFrom",
+          `uuid references ${d} (${cd("id")}) on delete set null`,
+        )
+      : undefined,
+    has("forkedFromVersion")
+      ? add(
+          "forkedFromVersion",
+          `integer check (${cd("forkedFromVersion")} > 0)`,
+        )
+      : undefined,
+    add("restricted", "boolean not null default false"),
+    scoped && !app
+      ? ensureCheck(
+          d,
+          ctx.naming.rename("workflow_definitions_system_check"),
+          `${cd("scope")} = 'tenant' or ${cd("tenant")} is null`,
+        )
+      : undefined,
+    has("subjectTypes") && !app
+      ? ensureCheck(
+          d,
+          ctx.naming.rename("workflow_definitions_subject_types_check"),
+          `cardinality(${cd("subjectTypes")}) <= 50 and array_position(${cd("subjectTypes")}, null) is null`,
+        )
+      : undefined,
+    has("forkedFrom")
+      ? `create index if not exists ${ctx.naming.rename("workflow_definitions_forked_from_idx")} on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;`
+      : undefined,
+  ]
+    .filter((line) => line !== undefined)
+    .join("\n");
+}
+
 export function builderRuntimeSql(s: BuilderSql): string {
   const {
     broadcast,
@@ -470,6 +565,8 @@ export function builderRuntimeSql(s: BuilderSql): string {
     alertJson,
     fire,
     failedTrigger,
+    runModes,
+    nodeRunStatus,
   } = s;
 
   return `-- Creates or updates a trigger: workflow.edit in the definition's tenant.
@@ -755,7 +852,7 @@ begin
     return false;
   end if;
   insert into ${n} as x (${cn("run")}, ${cn("node")}, ${cn("status")}, ${cn("attempts")}, ${cn("output")}, ${cn("error")}, ${cn("startedAt")}, ${cn("endedAt")})
-  values (v_run, node, status, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)
+  values (v_run, node, ${nodeRunStatus("status")}, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)
   on conflict (${cn("run")}, ${cn("node")}) do update set
     ${cn("status")} = excluded.${cn("status")},
     ${cn("attempts")} = greatest(x.${cn("attempts")}, excluded.${cn("attempts")}),
@@ -867,7 +964,7 @@ declare
   v_alert ${a}%rowtype;
   v_fired integer := 0;
 begin
-  if new.${cr("mode")} = 'test' or new.${cr("status")} <> 'failed' or (tg_op = 'UPDATE' and old.${cr("status")} = 'failed') then
+  if ${runModes ? `new.${cr("mode")} = 'test' or ` : ""}new.${cr("status")} <> 'failed' or (tg_op = 'UPDATE' and old.${cr("status")} = 'failed') then
     return null;
   end if;
   for v_alert in
@@ -902,8 +999,7 @@ begin
   for v_pair in
     select x.${ca("id")} as alert, y.${cr("id")} as run from ${a} x
     join ${r} y on y.${cr("attributes")} ->> 'bsb.definition' = x.${ca("definition")}::text
-    where x.${ca("onEvent")} = 'slow'
-      and y.${cr("mode")} = 'live'
+    where x.${ca("onEvent")} = 'slow'${runModes ? `\n      and y.${cr("mode")} = 'live'` : ""}
       and y.${cr("status")} in ('queued', 'running', 'waiting')
       and y.${cr("createdAt")} < now() - x.${ca("threshold")}
       and not exists (select 1 from ${f} z where z.${cf("alert")} = x.${ca("id")} and z.${cf("run")} = y.${cr("id")})

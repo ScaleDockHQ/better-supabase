@@ -13,6 +13,7 @@ import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockContributions } from "./contributions.ts";
+import type { BlockSqlAppTable } from "./module-types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 
@@ -22,6 +23,7 @@ import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { tableOwnership } from "./app-owned.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
@@ -69,7 +71,11 @@ export interface BlockSqlTableSpec {
   readonly optional?: readonly string[];
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
-  readonly adoptOnlyWhenMapped?: boolean;
+  /**
+   * How the table can be a table the app already has (ADR 0098). Without it the
+   * module always creates the table.
+   */
+  readonly app?: BlockSqlAppTable;
   readonly lifecycle?: BlockSqlTableLifecycle;
   /**
    * Text columns an adopted table may declare with another type, such as an
@@ -408,15 +414,20 @@ export interface BlockSqlContext {
   has(table: string, column: string): boolean;
   /**
    * `value`, a text expression, as the type of a logical column the table spec
-   * lists in `typed`. In adopt mode the column may be an enum or another type
-   * with a text input, so the value goes through
-   * `better_supabase.as_column_type`; in managed mode it stays as it is.
+   * lists in `typed`. On a table the app has, the column may be an enum or
+   * another type with a text input, so the value goes through
+   * `better_supabase.as_column_type`; on the module's own table it stays as it
+   * is.
    */
   cast(table: string, column: string, value: string): string;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
-  /** Whether the module owns `table` (managed mode). */
+  /** Whether the module renders its managed SQL (not adopt or custom mode). */
   readonly manages: boolean;
+  /** Whether the module creates `table`, which the app doesn't have. */
+  owns(table: string): boolean;
+  /** The logical tables the app has; the module only adds their columns. */
+  readonly appOwned: readonly string[];
   readonly names: BlockSqlNames;
   readonly installedModules: readonly string[];
   /** The permission key for a module action, as a SQL literal. */
@@ -610,6 +621,8 @@ export interface BlockSqlContextSource {
   readonly contributors?: <K extends keyof BlockContributions>(
     block: K,
   ) => readonly Contributor<K>[];
+  /** `layout.ownTables`: the app's tables, as `schema.table`. */
+  readonly ownTables?: Readonly<Record<string, string>>;
 }
 
 /** An installed instance that adds to a generic block. */
@@ -1178,6 +1191,12 @@ export function createModuleContext(
   const held = (kind: string, tenant: string): string =>
     lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
 
+  const owned = tableOwnership(
+    { module, tables: names.tables, config, source, tableName },
+    column,
+    requiredColumn,
+  );
+
   const context: BlockSqlContext = {
     module,
     instance,
@@ -1223,6 +1242,7 @@ export function createModuleContext(
       }),
     modules,
     manages: config.mode === "managed",
+    ...owned,
     names,
     installedModules: [...installed],
     fn: (name) =>
@@ -1233,33 +1253,14 @@ export function createModuleContext(
     functionRenames: () => applied,
     unusedFunctions: () =>
       Object.keys(renames).filter((name) => !requested.has(name)),
-    tableName,
     table(logical) {
-      const parts = tableName(logical);
+      const parts = owned.tableName(logical);
 
       return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
-    },
-    col(table, logical) {
-      return sqlIdent(requiredColumn(table, logical));
     },
     colName: (table, logical) => requiredColumn(table, logical),
     has: (table, logical) =>
       config.tables[table] !== null && column(table, logical) !== null,
-    cast(table, logical, value) {
-      if (names.tables[table]?.typed?.includes(logical) !== true) {
-        throw new TypeError(
-          `Module "${module}" casts ${table}.${logical}, which its names.tables.${table}.typed doesn't list`,
-        );
-      }
-
-      if (config.mode !== "adopt") {
-        return value;
-      }
-
-      const parts = tableName(table);
-
-      return `better_supabase.as_column_type(${value}, (null::${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}).${sqlIdent(requiredColumn(table, logical))})`;
-    },
     hasTable: (table) => {
       if (!names.tables[table]) {
         throw new TypeError(`Module "${module}" has no table "${table}"`);

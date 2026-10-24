@@ -39,10 +39,7 @@ export function catalogLocales(ctx: BlockSqlContext): readonly string[] {
  * the app maps it on an adopted catalog.
  */
 function catalogTable(ctx: BlockSqlContext, table: string): boolean {
-  return (
-    ctx.hasTable(table) &&
-    (ctx.manages || ctx.config.tables[table] !== undefined)
-  );
+  return ctx.hasTable(table) && (ctx.manages || !ctx.owns(table));
 }
 
 /** Product media needs the attachments module's table. */

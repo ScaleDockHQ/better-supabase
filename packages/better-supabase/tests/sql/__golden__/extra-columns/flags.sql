@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_32_flags.sql
+-- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
+-- @bsb-hash sha256:ac0eb9a89feb9e88271444337b32f5e03e78012551c33922fa17972eaefae57c
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pgcrypto with schema extensions;
@@ -420,12 +431,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_32_flags.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block-data flags
+-- @bsb-hash sha256:dd7928d2963deeab4895d76f169e49059e0970aca9ed1646755d04f7bfa49a57
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgcrypto" with schema "extensions";

@@ -74,6 +74,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     sessions: {
       name: "support_sessions",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -92,6 +93,7 @@ const NAMES: BlockSqlNames = {
     },
     requests: {
       name: "support_requests",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -183,24 +185,6 @@ grant select on ${sessions} to authenticated;
 `;
 }
 
-/**
- * Whether the module creates the requests table: when it manages its tables, or
- * in `adopt` mode while `tables.requests` keeps its default name.
- */
-function ownsRequests(ctx: BlockSqlContext): boolean {
-  if (!ctx.hasTable("requests")) {
-    return false;
-  }
-
-  if (ctx.manages) {
-    return true;
-  }
-
-  const { schema, name } = ctx.tableName("requests");
-
-  return schema === ctx.schemaName && name === NAMES.tables["requests"]!.name;
-}
-
 /** The request as the jsonb the request functions return. */
 function requestJson(ctx: BlockSqlContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("requests", logical)}`;
@@ -222,7 +206,7 @@ function requestJson(ctx: BlockSqlContext, row: string): string {
 }
 
 function requestsTable(ctx: BlockSqlContext): string {
-  if (!ownsRequests(ctx)) {
+  if (!ctx.hasTable("requests")) {
     return "";
   }
 
@@ -1058,7 +1042,7 @@ export const SUPPORT_SESSIONS: BlockSqlDefinition = {
   requires: ["permissions", "audit"],
   integrates: ["invitations", "approvals"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   names: NAMES,
   contract: (ctx) => [

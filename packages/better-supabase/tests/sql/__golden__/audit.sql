@@ -1,9 +1,20 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_03_audit.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
+-- @bsb-hash sha256:ec360b1585cb51507e393cd61f42f8f0cf3044eaafb9dea5fbed978eab990b9b
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -1205,12 +1216,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_03_audit.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_audit_forget_dropped;
@@ -1227,12 +1239,23 @@ values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_03_audit.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
+-- @bsb-hash sha256:6e03e94bc36c049740d2f26cbcdf1a3a5c0170cf3ac9059e35fe3dc134524490
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -2599,12 +2622,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_03_audit.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_audit_forget_dropped;
@@ -2621,12 +2645,23 @@ values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_03_audit.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
+-- @bsb-hash sha256:0bb9661444d725a0d5d3f263d4357c6e1d504e4400ba4654d16707f5b774d8d5
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."audit_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -3828,12 +3863,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_03_audit.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_audit_forget_dropped;
@@ -3850,12 +3886,23 @@ values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_03_audit.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
+-- @bsb-hash sha256:ed405d23d88e4cc6fc29a9ff595d45650a85952c9d393e603064a4d556131f68
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -5144,12 +5191,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_03_audit.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_audit_forget_dropped;
@@ -5166,12 +5214,23 @@ values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_03_audit.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@9 adopt
+-- @bsb-block audit@9 managed
+-- @bsb-hash sha256:0d2c9650cf3d8f8f8c017c9c73467c13e949ed695ba46de6fbbad0251b1e7b3e
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -5268,6 +5327,47 @@ exception when others then
   return null;
 end;
 $$;
+
+-- better_supabase.audit_events is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."audit_events" add column if not exists "id" bigint generated always as identity;
+alter table "better_supabase"."audit_events" add column if not exists "table_name" text;
+alter table "better_supabase"."audit_events" add column if not exists "record_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "op" text;
+alter table "better_supabase"."audit_events" add column if not exists "old_record" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "new_record" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "changed" text[];
+alter table "better_supabase"."audit_events" add column if not exists "actor_id" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "actor_role" text;
+alter table "better_supabase"."audit_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "occurred_at" timestamptz not null default now();
+-- Set when an admin acted as the user (the act claim).
+alter table "better_supabase"."audit_events" add column if not exists "impersonated_by" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "impersonation_reason" text;
+alter table "better_supabase"."audit_events" add column if not exists "support_session_id" uuid;
+-- Semantic events (audit_event) and the per-table registry fill these.
+alter table "better_supabase"."audit_events" add column if not exists "event_type" text;
+alter table "better_supabase"."audit_events" add column if not exists "category" text;
+alter table "better_supabase"."audit_events" add column if not exists "outcome" text;
+alter table "better_supabase"."audit_events" add column if not exists "source" text;
+alter table "better_supabase"."audit_events" add column if not exists "target_type" text;
+alter table "better_supabase"."audit_events" add column if not exists "metadata" jsonb;
+alter table "better_supabase"."audit_events" add column if not exists "idempotency_key" text;
+-- Who acted and on what, as it was then, for audit pages.
+alter table "better_supabase"."audit_events" add column if not exists "actor_kind" text;
+alter table "better_supabase"."audit_events" add column if not exists "actor_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "tenant_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "target_label" text;
+alter table "better_supabase"."audit_events" add column if not exists "summary" text;
+alter table "better_supabase"."audit_events" add column if not exists "request_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "correlation_id" text;
+alter table "better_supabase"."audit_events" add column if not exists "scope" text;
+create index if not exists audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
+create index if not exists audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index if not exists audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
+create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
+create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."audit_events" enable row level security;
+grant select on "better_supabase"."audit_events" to service_role;
 
 create or replace function better_supabase.audit_row_change()
 returns trigger
@@ -6223,12 +6323,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_03_audit.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
+-- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 drop event trigger if exists bsb_audit_forget_dropped;
@@ -6241,6 +6342,6 @@ delete from better_supabase.audited_tables a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 9, 'adopt')
+values ('audit', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

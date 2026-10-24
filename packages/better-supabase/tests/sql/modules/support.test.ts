@@ -5,9 +5,22 @@ import type { BlockConfig } from "../../../src/config/blocks.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const support = (config: BlockConfig = {}) =>
   moduleBody("impersonation", { modules: { impersonation: config } })!;
+
+const overApp = (
+  config: BlockConfig,
+  ownTables: Record<string, string> = ownTablesOf({ impersonation: config }),
+) =>
+  renderBlocks(["impersonation"], {
+    modules: { impersonation: config },
+    ownTables,
+  })
+    .filter((file) => file.module === "impersonation")
+    .map((file) => file.contents)
+    .join("\n");
 
 describe("impersonation module", () => {
   it("owns its table and gates starts with is_platform", () => {
@@ -83,20 +96,22 @@ describe("impersonation module", () => {
     expect(sql).toContain("category => 'users'");
   });
 
-  it("adopts a table without the optional columns", () => {
-    const sql = support({
-      mode: "adopt",
-      tables: { sessions: "public.impersonation_sessions" },
-      columns: {
-        sessions: {
-          admin: "impersonator_id",
-          tenant: null,
-          readOnly: null,
-          endedBy: null,
-          metadata: null,
+  it("runs over the app's sessions table without the optional columns", () => {
+    const sql = overApp(
+      {
+        tables: { sessions: "public.impersonation_sessions" },
+        columns: {
+          sessions: {
+            admin: "impersonator_id",
+            tenant: null,
+            readOnly: null,
+            endedBy: null,
+            metadata: null,
+          },
         },
       },
-    });
+      { "public.impersonation_sessions": "app.sql" },
+    );
 
     expect(sql).not.toContain(
       'create table if not exists "better_supabase"."support_sessions"',
@@ -112,16 +127,15 @@ describe("impersonation module", () => {
     expect(sql).toContain('set "ended_at" = now()\n');
   });
 
-  it("adopts the requests table without creating it", () => {
-    const sql = support({
-      mode: "adopt",
+  it("uses the app's requests table without creating it", () => {
+    const sql = overApp({
       tables: {
         sessions: "public.impersonation_sessions",
         requests: "public.impersonation_requests",
       },
     });
 
-    expect(sql).not.toContain("create table if not exists");
+    expect(sql).not.toMatch(/create table if not exists "/);
     expect(sql).toContain('from "public"."impersonation_requests" x');
   });
 
@@ -165,12 +179,11 @@ describe("impersonation module", () => {
     expect(() => support({ options: { approval: "self" } })).toThrow(
       /options.approval must be distinct or none, not "self"/,
     );
-    expect(() =>
-      support({ mode: "adopt", tables: { requests: null } }),
-    ).toThrow(/tables.requests is null/);
+    expect(() => support({ tables: { requests: null } })).toThrow(
+      /tables.requests is null/,
+    );
 
     const sql = support({
-      mode: "adopt",
       tables: { requests: null },
       options: { approval: "none" },
     });

@@ -10,11 +10,15 @@ import type {
   AuditedTable,
 } from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
+import type { CatalogPolicy } from "./introspect/types.ts";
 
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  declaredTableColumns,
   declaredTables,
+  declaredPolicies,
+  declaredUpdatedAtTriggers,
   extensionSchema,
   moduleLayout,
   policyGrants,
@@ -23,6 +27,9 @@ import {
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
+import { parseSnapshot } from "./commands/snapshot.ts";
+import { toCatalog } from "./introspect/catalog.ts";
+import { TypegenMissingError } from "./introspect/typegen.ts";
 import {
   declarativeSchemasDir,
   readSupabaseToml,
@@ -40,7 +47,7 @@ export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
 /** The declarative schema files, then the migrations oldest first. */
 async function schemaTexts(
   config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
+): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
 
@@ -56,6 +63,7 @@ async function schemaTexts(
 
   return Promise.all(
     paths.map(async (path) => ({
+      path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
@@ -63,7 +71,7 @@ async function schemaTexts(
 
 async function declarativeTexts(
   config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
+): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
 
   const { files } = await schemaPaths(
@@ -78,6 +86,7 @@ async function declarativeTexts(
 
   return Promise.all(
     files.map(async (path) => ({
+      path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
@@ -121,10 +130,13 @@ export async function moduleLayoutFor(
     ).map((module) => module.name),
   );
 
+  const own = await ownLayout(config);
+
   const adopted = adoptedColumnProblems(
     config.blocks,
     await declarativeTexts(config),
     config.schemas,
+    own.ownTables,
   );
 
   if (adopted.length > 0) {
@@ -198,7 +210,169 @@ export async function moduleLayoutFor(
           ),
         }
       : {}),
+    ...own,
   };
+}
+
+/**
+ * `ownTables`, `ownColumns`, `ownUpdatedAtTriggers` and `ownPolicies`: the
+ * database's tables, then the app's files.
+ */
+async function ownLayout(
+  config: ResolvedConfig,
+): Promise<
+  Pick<
+    BlockSqlLayout,
+    "ownTables" | "ownColumns" | "ownUpdatedAtTriggers" | "ownPolicies"
+  >
+> {
+  const database = await databaseTables(config);
+
+  const own = (await declarativeTexts(config)).filter(
+    (source) => !writtenByBlocks(source),
+  );
+
+  const columns = Object.fromEntries(
+    [...declaredTableColumns(own, config.schemas)].map(([table, names]) => [
+      table,
+      [...names],
+    ]),
+  );
+
+  return {
+    ownTables: {
+      ...database.tables,
+      ...ownDeclaredTables(own, config.schemas),
+    },
+    ownColumns: { ...database.columns, ...columns },
+    ownUpdatedAtTriggers: {
+      ...database.updatedAtTriggers,
+      ...declaredUpdatedAtTriggers(own, config.schemas),
+    },
+    ownPolicies: {
+      ...database.policies,
+      ...declaredPolicies(own, config.schemas),
+    },
+  };
+}
+
+/** A trigger function named like one that keeps `updated_at` current. */
+const UPDATED_AT_FUNCTION = /updated_at|moddatetime|touch/i;
+
+const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
+
+const BLOCK_MIGRATION = /_better_supabase_[a-z_]+\.sql$/;
+
+/**
+ * The `schema.table`s that the files better-supabase wrote create, among
+ * `sources`; a table an app table entry enriches is not one of them.
+ */
+export function blockDeclaredTables(
+  sources: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlySet<string> {
+  return new Set(declaredTables(sources.filter(writtenByBlocks), schemas));
+}
+
+/** A file better-supabase wrote: a block file or a module migration. */
+export function writtenByBlocks(source: {
+  readonly path: string;
+  readonly text: string;
+}): boolean {
+  return BLOCK_MARKER.test(source.text) || BLOCK_MIGRATION.test(source.path);
+}
+
+/**
+ * The tables in the saved snapshot (`source.snapshot`) that no block file or
+ * module migration created, mapped to `database`. Without a snapshot, the app's
+ * schema files and migrations stand in for it.
+ */
+async function databaseTables(
+  config: ResolvedConfig,
+): Promise<{
+  readonly tables: Readonly<Record<string, string>>;
+  readonly columns: Readonly<Record<string, readonly string[]>>;
+  readonly updatedAtTriggers: Readonly<Record<string, string>>;
+  readonly policies: Readonly<Record<string, readonly CatalogPolicy[]>>;
+}> {
+  const none = { tables: {}, columns: {}, updatedAtTriggers: {}, policies: {} };
+  const path = config.source.snapshot;
+
+  if (path === undefined || !existsSync(resolve(config.root, path))) {
+    return none;
+  }
+
+  let snapshot;
+
+  try {
+    snapshot = await parseSnapshot(
+      JSON.parse(await readFile(resolve(config.root, path), "utf-8")),
+      path,
+    );
+  } catch (cause) {
+    // Reading a snapshot's metadata needs the optional typegen peer; without
+    // it, the migrations still name the app's tables.
+    if (cause instanceof TypegenMissingError) {
+      return none;
+    }
+
+    throw cause;
+  }
+
+  const created = blockDeclaredTables(
+    await schemaTexts(config),
+    config.schemas,
+  );
+
+  const tables: Record<string, string> = {};
+  const columns: Record<string, readonly string[]> = {};
+  const updatedAtTriggers: Record<string, string> = {};
+  const policies: Record<string, readonly CatalogPolicy[]> = {};
+
+  for (const table of toCatalog(snapshot).tables) {
+    const name = `${table.schema}.${table.name}`;
+
+    if (config.schemas.includes(table.schema) && !created.has(name)) {
+      tables[name] = "database";
+      columns[name] = table.columns.map((column) => column.name);
+
+      const kept = table.triggers.find(
+        (trigger) =>
+          !trigger.name.startsWith("bsb_") &&
+          trigger.events.includes("update") &&
+          UPDATED_AT_FUNCTION.test(trigger.function),
+      );
+
+      if (kept !== undefined) {
+        updatedAtTriggers[name] = kept.name;
+      }
+
+      policies[name] = table.policies.filter(
+        (policy) => !policy.name.startsWith("bsb_"),
+      );
+    }
+  }
+
+  return { tables, columns, updatedAtTriggers, policies };
+}
+
+/**
+ * `schema.table` to the app's own schema file that creates it: every
+ * declarative file, or migration, that better-supabase didn't write.
+ */
+function ownDeclaredTables(
+  sources: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, string>> {
+  const ownTables: Record<string, string> = {};
+
+  for (const source of sources) {
+    for (const table of declaredTables([source], schemas)) {
+      ownTables[table] ??= source.path;
+    }
+  }
+
+  return ownTables;
 }
 
 function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
@@ -246,7 +420,16 @@ export function sqlPlan(
       path: resolve(config.root, file.path),
     })),
     ...(plan.remove
-      ? { remove: plan.remove.map((path) => resolve(config.root, path)) }
+      ? {
+          remove: plan.remove.map((entry) => {
+            const path = resolve(
+              config.root,
+              typeof entry === "string" ? entry : entry.path,
+            );
+
+            return typeof entry === "string" ? path : { ...entry, path };
+          }),
+        }
       : {}),
   };
 }

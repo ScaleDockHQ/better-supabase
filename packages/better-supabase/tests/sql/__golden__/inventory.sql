@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_81_inventory.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
+-- @bsb-hash sha256:4231005e6637a2f531acbf264da6894b182d3d034a8d78e17bf6eea92a9aba9c
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,40 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location: movements posted to the ledger,
@@ -1074,6 +1109,78 @@ $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1087,12 +1194,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_81_inventory.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
+-- @bsb-hash sha256:7af4bf38242915c1ac1ca3466776dabb15de68972ea047bd4e4f188446cab87f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1100,11 +1208,12 @@ values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_81_inventory.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
+-- @bsb-hash sha256:b7c8e22dba758ba761822516d773f2ecf04601a7d659c417e7cdc1fe793ee97b
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1141,6 +1250,40 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location: movements posted to the ledger,
@@ -2176,6 +2319,78 @@ $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2189,12 +2404,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_81_inventory.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
+-- @bsb-hash sha256:7af4bf38242915c1ac1ca3466776dabb15de68972ea047bd4e4f188446cab87f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -2202,11 +2418,12 @@ values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_81_inventory.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
+-- @bsb-hash sha256:66934f86da0a4b8cfff96dc6609bbcbaa232d3aaefe41c0114fbfaed9ab0eaa3
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -2243,6 +2460,40 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."inventory_locations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_reservations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_transfers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."stock_transfer_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."purchase_orders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."purchase_order_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -3280,6 +3531,78 @@ $$;
 revoke execute on function "app_private"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "app_private"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."inventory_locations";
+create policy bsb_tenant_scope on "app_private"."inventory_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_levels";
+create policy bsb_tenant_scope on "app_private"."stock_levels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_reservations";
+create policy bsb_tenant_scope on "app_private"."stock_reservations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_transfers";
+create policy bsb_tenant_scope on "app_private"."stock_transfers" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."stock_transfer_lines";
+create policy bsb_tenant_scope on "app_private"."stock_transfer_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."purchase_orders";
+create policy bsb_tenant_scope on "app_private"."purchase_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."purchase_order_lines";
+create policy bsb_tenant_scope on "app_private"."purchase_order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3293,12 +3616,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_81_inventory.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
+-- @bsb-hash sha256:7af4bf38242915c1ac1ca3466776dabb15de68972ea047bd4e4f188446cab87f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -3306,11 +3630,12 @@ values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_81_inventory.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 managed
+-- @bsb-hash sha256:a0509a561194a5bf8e765cfe6920d74eb798dab6ab743b09b6c16469e1d59077
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -3347,6 +3672,40 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location: movements posted to the ledger,
@@ -4382,6 +4741,78 @@ $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.inventory.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -4581,12 +5012,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_81_inventory.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
+-- @bsb-hash sha256:7af4bf38242915c1ac1ca3466776dabb15de68972ea047bd4e4f188446cab87f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -4594,12 +5026,29 @@ values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_81_inventory.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@2 adopt
+-- @bsb-block inventory@2 managed
+-- @bsb-hash sha256:807f91f80a4cea0f6f8f4337849125c32c7a7639fce7f4383a3c3662e5950f88
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4635,10 +5084,170 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location: movements posted to the ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
+
+-- better_supabase.inventory_locations is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."inventory_locations" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."inventory_locations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."inventory_locations" add column if not exists "code" text;
+alter table "better_supabase"."inventory_locations" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."inventory_locations" add column if not exists "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual'));
+alter table "better_supabase"."inventory_locations" add column if not exists "active" boolean not null default true;
+alter table "better_supabase"."inventory_locations" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."inventory_locations" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."inventory_locations" enable row level security;
+grant select on "better_supabase"."inventory_locations" to authenticated;
+grant all on "better_supabase"."inventory_locations" to service_role;
+drop policy if exists bsb_inventory_locations_select on "better_supabase"."inventory_locations";
+create policy bsb_inventory_locations_select on "better_supabase"."inventory_locations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.stock_levels is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_levels" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_levels" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."stock_levels" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."stock_levels" add column if not exists "on_hand" integer not null default 0;
+alter table "better_supabase"."stock_levels" add column if not exists "reserved" integer not null default 0 check ("reserved" >= 0);
+alter table "better_supabase"."stock_levels" add column if not exists "incoming" integer not null default 0 check ("incoming" >= 0);
+alter table "better_supabase"."stock_levels" add column if not exists "available" integer generated always as ("on_hand" - "reserved") stored;
+alter table "better_supabase"."stock_levels" add column if not exists "reorder_point" integer check ("reorder_point" >= 0);
+alter table "better_supabase"."stock_levels" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists stock_levels_location_idx on "better_supabase"."stock_levels" ("location_id");
+alter table "better_supabase"."stock_levels" enable row level security;
+grant select on "better_supabase"."stock_levels" to authenticated;
+grant all on "better_supabase"."stock_levels" to service_role;
+drop policy if exists bsb_stock_levels_select on "better_supabase"."stock_levels";
+create policy bsb_stock_levels_select on "better_supabase"."stock_levels" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.stock_reservations is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_reservations" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."stock_reservations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_reservations" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."stock_reservations" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."stock_reservations" add column if not exists "quantity" integer check ("quantity" > 0);
+alter table "better_supabase"."stock_reservations" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'committed', 'released', 'expired'));
+alter table "better_supabase"."stock_reservations" add column if not exists "reference_type" text;
+alter table "better_supabase"."stock_reservations" add column if not exists "reference_id" text;
+alter table "better_supabase"."stock_reservations" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."stock_reservations" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."stock_reservations" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists stock_reservations_active_idx on "better_supabase"."stock_reservations" ("expires_at") where "status" = 'active';
+create index if not exists stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
+create index if not exists stock_reservations_location_idx on "better_supabase"."stock_reservations" ("location_id");
+alter table "better_supabase"."stock_reservations" enable row level security;
+grant select on "better_supabase"."stock_reservations" to authenticated;
+grant all on "better_supabase"."stock_reservations" to service_role;
+drop policy if exists bsb_stock_reservations_select on "better_supabase"."stock_reservations";
+create policy bsb_stock_reservations_select on "better_supabase"."stock_reservations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.stock_transfers is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_transfers" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."stock_transfers" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_transfers" add column if not exists "from_location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."stock_transfers" add column if not exists "to_location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."stock_transfers" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'in_transit', 'received', 'cancelled'));
+alter table "better_supabase"."stock_transfers" add column if not exists "note" text;
+alter table "better_supabase"."stock_transfers" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."stock_transfers" add column if not exists "shipped_at" timestamptz;
+alter table "better_supabase"."stock_transfers" add column if not exists "received_at" timestamptz;
+create index if not exists stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
+create index if not exists stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
+alter table "better_supabase"."stock_transfers" enable row level security;
+grant select on "better_supabase"."stock_transfers" to authenticated;
+grant all on "better_supabase"."stock_transfers" to service_role;
+drop policy if exists bsb_stock_transfers_select on "better_supabase"."stock_transfers";
+create policy bsb_stock_transfers_select on "better_supabase"."stock_transfers" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.stock_transfer_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."stock_transfer_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."stock_transfer_lines" add column if not exists "transfer_id" uuid references "better_supabase"."stock_transfers" ("id") on delete cascade;
+alter table "better_supabase"."stock_transfer_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."stock_transfer_lines" add column if not exists "quantity" integer check ("quantity" > 0);
+create index if not exists stock_transfer_lines_variant_idx on "better_supabase"."stock_transfer_lines" ("variant_id");
+alter table "better_supabase"."stock_transfer_lines" enable row level security;
+grant select on "better_supabase"."stock_transfer_lines" to authenticated;
+grant all on "better_supabase"."stock_transfer_lines" to service_role;
+drop policy if exists bsb_stock_transfer_lines_select on "better_supabase"."stock_transfer_lines";
+create policy bsb_stock_transfer_lines_select on "better_supabase"."stock_transfer_lines" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.purchase_orders is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."purchase_orders" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."purchase_orders" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."purchase_orders" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
+alter table "better_supabase"."purchase_orders" add column if not exists "supplier_type" text;
+alter table "better_supabase"."purchase_orders" add column if not exists "supplier_id" text;
+alter table "better_supabase"."purchase_orders" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'ordered', 'partially_received', 'received', 'cancelled'));
+alter table "better_supabase"."purchase_orders" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."purchase_orders" add column if not exists "expected_at" timestamptz;
+alter table "better_supabase"."purchase_orders" add column if not exists "note" text;
+alter table "better_supabase"."purchase_orders" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."purchase_orders" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."purchase_orders" add column if not exists "placed_at" timestamptz;
+create index if not exists purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
+create index if not exists purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
+alter table "better_supabase"."purchase_orders" enable row level security;
+grant select on "better_supabase"."purchase_orders" to authenticated;
+grant all on "better_supabase"."purchase_orders" to service_role;
+drop policy if exists bsb_purchase_orders_select on "better_supabase"."purchase_orders";
+create policy bsb_purchase_orders_select on "better_supabase"."purchase_orders" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- better_supabase.purchase_order_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."purchase_order_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."purchase_order_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."purchase_order_lines" add column if not exists "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete cascade;
+alter table "better_supabase"."purchase_order_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_ordered" integer check ("quantity_ordered" > 0);
+alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_received" integer not null default 0 check ("quantity_received" between 0 and "quantity_ordered");
+alter table "better_supabase"."purchase_order_lines" add column if not exists "unit_cost" bigint check ("unit_cost" >= 0);
+create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
+alter table "better_supabase"."purchase_order_lines" enable row level security;
+grant select on "better_supabase"."purchase_order_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_lines" to service_role;
+drop policy if exists bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines";
+create policy bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 -- Posts a stock movement to the ledger and applies it to its level. A
 -- tracked variant without backorders can't go below zero on hand, and a
@@ -5474,7 +6083,7 @@ begin
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
-  update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
+  update "better_supabase"."purchase_orders" x set "status" = better_supabase.as_column_type(v_status, (null::"better_supabase"."purchase_orders")."status"), "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
   return jsonb_build_object('status', v_status, 'backordered', v_backordered);
@@ -5524,6 +6133,78 @@ $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."inventory_locations";
+create policy bsb_tenant_scope on "better_supabase"."inventory_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_levels";
+create policy bsb_tenant_scope on "better_supabase"."stock_levels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_reservations";
+create policy bsb_tenant_scope on "better_supabase"."stock_reservations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfers";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfers" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."stock_transfer_lines";
+create policy bsb_tenant_scope on "better_supabase"."stock_transfer_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_orders";
+create policy bsb_tenant_scope on "better_supabase"."purchase_orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."purchase_order_lines";
+create policy bsb_tenant_scope on "better_supabase"."purchase_order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5537,15 +6218,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_81_inventory.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
+-- @bsb-hash sha256:7af4bf38242915c1ac1ca3466776dabb15de68972ea047bd4e4f188446cab87f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 2, 'adopt')
+values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

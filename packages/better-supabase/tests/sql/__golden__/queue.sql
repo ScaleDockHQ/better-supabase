@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_07_queue.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@8 managed
+-- @bsb-hash sha256:d8639b70e9e644e8095dc5ad1a1a800ccdb9623fa9a5c86283f9bea685ea4851
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -539,12 +540,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_07_queue.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
+-- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgmq";
@@ -557,11 +559,12 @@ values ('queue', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_07_queue.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@8 managed
+-- @bsb-hash sha256:af63d494a822ab5ca8aa5e170414361b7d234e2ed0f0f9a9386b8a7b6f070035
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1102,12 +1105,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_07_queue.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
+-- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgmq";
@@ -1123,11 +1127,12 @@ on conflict (name) do update
 -- ==== schema app_private: throws
 -- blocks.queue.schema: the queue block always installs in better_supabase. Remove schema.
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_07_queue.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@8 managed
+-- @bsb-hash sha256:420e54548c1cfd665f2aa01ec890dfe4778cd4864ce67ec39de3b42ab01b90a5
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -1850,12 +1855,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_07_queue.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
+-- @bsb-hash sha256:dcd7bb078753ee7dd3276c0c87b29634e8e5c18459ff6c87c4895207e5526ee2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pgmq";

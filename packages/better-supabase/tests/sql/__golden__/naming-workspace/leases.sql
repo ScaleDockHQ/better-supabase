@@ -1,8 +1,9 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@1 managed
--- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals, terminations and maintenance requests on the unit.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- @bsb-block leases@2 managed
+-- @bsb-hash sha256:58a3d34ce3732850f4ec0b621f94b37ed9f330ef097f4e27cb73b970c66d27dc
+-- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,10 +40,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
--- period, deposits held through ledger holds, and maintenance requests.
+-- period, and deposits held through ledger holds.
 
 create table if not exists "better_supabase"."lease_agreements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -108,31 +123,6 @@ drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
 create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
-create table if not exists "better_supabase"."maintenance_requests" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "lease_id" uuid references "better_supabase"."lease_agreements" ("id") on delete set null,
-  "title" text not null check (length("title") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 5000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'open' check ("status" in ('open', 'in_progress', 'resolved', 'cancelled')),
-  "reported_by" uuid,
-  "assignee_id" uuid,
-  "resolved_at" timestamptz,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now()
-);
-create index if not exists "maintenance_requests_tenant_idx" on "better_supabase"."maintenance_requests" ("tenant_id", "status", "created_at" desc);
-create index if not exists "maintenance_requests_unit_idx" on "better_supabase"."maintenance_requests" ("unit_id");
-create index if not exists "maintenance_requests_tenancy_idx" on "better_supabase"."maintenance_requests" ("lease_id") where "lease_id" is not null;
-alter table "better_supabase"."maintenance_requests" enable row level security;
-revoke all on "better_supabase"."maintenance_requests" from anon, authenticated;
-grant select on "better_supabase"."maintenance_requests" to authenticated;
-grant all on "better_supabase"."maintenance_requests" to service_role;
-drop policy if exists "maintenance_requests_read" on "better_supabase"."maintenance_requests";
-create policy "maintenance_requests_read" on "better_supabase"."maintenance_requests" for select to authenticated
-  using ("reported_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- Creates a draft lease of a unit (an asset) to a party (a registered
 -- subject). Rent is minor units of currency per period of frequency.
@@ -565,128 +555,37 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Files a maintenance request on a unit, optionally for one of its leases.
-create or replace function "better_supabase"."file_maintenance_request"(tenant uuid, unit_id uuid, title text, description text default null, priority text default 'normal', lease_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."maintenance_requests"%rowtype;
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', file_maintenance_request.tenant, 'leases.maintain'), false)) or coalesce(better_supabase.can('tenant', file_maintenance_request.tenant, 'leases.manage'), false)) then
-    raise exception 'not allowed to file maintenance requests' using errcode = '42501', hint = 'LEASES_FORBIDDEN';
-  end if;
-  if not exists (select 1 from "better_supabase"."assets" u where u."id" = file_maintenance_request.unit_id and u."tenant_id" = file_maintenance_request.tenant) then
-    raise exception 'the unit is unknown or not in this organization' using errcode = '22023', hint = 'LEASE_UNIT_INVALID';
-  end if;
-  if file_maintenance_request.lease_id is not null and not exists (
-    select 1 from "better_supabase"."lease_agreements" x where x."id" = file_maintenance_request.lease_id
-      and x."tenant_id" = file_maintenance_request.tenant and x."unit_id" = file_maintenance_request.unit_id
-  ) then
-    raise exception 'the lease is unknown or not a lease of this unit' using errcode = '22023', hint = 'LEASE_NOT_FOUND';
-  end if;
-  if coalesce(file_maintenance_request.priority, 'normal') not in ('low', 'normal', 'high', 'urgent') then
-    raise exception 'priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if nullif(trim(file_maintenance_request.title), '') is null then
-    raise exception 'a maintenance request needs a title' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  insert into "better_supabase"."maintenance_requests" ("tenant_id", "unit_id", "lease_id", "title", "description", "priority", "reported_by")
-  values (file_maintenance_request.tenant, file_maintenance_request.unit_id, file_maintenance_request.lease_id, trim(file_maintenance_request.title),
-    nullif(trim(file_maintenance_request.description), ''), coalesce(file_maintenance_request.priority, 'normal'), auth.uid())
-  returning * into v_row;
-  null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'title', v_row."title", 'description', v_row."description", 'priority', v_row."priority", 'status', v_row."status", 'reportedBy', v_row."reported_by", 'assigneeId', v_row."assignee_id", 'resolvedAt', v_row."resolved_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) to authenticated, service_role;
-
--- Moves a maintenance request along (open, in_progress, resolved,
--- cancelled), reprioritizes it or assigns it to a member. Null keeps a value.
-create or replace function "better_supabase"."update_maintenance_request"(request_id uuid, status text default null, priority text default null, assignee_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."maintenance_requests"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = update_maintenance_request.request_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
-    raise exception 'no such maintenance request you can change' using errcode = 'P0002', hint = 'MAINTENANCE_NOT_FOUND';
-  end if;
-  if update_maintenance_request.status is not null and update_maintenance_request.status not in ('open', 'in_progress', 'resolved', 'cancelled') then
-    raise exception 'status is open, in_progress, resolved or cancelled' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if update_maintenance_request.priority is not null and update_maintenance_request.priority not in ('low', 'normal', 'high', 'urgent') then
-    raise exception 'priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if update_maintenance_request.assignee_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" y
-    where y."workspace_id" = v_row."tenant_id" and y."user_id" = update_maintenance_request.assignee_id
-  ) then
-    raise exception 'the assignee is not a member of this organization' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  update "better_supabase"."maintenance_requests" x set
-      "status" = coalesce(update_maintenance_request.status, x."status"),
-      "priority" = coalesce(update_maintenance_request.priority, x."priority"),
-      "assignee_id" = coalesce(update_maintenance_request.assignee_id, x."assignee_id"),
-      "resolved_at" = case when coalesce(update_maintenance_request.status, x."status") = 'resolved' then coalesce(x."resolved_at", now()) end,
-      "updated_at" = now()
-    where x."id" = v_row."id"
-    returning * into v_row;
-  null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'title', v_row."title", 'description', v_row."description", 'priority', v_row."priority", 'status', v_row."status", 'reportedBy', v_row."reported_by", 'assigneeId', v_row."assignee_id", 'resolvedAt', v_row."resolved_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."update_maintenance_request"(uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."update_maintenance_request"(uuid, text, text, uuid) to authenticated, service_role;
-
--- Maintenance requests, newest first: every one with leases.read, else the
--- ones the caller filed.
-create or replace function "better_supabase"."list_maintenance_requests"(tenant uuid, unit_id uuid default null, lease_id uuid default null, status text default null, page_size integer default 100)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_maintenance_requests.tenant, 'leases.read'), false));
-begin
-  if not (v_all or coalesce(better_supabase.can('tenant', list_maintenance_requests.tenant, 'leases.maintain'), false)) then
-    raise exception 'not allowed to read maintenance requests' using errcode = '42501', hint = 'LEASES_FORBIDDEN';
-  end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'leaseId', q."lease_id", 'title', q."title", 'description', q."description", 'priority', q."priority", 'status', q."status", 'reportedBy', q."reported_by", 'assigneeId', q."assignee_id", 'resolvedAt', q."resolved_at", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."created_at" desc, q."id"), '[]'::jsonb)
-    from (
-      select * from "better_supabase"."maintenance_requests" x
-      where x."tenant_id" = list_maintenance_requests.tenant
-        and (v_all or x."reported_by" = auth.uid())
-        and (list_maintenance_requests.unit_id is null or x."unit_id" = list_maintenance_requests.unit_id)
-        and (list_maintenance_requests.lease_id is null or x."lease_id" = list_maintenance_requests.lease_id)
-        and (list_maintenance_requests.status is null or x."status" = list_maintenance_requests.status)
-      order by x."created_at" desc, x."id"
-      limit least(greatest(coalesce(list_maintenance_requests.page_size, 100), 1), 1000)
-    ) q
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) to authenticated, service_role;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -704,12 +603,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
+-- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 1, 'managed')
+values ('leases', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

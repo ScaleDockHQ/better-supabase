@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
   extra: Readonly<Record<string, unknown>> = {},
+  ownTables: Readonly<Record<string, string>> = {},
 ): string =>
   renderBlocks(names, {
     modules: {
       ...(options ? { "data-lifecycle": { options } } : {}),
       ...extra,
     },
+    ownTables,
   })
     .filter((file) => file.module === "data-lifecycle")
     .map((file) => file.contents)
@@ -46,17 +49,19 @@ describe("data-lifecycle module", () => {
       `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
     );
 
-    const through = renderBlocks(["data-lifecycle"], {
-      modules: {
-        memberships: {
-          mode: "adopt",
-          tables: { memberships: "public.members" },
-          columns: { memberships: { role: "role_id" } },
-          options: {
-            roleThrough: { table: "public.roles", id: "id", column: "name" },
-          },
+    const modules = {
+      memberships: {
+        tables: { memberships: "public.members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough: { table: "public.roles", id: "id", column: "name" },
         },
       },
+    };
+
+    const through = renderBlocks(["data-lifecycle"], {
+      modules,
+      ownTables: ownTablesOf(modules),
     })
       .filter((file) => file.module === "memberships")
       .map((file) => file.contents)
@@ -255,16 +260,18 @@ describe("data-lifecycle module", () => {
     );
   });
 
-  it("purges an adopted organization row and lets platform staff request deletion", () => {
-    const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
-      organizations: {
-        mode: "adopt",
-        tables: { organizations: "public.teams" },
+  it("purges the app's organization row and lets platform staff request deletion", () => {
+    const sql = sqlOf(
+      ["organizations", "data-lifecycle"],
+      undefined,
+      {
+        organizations: { tables: { organizations: "public.teams" } },
+        "data-lifecycle": {
+          permissions: { deletePlatform: "platform.teams.delete" },
+        },
       },
-      "data-lifecycle": {
-        permissions: { deletePlatform: "platform.teams.delete" },
-      },
-    });
+      { "public.teams": "app.sql" },
+    );
 
     expect(sql).toContain(
       `delete from "public"."teams" where "id" = purge_organization.tenant;`,

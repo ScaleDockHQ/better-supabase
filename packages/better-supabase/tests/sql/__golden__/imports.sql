@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_64_imports.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
+-- @bsb-hash sha256:27f226cf4be9b9a1f7b17687d3f74e0b8bb97962fda9141e101f8942e85bfec3
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."import_runs" (
@@ -132,6 +143,27 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -145,12 +177,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_64_imports.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
+-- @bsb-hash sha256:d7b65adbaa513cb42836890cb1b9b4a7e61ecacf5df964b6b511eca1b3b45114
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -158,11 +191,12 @@ values ('imports', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_64_imports.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
+-- @bsb-hash sha256:64e57e70d97c44b74f83788731b3815ea32ac77746e53499bf48fd5c50e7c26a
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -199,6 +233,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."import_runs" (
@@ -292,6 +336,27 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -305,12 +370,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_64_imports.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
+-- @bsb-hash sha256:d7b65adbaa513cb42836890cb1b9b4a7e61ecacf5df964b6b511eca1b3b45114
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -318,11 +384,12 @@ values ('imports', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_64_imports.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
+-- @bsb-hash sha256:a35806a6530c74a32aafe612eaf6f45411926c9c3440b35027dbcbaae3009e6c
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -359,6 +426,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -454,6 +531,27 @@ $$;
 revoke execute on function "app_private"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "app_private"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
+create policy bsb_tenant_scope on "app_private"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -467,12 +565,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_64_imports.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
+-- @bsb-hash sha256:d7b65adbaa513cb42836890cb1b9b4a7e61ecacf5df964b6b511eca1b3b45114
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -480,11 +579,12 @@ values ('imports', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_64_imports.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
+-- @bsb-hash sha256:25c8c3d9574b1591cda9864ec43c5e1f6f88d2b2f7dbd3038f509cce8a056b49
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -521,6 +621,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."import_runs" (
@@ -614,6 +724,27 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.imports.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -676,12 +807,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_64_imports.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
+-- @bsb-hash sha256:d7b65adbaa513cb42836890cb1b9b4a7e61ecacf5df964b6b511eca1b3b45114
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -689,12 +821,29 @@ values ('imports', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_64_imports.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
--- @bsb-block imports@1 adopt
+-- @bsb-block imports@1 managed
+-- @bsb-hash sha256:d33c7ebca7dccaa90fcc3df2f4b0fae15cf54edfd186a60df6dab8bbd6a41422
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -730,8 +879,32 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.import_runs is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."import_runs" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."import_runs" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."import_runs" add column if not exists "kind" text;
+alter table "better_supabase"."import_runs" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed'));
+alter table "better_supabase"."import_runs" add column if not exists "mapping" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."import_runs" add column if not exists "counts" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."import_runs" add column if not exists "errors" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."import_runs" add column if not exists "created_by" uuid;
+alter table "better_supabase"."import_runs" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."import_runs" enable row level security;
+grant select on "better_supabase"."import_runs" to authenticated;
+grant all on "better_supabase"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 
 create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb
@@ -788,7 +961,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  update "better_supabase"."import_runs" set "status" = finish_import.status,
+  update "better_supabase"."import_runs" set "status" = better_supabase.as_column_type(finish_import.status, (null::"better_supabase"."import_runs")."status"),
     "counts" = jsonb_build_object('imported', finish_import.count),
     "errors" = case when finish_import.error is null then '[]'::jsonb else jsonb_build_array(finish_import.error) end
   where "id" = finish_import.id
@@ -807,6 +980,27 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -820,15 +1014,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_64_imports.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
+-- @bsb-hash sha256:d7b65adbaa513cb42836890cb1b9b4a7e61ecacf5df964b6b511eca1b3b45114
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('imports', 1, 'adopt')
+values ('imports', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

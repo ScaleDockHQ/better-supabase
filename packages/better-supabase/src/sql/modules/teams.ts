@@ -50,6 +50,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     teams: {
       name: "teams",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -65,6 +66,7 @@ const NAMES: BlockSqlNames = {
     },
     members: {
       name: "team_members",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         team: "team_id",
@@ -426,7 +428,7 @@ function inboxMove(
   name: string,
   slug: string,
 ): string {
-  if (!ctx.installed("inbox") || !ctx.manages) {
+  if (!ctx.installed("inbox") || !ctx.owns("teams")) {
     return "";
   }
 
@@ -540,7 +542,7 @@ export const TEAMS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

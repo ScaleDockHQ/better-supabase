@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_37_onboarding.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
+-- @bsb-hash sha256:1fc0fe552b4ef1eef1196336ffcc2e7826745721fcd198858db4279ef6f4c7bb
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -143,12 +144,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_37_onboarding.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block-data onboarding
+-- @bsb-hash sha256:a7fd47a7b0d152603b5cd802ba44eec18eae8862cdfb4e38e2e7a28f6d5038c2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -156,11 +158,12 @@ values ('onboarding', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_37_onboarding.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
+-- @bsb-hash sha256:1fc0fe552b4ef1eef1196336ffcc2e7826745721fcd198858db4279ef6f4c7bb
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -301,12 +304,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_37_onboarding.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block-data onboarding
+-- @bsb-hash sha256:a7fd47a7b0d152603b5cd802ba44eec18eae8862cdfb4e38e2e7a28f6d5038c2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -314,11 +318,12 @@ values ('onboarding', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_37_onboarding.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
+-- @bsb-hash sha256:2e16f0e4c0aa96ffb4cf2a73c73c550b7df1aeaa34db2d5b8b6b34dfd0bebb60
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -461,12 +466,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_37_onboarding.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block-data onboarding
+-- @bsb-hash sha256:a7fd47a7b0d152603b5cd802ba44eec18eae8862cdfb4e38e2e7a28f6d5038c2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -474,11 +480,12 @@ values ('onboarding', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_37_onboarding.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
+-- @bsb-hash sha256:4a175696e53b5bfa701d819fa9452cd066d9343fa6eb711e5c7e1a851d48197a
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -650,12 +657,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_37_onboarding.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block-data onboarding
+-- @bsb-hash sha256:a7fd47a7b0d152603b5cd802ba44eec18eae8862cdfb4e38e2e7a28f6d5038c2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

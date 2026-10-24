@@ -360,8 +360,20 @@ by method name.
 
 Orders doesn't export e-invoices (EN 16931), issue credit notes, sell
 subscriptions or license keys for digital goods, or handle B2B quotes and
-purchase orders from customers. Adopt mode, which maps the tables to
-existing ones, isn't available yet.
+purchase orders from customers.
+
+## Over your own tables
+
+Carts, cart lines, shipping rates, orders, order lines, payments,
+fulfillments, returns and refunds can be tables your app already has (see
+[Over your own tables](/docs/blocks/sql#over-your-own-tables)); the fulfillment
+and return lines and the kitchen tables stay the block's own. The cart and
+order `email` and `billingAddress`, the shipping rate `freeOver`, the order
+`cancelReason` and `taxTransaction`, the fulfillment `trackingUrl` and the
+return and refund `reason` may map to `null`. A call that sets one of them
+then fails with an `ORDERS_<COLUMN>_UNSUPPORTED` hint, and reads return
+`null`. Status columns may be enums or domains: the block casts what it
+writes to the column's type.
 
 ## Without the client
 

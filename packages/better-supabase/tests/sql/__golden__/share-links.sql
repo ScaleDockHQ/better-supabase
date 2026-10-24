@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:d00933eb097cc9ce16975f058d699328adc7720c69e7067debf7ccdad90e5593
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."share_links" (
@@ -275,6 +286,27 @@ $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -288,12 +320,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
+-- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -301,11 +334,12 @@ values ('share-links', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:9d28b27c7e7b1735d34ebc3b4cda5b3f1b1b5e50ce312511e42ef6505d7013c1
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -342,6 +376,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."share_links" (
@@ -686,6 +730,27 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -699,12 +764,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
+-- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -712,11 +778,12 @@ values ('share-links', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:f1bf78240d0e4d7cb237f6c1305470502cdc4afbebd27f0606520d85523f5878
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -753,6 +820,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."share_links";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -991,6 +1068,27 @@ $$;
 revoke execute on function "app_private"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "app_private"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."share_links";
+create policy bsb_tenant_scope on "app_private"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1004,12 +1102,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
+-- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1017,11 +1116,12 @@ values ('share-links', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:11b17dbef96a697d377d3f21887ab77f1d8f8fb6ad4d6a98b861d3a5e40b1f6c
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1058,6 +1158,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."share_links" (
@@ -1294,6 +1404,27 @@ $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.share-links.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1389,12 +1520,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
+-- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1402,11 +1534,12 @@ values ('share-links', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_62_share_links.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
--- @bsb-block share-links@1 adopt
+-- @bsb-block share-links@1 managed
+-- @bsb-hash sha256:4b16eb4021588a0ba243f8df6f8dd666a4c973366cf2cee7da5abba26497045f
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1443,8 +1576,62 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.share_links is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."share_links" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."share_links" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."share_links" add column if not exists "subject_type" text;
+alter table "better_supabase"."share_links" add column if not exists "subject_id" text;
+alter table "better_supabase"."share_links" add column if not exists "token_hash" text;
+alter table "better_supabase"."share_links" add column if not exists "role" text not null default 'view';
+alter table "better_supabase"."share_links" add column if not exists "version" integer not null default 1;
+alter table "better_supabase"."share_links" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."share_links" add column if not exists "revoked_at" timestamptz;
+alter table "better_supabase"."share_links" add column if not exists "max_uses" integer;
+alter table "better_supabase"."share_links" add column if not exists "created_by" uuid;
+alter table "better_supabase"."share_links" add column if not exists "leaf_id" text;
+alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
+alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
+alter table "better_supabase"."share_links" enable row level security;
+grant select on "better_supabase"."share_links" to authenticated;
+grant all on "better_supabase"."share_links" to service_role;
+create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
+-- better_supabase.subject_views is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."subject_views" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."subject_views" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."subject_views" add column if not exists "subject_type" text;
+alter table "better_supabase"."subject_views" add column if not exists "subject_id" text;
+alter table "better_supabase"."subject_views" add column if not exists "version" integer not null default 1;
+alter table "better_supabase"."subject_views" add column if not exists "viewer_kind" text;
+alter table "better_supabase"."subject_views" add column if not exists "viewer" text;
+alter table "better_supabase"."subject_views" add column if not exists "first_viewed_at" timestamptz not null default now();
+alter table "better_supabase"."subject_views" add column if not exists "last_viewed_at" timestamptz not null default now();
+alter table "better_supabase"."subject_views" add column if not exists "view_count" integer not null default 1;
+alter table "better_supabase"."subject_views" enable row level security;
+grant select on "better_supabase"."subject_views" to authenticated;
+grant all on "better_supabase"."subject_views" to service_role;
+
+-- better_supabase.subject_user_state is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."subject_user_state" add column if not exists "subject_type" text;
+alter table "better_supabase"."subject_user_state" add column if not exists "subject_id" text;
+alter table "better_supabase"."subject_user_state" add column if not exists "user_id" uuid;
+alter table "better_supabase"."subject_user_state" add column if not exists "starred_at" timestamptz;
+alter table "better_supabase"."subject_user_state" add column if not exists "last_opened_at" timestamptz;
+alter table "better_supabase"."subject_user_state" enable row level security;
+grant select on "better_supabase"."subject_user_state" to authenticated;
+grant all on "better_supabase"."subject_user_state" to service_role;
+
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
@@ -1627,6 +1814,27 @@ $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1640,15 +1848,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_62_share_links.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
+-- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('share-links', 1, 'adopt')
+values ('share-links', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

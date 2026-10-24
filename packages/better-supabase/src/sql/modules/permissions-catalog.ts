@@ -51,7 +51,7 @@ $$;`;
 export function membershipRoleKey(ctx: BlockSqlContext): string {
   const tenant = ctx.of("memberships");
 
-  if (!tenant.manages) {
+  if (!tenant.owns("memberships")) {
     return "";
   }
 

@@ -7,18 +7,18 @@ describe("tenantsQuery", () => {
     expect(tenantsQuery({}, [], "acme")).toBeUndefined();
   });
 
-  it("matches an adopted table without a slug by id", () => {
+  it("matches the app's tenant table without a slug by id", () => {
     const query = tenantsQuery(
       {
         modules: {
           organizations: {
-            mode: "adopt",
             tables: { organizations: "app.teams" },
             columns: {
               organizations: { id: "team_id", slug: null, deletedAt: null },
             },
           },
         },
+        ownTables: { "app.teams": "supabase/schemas/teams.sql" },
       },
       ["organizations"],
       "t1",
@@ -36,11 +36,11 @@ order by 2, 1`,
         {
           modules: {
             organizations: {
-              mode: "adopt",
               tables: { organizations: "app.teams" },
               columns: { organizations: { slug: null, deletedAt: null } },
             },
           },
+          ownTables: { "app.teams": "supabase/schemas/teams.sql" },
         },
         ["organizations"],
         "*",

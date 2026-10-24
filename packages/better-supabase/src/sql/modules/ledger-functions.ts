@@ -7,6 +7,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The ledger's functions: the internal posting core and the public API. */
@@ -27,6 +28,11 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
   const post = ctx.permission("post", permissions.post);
+  const hasMemo = ctx.has("transactions", "memo");
+
+  // A transaction row's memo, or null when the app maps the column to null.
+  const memo = (row: string): string =>
+    hasMemo ? `${row}.${t("memo")}` : "null::text";
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -47,7 +53,7 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
     `coalesce((select jsonb_agg(jsonb_build_object('id', y.${e("id")}, 'accountId', y.${e("account")}, 'amount', y.${e("amount")}::text, 'unit', y.${e("unit")}) order by y.${e("createdAt")}, y.${e("id")}) from ${entries} y where y.${e("transaction")} = ${transaction}), '[]'::jsonb)`;
 
   const transactionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'referenceType', ${row}.${t("referenceType")}, 'referenceId', ${row}.${t("referenceId")}, 'memo', ${row}.${t("memo")}, 'idempotencyKey', ${row}.${t("key")}, 'reverses', ${row}.${t("reverses")}, 'metadata', ${row}.${t("metadata")}, 'effectiveAt', ${row}.${t("effectiveAt")}, 'actorId', ${row}.${t("actor")}, 'createdAt', ${row}.${t("createdAt")}, 'entries', ${entriesOf(`${row}.${t("id")}`)})`;
+    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'referenceType', ${row}.${t("referenceType")}, 'referenceId', ${row}.${t("referenceId")}, 'memo', ${memo(row)}, 'idempotencyKey', ${row}.${t("key")}, 'reverses', ${row}.${t("reverses")}, 'metadata', ${row}.${t("metadata")}, 'effectiveAt', ${row}.${t("effectiveAt")}, 'actorId', ${row}.${t("actor")}, 'createdAt', ${row}.${t("createdAt")}, 'entries', ${entriesOf(`${row}.${t("id")}`)})`;
 
   const holdJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}, 'accountId', ${row}.${h("account")}, 'amount', ${row}.${h("amount")}::text, 'status', ${row}.${h("status")}, 'referenceType', ${row}.${h("referenceType")}, 'referenceId', ${row}.${h("referenceId")}, 'expiresAt', ${row}.${h("expiresAt")}, 'transactionId', ${row}.${h("transaction")}, 'createdBy', ${row}.${h("createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")})`;
@@ -100,7 +106,7 @@ begin
     return v_id;
   end if;
   insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("scale")}, ${a("holderType")}, ${a("holderId")}, ${a("owner")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("managedBy")}, ${a("metadata")})
-  values (ledger_account_for.tenant, ledger_account_for.kind, ledger_account_for.code, ledger_account_for.name, ledger_account_for.unit,
+  values (ledger_account_for.tenant, ${ctx.cast("accounts", "kind", "ledger_account_for.kind")}, ledger_account_for.code, ledger_account_for.name, ledger_account_for.unit,
     coalesce(ledger_account_for.scale, 0), ledger_account_for.holder_type, ledger_account_for.holder_id, ledger_account_for.owner_id,
     coalesce(ledger_account_for.allow_negative, false), ledger_account_for.read_permission, ledger_account_for.managed_by,
     coalesce(ledger_account_for.metadata, '{}'::jsonb))
@@ -172,8 +178,8 @@ begin
     ["text", "ledger_post.kind"],
     ["jsonb", "ledger_post.lines"],
   ])}
-  insert into ${transactions} (${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}, ${t("memo")}, ${t("key")}, ${t("reverses")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")})
-  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id, nullif(trim(ledger_post.memo), ''),
+  insert into ${transactions} (${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}${hasMemo ? `, ${t("memo")}` : ""}, ${t("key")}, ${t("reverses")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")})
+  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id${hasMemo ? ", nullif(trim(ledger_post.memo), '')" : ""},
     ledger_post.idempotency_key, ledger_post.reverses, coalesce(ledger_post.metadata, '{}'::jsonb), coalesce(ledger_post.effective_at, now()), auth.uid())
   returning * into v_row;
   insert into ${entries} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")})
@@ -214,7 +220,7 @@ begin
     ${fail("LEDGER_ACCOUNT_CODE_TAKEN", "an account with this code already exists", "23505")}
   end if;
   insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("scale")}, ${a("holderType")}, ${a("holderId")}, ${a("owner")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("metadata")})
-  values (open_ledger_account.tenant, open_ledger_account.kind, open_ledger_account.code, open_ledger_account.name, open_ledger_account.unit,
+  values (open_ledger_account.tenant, ${ctx.cast("accounts", "kind", "open_ledger_account.kind")}, open_ledger_account.code, open_ledger_account.name, open_ledger_account.unit,
     coalesce(open_ledger_account.scale, 0), open_ledger_account.holder_type, open_ledger_account.holder_id, open_ledger_account.owner_id,
     coalesce(open_ledger_account.allow_negative, false), open_ledger_account.read_permission, coalesce(open_ledger_account.metadata, '{}'::jsonb))
   returning * into v_row;
@@ -327,7 +333,7 @@ begin
   v_id := ${fn("ledger_post")}(v_old.${t("tenant")}, v_old.${t("kind")},
     (select jsonb_agg(jsonb_build_object('account', y.${e("account")}, 'amount', (-y.${e("amount")})::text) order by y.${e("createdAt")}, y.${e("id")})
       from ${entries} y where y.${e("transaction")} = v_old.${t("id")}),
-    v_old.${t("referenceType")}, v_old.${t("referenceId")}, coalesce(reverse_ledger_transaction.memo, v_old.${t("memo")}),
+    v_old.${t("referenceType")}, v_old.${t("referenceId")}, ${hasMemo ? `coalesce(reverse_ledger_transaction.memo, v_old.${t("memo")})` : "reverse_ledger_transaction.memo"},
     null, null, v_old.${t("metadata")}, v_old.${t("id")});
   select * into v_row from ${transactions} x where x.${t("id")} = v_id;
   ${ctx.record({
@@ -591,7 +597,7 @@ as $$
     from ${accounts} x
     left join ${balances} y on y.${b("account")} = x.${a("id")}
     where (list_ledger_accounts.tenant is null or x.${a("tenant")} = list_ledger_accounts.tenant)
-      and (list_ledger_accounts.kind is null or x.${a("kind")} = list_ledger_accounts.kind)
+      and (list_ledger_accounts.kind is null or ${asText(ctx, "accounts", `x.${a("kind")}`)} = list_ledger_accounts.kind)
       and (list_ledger_accounts.holder_type is null or x.${a("holderType")} = list_ledger_accounts.holder_type)
       and (list_ledger_accounts.holder_id is null or x.${a("holderId")} = list_ledger_accounts.holder_id)
       and ${visible("x")}
@@ -623,7 +629,7 @@ begin
   from (
     select jsonb_build_object('id', y.${e("id")}, 'accountId', y.${e("account")}, 'amount', y.${e("amount")}::text, 'unit', y.${e("unit")},
         'transactionId', r.${t("id")}, 'kind', r.${t("kind")}, 'referenceType', r.${t("referenceType")}, 'referenceId', r.${t("referenceId")},
-        'memo', r.${t("memo")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'createdAt', y.${e("createdAt")}) as item,
+        'memo', ${memo("r")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'createdAt', y.${e("createdAt")}) as item,
       y.${e("createdAt")} as created, y.${e("id")} as id
     from ${entries} y
     join ${transactions} r on r.${t("id")} = y.${e("transaction")}

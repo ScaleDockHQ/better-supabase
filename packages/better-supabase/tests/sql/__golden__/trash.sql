@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_75_trash.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
+-- @bsb-hash sha256:5fe937c393b9f23ad0e51d65afa6b5d42c04f770eac40699d0ed34c334cb0c22
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."trash_items" (
@@ -325,6 +336,30 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -338,12 +373,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_75_trash.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -351,11 +387,12 @@ values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_75_trash.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
+-- @bsb-hash sha256:532e4dad171a7e78a91af548c0acb0f53d0310d4caf932a92a1859cf752abef4
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -392,6 +429,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."trash_items" (
@@ -705,6 +752,30 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -718,12 +789,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_75_trash.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -731,11 +803,12 @@ values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_75_trash.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
+-- @bsb-hash sha256:c045390cd277fdc071c6bc7753a39b4376a6ca11f7752ca2c4117cd387c15ac1
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -772,6 +845,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -1060,6 +1143,30 @@ $$;
 revoke execute on function "app_private"."is_trashed"(text, text) from public, anon;
 grant execute on function "app_private"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
+create policy bsb_tenant_scope on "app_private"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1073,12 +1180,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_75_trash.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1086,11 +1194,12 @@ values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_75_trash.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
+-- @bsb-hash sha256:b2d09c90e63b44a2abf3fe311ec4a85cbcf9288c1ff61070da25dc7213b0305c
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1127,6 +1236,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."trash_items" (
@@ -1413,6 +1532,30 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.trash.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1504,12 +1647,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_75_trash.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1517,11 +1661,12 @@ values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_75_trash.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
--- @bsb-block trash@2 adopt
+-- @bsb-block trash@2 managed
+-- @bsb-hash sha256:a5a36790ae5be667ca7cf20ceb7edd604ba59eafcccb339a450cf9897da66219
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1558,8 +1703,37 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.trash_items is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."trash_items" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."trash_items" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "subject_type" text;
+alter table "better_supabase"."trash_items" add column if not exists "subject_id" text;
+alter table "better_supabase"."trash_items" add column if not exists "title" text;
+alter table "better_supabase"."trash_items" add column if not exists "batch_id" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "depth" integer not null default 0 check ("depth" >= 0);
+alter table "better_supabase"."trash_items" add column if not exists "trashed_by" uuid;
+alter table "better_supabase"."trash_items" add column if not exists "trashed_at" timestamptz not null default now();
+alter table "better_supabase"."trash_items" add column if not exists "purge_after" timestamptz;
+create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
+create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
+alter table "better_supabase"."trash_items" enable row level security;
+grant select on "better_supabase"."trash_items" to authenticated;
+grant all on "better_supabase"."trash_items" to service_role;
+drop policy if exists bsb_trash_items_select on "better_supabase"."trash_items";
+create policy bsb_trash_items_select on "better_supabase"."trash_items" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')));
 
 -- Marks one subject row trashed, records it, then trashes the rows the
 -- subject's children options point at, in the same batch.
@@ -1822,6 +1996,30 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1835,15 +2033,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_75_trash.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block-data trash
+-- @bsb-hash sha256:0b3c864fb75c0f3482f544f913b28028834bc74bccc8ffc9c3cd76d66738fe5e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('trash', 2, 'adopt')
+values ('trash', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

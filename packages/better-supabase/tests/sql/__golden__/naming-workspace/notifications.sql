@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_24_notifications.sql
+-- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@8 managed
+-- @bsb-hash sha256:96c3341a36745b8a0873db4a430a9fca88980f62a0add3e32fa8dd82b4029e8a
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,36 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."notification_events" (
@@ -1251,6 +1282,92 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1264,12 +1381,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_24_notifications.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
+-- @bsb-hash sha256:88e2e0b8de370edbca884a9a755a5c5054ff743897904d9402b94a1d0c11dcd9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

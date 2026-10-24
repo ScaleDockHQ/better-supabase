@@ -57,7 +57,7 @@ describe.skipIf(!live)("credentials module", () => {
     }
   });
 
-  it("passes the kit over an adopted table with Vault ids", async () => {
+  it("passes the kit over the app's own table with Vault ids", async () => {
     const s = await BlockSession.open(pool);
     const tenant = crypto.randomUUID();
     const table = `public.bsb_secrets_${tenant.slice(0, 8)}`;
@@ -74,9 +74,9 @@ describe.skipIf(!live)("credentials module", () => {
           updated_at timestamptz
         )`);
       await s.install(["credentials"], {
+        ownTables: { [table]: "app.sql" },
         modules: {
           credentials: {
-            mode: "adopt",
             tables: { secrets: table },
             columns: {
               secrets: {
@@ -141,7 +141,7 @@ describe.skipIf(!live)("credentials module", () => {
     }
   });
 
-  it("reads and writes an adopted secret column", async () => {
+  it("reads and writes a secret column in the app's own table", async () => {
     const s = await BlockSession.open(pool);
     const table = `public.bsb_plain_${crypto.randomUUID().slice(0, 8)}`;
 
@@ -153,9 +153,9 @@ describe.skipIf(!live)("credentials module", () => {
         `insert into ${table} values ('stripe', 'live', 'sk_live_1')`,
       );
       await s.install(["credentials"], {
+        ownTables: { [table]: "app.sql" },
         modules: {
           credentials: {
-            mode: "adopt",
             tables: { secrets: table },
             columns: {
               secrets: {

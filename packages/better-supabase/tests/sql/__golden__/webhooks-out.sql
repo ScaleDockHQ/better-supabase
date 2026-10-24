@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
+-- @bsb-hash sha256:edd95cce44050db607c843c353fa6dd06f0fb20dc22e78b334e84cf5d23a38b1
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."webhook_endpoints" (
@@ -614,12 +633,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_25_webhooks_out.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
+-- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -627,11 +647,12 @@ values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
+-- @bsb-hash sha256:5e71c31cb65b13d8cf342f97fd69a0df0a93ee428d78721305e30af785a40796
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -668,6 +689,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."webhook_endpoints" (
@@ -1262,6 +1301,42 @@ $$;
 revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope on "better_supabase"."webhook_endpoints" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."webhook_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1275,12 +1350,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_25_webhooks_out.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
+-- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1288,11 +1364,12 @@ values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
+-- @bsb-hash sha256:d660ddd948f297e311a3d58ef5c7954a2c7759a98863086d864da94346ffd5bb
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1329,6 +1406,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."webhook_endpoints";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."webhook_endpoint_secrets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."webhook_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -1906,12 +2001,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_25_webhooks_out.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
+-- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1919,11 +2015,12 @@ values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
+-- @bsb-hash sha256:a006e955ae477f1f6cbd3083d9f5f00d35afecca713bfb467597d0d7179750e6
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1960,6 +2057,24 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."webhook_endpoints" (
@@ -2641,12 +2756,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_25_webhooks_out.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
+-- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -2654,11 +2770,12 @@ values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@5 adopt
+-- @bsb-block webhooks-out@5 managed
+-- @bsb-hash sha256:b2928b8b627f1da441be8762573e3f523b5955921b589d7cd9318aa576b717f7
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -2695,8 +2812,87 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.webhook_endpoints is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."webhook_endpoints" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."webhook_endpoints" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "name" text check (length(trim("name")) > 0);
+alter table "better_supabase"."webhook_endpoints" add column if not exists "url" text check ("url" ~* '^https://');
+alter table "better_supabase"."webhook_endpoints" add column if not exists "enabled" boolean not null default true;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "event_types" text[] not null default '{}';
+alter table "better_supabase"."webhook_endpoints" add column if not exists "failing_since" timestamptz;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "disabled_at" timestamptz;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "disabled_reason" text;
+alter table "better_supabase"."webhook_endpoints" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
+alter table "better_supabase"."webhook_endpoints" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."webhook_endpoints" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
+create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
+create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
+alter table "better_supabase"."webhook_endpoints" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."webhook_endpoints";
+create trigger bsb_updated_at before update on "better_supabase"."webhook_endpoints"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."webhook_endpoints" enable row level security;
+grant all on "better_supabase"."webhook_endpoints" to service_role;
+
+-- better_supabase.webhook_endpoint_secrets is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "endpoint_id" uuid references "better_supabase"."webhook_endpoints" ("id") on delete cascade;
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "vault_secret_id" uuid;
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."webhook_endpoint_secrets" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists webhook_endpoint_secrets_endpoint_idx on "better_supabase"."webhook_endpoint_secrets" ("endpoint_id");
+alter table "better_supabase"."webhook_endpoint_secrets" enable row level security;
+grant all on "better_supabase"."webhook_endpoint_secrets" to service_role;
+
+-- better_supabase.webhook_deliveries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."webhook_deliveries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."webhook_deliveries" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "endpoint_id" uuid references "better_supabase"."webhook_endpoints" ("id") on delete cascade;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "event_id" text;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "run_id" text;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "event_type" text;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "payload" jsonb not null default '{}';
+alter table "better_supabase"."webhook_deliveries" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled'));
+alter table "better_supabase"."webhook_deliveries" add column if not exists "attempt" integer not null default 0 check ("attempt" >= 0);
+alter table "better_supabase"."webhook_deliveries" add column if not exists "available_at" timestamptz not null default now();
+alter table "better_supabase"."webhook_deliveries" add column if not exists "leased_until" timestamptz;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "response_status" integer;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "response_body" text;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "duration_ms" integer;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "last_error" text;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "processed_at" timestamptz;
+alter table "better_supabase"."webhook_deliveries" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."webhook_deliveries" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
+create index if not exists webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
+create index if not exists webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
+create index if not exists webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
+create index if not exists webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("organization_id", "created_at" desc);
+create unique index if not exists webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
+alter table "better_supabase"."webhook_deliveries" enable row level security;
+grant all on "better_supabase"."webhook_deliveries" to service_role;
 
 create or replace function "better_supabase"."reset_webhook_endpoint"()
 returns trigger
@@ -3190,15 +3386,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_25_webhooks_out.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
+-- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 5, 'adopt')
+values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

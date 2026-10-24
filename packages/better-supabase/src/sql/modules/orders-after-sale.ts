@@ -57,6 +57,23 @@ export function afterSaleFunctions(
 
   const subject = "'orders/' || v_order.id::text";
 
+  const trackingUrl = ctx.has("fulfillments", "trackingUrl");
+  const returnReason = ctx.has("returns", "reason");
+  const refundReason = ctx.has("refunds", "reason");
+
+  const unsupported = (
+    present: boolean,
+    arg: string,
+    code: string,
+    message: string,
+  ): string =>
+    present
+      ? ""
+      : `
+  if ${arg} is not null then
+    ${fail(code, message, "22023")}
+  end if;`;
+
   const event = (
     type: string,
     extra: readonly (readonly [string, string])[],
@@ -126,7 +143,7 @@ begin
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_order.status <> 'paid' then
     ${fail("ORDERS_NOT_PAID", "only a paid order can be fulfilled", "55000")}
-  end if;
+  end if;${unsupported(trackingUrl, "create_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
   ${ctx.hook("before_fulfillment_create", [["uuid", "v_order.id"]])}
   v_requested := coalesce(create_fulfillment.lines, (
     select jsonb_agg(jsonb_build_object('lineId', l.${ol("id")}, 'quantity', l.${ol("quantity")} - l.${ol("fulfilled")}) order by l.${ol("position")})
@@ -134,10 +151,10 @@ begin
   if v_requested is null or jsonb_typeof(v_requested) <> 'array' or jsonb_array_length(v_requested) = 0 then
     ${fail("ORDERS_NOTHING_TO_FULFILL", "no lines left to fulfill", "55000")}
   end if;
-  insert into ${fulfillments} (${f("tenant")}, ${f("order")}, ${f("location")}, ${f("carrier")}, ${f("trackingNumber")}, ${f("trackingUrl")})
+  insert into ${fulfillments} (${f("tenant")}, ${f("order")}, ${f("location")}, ${f("carrier")}, ${f("trackingNumber")}${trackingUrl ? `, ${f("trackingUrl")}` : ""})
   values (v_order.tenant, v_order.id,
     coalesce(create_fulfillment.location, (select l.${ol("location")} from ${lines} l where l.${ol("order")} = v_order.id and l.${ol("location")} is not null order by l.${ol("position")} limit 1)),
-    create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
+    create_fulfillment.carrier, create_fulfillment.tracking_number${trackingUrl ? ", create_fulfillment.tracking_url" : ""})
   returning ${f("id")} into v_id;
   for v_item in
     select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(v_requested) e
@@ -179,11 +196,15 @@ begin
   end if;
   if v_fulfillment.status <> 'pending' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a pending fulfillment can ship", "55000")}
-  end if;
+  end if;${unsupported(trackingUrl, "ship_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
   update ${fulfillments} x set ${f("status")} = 'shipped', ${f("shippedAt")} = now(),
     ${f("carrier")} = coalesce(ship_fulfillment.carrier, x.${f("carrier")}),
-    ${f("trackingNumber")} = coalesce(ship_fulfillment.tracking_number, x.${f("trackingNumber")}),
-    ${f("trackingUrl")} = coalesce(ship_fulfillment.tracking_url, x.${f("trackingUrl")})
+    ${f("trackingNumber")} = coalesce(ship_fulfillment.tracking_number, x.${f("trackingNumber")})${
+      trackingUrl
+        ? `,
+    ${f("trackingUrl")} = coalesce(ship_fulfillment.tracking_url, x.${f("trackingUrl")})`
+        : ""
+    }
   where x.${f("id")} = v_fulfillment.id;
   ${partEvent("fulfillment.shipped", "v_fulfillment.id", [
     [
@@ -290,9 +311,9 @@ begin
   end if;
   if request_return.lines is null or jsonb_typeof(request_return.lines) <> 'array' or jsonb_array_length(request_return.lines) = 0 then
     ${fail("ORDERS_RETURN_INVALID", "lines is a non-empty array of {lineId, quantity}", "22023")}
-  end if;
-  insert into ${returns} (${r("tenant")}, ${r("order")}, ${r("reason")})
-  values (v_order.tenant, v_order.id, request_return.reason)
+  end if;${unsupported(returnReason, "request_return.reason", "ORDERS_RETURN_REASON_UNSUPPORTED", "this return table has no reason column")}
+  insert into ${returns} (${r("tenant")}, ${r("order")}${returnReason ? `, ${r("reason")}` : ""})
+  values (v_order.tenant, v_order.id${returnReason ? ", request_return.reason" : ""})
   returning ${r("id")} into v_id;
   for v_item in
     select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
@@ -397,7 +418,7 @@ declare
   v_id uuid;
 begin
   ${load("create_refund.order_id")}
-  ${guard(names.scope, names.manage, "v_order.tenant")}
+  ${guard(names.scope, names.manage, "v_order.tenant")}${unsupported(refundReason, "create_refund.reason", "ORDERS_REFUND_REASON_UNSUPPORTED", "this refund table has no reason column")}
   ${ctx.hook("before_refund_create", [["uuid", "v_order.id"]])}
   if create_refund.return_id is not null and not exists (
     select 1 from ${returns} x where x.${r("id")} = create_refund.return_id and x.${r("order")} = v_order.id) then
@@ -420,8 +441,8 @@ begin
   if not found then
     ${fail("ORDERS_REFUND_INVALID", "no single captured payment covers this amount; refund in parts", "22023")}
   end if;
-  insert into ${refunds} (${rf("tenant")}, ${rf("order")}, ${rf("payment")}, ${rf("return")}, ${rf("amount")}, ${rf("currency")}, ${rf("reason")})
-  values (v_order.tenant, v_order.id, v_payment.id, create_refund.return_id, v_amount, v_order.currency, create_refund.reason)
+  insert into ${refunds} (${rf("tenant")}, ${rf("order")}, ${rf("payment")}, ${rf("return")}, ${rf("amount")}, ${rf("currency")}${refundReason ? `, ${rf("reason")}` : ""})
+  values (v_order.tenant, v_order.id, v_payment.id, create_refund.return_id, v_amount, v_order.currency${refundReason ? ", create_refund.reason" : ""})
   returning ${rf("id")} into v_id;
   ${ctx.hook("after_refund_create", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id, 'orderId', v_order.id, 'paymentId', v_payment.id, 'provider', v_payment.provider,
@@ -464,7 +485,7 @@ begin
     update ${refunds} x set ${rf("providerReference")} = coalesce(complete_refund.provider_reference, x.${rf("providerReference")})
     where x.${rf("id")} = v_refund.id;
   elsif v_refund.status = 'pending' then
-    update ${refunds} x set ${rf("status")} = complete_refund.status, ${rf("completedAt")} = now(),
+    update ${refunds} x set ${rf("status")} = ${ctx.cast("refunds", "status", "complete_refund.status")}, ${rf("completedAt")} = now(),
       ${rf("providerReference")} = coalesce(complete_refund.provider_reference, x.${rf("providerReference")})
     where x.${rf("id")} = v_refund.id;
     if complete_refund.status = 'succeeded' then

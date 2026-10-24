@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_20_impersonation.sql
+-- ==== schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
+-- @bsb-hash sha256:6448ef615a092b61163a2d21c77e5452dd77d7394530e818c6bc6debec328c75
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."support_sessions" (
@@ -737,6 +752,39 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -750,12 +798,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_20_impersonation.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block-data impersonation
+-- @bsb-hash sha256:5b75ec6020bd1354c5949a5872776c45a105f49ad9d7557d8968fcebf0428695
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

@@ -71,7 +71,7 @@ export const APPLY_ARGS = {
   adopt: {
     type: "boolean",
     description:
-      "Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for adopted blocks",
+      "Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for blocks over your tables",
   },
   "allow-breaking": {
     type: "boolean",
@@ -110,9 +110,9 @@ interface Adoption {
 }
 
 /**
- * `text` with an adopt-mode entry for each of `blocks` that has a table under
- * one of its default names. A block the config already sets to another mode is
- * left as it is.
+ * `text` with a `tables` and `columns` entry for each of `blocks` that has a
+ * table under one of its default names. A block in custom mode is left as it
+ * is.
  */
 function adoptBlocks(
   config: ResolvedConfig,

@@ -1,0 +1,872 @@
+-- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
+-- better-supabase module: templates
+-- @bsb-block templates@1 managed
+-- @bsb-hash sha256:d93565f5bb5d6d44d4a05955e17fefb54ec95a02f631339f0e704b41393b77b6
+-- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create extension if not exists pgcrypto with schema extensions;
+
+-- Templates of a type (an invoice, a project, an email): a tenant's own, or
+-- a system starter (no tenant) that sync_templates keeps by key and tenants
+-- fork. forked_from: the template and version a fork copied.
+create table if not exists "better_supabase"."templates" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid,
+  "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
+  "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
+  "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
+  "is_default" boolean not null default false,
+  "settings" jsonb not null default '{}'::jsonb
+    check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536),
+  "forked_from" uuid references "better_supabase"."templates" ("id") on delete set null,
+  "forked_from_version" integer check ("forked_from_version" > 0),
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
+);
+create unique index if not exists templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
+create unique index if not exists templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
+create index if not exists templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
+create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
+create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
+alter table "better_supabase"."templates" enable row level security;
+revoke all on "better_supabase"."templates" from anon, authenticated;
+grant select on "better_supabase"."templates" to authenticated;
+grant all on "better_supabase"."templates" to service_role;
+drop policy if exists templates_read on "better_supabase"."templates";
+create policy templates_read on "better_supabase"."templates" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
+
+-- Numbered snapshots of a template's body: at most one draft, and published
+-- versions that never change. hash: the SHA-256 of the body as text.
+create table if not exists "better_supabase"."template_versions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
+  "version" integer not null check ("version" > 0),
+  "body" jsonb not null check (pg_column_size("body") <= 1048576),
+  "hash" text not null,
+  "published_at" timestamptz,
+  "created_by" uuid references auth.users (id) on delete set null,
+  "created_at" timestamptz not null default now(),
+  constraint template_versions_template_version_key unique ("template_id", "version")
+);
+create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
+create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
+alter table "better_supabase"."template_versions" enable row level security;
+revoke all on "better_supabase"."template_versions" from anon, authenticated;
+grant select on "better_supabase"."template_versions" to authenticated;
+grant all on "better_supabase"."template_versions" to service_role;
+drop policy if exists template_versions_read on "better_supabase"."template_versions";
+create policy template_versions_read on "better_supabase"."template_versions" for select to authenticated
+  using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
+
+-- Each time a published version created a record, and which one.
+create table if not exists "better_supabase"."template_applications" (
+  "id" uuid primary key default gen_random_uuid(),
+  "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
+  "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "subject_type" text not null check (length("subject_type") between 1 and 100),
+  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "applied_by" uuid references auth.users (id) on delete set null,
+  "applied_at" timestamptz not null default now()
+);
+create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
+create index if not exists template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
+create index if not exists template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
+create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
+create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
+alter table "better_supabase"."template_applications" enable row level security;
+revoke all on "better_supabase"."template_applications" from anon, authenticated;
+grant select on "better_supabase"."template_applications" to authenticated;
+grant all on "better_supabase"."template_applications" to service_role;
+drop policy if exists template_applications_read on "better_supabase"."template_applications";
+create policy template_applications_read on "better_supabase"."template_applications" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
+
+-- Creates a template (template_id null) or renames it and replaces its
+-- settings. tenant null saves a system template, which only the service
+-- role may; a tenant's needs templates.manage there.
+-- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_template.settings is not null and jsonb_typeof(save_template.settings) <> 'object' then
+    raise exception 'settings must be an object' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  if save_template.template_id is not null then
+    select * into v_row from "better_supabase"."templates" x where x."id" = save_template.template_id for update;
+    if not found or v_row."tenant_id" is distinct from save_template.tenant then
+      raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+    end if;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template.tenant is not null and coalesce(better_supabase.can('tenant', save_template.tenant, 'templates.manage'), false))) then
+    raise exception 'You may not change templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  if save_template.template_id is null and (save_template.type is null or save_template.type !~ '^[a-z][a-z0-9_.-]{0,63}$') then
+    raise exception 'type must be lower-case letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  if save_template.template_id is null and save_template.name is null then
+    raise exception 'A template needs a name' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_template_save"(uuid, text, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::jsonb)', v_hook::oid::regproc)
+        using save_template.tenant, coalesce(save_template.type, v_row."type"), save_template.settings;
+    end if;
+  end;
+  if save_template.template_id is null then
+    insert into "better_supabase"."templates" ("tenant_id", "scope", "type", "name", "language", "settings", "created_by")
+    values (
+      save_template.tenant,
+      case when save_template.tenant is null then 'system' else 'tenant' end,
+      save_template.type,
+      save_template.name,
+      coalesce(save_template.language, 'en'),
+      coalesce(save_template.settings, '{}'::jsonb),
+      (select auth.uid())
+    )
+    returning * into v_row;
+  else
+    update "better_supabase"."templates" x set
+      "name" = coalesce(save_template.name, x."name"),
+      "language" = coalesce(save_template.language, x."language"),
+      "settings" = coalesce(save_template.settings, x."settings"),
+      "is_default" = x."is_default" and coalesce(save_template.language, x."language") = x."language",
+      "updated_at" = now()
+    where x."id" = save_template.template_id
+    returning * into v_row;
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_template_save"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'scope', v_row."scope",
+    'key', v_row."key",
+    'type', v_row."type",
+    'name', v_row."name",
+    'language', v_row."language",
+    'isDefault', v_row."is_default",
+    'settings', v_row."settings",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_row."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when v_row."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_row."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+
+-- The tenant's templates and the system ones (only the system ones without
+-- a tenant), filtered by type and language, defaults first.
+create or replace function "better_supabase"."templates_list"(tenant uuid, type text, language text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  )
+    order by x."is_default" desc, x."scope" desc, x."name", x."id"), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where (x."tenant_id" = templates_list.tenant or x."scope" = 'system')
+    and (templates_list.type is null or x."type" = templates_list.type)
+    and (templates_list.language is null or x."language" = templates_list.language)
+$$;
+revoke execute on function "better_supabase"."templates_list"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."templates_list"(uuid, text, text) to authenticated, service_role;
+
+-- One template with its newest published version and its draft, bodies
+-- included; null when the caller can't read it.
+create or replace function "better_supabase"."template_get"(template_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+  from "better_supabase"."templates" x
+  where x."id" = template_get.template_id
+$$;
+revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
+grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_template"(template_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."templates" x where x."id" = remove_template.template_id;
+  if not found then
+    return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
+    raise exception 'You may not remove this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."templates" x where x."id" = remove_template.template_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_template"(uuid) to authenticated, service_role;
+
+-- Saves body as the template's draft: updates the open one, or opens one
+-- numbered after the last version.
+create or replace function "better_supabase"."save_template_draft"(template_id uuid, body jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tpl "better_supabase"."templates"%rowtype;
+  v_row "better_supabase"."template_versions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = save_template_draft.template_id for update;
+  if not found then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
+    raise exception 'You may not edit this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  if save_template_draft.body is null then
+    raise exception 'A template version needs a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  update "better_supabase"."template_versions" x set
+    "body" = save_template_draft.body,
+    "hash" = encode(extensions.digest(save_template_draft.body::text, 'sha256'), 'hex')
+  where x."template_id" = save_template_draft.template_id and x."published_at" is null
+  returning * into v_row;
+  if not found then
+    insert into "better_supabase"."template_versions" ("template_id", "version", "body", "hash", "created_by")
+    values (
+      save_template_draft.template_id,
+      coalesce((select max(y."version") from "better_supabase"."template_versions" y where y."template_id" = save_template_draft.template_id), 0) + 1,
+      save_template_draft.body,
+      encode(extensions.digest(save_template_draft.body::text, 'sha256'), 'hex'),
+      (select auth.uid())
+    )
+    returning * into v_row;
+  end if;
+  update "better_supabase"."templates" x set "updated_at" = now() where x."id" = save_template_draft.template_id;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'template', v_row."template_id",
+    'version', v_row."version",
+    'hash', v_row."hash",
+    'publishedAt', v_row."published_at",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'body', v_row."body"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."save_template_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_template_draft"(uuid, jsonb) to authenticated, service_role;
+
+-- Publishes the template's draft. Applications use the newest published
+-- version; published versions never change.
+create or replace function "better_supabase"."publish_template_version"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tpl "better_supabase"."templates"%rowtype;
+  v_row "better_supabase"."template_versions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = publish_template_version.template_id for update;
+  if not found then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
+    raise exception 'You may not publish this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  update "better_supabase"."template_versions" x set "published_at" = now()
+  where x."template_id" = publish_template_version.template_id and x."published_at" is null
+  returning * into v_row;
+  if not found then
+    raise exception 'This template has no draft to publish' using errcode = 'P0002', hint = 'TEMPLATE_NO_DRAFT';
+  end if;
+  update "better_supabase"."templates" x set "updated_at" = now() where x."id" = publish_template_version.template_id;
+  null;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'template', v_row."template_id",
+    'version', v_row."version",
+    'hash', v_row."hash",
+    'publishedAt', v_row."published_at",
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'body', v_row."body"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."publish_template_version"(uuid) from public, anon;
+grant execute on function "better_supabase"."publish_template_version"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."template_versions_list"(template_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at"
+  ) order by y."version" desc), '[]'::jsonb)
+  from "better_supabase"."template_versions" y where y."template_id" = template_versions_list.template_id
+$$;
+revoke execute on function "better_supabase"."template_versions_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."template_versions_list"(uuid) to authenticated, service_role;
+
+-- One default per tenant, type and language.
+create or replace function "better_supabase"."set_default_template"(template_id uuid, on_default boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."templates" x where x."id" = set_default_template.template_id for update;
+  if not found then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
+    raise exception 'You may not change this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  if set_default_template.on_default then
+    update "better_supabase"."templates" x set "is_default" = false, "updated_at" = now()
+    where x."tenant_id" is not distinct from v_row."tenant_id"
+      and x."type" = v_row."type" and x."language" = v_row."language"
+      and x."is_default" and x."id" <> v_row."id";
+  end if;
+  update "better_supabase"."templates" x set "is_default" = coalesce(set_default_template.on_default, false), "updated_at" = now()
+  where x."id" = set_default_template.template_id;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_default_template"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_default_template"(uuid, boolean) to authenticated, service_role;
+
+-- Copies the newest published version of source (a system template, or one
+-- in tenant) into a new template in tenant, published as its version 1, and
+-- records the version it copied. templates.manage in tenant.
+create or replace function "better_supabase"."fork_template"(source uuid, tenant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_src "better_supabase"."templates"%rowtype;
+  v_version "better_supabase"."template_versions"%rowtype;
+  v_row "better_supabase"."templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."templates" x where x."id" = fork_template.source;
+  if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
+    raise exception 'You may not create templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  select * into v_version from "better_supabase"."template_versions" y
+  where y."template_id" = fork_template.source and y."published_at" is not null
+  order by y."version" desc limit 1;
+  if not found then
+    raise exception 'This template has no published version' using errcode = 'P0002', hint = 'TEMPLATE_NOT_PUBLISHED';
+  end if;
+  insert into "better_supabase"."templates" ("tenant_id", "scope", "type", "name", "language", "settings", "forked_from", "forked_from_version", "created_by")
+  values (fork_template.tenant, 'tenant', v_src."type", v_src."name", v_src."language", v_src."settings", v_src."id", v_version."version", (select auth.uid()))
+  returning * into v_row;
+  insert into "better_supabase"."template_versions" ("template_id", "version", "body", "hash", "published_at", "created_by")
+  values (v_row."id", 1, v_version."body", v_version."hash", now(), (select auth.uid()));
+
+  return jsonb_build_object(
+    'id', v_row."id",
+    'tenant', v_row."tenant_id",
+    'scope', v_row."scope",
+    'key', v_row."key",
+    'type', v_row."type",
+    'name', v_row."name",
+    'language', v_row."language",
+    'isDefault', v_row."is_default",
+    'settings', v_row."settings",
+    'forkedFrom', v_row."forked_from",
+    'forkedFromVersion', v_row."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_row."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when v_row."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_row."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', v_row."created_by",
+    'createdAt', v_row."created_at",
+    'updatedAt', v_row."updated_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."fork_template"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."fork_template"(uuid, uuid) to authenticated, service_role;
+
+-- Upserts the system templates by key from starters, a JSON array of
+-- { key, type, name, language?, settings?, body }, and publishes a new
+-- version of each whose body changed. Returns how many it published.
+create or replace function "better_supabase"."sync_templates"(starters jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_starter jsonb;
+  v_row "better_supabase"."templates"%rowtype;
+  v_hash text;
+  v_version "better_supabase"."template_versions"%rowtype;
+  v_count integer := 0;
+begin
+  if jsonb_typeof(sync_templates.starters) <> 'array' then
+    raise exception 'starters must be an array' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
+    if coalesce(v_starter ->> 'key', '') !~ '^[a-z0-9][a-z0-9_.-]{0,99}$' or not (v_starter ? 'body') then
+      raise exception 'Each starter needs a key and a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+    end if;
+    select * into v_row from "better_supabase"."templates" x where x."tenant_id" is null and x."key" = v_starter ->> 'key' for update;
+    if not found then
+      insert into "better_supabase"."templates" ("tenant_id", "scope", "key", "type", "name", "language", "settings")
+      values (null, 'system', v_starter ->> 'key', v_starter ->> 'type', v_starter ->> 'name',
+        coalesce(v_starter ->> 'language', 'en'), coalesce(v_starter -> 'settings', '{}'::jsonb))
+      returning * into v_row;
+    else
+      update "better_supabase"."templates" x set
+        "type" = coalesce(v_starter ->> 'type', x."type"),
+        "name" = coalesce(v_starter ->> 'name', x."name"),
+        "language" = coalesce(v_starter ->> 'language', x."language"),
+        "settings" = coalesce(v_starter -> 'settings', x."settings"),
+        "updated_at" = now()
+      where x."id" = v_row."id"
+      returning * into v_row;
+    end if;
+    v_hash := encode(extensions.digest((v_starter -> 'body')::text, 'sha256'), 'hex');
+    if v_hash is distinct from (select y."hash" from "better_supabase"."template_versions" y
+        where y."template_id" = v_row."id" and y."published_at" is not null
+        order by y."version" desc limit 1) then
+      delete from "better_supabase"."template_versions" y where y."template_id" = v_row."id" and y."published_at" is null;
+      insert into "better_supabase"."template_versions" ("template_id", "version", "body", "hash", "published_at")
+      values (
+        v_row."id",
+        coalesce((select max(y."version") from "better_supabase"."template_versions" y where y."template_id" = v_row."id"), 0) + 1,
+        v_starter -> 'body',
+        v_hash,
+        now()
+      )
+      returning * into v_version;
+      v_count := v_count + 1;
+      null;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."sync_templates"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."sync_templates"(jsonb) to service_role;
+
+-- What applying template in tenant needs: the template, its newest
+-- published version with the body, and the enabled workflow attachments,
+-- each input checked against the published version's input_schema
+-- (TEMPLATE_WORKFLOW_INPUT_INVALID). templates.apply in tenant.
+create or replace function "better_supabase"."template_apply_target"(template_id uuid, tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tpl "better_supabase"."templates"%rowtype;
+  v_version "better_supabase"."template_versions"%rowtype;
+  v_workflows jsonb := '[]'::jsonb;
+begin
+  if template_apply_target.tenant is null then
+    raise exception 'Applying a template needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', template_apply_target.tenant, 'templates.apply'), false)) then
+    raise exception 'You may not apply templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = template_apply_target.template_id;
+  if not found or not (v_tpl."scope" = 'system' or v_tpl."tenant_id" = template_apply_target.tenant) then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  select * into v_version from "better_supabase"."template_versions" y
+  where y."template_id" = v_tpl."id" and y."published_at" is not null
+  order by y."version" desc limit 1;
+  if not found then
+    raise exception 'This template has no published version' using errcode = 'P0002', hint = 'TEMPLATE_NOT_PUBLISHED';
+  end if;
+
+  return jsonb_build_object(
+    'template', jsonb_build_object(
+    'id', v_tpl."id",
+    'tenant', v_tpl."tenant_id",
+    'scope', v_tpl."scope",
+    'key', v_tpl."key",
+    'type', v_tpl."type",
+    'name', v_tpl."name",
+    'language', v_tpl."language",
+    'isDefault', v_tpl."is_default",
+    'settings', v_tpl."settings",
+    'forkedFrom', v_tpl."forked_from",
+    'forkedFromVersion', v_tpl."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_tpl."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when v_tpl."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = v_tpl."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', v_tpl."created_by",
+    'createdAt', v_tpl."created_at",
+    'updatedAt', v_tpl."updated_at"
+  ),
+    'version', jsonb_build_object(
+    'id', v_version."id",
+    'template', v_version."template_id",
+    'version', v_version."version",
+    'hash', v_version."hash",
+    'publishedAt', v_version."published_at",
+    'createdBy', v_version."created_by",
+    'createdAt', v_version."created_at",
+    'body', v_version."body"
+  ),
+    'workflows', v_workflows
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."template_apply_target"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."template_apply_target"(uuid, uuid) to authenticated, service_role;
+
+-- Records that version of template created subject_type/subject_id in
+-- tenant. templates.apply in tenant.
+create or replace function "better_supabase"."record_template_application"(template_id uuid, version_id uuid, tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_tpl "better_supabase"."templates"%rowtype;
+  v_row "better_supabase"."template_applications"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if record_template_application.tenant is null then
+    raise exception 'Applying a template needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', record_template_application.tenant, 'templates.apply'), false)) then
+    raise exception 'You may not apply templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
+  end if;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = record_template_application.template_id;
+  if not found or not (v_tpl."scope" = 'system' or v_tpl."tenant_id" = record_template_application.tenant) then
+    raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  if not exists (select 1 from "better_supabase"."template_versions" y where y."id" = record_template_application.version_id
+      and y."template_id" = v_tpl."id" and y."published_at" is not null) then
+    raise exception 'Not a published version of this template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_PUBLISHED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_template_apply"(uuid, uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
+        using record_template_application.tenant, v_tpl."id", record_template_application.subject_type, record_template_application.subject_id;
+    end if;
+  end;
+  insert into "better_supabase"."template_applications" ("template_id", "version_id", "tenant_id", "subject_type", "subject_id", "applied_by")
+  values (v_tpl."id", record_template_application.version_id, record_template_application.tenant,
+    record_template_application.subject_type, record_template_application.subject_id, (select auth.uid()))
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_template_apply"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'template', v_row."template_id",
+    'version', v_row."version_id",
+    'tenant', v_row."tenant_id",
+    'subjectType', v_row."subject_type",
+    'subjectId', v_row."subject_id",
+    'appliedBy', v_row."applied_by",
+    'appliedAt', v_row."applied_at"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_template_application"(uuid, uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."record_template_application"(uuid, uuid, uuid, text, text) to authenticated, service_role;
+
+-- The tenant's applications, newest first, of one template or onto one
+-- subject when those are given.
+create or replace function "better_supabase"."template_applications_list"(tenant uuid, template_id uuid, subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(r.value order by r.at desc, r.id), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+    'id', a."id",
+    'template', a."template_id",
+    'version', a."version_id",
+    'tenant', a."tenant_id",
+    'subjectType', a."subject_type",
+    'subjectId', a."subject_id",
+    'appliedBy', a."applied_by",
+    'appliedAt', a."applied_at"
+  ) as value, a."applied_at" as at, a."id" as id
+    from "better_supabase"."template_applications" a
+    where a."tenant_id" = template_applications_list.tenant
+      and (template_applications_list.template_id is null or a."template_id" = template_applications_list.template_id)
+      and (template_applications_list.subject_type is null or a."subject_type" = template_applications_list.subject_type)
+      and (template_applications_list.subject_id is null or a."subject_id" = template_applications_list.subject_id)
+    order by a."applied_at" desc, a."id"
+    limit 200
+  ) r
+$$;
+revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== data supabase/better-supabase-data/900_better_supabase_091_templates.sql
+-- better-supabase module: templates
+-- @bsb-block-data templates
+-- @bsb-hash sha256:b8f109c9be802b16766dc2421c68f34cacf2322c02b9c507938fd08f01f94689
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create extension if not exists "pgcrypto" with schema "extensions";
+
+insert into better_supabase.blocks (name, version, mode)
+values ('templates', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

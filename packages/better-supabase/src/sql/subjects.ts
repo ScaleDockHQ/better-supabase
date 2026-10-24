@@ -425,7 +425,10 @@ function subjectTableBinding(
   };
 }
 
-/** Every subject table binding `key` declares, for adopt-mode column checks. */
+/**
+ * Every subject table binding `key` declares, for the column checks over app
+ * tables.
+ */
 export function subjectTableBindings(
   ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],

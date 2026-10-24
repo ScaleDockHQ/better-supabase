@@ -32,7 +32,7 @@ export function modulePath(
 
   return module.target === "test"
     ? `${testsDir}/000_better_supabase_${slug}.test.sql`
-    : `${dir}/${prefix}_${String(position).padStart(2, "0")}_${slug}.sql`;
+    : `${dir}/${prefix}_${String(position).padStart(3, "0")}_${slug}.sql`;
 }
 
 /**
@@ -68,11 +68,23 @@ export function moduleFilePaths(
 }
 
 /**
- * Where a module's data statements go: `better-supabase-data/` next to the
+ * The folder for module data statements: `better-supabase-data/` next to the
  * declarative schema folder, or next to `dir` when `dir` is outside it.
  * pg-delta loads every file under the schema folder, nested folders included,
  * and rejects a managed table that has rows afterwards.
  */
+export function moduleDataDir(layout: BlockSqlLayout): string {
+  const dir = (layout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
+  const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");
+  const schemas = bare(layout.schemasDir ?? CONFIG_DEFAULTS.sql.dir);
+  const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
+  const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
+  const parent = base.lastIndexOf("/");
+
+  return `${parent === -1 ? "" : base.slice(0, parent + 1)}better-supabase-data`;
+}
+
+/** The data file of `module`, in `moduleDataDir`. */
 export function moduleDataPath(
   module: BlockSql,
   layout: BlockSqlLayout,
@@ -80,12 +92,6 @@ export function moduleDataPath(
 ): string {
   const path = modulePath(module, layout, instance);
   const file = path.slice(path.lastIndexOf("/"));
-  const dir = path.slice(0, path.lastIndexOf("/"));
-  const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");
-  const schemas = bare(layout.schemasDir ?? CONFIG_DEFAULTS.sql.dir);
-  const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
-  const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
-  const parent = base.lastIndexOf("/");
 
-  return `${parent === -1 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
+  return `${moduleDataDir(layout)}${file}`;
 }

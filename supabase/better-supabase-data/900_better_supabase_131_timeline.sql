@@ -1,8 +1,9 @@
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
+-- @bsb-hash sha256:bb23b7cd67670a73cbec8ff09f4097d1e4368fe94954344993bab88288bc8070
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

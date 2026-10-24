@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { lockModuleTable } from "./over-app.ts";
 
 export interface WorkflowParts {
   readonly ddl: string;
@@ -36,6 +37,12 @@ export function workflowParts(
   const cv = (column: string): string => builder.col("versions", column);
   const errors = fn("template_workflow_input_errors");
 
+  // A system definition has no tenant; the scope column, when the app keeps
+  // one, says so too.
+  const systemDefinition = builder.has("definitions", "scope")
+    ? `v_def.${cd("scope")} = 'system'`
+    : `v_def.${cd("tenant")} is null`;
+
   const fullCheck = shared.schemas
     ? `
   if cardinality(v_errors) = 0 then
@@ -69,7 +76,7 @@ create table if not exists ${wf} (
 );
 create index if not exists template_workflows_definition_idx on ${wf} (${cw("definition")});
 create index if not exists template_workflows_created_by_idx on ${wf} (${cw("createdBy")});
-${lockTable(wf, { read: true })}
+${lockModuleTable(ctx, "workflows", { read: true })}
 drop policy if exists template_workflows_read on ${wf};
 create policy template_workflows_read on ${wf} for select to authenticated
   using (exists (select 1 from ${t} x where x.${ct("id")} = ${cw("template")}));
@@ -149,7 +156,7 @@ begin
     ${fail("TEMPLATE_FORBIDDEN", "You may not change this template")}
   end if;
   select * into v_def from ${d} x where x.${cd("id")} = attach_template_workflow.definition;
-  if not found or not (v_def.${cd("scope")} = 'system' or v_def.${cd("tenant")} is not distinct from v_tpl.${ct("tenant")}) then
+  if not found or not (${systemDefinition} or v_def.${cd("tenant")} is not distinct from v_tpl.${ct("tenant")}) then
     ${fail("TEMPLATE_WORKFLOW_NOT_FOUND", "No such workflow", "P0002")}
   end if;
   v_errors := ${errors}(attach_template_workflow.definition, coalesce(attach_template_workflow.inputs, '{}'::jsonb));

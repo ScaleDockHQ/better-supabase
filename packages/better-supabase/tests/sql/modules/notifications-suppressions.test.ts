@@ -2,16 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { customContracts, moduleBody } from "../../../src/sql/render.ts";
+import {
+  customContracts,
+  moduleBody,
+  renderBlocks,
+} from "../../../src/sql/render.ts";
+import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
+const overApp = (modules: AnyBlocksConfig) =>
+  renderBlocks(["notifications"], { modules, ownTables: ownTablesOf(modules) })
+    .filter((file) => file.module === "notifications")
+    .map((file) => file.contents)
+    .join("\n");
+
 const TABLE = '"better_supabase"."notification_suppressions"';
 
-const ADOPTED: AnyBlocksConfig = {
+const APP_TABLES: AnyBlocksConfig = {
   notifications: {
-    mode: "adopt",
     schema: "public",
     idType: "uuid",
     columns: {
@@ -80,11 +90,10 @@ describe("notification suppressions", () => {
     );
   });
 
-  it("leaves suppressions out without deliveries, when mapped to null, and for an adopter that does not map them", () => {
+  it("leaves suppressions out without deliveries and when mapped to null", () => {
     for (const modules of [
       { notifications: { tables: { deliveries: null } } },
       { notifications: { tables: { suppressions: null } } },
-      ADOPTED,
     ] satisfies AnyBlocksConfig[]) {
       const sql = body(modules);
       expect(sql).not.toContain("notification_suppressions");
@@ -92,15 +101,32 @@ describe("notification suppressions", () => {
     }
   });
 
-  it("uses an adopter's mapped table without creating it", () => {
-    const sql = body({
+  it("creates its own suppressions table next to the app's tables when the app maps none", () => {
+    const sql = overApp(APP_TABLES);
+    expect(sql).toContain(
+      `create table if not exists "public"."notification_suppressions" (`,
+    );
+    expect(sql).not.toContain(
+      `create table if not exists "public"."notification_deliveries" (`,
+    );
+  });
+
+  it("uses the app's mapped suppressions table without creating it", () => {
+    const modules: AnyBlocksConfig = {
       notifications: {
-        ...ADOPTED["notifications"],
+        ...APP_TABLES["notifications"],
         tables: { suppressions: "public.email_suppressions" },
       },
-    });
+    };
 
-    expect(sql).not.toContain("create table if not exists");
+    const sql = overApp(modules);
+
+    expect(sql).not.toContain(
+      `create table if not exists "public"."email_suppressions"`,
+    );
+    expect(sql).toContain(
+      `alter table "public"."email_suppressions" add column if not exists`,
+    );
     expect(sql).toContain(`left join "public"."email_suppressions" s on`);
     expect(sql).toContain("suppress_notification_address");
   });

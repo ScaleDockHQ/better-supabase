@@ -215,7 +215,7 @@ ${edges}
     ${fail("ORDERS_TRANSITION_INVALID", "the order can't move to this status", "55000")}
   end if;`
   }
-  update ${ctx.table("orders")} x set ${o("status")} = p_to, ${o("updatedAt")} = now(),
+  update ${ctx.table("orders")} x set ${o("status")} = ${ctx.cast("orders", "status", "p_to")}, ${o("updatedAt")} = now(),
     ${o("paidAt")} = case when p_to = 'paid' then coalesce(x.${o("paidAt")}, now()) else x.${o("paidAt")} end,
     ${o("fulfilledAt")} = case when p_to = 'fulfilled' then now() when p_to = 'paid' then null else x.${o("fulfilledAt")} end,
     ${o("completedAt")} = case when p_to = 'completed' then now() else x.${o("completedAt")} end,

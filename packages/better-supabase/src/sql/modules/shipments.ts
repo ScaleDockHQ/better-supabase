@@ -19,7 +19,6 @@ import {
   addForeignKey,
   extraFieldsArg,
   fail,
-  lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -31,6 +30,7 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The most packages one shipment holds. */
@@ -80,6 +80,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     shipments: {
       name: "shipments",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -107,9 +108,19 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "fromLocation",
+        "subjectType",
+        "subjectId",
+        "trackingUrl",
+        "labelUrl",
+        "createdBy",
+      ],
+      typed: ["status"],
     },
     packages: {
       name: "shipment_packages",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -122,9 +133,11 @@ const NAMES: BlockSqlNames = {
         height: "height_mm",
         reference: "reference",
       },
+      optional: ["length", "width", "height", "reference"],
     },
     trackingEvents: {
       name: "shipment_tracking_events",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -138,6 +151,8 @@ const NAMES: BlockSqlNames = {
         source: "source",
         createdAt: "created_at",
       },
+      optional: ["description", "location"],
+      typed: ["status"],
     },
   },
 };
@@ -167,14 +182,39 @@ function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
   const read = ctx.permission("read", moduleOperations("shipments").read);
   const readable = (tenant: string): string => ctx.scope.check(tenant, read);
 
+  const subject =
+    ctx.has("shipments", "subjectType") && ctx.has("shipments", "subjectId");
+
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
-  const size = (column: string): string =>
-    `${column} integer check (${column} is null or ${column} > 0)`;
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
+  const size = (logical: string): string =>
+    column(
+      "packages",
+      logical,
+      (name) => `${name} integer check (${name} is null or ${name} > 0)`,
+    );
+
+  const https = (logical: string): string =>
+    column(
+      "shipments",
+      logical,
+      (name) =>
+        `${name} text check (${name} is null or ${name} ~ '^https://' and length(${name}) <= 2000)`,
+    );
 
   const locationKey =
-    assets === undefined
+    assets === undefined || !ctx.has("shipments", "fromLocation")
       ? ""
       : `\n${addForeignKey({
           table: shipments,
@@ -193,35 +233,26 @@ create table if not exists ${shipments} (
   ${h("reference")} text not null check (length(${h("reference")}) >= 1 and length(${h("reference")}) <= 100),
   ${h("status")} text not null default 'draft' check (${h("status")} in (${list(SHIPMENT_STATUSES)})),
   ${h("fromAddress")} jsonb not null check ${addressValid(h("fromAddress"))},
-  ${h("toAddress")} jsonb not null check ${addressValid(h("toAddress"))},
-  ${h("fromLocation")} uuid,
-  ${h("subjectType")} text check (${h("subjectType")} is null or ${h("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${h("subjectId")} text check (${h("subjectId")} is null or length(${h("subjectId")}) >= 1 and length(${h("subjectId")}) <= 200),
+  ${h("toAddress")} jsonb not null check ${addressValid(h("toAddress"))},${column("shipments", "fromLocation", (name) => `${name} uuid`)}${column("shipments", "subjectType", (name) => `${name} text check (${name} is null or ${name} ~ '^[a-z][a-z0-9_-]{0,62}$')`)}${column("shipments", "subjectId", (name) => `${name} text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 200)`)}
   ${h("carrier")} text check (${h("carrier")} is null or length(${h("carrier")}) >= 1 and length(${h("carrier")}) <= 100),
   ${h("service")} text check (${h("service")} is null or length(${h("service")}) >= 1 and length(${h("service")}) <= 100),
-  ${h("trackingNumber")} text check (${h("trackingNumber")} is null or length(${h("trackingNumber")}) >= 1 and length(${h("trackingNumber")}) <= 100),
-  ${h("trackingUrl")} text check (${h("trackingUrl")} is null or ${h("trackingUrl")} ~ '^https://' and length(${h("trackingUrl")}) <= 2000),
-  ${h("labelId")} text check (${h("labelId")} is null or length(${h("labelId")}) >= 1 and length(${h("labelId")}) <= 200),
-  ${h("labelUrl")} text check (${h("labelUrl")} is null or ${h("labelUrl")} ~ '^https://' and length(${h("labelUrl")}) <= 2000),
+  ${h("trackingNumber")} text check (${h("trackingNumber")} is null or length(${h("trackingNumber")}) >= 1 and length(${h("trackingNumber")}) <= 100),${https("trackingUrl")}
+  ${h("labelId")} text check (${h("labelId")} is null or length(${h("labelId")}) >= 1 and length(${h("labelId")}) <= 200),${https("labelUrl")}
   ${h("labelFormat")} text check (${h("labelFormat")} is null or ${h("labelFormat")} in (${list(LABEL_FORMATS)})),
   ${h("labelCost")} bigint check (${h("labelCost")} is null or ${h("labelCost")} >= 0),
   ${h("currency")} text check (${h("currency")} is null or ${h("currency")} ~ '^[A-Z]{3}$'),
   ${h("labeledAt")} timestamptz,
   ${h("deliveredAt")} timestamptz,
-  ${h("cancelledAt")} timestamptz,
-  ${h("createdBy")} uuid,
+  ${h("cancelledAt")} timestamptz,${column("shipments", "createdBy", (name) => `${name} uuid`)}
   ${h("createdAt")} timestamptz not null default now(),
-  ${h("updatedAt")} timestamptz not null default now(),
-  check ((${h("subjectType")} is null) = (${h("subjectId")} is null)),
+  ${h("updatedAt")} timestamptz not null default now(),${subject ? `\n  check ((${h("subjectType")} is null) = (${h("subjectId")} is null)),` : ""}
   check ((${h("labelCost")} is null) = (${h("currency")} is null)),
   check (${h("status")} in ('draft', 'cancelled') or (${h("carrier")} is not null and ${h("trackingNumber")} is not null))
 );${addExtraColumns(shipments, extras)}
 create index if not exists ${index("shipments", "tenant_idx")} on ${shipments} (${h("tenant")}, ${h("createdAt")} desc);
 create index if not exists ${index("shipments", "status_idx")} on ${shipments} (${h("tenant")}, ${h("status")});
-create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;
-create index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});
-create index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});
-${lockTable(shipments, { read: true })}
+create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;${subject ? `\ncreate index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});` : ""}${ctx.has("shipments", "fromLocation") ? `\ncreate index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});` : ""}
+${lockModuleTable(ctx, "shipments", { read: true })}
 drop policy if exists ${index("shipments", "read")} on ${shipments};
 create policy ${index("shipments", "read")} on ${shipments} for select to authenticated
   using (${readable(h("tenant"))});
@@ -230,14 +261,10 @@ create table if not exists ${packages} (
   ${p("tenant")} ${ctx.idType} not null,
   ${p("shipment")} uuid not null references ${shipments} (${h("id")}) on delete cascade,
   ${p("position")} integer not null check (${p("position")} >= 1),
-  ${p("weight")} integer not null check (${p("weight")} > 0),
-  ${size(p("length"))},
-  ${size(p("width"))},
-  ${size(p("height"))},
-  ${p("reference")} text check (${p("reference")} is null or length(${p("reference")}) <= 100),
+  ${p("weight")} integer not null check (${p("weight")} > 0),${size("length")}${size("width")}${size("height")}${column("packages", "reference", (name) => `${name} text check (${name} is null or length(${name}) <= 100)`)}
   unique (${p("shipment")}, ${p("position")})
 );
-${lockTable(packages, { read: true })}
+${lockModuleTable(ctx, "packages", { read: true })}
 drop policy if exists ${index("packages", "read")} on ${packages};
 create policy ${index("packages", "read")} on ${packages} for select to authenticated
   using (${readable(p("tenant"))});
@@ -249,15 +276,13 @@ create table if not exists ${events} (
   ${e("shipment")} uuid not null references ${shipments} (${h("id")}) on delete cascade,
   ${e("externalId")} text not null check (length(${e("externalId")}) >= 1 and length(${e("externalId")}) <= 200),
   ${e("status")} text not null check (${e("status")} in (${list(TRACKING_STATUSES)})),
-  ${e("occurredAt")} timestamptz not null,
-  ${e("description")} text check (${e("description")} is null or length(${e("description")}) <= 1000),
-  ${e("location")} text check (${e("location")} is null or length(${e("location")}) <= 200),
+  ${e("occurredAt")} timestamptz not null,${column("trackingEvents", "description", (name) => `${name} text check (${name} is null or length(${name}) <= 1000)`)}${column("trackingEvents", "location", (name) => `${name} text check (${name} is null or length(${name}) <= 200)`)}
   ${e("source")} text not null check (${e("source")} in ('carrier', 'webhook', 'manual')),
   ${e("createdAt")} timestamptz not null default now(),
   unique (${e("shipment")}, ${e("externalId")})
-);
+);${appUniqueIndex(ctx, "trackingEvents", ["shipment", "externalId"])}
 create index if not exists ${index("trackingEvents", "timeline_idx")} on ${events} (${e("shipment")}, ${e("occurredAt")});
-${lockTable(events, { read: true })}
+${lockModuleTable(ctx, "trackingEvents", { read: true })}
 drop policy if exists ${index("trackingEvents", "read")} on ${events};
 create policy ${index("trackingEvents", "read")} on ${events} for select to authenticated
   using (${readable(e("tenant"))});${locationKey}
@@ -282,21 +307,59 @@ function functions(
   const assets = assetsOf(ctx);
   const fields = extraFieldsArg(extras);
 
+  const linked =
+    ctx.has("shipments", "subjectType") && ctx.has("shipments", "subjectId");
+
+  const location = ctx.has("shipments", "fromLocation");
+
+  // A status read compared with text.
+  const shipStatus = (row: string): string =>
+    asText(ctx, "shipments", `${row}.${h("status")}`);
+
+  const eventStatus = (row: string): string =>
+    asText(ctx, "trackingEvents", `${row}.${e("status")}`);
+
+  // A column of row, or null when the app maps it to null.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // ", <value>" matching also().
+  const alsoValue = (table: string, logical: string, value: string): string =>
+    ctx.has(table, logical) ? `, ${value}` : "";
+
+  // value when the column exists, for lines().
+  const present = (
+    table: string,
+    logical: string,
+    value: string,
+  ): string | undefined => (ctx.has(table, logical) ? value : undefined);
+
+  // The values of an insert, the present ones of each group on a line.
+  const lines = (...groups: readonly (string | undefined)[][]): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(",\n      ");
+
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
   const packagesJson = (row: string): string =>
-    `(select coalesce(jsonb_agg(jsonb_build_object('id', pk.${p("id")}, 'position', pk.${p("position")}, 'weightGrams', pk.${p("weight")}, 'lengthMm', pk.${p("length")}, 'widthMm', pk.${p("width")}, 'heightMm', pk.${p("height")}, 'reference', pk.${p("reference")}) order by pk.${p("position")}), '[]'::jsonb) from ${packages} pk where pk.${p("shipment")} = ${row}.${h("id")})`;
+    `(select coalesce(jsonb_agg(jsonb_build_object('id', pk.${p("id")}, 'position', pk.${p("position")}, 'weightGrams', pk.${p("weight")}, 'lengthMm', ${or("packages", "pk", "length")}, 'widthMm', ${or("packages", "pk", "width")}, 'heightMm', ${or("packages", "pk", "height")}, 'reference', ${or("packages", "pk", "reference")}) order by pk.${p("position")}), '[]'::jsonb) from ${packages} pk where pk.${p("shipment")} = ${row}.${h("id")})`;
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${row}.${h("status")}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${row}.${h("fromLocation")}, 'subjectType', ${row}.${h("subjectType")}, 'subjectId', ${row}.${h("subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${row}.${h("trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${row}.${h("labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${row}.${h("createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${row}.${h("status")}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)})`,
       row,
       extras,
     );
 
   const eventJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'externalId', ${row}.${e("externalId")}, 'status', ${row}.${e("status")}, 'occurredAt', ${row}.${e("occurredAt")}, 'description', ${row}.${e("description")}, 'location', ${row}.${e("location")}, 'source', ${row}.${e("source")}, 'createdAt', ${row}.${e("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'externalId', ${row}.${e("externalId")}, 'status', ${row}.${e("status")}, 'occurredAt', ${row}.${e("occurredAt")}, 'description', ${or("trackingEvents", row, "description")}, 'location', ${or("trackingEvents", row, "location")}, 'source', ${row}.${e("source")}, 'createdAt', ${row}.${e("createdAt")})`;
 
   const subject = (row: string): string =>
     `'shipments/' || ${row}.${h("id")}::text`;
@@ -322,8 +385,8 @@ function functions(
   end if;
   begin
     with inserted as (
-      insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}, ${e("description")}, ${e("location")}, ${e("source")})
-      select v_ship.${h("tenant")}, v_ship.${h("id")}, i ->> 'id', i ->> 'status', (i ->> 'occurredAt')::timestamptz, nullif(i ->> 'description', ''), nullif(i ->> 'location', ''), ${source}
+      insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}${also("trackingEvents", "description")}${also("trackingEvents", "location")}, ${e("source")})
+      select v_ship.${h("tenant")}, v_ship.${h("id")}, i ->> 'id', ${ctx.cast("trackingEvents", "status", "i ->> 'status'")}, (i ->> 'occurredAt')::timestamptz${alsoValue("trackingEvents", "description", "nullif(i ->> 'description', '')")}${alsoValue("trackingEvents", "location", "nullif(i ->> 'location', '')")}, ${source}
       from jsonb_array_elements(${input}) i
       on conflict (${e("shipment")}, ${e("externalId")}) do nothing
       returning 1
@@ -343,15 +406,15 @@ function functions(
 
   // Moves v_ship to the status of its latest tracking event, unless it was
   // cancelled. Ties on the time go to the later stage.
-  const syncStatus = `  select t.${e("status")}, t.${e("occurredAt")} into v_status, v_at
+  const syncStatus = `  select ${eventStatus("t")}, t.${e("occurredAt")} into v_status, v_at
     from ${events} t
     where t.${e("shipment")} = v_ship.${h("id")}
-    order by t.${e("occurredAt")} desc, array_position(array[${list(TRACKING_STATUSES)}]::text[], t.${e("status")}) desc
+    order by t.${e("occurredAt")} desc, array_position(array[${list(TRACKING_STATUSES)}]::text[], ${eventStatus("t")}) desc
     limit 1;
-  if v_status is not null and v_ship.${h("status")} <> 'cancelled' and v_status <> v_ship.${h("status")} then
+  if v_status is not null and v_ship.${h("status")} <> 'cancelled' and v_status <> ${shipStatus("v_ship")} then
     v_from := v_ship.${h("status")};
     update ${shipments} x set
-      ${h("status")} = v_status,
+      ${h("status")} = ${ctx.cast("shipments", "status", "v_status")},
       ${h("deliveredAt")} = case when v_status = 'delivered' then v_at end,
       ${h("updatedAt")} = now()
     where x.${h("id")} = v_ship.${h("id")}
@@ -365,8 +428,8 @@ function functions(
   v_at timestamptz;
   v_from text;`;
 
-  const locationCheck =
-    assets === undefined
+  const locationCheck = location
+    ? assets === undefined
       ? `  if create_shipment.from_location_id is not null then
     ${fail("SHIPMENT_ASSETS_MISSING", "install the assets block to ship from one of its locations", "22023")}
   end if;`
@@ -375,6 +438,9 @@ function functions(
     where l.${assets.col("locations", "id")} = create_shipment.from_location_id and l.${assets.col("locations", "tenant")} = create_shipment.tenant
   ) then
     ${fail("SHIPMENT_LOCATION_NOT_FOUND", "the location does not exist in this organization", "P0002")}
+  end if;`
+    : `  if create_shipment.from_location_id is not null then
+    ${fail("SHIPMENT_LOCATION_UNSUPPORTED", "this shipments table has no ship-from location column", "22023")}
   end if;`;
 
   const createDrop = fields.drop(
@@ -418,33 +484,66 @@ begin
   if (create_shipment.subject_type is null) <> (create_shipment.subject_id is null) then
     ${fail("SHIPMENT_SUBJECT_INVALID", "pass both subject_type and subject_id, or neither", "22023")}
   end if;
-  if create_shipment.subject_type is not null
+${
+  linked
+    ? `  if create_shipment.subject_type is not null
     and ${subjectTenant(ctx, "create_shipment.subject_type", "create_shipment.subject_id")} is distinct from create_shipment.tenant::text then
     ${fail("SHIPMENT_SUBJECT_NOT_FOUND", "the record does not exist in this organization", "P0002")}
-  end if;
+  end if;`
+    : `  if create_shipment.subject_type is not null then
+    ${fail("SHIPMENT_SUBJECT_UNSUPPORTED", "this shipments table has no record columns", "22023")}
+  end if;`
+}
 ${locationCheck}
   begin
-    insert into ${shipments} (${h("tenant")}, ${h("reference")}, ${h("fromAddress")}, ${h("toAddress")}, ${h("fromLocation")}, ${h("subjectType")}, ${h("subjectId")}, ${h("createdBy")})
+    insert into ${shipments} (${h("tenant")}, ${h("reference")}, ${h("fromAddress")}, ${h("toAddress")}${also("shipments", "fromLocation")}${also("shipments", "subjectType")}${also("shipments", "subjectId")}${also("shipments", "createdBy")})
     values (create_shipment.tenant,
       coalesce(nullif(btrim(create_shipment.reference), ''), 'SHP-' || upper(substr(md5(gen_random_uuid()::text), 1, 10))),
-      create_shipment.from_address, create_shipment.to_address, create_shipment.from_location_id,
-      create_shipment.subject_type, create_shipment.subject_id, auth.uid())
+      ${lines(
+        [
+          "create_shipment.from_address",
+          "create_shipment.to_address",
+          present(
+            "shipments",
+            "fromLocation",
+            "create_shipment.from_location_id",
+          ),
+        ],
+        [
+          present("shipments", "subjectType", "create_shipment.subject_type"),
+          present("shipments", "subjectId", "create_shipment.subject_id"),
+          present("shipments", "createdBy", "auth.uid()"),
+        ],
+      )})
     returning * into v_ship;
   exception when check_violation then
     ${fail("SHIPMENT_INVALID", "a shipment reference has 1 to 100 characters", "22023")}
   end;
   begin
-    insert into ${packages} (${p("tenant")}, ${p("shipment")}, ${p("position")}, ${p("weight")}, ${p("length")}, ${p("width")}, ${p("height")}, ${p("reference")})
+    insert into ${packages} (${p("tenant")}, ${p("shipment")}, ${p("position")}, ${p("weight")}${also("packages", "length")}${also("packages", "width")}${also("packages", "height")}${also("packages", "reference")})
     select v_ship.${h("tenant")}, v_ship.${h("id")}, k.position,
-      (k.item ->> 'weightGrams')::integer, (k.item ->> 'lengthMm')::integer, (k.item ->> 'widthMm')::integer, (k.item ->> 'heightMm')::integer,
-      nullif(k.item ->> 'reference', '')
+      ${lines(
+        [
+          "(k.item ->> 'weightGrams')::integer",
+          present("packages", "length", "(k.item ->> 'lengthMm')::integer"),
+          present("packages", "width", "(k.item ->> 'widthMm')::integer"),
+          present("packages", "height", "(k.item ->> 'heightMm')::integer"),
+        ],
+        [
+          present(
+            "packages",
+            "reference",
+            "nullif(k.item ->> 'reference', '')",
+          ),
+        ],
+      )}
     from jsonb_array_elements(create_shipment.packages) with ordinality as k(item, position);
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     ${fail("SHIPMENT_PACKAGE_INVALID", "each package needs a weightGrams and sizes in whole millimeters above zero", "22023")}
   end;${writeExtraColumns(shipments, extras, "create_shipment.fields", `x.${h("id")} = v_ship.${h("id")}`, "v_ship")}
   ${ctx.record({
     type: "shipment.created",
-    payload: `jsonb_build_object(${base("v_ship")}, 'reference', v_ship.${h("reference")}, 'subjectType', v_ship.${h("subjectType")}, 'subjectId', v_ship.${h("subjectId")})`,
+    payload: `jsonb_build_object(${base("v_ship")}, 'reference', v_ship.${h("reference")}, 'subjectType', ${or("shipments", "v_ship", "subjectType")}, 'subjectId', ${or("shipments", "v_ship", "subjectId")})`,
     subject: subject("v_ship"),
     tenant: `v_ship.${h("tenant")}`,
     audit: audited("v_ship", "created shipment"),
@@ -494,8 +593,8 @@ begin
       select ${shipmentJson("x")} as item, x.${h("createdAt")} as created, x.${h("id")} as id
       from ${shipments} x
       where x.${h("tenant")} = list_shipments.tenant
-        and (list_shipments.status is null or x.${h("status")} = list_shipments.status)
-        and (list_shipments.subject_type is null or (x.${h("subjectType")} = list_shipments.subject_type and x.${h("subjectId")} = list_shipments.subject_id))
+        and (list_shipments.status is null or ${shipStatus("x")} = list_shipments.status)
+        and (list_shipments.subject_type is null or ${linked ? `(x.${h("subjectType")} = list_shipments.subject_type and x.${h("subjectId")} = list_shipments.subject_id)` : "false"})
         and (list_shipments.carrier is null or x.${h("carrier")} = list_shipments.carrier)
         and (list_shipments.before is null or x.${h("createdAt")} < list_shipments.before)
       order by x.${h("createdAt")} desc, x.${h("id")} desc
@@ -526,10 +625,8 @@ ${findForWrite("set_shipment_label.shipment_id")}
     update ${shipments} x set
       ${h("carrier")} = set_shipment_label.carrier,
       ${h("service")} = set_shipment_label.service,
-      ${h("trackingNumber")} = set_shipment_label.tracking_number,
-      ${h("trackingUrl")} = set_shipment_label.tracking_url,
-      ${h("labelId")} = set_shipment_label.label_id,
-      ${h("labelUrl")} = set_shipment_label.label_url,
+      ${h("trackingNumber")} = set_shipment_label.tracking_number,${ctx.has("shipments", "trackingUrl") ? `\n      ${h("trackingUrl")} = set_shipment_label.tracking_url,` : ""}
+      ${h("labelId")} = set_shipment_label.label_id,${ctx.has("shipments", "labelUrl") ? `\n      ${h("labelUrl")} = set_shipment_label.label_url,` : ""}
       ${h("labelFormat")} = coalesce(set_shipment_label.label_format, 'pdf'),
       ${h("labelCost")} = set_shipment_label.label_cost,
       ${h("currency")} = set_shipment_label.currency,
@@ -546,8 +643,8 @@ ${findForWrite("set_shipment_label.shipment_id")}
   if v_ship.${h("carrier")} is null or v_ship.${h("service")} is null or v_ship.${h("trackingNumber")} is null or v_ship.${h("labelId")} is null or v_ship.${h("labelCost")} is null then
     ${fail("SHIPMENT_LABEL_INVALID", "a label needs a carrier, service, tracking number, label id, a cost of zero or more and a currency", "22023")}
   end if;
-  insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}, ${e("description")}, ${e("source")})
-  values (v_ship.${h("tenant")}, v_ship.${h("id")}, 'label:' || v_ship.${h("labelId")}, 'label_created', now(), 'Label created', 'carrier')
+  insert into ${events} (${e("tenant")}, ${e("shipment")}, ${e("externalId")}, ${e("status")}, ${e("occurredAt")}${also("trackingEvents", "description")}, ${e("source")})
+  values (v_ship.${h("tenant")}, v_ship.${h("id")}, 'label:' || v_ship.${h("labelId")}, 'label_created', now()${alsoValue("trackingEvents", "description", "'Label created'")}, 'carrier')
   on conflict (${e("shipment")}, ${e("externalId")}) do nothing;
   ${ctx.record({
     type: "shipment.labeled",
@@ -667,7 +764,7 @@ begin
     ${fail("SHIPMENT_NOT_FOUND", "shipment not found", "P0002")}
   end if;
   return (
-    select coalesce(jsonb_agg(${eventJson("t")} order by t.${e("occurredAt")}, array_position(array[${list(TRACKING_STATUSES)}]::text[], t.${e("status")})), '[]'::jsonb)
+    select coalesce(jsonb_agg(${eventJson("t")} order by t.${e("occurredAt")}, array_position(array[${list(TRACKING_STATUSES)}]::text[], ${eventStatus("t")})), '[]'::jsonb)
     from ${events} t
     where t.${e("shipment")} = v_ship.${h("id")}
   );
@@ -682,6 +779,13 @@ ${userGrant(`${fn("list_tracking_events")}(uuid)`)}
  * into.
  */
 function shipmentMerges(ctx: BlockSqlContext): string {
+  if (
+    !ctx.has("shipments", "subjectType") ||
+    !ctx.has("shipments", "subjectId")
+  ) {
+    return "";
+  }
+
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [

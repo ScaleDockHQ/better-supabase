@@ -8,6 +8,9 @@ pre-commit:
         - "tests/validation-*/src/wiring/*.generated.ts"
         - "tests/types/*/*.generated.ts"
         - "apps/examples/**/lib/supabase/*.generated.ts"
+        - "apps/examples/**/lib/supabase/generated.*"
+        - "tests/types/**/generated.*"
+        - "**/database.types.ts"
         - "supabase/snapshot.json"
       run: pnpm exec ultracite fix {staged_files}
       stage_fixed: true

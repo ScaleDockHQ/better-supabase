@@ -106,6 +106,7 @@ export const MESSAGING_NAMES: BlockSqlNames = {
   tables: {
     conversations: {
       name: "conversations",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -122,9 +123,11 @@ export const MESSAGING_NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["kind", "access"],
     },
     members: {
       name: "conversation_members",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         conversation: "conversation_id",
@@ -135,9 +138,12 @@ export const MESSAGING_NAMES: BlockSqlNames = {
         lastReadAt: "last_read_at",
         joinedAt: "joined_at",
       },
+      optional: ["notify", "joinedAt"],
+      typed: ["role", "notify"],
     },
     messages: {
       name: "messages",
+      app: {},
       lifecycle: { tenant: "tenant", user: "author", export: true },
       columns: {
         id: "id",
@@ -166,6 +172,8 @@ export const MESSAGING_NAMES: BlockSqlNames = {
         deletedAt: "deleted_at",
         createdAt: "created_at",
       },
+      optional: ["anchor", "scheduledFor", "resolvedAt", "resolvedBy"],
+      typed: ["kind", "mentionScope"],
     },
     edits: {
       name: "message_edits",

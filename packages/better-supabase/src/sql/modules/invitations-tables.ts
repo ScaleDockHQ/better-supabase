@@ -84,9 +84,9 @@ export interface InviteTable {
  * Whether platform invitations live in the tenant table, as rows without a
  * tenant.
  */
-function sharesTable(ctx: BlockSqlContext): boolean {
+export function sharesTable(ctx: BlockSqlContext): boolean {
   return (
-    !ctx.manages &&
+    !ctx.owns("invitations") &&
     typeof ctx.config.tables["platformInvitations"] === "string" &&
     ctx.table("platformInvitations") === ctx.table("invitations")
   );
@@ -107,10 +107,10 @@ const INVITATION_KEYS = [
 export function tenantTable(ctx: BlockSqlContext): InviteTable {
   const shared = sharesTable(ctx);
 
-  // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
+  // The block's table adds prefill only on request (`blocks.invitations.options.prefill`).
   const prefill =
     ctx.has("invitations", "prefill") &&
-    (!ctx.manages || ctx.flag("prefill", false));
+    (!ctx.owns("invitations") || ctx.flag("prefill", false));
 
   return {
     table: ctx.table("invitations"),
@@ -135,7 +135,7 @@ export function platformTable(ctx: BlockSqlContext): InviteTable | undefined {
     return undefined;
   }
 
-  if (!ctx.manages && ctx.config.tables["platformInvitations"] === undefined) {
+  if (!ctx.manages && ctx.owns("platformInvitations")) {
     return undefined;
   }
 

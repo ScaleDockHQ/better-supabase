@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_59_tags.sql
+-- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- @bsb-hash sha256:160c80fe91520ca262a32a462e9a66bbdd85dcff6e861371f717ed1c5a31309f
+-- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -363,12 +364,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_59_tags.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block-data tags
+-- @bsb-hash sha256:baa1d5b6721528e763808c231522383a33db513a6254d0a316c15c1087308cb6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

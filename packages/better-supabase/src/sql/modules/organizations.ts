@@ -53,6 +53,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     organizations: {
       name: "organizations",
+      app: {},
       columns: {
         id: "id",
         name: "name",
@@ -173,6 +174,11 @@ function table(ctx: BlockSqlContext, n: OrganizationNames): string {
 
   const slugType = ctx.flag("slugCitext", false) ? "extensions.citext" : "text";
 
+  // On the app's table the render pass names the policy bsb_<table>_select.
+  const readPolicy = ctx.owns("organizations")
+    ? ctx.naming.rename("bsb_organizations_read")
+    : "organizations_read";
+
   const slugIndex = ctx.has("organizations", "slug")
     ? `create unique index if not exists ${ctx.naming.rename("organizations_slug_idx")} on ${n.organization} (lower(${c("slug")}::text))${ctx.has("organizations", "deletedAt") ? ` where ${c("deletedAt")} is null` : ""};\n`
     : "";
@@ -192,8 +198,8 @@ alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_C
 ${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
-drop policy if exists ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization};
-create policy ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization} for select to authenticated
+${ctx.owns("organizations") ? "" : `drop policy if exists bsb_organizations_read on ${n.organization};\n`}drop policy if exists ${readPolicy} on ${n.organization};
+create policy ${readPolicy} on ${n.organization} for select to authenticated
   using (${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}()));
 `;
 }
@@ -261,7 +267,7 @@ const raiseSlug = (
 ): string =>
   ctx.has("organizations", "slug")
     ? `
-  case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
+  case ${ctx.fn("organization_slug_problem")}(${ctx.owns("organizations") ? `coalesce(${value}, '')` : value}, ${except})
     when 'invalid' then ${raise(`Invalid slug "%"`, "23514", "ORGANIZATION_SLUG_INVALID", value)}
     when 'reserved' then ${raise(`The slug "%" is reserved`, "23514", "ORGANIZATION_SLUG_RESERVED", value)}
     when 'taken' then ${raise(`The slug "%" is taken`, "23505", "ORGANIZATION_SLUG_TAKEN", value)}
@@ -444,7 +450,7 @@ function platformOverride(
  * invitations and permission overrides go with their organization.
  */
 function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
-  if (!ctx.manages) {
+  if (!ctx.owns("organizations")) {
     return "";
   }
 
@@ -463,7 +469,7 @@ function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
 
     const other = ctx.of(module);
 
-    if (!other.manages || !other.hasTable(logical)) {
+    if (!other.hasTable(logical) || !other.owns(logical)) {
       return;
     }
 
@@ -547,9 +553,9 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   }
 
   if (guard === "external") {
-    if (ctx.of("memberships").manages) {
+    if (ctx.of("memberships").owns("memberships")) {
       throw new TypeError(
-        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.memberships.ownership "adopt").',
+        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so the memberships table must be your own: declare it in your schema, or map it in blocks.memberships.tables.memberships.',
       );
     }
 
@@ -946,7 +952,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
     "reserved-slugs",
   ],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract: (ctx) =>
     functionsOf(ctx, "{id}").map(([name, args]) => ({

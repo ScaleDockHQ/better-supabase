@@ -50,24 +50,26 @@ describe("credentials module", () => {
     expect(sql).toContain("vault.update_secret(v_id, credential_set.secret)");
   });
 
-  describe("adopt mode", () => {
-    const adopted = (
+  describe("over the app's secrets table", () => {
+    const overApp = (
       columns: Record<string, string | null> = {},
       options: Record<string, unknown> = {},
     ) =>
-      body({
-        credentials: {
-          mode: "adopt",
-          tables: { secrets: "public.integration_secrets" },
-          columns: {
-            secrets: { tenant: "organization_id", scope: null, ...columns },
+      moduleBody("credentials", {
+        modules: {
+          credentials: {
+            tables: { secrets: "public.integration_secrets" },
+            columns: {
+              secrets: { tenant: "organization_id", scope: null, ...columns },
+            },
+            options,
           },
-          options,
         },
-      });
+        ownTables: { "public.integration_secrets": "app.sql" },
+      })!;
 
     it("reads the app's table through each row's Vault secret", () => {
-      const sql = adopted();
+      const sql = overApp();
       expect(sql).toContain(
         'join vault.decrypted_secrets ds on ds.id = s."vault_id"',
       );
@@ -92,7 +94,7 @@ describe("credentials module", () => {
     });
 
     it("keeps the secret in a column with secretStorage column", () => {
-      const sql = adopted(
+      const sql = overApp(
         { vaultId: null, updatedAt: null, scope: "user_id" },
         { secretStorage: "column" },
       );
@@ -109,15 +111,15 @@ describe("credentials module", () => {
     });
 
     it("refuses a storage the table has no column for, and renames in managed mode", () => {
-      expect(() => adopted({ vaultId: null })).toThrow(
+      expect(() => overApp({ vaultId: null })).toThrow(
         /needs the secrets table's vaultId/,
       );
-      expect(() => adopted({}, { secretStorage: "env" })).toThrow(
+      expect(() => overApp({}, { secretStorage: "env" })).toThrow(
         /"vault" or "column"/,
       );
       expect(() =>
         body({ credentials: { columns: { secrets: { tenant: "org_id" } } } }),
-      ).toThrow(/ownership "adopt"/);
+      ).toThrow(/declare your own table/);
     });
   });
 

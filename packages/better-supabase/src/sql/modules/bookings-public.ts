@@ -51,9 +51,12 @@ export function record(
   });
 }
 
-/** Whether `blocks.bookings.options.recurring` is on; managed tables only. */
+/**
+ * Whether `blocks.bookings.options.recurring` is on and the series table
+ * exists.
+ */
 export const recurringOn = (ctx: BlockSqlContext): boolean =>
-  ctx.manages && ctx.flag("recurring", false);
+  ctx.flag("recurring", false) && ctx.hasTable("series");
 
 /** A booking row as the JSON the bookings functions return. */
 export function bookingJson(p: Parts, alias: string): string {

@@ -11,6 +11,7 @@ import type {
   BlockMode,
 } from "../config/blocks.ts";
 import type { ResolvedInstance } from "../config/instances.ts";
+import type { CatalogPolicy } from "../config/snapshot.ts";
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
@@ -120,7 +121,11 @@ export interface BlockSql {
   readonly version?: number;
   /** The modes `blocks.<name>.ownership` accepts. Defaults to `managed` only. */
   readonly modes?: readonly BlockMode[];
-  /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
+  /**
+   * The logical tables and columns `blocks.<name>.tables` and `columns` map. A
+   * table's entry is its spec; its `app` says whether it can be a table the app
+   * already has (`BlockSqlAppTable`).
+   */
   readonly names?: BlockSqlNames;
   /** The functions other modules and the TypeScript side call. */
   readonly contract?: (
@@ -171,21 +176,55 @@ export interface BlockSql {
    * as columns that grant access.
    */
   readonly hidingColumns?: readonly string[];
-  readonly adoptOptional?: (
+  /** The app's tables outside `names.tables` that the module writes columns of. */
+  readonly appSubjectTables?: (
     ctx: BlockSqlContext,
-  ) => Readonly<Record<string, readonly string[]>>;
+  ) => readonly BlockSqlAppSubjectTable[];
+}
+
+/**
+ * How one of a module's tables can be a table the app already has (ADR 0098).
+ * It sits on the table's entry in `names.tables` (`app`), next to `columns`,
+ * `optional` and `typed`, which together make the table's spec:
+ *
+ * - The required columns are those in `columns` that aren't `optional` or
+ *   `unused`. The module adds each one the app's table lacks with `add column
+ *   if not exists`, nullable unless it has a default, and doctor (BS330) and
+ *   `add --adopt` check and propose them.
+ * - The optional columns may be mapped to `null` in `blocks.<name>.columns`; the
+ *   module then leaves out the feature that needs them.
+ * - The `typed` columns may be an enum or a domain on the app's table; the module
+ *   writes them through `ctx.cast`.
+ *
+ * When `layout.ownTables` has the table, `ctx.owns(table)` is false: the module
+ * skips its `create table` and lays its functions, policies, triggers and
+ * indexes over the app's table. A table whose entry has no `app` is always the
+ * module's: it creates it, and a table of that name in the app's schema is an
+ * error.
+ */
+export interface BlockSqlAppTable {
   /**
-   * Adopted tables a subject carries (`on.<type>.<key>`), checked by
-   * `adoptedColumnProblems`. A null column is mapped away.
+   * The app's table only when `blocks.<name>.tables` maps it. Unmapped, the
+   * module creates its own, so an app table with the default name is an error.
    */
-  readonly adoptSubjectTables?: (
-    ctx: BlockSqlContext,
-  ) => readonly {
-    readonly logical: string;
-    readonly schema: string;
-    readonly table: string;
-    readonly columns: Readonly<Record<string, string | null>>;
-  }[];
+  readonly onlyWhenMapped?: boolean;
+  /**
+   * Logical columns this configuration doesn't use, such as the secret column
+   * when secrets live in Vault. They are neither required nor checked.
+   */
+  readonly unused?: (ctx: BlockSqlContext) => readonly string[];
+}
+
+/**
+ * A table of the app's outside `names.tables` that a module writes columns of,
+ * such as a subject table that `blocks.<name>.on.<type>` names. A null column
+ * is mapped away; doctor and `upgrade` check the others exist.
+ */
+export interface BlockSqlAppSubjectTable {
+  readonly logical: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly columns: Readonly<Record<string, string | null>>;
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
@@ -269,6 +308,25 @@ export interface BlockSqlLayout {
    * `blocks['sessions'].options.policies`.
    */
   readonly declaredTables?: readonly string[];
+  /**
+   * `schema.table` of each table the app already has, to the schema file that
+   * creates it or `database`. A block leaves these tables alone and adds only
+   * the columns it needs, and an app table refuses their names.
+   */
+  readonly ownTables?: Readonly<Record<string, string>>;
+  /** The columns of the tables in `ownTables`, where they are known. */
+  readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The trigger that already keeps `updated_at` current on a table in
+   * `ownTables`, by `schema.table`. A block adds no `updated_at` trigger
+   * there.
+   */
+  readonly ownUpdatedAtTriggers?: Readonly<Record<string, string>>;
+  /**
+   * The app's own policies on a table in `ownTables`, by `schema.table`. A
+   * block adds no permissive policy that one of them already covers.
+   */
+  readonly ownPolicies?: Readonly<Record<string, readonly CatalogPolicy[]>>;
   /**
    * The declared tables with row level security on, for tables `fromPolicies`
    * makes service-only.
@@ -370,4 +428,11 @@ export interface BlockSqlAccessProvider {
   readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
+}
+
+/** Whether any of the module's tables can be a table the app already has. */
+export function runsOverAppTables(module: Pick<BlockSql, "names">): boolean {
+  return Object.values(module.names?.tables ?? {}).some(
+    (table) => table.app !== undefined,
+  );
 }

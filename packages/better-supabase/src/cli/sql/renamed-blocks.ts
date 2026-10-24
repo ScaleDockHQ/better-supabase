@@ -61,6 +61,32 @@ export function formerBlockPath(
     : undefined;
 }
 
+const THREE_DIGITS = /_(\d{3})(_[a-z0-9_]+\.sql)$/;
+
+/**
+ * Earlier paths for the file `module` now writes at `path`: the 2-digit name
+ * from before positions were padded to 3, and the 0.14 block name at either
+ * width. Sync removes a path only when the file is still there.
+ */
+export function formerPaths(path: string, module: string): readonly string[] {
+  const numbered = THREE_DIGITS.exec(path);
+
+  const twoDigit =
+    numbered !== null && Number(numbered[1]) < 100
+      ? path.replace(THREE_DIGITS, `_${numbered[1]!.slice(1)}${numbered[2]}`)
+      : undefined;
+
+  return [
+    ...new Set(
+      [
+        twoDigit,
+        formerBlockPath(path, module),
+        twoDigit === undefined ? undefined : formerBlockPath(twoDigit, module),
+      ].filter((entry) => entry !== undefined),
+    ),
+  ];
+}
+
 /**
  * Moves the `better_supabase.blocks` rows of renamed blocks to their new names.
  * It runs again safely: a row moves only while the new name is free.

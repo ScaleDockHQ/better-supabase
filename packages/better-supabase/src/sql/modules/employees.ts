@@ -84,6 +84,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     employees: {
       name: "employees",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
         "email",
@@ -119,9 +120,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["status"],
     },
     privateDetails: {
       name: "employee_private_details",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
@@ -156,6 +159,7 @@ const NAMES: BlockSqlNames = {
     },
     contracts: {
       name: "employee_contracts",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       optional: ["salaryPeriod", "note", "createdBy", "createdAt"],
@@ -438,7 +442,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "relations", "hiring", "time-tracking"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

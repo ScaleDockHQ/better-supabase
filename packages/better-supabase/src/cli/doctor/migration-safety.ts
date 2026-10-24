@@ -38,6 +38,28 @@ const VALIDATE = /\bvalidate\s+constraint\b/iu;
 const ADD_COLUMN_DEFAULT =
   /\badd\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(?:"[^"]+"|[\w$]+)\s[^,]*?\bdefault\s+([^,]+)/giu;
 
+/**
+ * Each `add [column]` clause of an `alter table`, up to the next comma: the
+ * column name, then its type and constraints. Table constraints are left out.
+ */
+const ADD_COLUMN =
+  /\badd\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(?!(?:constraint|primary|unique|foreign|check|exclude)\b)("[^"]+"|[\w$]+)\s([^,]*)/giu;
+
+const INLINE_CONSTRAINT = /\b(references|check)\b/iu;
+const NOT_NULL = /\bnot\s+null\b/iu;
+const DEFAULT_OR_GENERATED = /\b(?:default|generated)\b/iu;
+
+const VALIDATE_ONE = String.raw`validate\s+constraint\s+${NAME}`;
+
+/**
+ * A statement that only validates constraints, under a share update exclusive
+ * lock.
+ */
+const ONLY_VALIDATES = new RegExp(
+  String.raw`^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?${TABLE}\s+${VALIDATE_ONE}(?:\s*,\s*${VALIDATE_ONE})*\s*$`,
+  "iu",
+);
+
 const VOLATILE =
   /\b(?:gen_random_uuid|uuid_generate_v[14]|clock_timestamp|timeofday|random|nextval|statement_timestamp)\s*\(/iu;
 
@@ -235,13 +257,24 @@ const indexWithoutConcurrently: Check = (parsed, statement) => {
 
 const constraintWithoutNotValid: Check = (parsed, statement) => {
   const table = alteredTable(parsed, statement);
+
+  if (table === undefined) {
+    return;
+  }
+
+  for (const match of statement.text.matchAll(ADD_COLUMN)) {
+    const inline = INLINE_CONSTRAINT.exec(match[2] ?? "")?.[1]?.toLowerCase();
+
+    if (inline !== undefined) {
+      const kind = inline === "references" ? "foreign key" : "check";
+
+      return `adds column ${match[1] ?? ""} to ${table} with an inline ${kind}, which can't be not valid, so Postgres checks every row while it holds the lock. Add the column, then add the ${kind} with not valid.`;
+    }
+  }
+
   const kind = ADD_CONSTRAINT.exec(statement.text)?.[1];
 
-  if (
-    table === undefined ||
-    kind === undefined ||
-    NOT_VALID.test(statement.text)
-  ) {
+  if (kind === undefined || NOT_VALID.test(statement.text)) {
     return;
   }
 
@@ -257,6 +290,14 @@ const rewriteOrScan: Check = (parsed, statement) => {
 
   if (ALTER_TYPE.test(statement.text)) {
     return `changes a column type of ${table}, which can rewrite the table under an access exclusive lock.`;
+  }
+
+  for (const match of statement.text.matchAll(ADD_COLUMN)) {
+    const clause = match[2] ?? "";
+
+    if (NOT_NULL.test(clause) && !DEFAULT_OR_GENERATED.test(clause)) {
+      return `adds column ${match[1] ?? ""} to ${table} as not null without a default, which fails once the table has rows. Add it nullable, fill it with \`better-supabase db backfill\`, then add a not valid check and validate it.`;
+    }
   }
 
   const validated = parsed.statements.some(
@@ -294,6 +335,10 @@ function takesExclusiveLock(
 ): boolean {
   if (EXCLUSIVE.test(statement.text)) {
     return true;
+  }
+
+  if (ONLY_VALIDATES.test(statement.text)) {
+    return false;
   }
 
   const match = CREATE_INDEX.exec(statement.text);
@@ -526,7 +571,7 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Constraint added without not valid",
     description:
-      "A migration adds a foreign key or check to an existing table without `not valid`, so Postgres checks every row while it holds the lock. Add it with `not valid`, then run `alter table ... validate constraint` in a later statement, which takes a lighter lock.",
+      "A migration adds a foreign key or check to an existing table without `not valid`, so Postgres checks every row while it holds the lock. That includes a `references` or `check` written inline in `add column`, which can't be `not valid`. Add the column first, then the constraint with `not valid`, then run `alter table ... validate constraint` in a later statement, which takes a lighter lock (`doctor --fix` does it for a check, BS236).",
     check: perStatement(constraintWithoutNotValid),
   },
   {
@@ -534,7 +579,7 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Column type change or set not null",
     description:
-      "A migration changes a column type or sets `not null` on an existing table. A type change can rewrite the table, and `set not null` scans every row, both under an access exclusive lock. For `not null`, add `check (column is not null) not valid`, validate it, then set not null. For a type, add a new column and backfill it.",
+      "A migration changes a column type or sets `not null` on an existing table, or adds a `not null` column without a default. A type change can rewrite the table, and `set not null` scans every row, both under an access exclusive lock; the new column fails once the table has rows. Add the column nullable and fill it with `better-supabase db backfill`. For `not null`, add `check (column is not null) not valid`, validate it, then set not null. For a type, add a new column and backfill it.",
     check: perStatement(rewriteOrScan),
   },
   {
@@ -550,7 +595,7 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Migration without lock_timeout",
     description:
-      "A migration takes an access exclusive lock on an existing table without `set lock_timeout`. While it waits behind a long query, every read and write of the table queues behind it. Start the file with `set lock_timeout = '5s';` and retry the migration when it times out.",
+      "A migration takes an access exclusive lock on an existing table without `set lock_timeout`. While it waits behind a long query, every read and write of the table queues behind it. Start the file with `set lock_timeout = '5s';` and retry the migration when it times out. A statement that only runs `validate constraint` takes a lighter lock and doesn't count.",
     check: missingLockTimeout,
   },
   {

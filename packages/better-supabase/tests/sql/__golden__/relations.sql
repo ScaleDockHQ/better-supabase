@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_68_relations.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
+-- @bsb-hash sha256:f2d8ee1f933b40e1f1a1c3a5cd6a7c7ee635812546273f83a3b9280dbf753810
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."relations" (
@@ -444,6 +455,30 @@ $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -457,12 +492,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_68_relations.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -470,11 +506,12 @@ values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_68_relations.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
+-- @bsb-hash sha256:140c3c308d118e21614750e4f0605e4e2e850faa15e6b9a86eec9d8c5578c99b
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -511,6 +548,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."relations" (
@@ -916,6 +963,30 @@ $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -929,12 +1000,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_68_relations.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -942,11 +1014,12 @@ values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_68_relations.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
+-- @bsb-hash sha256:4a85a56d86f07752b75cc6d1ebdaa8a25e2de328345689c60ee1d8bad29e0149
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -983,6 +1056,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -1390,6 +1473,30 @@ $$;
 revoke execute on function "app_private"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "app_private"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."relations";
+create policy bsb_tenant_scope on "app_private"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1403,12 +1510,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_68_relations.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1416,11 +1524,12 @@ values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_68_relations.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
+-- @bsb-hash sha256:b43221880cd33065463685e45f3f410ffb8aa54a9de3644cbdd6594ef52992a2
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1457,6 +1566,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."relations" (
@@ -1862,6 +1981,30 @@ $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.relations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1980,12 +2123,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_68_relations.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1993,11 +2137,12 @@ values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_68_relations.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
--- @bsb-block relations@1 adopt
+-- @bsb-block relations@1 managed
+-- @bsb-hash sha256:eb29904edb24f7a493b0e0c99f5285a754f83db48b9926a36eb0971fa9216639
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -2034,11 +2179,36 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+-- better_supabase.relations is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."relations" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."relations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."relations" add column if not exists "kind" text;
+alter table "better_supabase"."relations" add column if not exists "source_type" text;
+alter table "better_supabase"."relations" add column if not exists "source_id" text;
+alter table "better_supabase"."relations" add column if not exists "target_type" text;
+alter table "better_supabase"."relations" add column if not exists "target_id" text;
+alter table "better_supabase"."relations" add column if not exists "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192);
+alter table "better_supabase"."relations" add column if not exists "created_by" uuid;
+alter table "better_supabase"."relations" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+alter table "better_supabase"."relations" enable row level security;
+grant select on "better_supabase"."relations" to authenticated;
+grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations" for select to authenticated
+drop policy if exists bsb_relations_select on "better_supabase"."relations";
+create policy bsb_relations_select on "better_supabase"."relations" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
@@ -2420,6 +2590,30 @@ $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2433,15 +2627,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_68_relations.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block-data relations
+-- @bsb-hash sha256:7f45922dc27a85579c3fd0b09d0b2504d8a3fc579388a16f2bd423a834360920
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('relations', 1, 'adopt')
+values ('relations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

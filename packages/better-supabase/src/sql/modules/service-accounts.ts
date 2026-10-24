@@ -47,6 +47,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     principals: {
       name: "service_principals",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -357,7 +358,7 @@ export const SERVICE_PRINCIPALS: BlockSqlDefinition = {
   integrates: ["audit"],
   target: "schema",
   version: 1,
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract,
   build,

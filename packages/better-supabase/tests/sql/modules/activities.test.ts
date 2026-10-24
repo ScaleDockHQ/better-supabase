@@ -184,10 +184,19 @@ describe("engagements module, bookings", () => {
   });
 
   it("falls back when bookings has no notes or author column", () => {
-    const sql = withBookings({ bookings: true }, ["bookings"], {
-      mode: "adopt",
-      columns: { bookings: { notes: null, createdBy: null } },
-    });
+    const sql = renderBlocks(["activities", "bookings"], {
+      modules: {
+        activities: { options: { bookings: true } },
+        bookings: {
+          tables: { bookings: "public.bookings" },
+          columns: { bookings: { notes: null, createdBy: null } },
+        },
+      },
+      ownTables: { "public.bookings": "supabase/schemas/bookings.sql" },
+    })
+      .filter((file) => file.module === "activities")
+      .map((file) => file.contents)
+      .join("\n");
 
     expect(sql).toContain("v_owner uuid := null::uuid;");
     expect(sql).toContain("coalesce(v_title, 'Booking'), null::text");

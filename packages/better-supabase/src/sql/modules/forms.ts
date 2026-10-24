@@ -93,6 +93,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     forms: {
       name: "forms",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -106,9 +107,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["status"],
     },
     versions: {
       name: "form_versions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -123,6 +126,7 @@ const NAMES: BlockSqlNames = {
     },
     submissions: {
       name: "form_submissions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "respondent", export: true },
       columns: {
         id: "id",
@@ -145,6 +149,7 @@ const NAMES: BlockSqlNames = {
         passed: "passed",
       },
       optional: ["score", "maxScore", "passed"],
+      typed: ["status"],
     },
     answerKeys: {
       name: "form_answer_keys",
@@ -156,7 +161,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
 };
@@ -243,21 +248,10 @@ function publicLimitOf(ctx: BlockSqlContext): PublicLimit | undefined {
   return { max, period };
 }
 
-/**
- * Scoring needs the answer key table and the score columns: always when
- * managed, and when the app maps them on adopted tables.
- */
+/** Scoring needs the score columns, which `columns` can map to `null`. */
 function scoringOn(ctx: BlockSqlContext): boolean {
-  const keys = ctx.manages
-    ? true
-    : ctx.config.tables["answerKeys"] !== undefined &&
-      ctx.hasTable("answerKeys");
-
-  return (
-    keys &&
-    ["score", "maxScore", "passed"].every((column) =>
-      ctx.has("submissions", column),
-    )
+  return ["score", "maxScore", "passed"].every((column) =>
+    ctx.has("submissions", column),
   );
 }
 
@@ -556,7 +550,7 @@ begin
   update ${forms} x set
     ${f("title")} = coalesce(update_form.title, x.${f("title")}),
     ${f("description")} = coalesce(update_form.description, x.${f("description")}),
-    ${f("status")} = coalesce(update_form.status, x.${f("status")}),
+    ${f("status")} = coalesce(${ctx.cast("forms", "status", "update_form.status")}, x.${f("status")}),
     ${f("updatedAt")} = now()
   where x.${f("id")} = update_form.form_id
   returning * into v_row;${writeExtraColumns(forms, extras, "update_form.fields", `x.${f("id")} = v_row.${f("id")}`, "v_row")}
@@ -702,7 +696,7 @@ begin
   select coalesce(jsonb_agg(${formJson("x")} order by x.${f("createdAt")} desc), '[]'::jsonb) into v_rows
   from ${forms} x
   where x.${f("tenant")} = list_forms.tenant
-    and (list_forms.status is null or x.${f("status")} = list_forms.status);
+    and (list_forms.status is null or x.${f("status")}::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -766,7 +760,7 @@ begin
     update ${submissions} x set
       ${s("version")} = v_form.${f("currentVersion")},
       ${s("answers")} = form_submission_save.answers,
-      ${s("status")} = case when form_submission_save.draft then 'draft' else 'submitted' end,
+      ${s("status")} = ${ctx.cast("submissions", "status", "case when form_submission_save.draft then 'draft' else 'submitted' end")},
       ${s("submittedAt")} = case when form_submission_save.draft then null else now() end,
       ${s("subjectType")} = coalesce(form_submission_save.subject_type, x.${s("subjectType")}),
       ${s("subjectId")} = coalesce(form_submission_save.subject_id, x.${s("subjectId")}),${
@@ -933,7 +927,7 @@ begin
     select * from ${submissions} x
     where x.${s("form")} = list_form_submissions.form_id
       and (v_all or x.${s("respondent")} = auth.uid())
-      and (list_form_submissions.status is null or x.${s("status")} = list_form_submissions.status)
+      and (list_form_submissions.status is null or x.${s("status")}::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x.${s("createdAt")} < list_form_submissions.before)
     order by x.${s("createdAt")} desc
     limit ${pageSize("list_form_submissions.page_size", 50, 200)}
@@ -968,7 +962,7 @@ begin
     ${fail("FORM_SUBMISSION_DRAFT", "a draft isn't submitted yet", "55000")}
   end if;
   update ${submissions} x set
-    ${s("status")} = review_form_submission.status,
+    ${s("status")} = ${ctx.cast("submissions", "status", "review_form_submission.status")},
     ${s("reviewedBy")} = auth.uid(),
     ${s("reviewedAt")} = now(),
     ${s("updatedAt")} = now()
@@ -1044,7 +1038,7 @@ export const FORMS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "jsonb-schemas"],
   integrates: ["custom-fields", "share-links", "rate-limit", "outbox", "audit"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 2,
   upgrades: [
     {

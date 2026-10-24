@@ -123,6 +123,16 @@ describe.skipIf(!live)("drive", () => {
       expect(
         await node("better_supabase.drive_get($1)", [launch.id]),
       ).toMatchObject({ role: "viewer" });
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.drive_nodes where better_supabase.drive_can(id, 'viewer'))",
+        ),
+      ).toBe(3);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.drive_nodes)",
+        ),
+      ).toBe(3);
 
       const shared = await s.value<Node[]>("better_supabase.drive_shared($1)", [
         tenant,

@@ -1,9 +1,20 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_55_ai_cache.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
+-- @bsb-hash sha256:04e003defc6c409dd69a74a5909e1f0cf0db0114b8d23756326d3c6519336cae
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -144,12 +155,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_55_ai_cache.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block-data ai-cache
+-- @bsb-hash sha256:24b9c0173f55096a24f3173dc48fc3c2dcbdb9d5e6b1816f0223ef9834dcab18
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -157,12 +169,23 @@ values ('ai-cache', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_55_ai_cache.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
+-- @bsb-hash sha256:04e003defc6c409dd69a74a5909e1f0cf0db0114b8d23756326d3c6519336cae
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -303,12 +326,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_55_ai_cache.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block-data ai-cache
+-- @bsb-hash sha256:24b9c0173f55096a24f3173dc48fc3c2dcbdb9d5e6b1816f0223ef9834dcab18
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -316,12 +340,23 @@ values ('ai-cache', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_55_ai_cache.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
+-- @bsb-hash sha256:ff46fa933bce76de778eb3b16d1da8405d950ba560ab04dd43e84283bc04e724
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."ai_cache_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -464,12 +499,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_55_ai_cache.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block-data ai-cache
+-- @bsb-hash sha256:24b9c0173f55096a24f3173dc48fc3c2dcbdb9d5e6b1816f0223ef9834dcab18
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -477,12 +513,23 @@ values ('ai-cache', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_55_ai_cache.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
+-- @bsb-hash sha256:ef304a6141fbe13e8f39faaef8e0079762e4c51a67a9781ec7b5b9f02bc04d42
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -663,12 +710,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_55_ai_cache.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block-data ai-cache
+-- @bsb-hash sha256:24b9c0173f55096a24f3173dc48fc3c2dcbdb9d5e6b1816f0223ef9834dcab18
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

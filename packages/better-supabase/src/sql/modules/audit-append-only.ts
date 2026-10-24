@@ -12,7 +12,7 @@ export function appendOnly(ctx: BlockSqlContext): string {
   const trigger = ctx.trigger("audit_append_only");
   const truncate = ctx.trigger("audit_no_truncate");
 
-  if (!ctx.flag("appendOnly", ctx.manages)) {
+  if (!ctx.flag("appendOnly", ctx.owns("log"))) {
     return `drop trigger if exists ${trigger} on ${log};
 drop trigger if exists ${truncate} on ${log};`;
   }

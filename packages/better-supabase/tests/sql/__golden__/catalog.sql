@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_69_catalog.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
+-- @bsb-hash sha256:2b3ed27945ee7c276c66d2049f601bb6927459a026ea826f64ca1772a151e72d
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,76 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Products with options, variants and prices in minor units, plus
@@ -1669,6 +1740,150 @@ drop policy if exists catalog_channel_products_storefront on "better_supabase"."
 drop policy if exists product_translations_storefront on "better_supabase"."product_translations";
 drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+create policy bsb_tenant_scope on "better_supabase"."product_options" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope on "better_supabase"."product_option_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+create policy bsb_tenant_scope on "better_supabase"."product_variants" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+create policy bsb_tenant_scope on "better_supabase"."price_lists" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+create policy bsb_tenant_scope on "better_supabase"."product_prices" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+create policy bsb_tenant_scope on "better_supabase"."categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+create policy bsb_tenant_scope on "better_supabase"."product_categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+create policy bsb_tenant_scope on "better_supabase"."product_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+create policy bsb_tenant_scope on "better_supabase"."collection_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+create policy bsb_tenant_scope on "better_supabase"."storefronts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channel_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1682,12 +1897,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_69_catalog.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
+-- @bsb-hash sha256:c3ced8535b68687c89d10c7e474f654ad0172725bed2fa28ecfd0a3febb42c52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -1695,11 +1911,12 @@ values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_69_catalog.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
+-- @bsb-hash sha256:982d120aebbec1f1dc0947e504c52f48af0df25324838c5a0411f0a8ebaadb09
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1736,6 +1953,80 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_media";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Products with options, variants and prices in minor units, plus
@@ -3581,6 +3872,158 @@ drop policy if exists product_translations_storefront on "better_supabase"."prod
 drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
 drop policy if exists product_media_storefront on "better_supabase"."product_media";
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+create policy bsb_tenant_scope on "better_supabase"."product_options" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope on "better_supabase"."product_option_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+create policy bsb_tenant_scope on "better_supabase"."product_variants" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+create policy bsb_tenant_scope on "better_supabase"."price_lists" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+create policy bsb_tenant_scope on "better_supabase"."product_prices" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+create policy bsb_tenant_scope on "better_supabase"."categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+create policy bsb_tenant_scope on "better_supabase"."product_categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+create policy bsb_tenant_scope on "better_supabase"."product_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+create policy bsb_tenant_scope on "better_supabase"."collection_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+create policy bsb_tenant_scope on "better_supabase"."storefronts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channel_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_media";
+create policy bsb_tenant_scope on "better_supabase"."product_media" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3594,12 +4037,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_69_catalog.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
+-- @bsb-hash sha256:c3ced8535b68687c89d10c7e474f654ad0172725bed2fa28ecfd0a3febb42c52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -3607,11 +4051,12 @@ values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_69_catalog.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
+-- @bsb-hash sha256:d5ecfd494562b25ac05cf61d828851afeb87b23be8a93b26cc669bafaed645ca
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -3648,6 +4093,76 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_options";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_option_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_variants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_variant_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."price_lists";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_prices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_collections";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."collection_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."storefronts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."catalog_channels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."catalog_channel_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
@@ -5280,6 +5795,150 @@ drop policy if exists catalog_channel_products_storefront on "app_private"."cata
 drop policy if exists product_translations_storefront on "app_private"."product_translations";
 drop policy if exists product_variant_translations_storefront on "app_private"."product_variant_translations";
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."products";
+create policy bsb_tenant_scope on "app_private"."products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_options";
+create policy bsb_tenant_scope on "app_private"."product_options" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_option_values";
+create policy bsb_tenant_scope on "app_private"."product_option_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_variants";
+create policy bsb_tenant_scope on "app_private"."product_variants" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_variant_values";
+create policy bsb_tenant_scope on "app_private"."product_variant_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."price_lists";
+create policy bsb_tenant_scope on "app_private"."price_lists" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_prices";
+create policy bsb_tenant_scope on "app_private"."product_prices" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."categories";
+create policy bsb_tenant_scope on "app_private"."categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_categories";
+create policy bsb_tenant_scope on "app_private"."product_categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_collections";
+create policy bsb_tenant_scope on "app_private"."product_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."collection_products";
+create policy bsb_tenant_scope on "app_private"."collection_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."storefronts";
+create policy bsb_tenant_scope on "app_private"."storefronts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."catalog_channels";
+create policy bsb_tenant_scope on "app_private"."catalog_channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."catalog_channel_products";
+create policy bsb_tenant_scope on "app_private"."catalog_channel_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_translations";
+create policy bsb_tenant_scope on "app_private"."product_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."product_variant_translations";
+create policy bsb_tenant_scope on "app_private"."product_variant_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5293,12 +5952,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_69_catalog.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
+-- @bsb-hash sha256:c3ced8535b68687c89d10c7e474f654ad0172725bed2fa28ecfd0a3febb42c52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -5306,11 +5966,12 @@ values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_69_catalog.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
+-- @bsb-hash sha256:99fe3ffaf145070b09f7099fb1dab44fb5304d47b99cab89f35c7a18a94ae10b
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -5347,6 +6008,76 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Products with options, variants and prices in minor units, plus
@@ -6977,6 +7708,150 @@ drop policy if exists catalog_channel_products_storefront on "better_supabase"."
 drop policy if exists product_translations_storefront on "better_supabase"."product_translations";
 drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+create policy bsb_tenant_scope on "better_supabase"."product_options" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope on "better_supabase"."product_option_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+create policy bsb_tenant_scope on "better_supabase"."product_variants" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+create policy bsb_tenant_scope on "better_supabase"."price_lists" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+create policy bsb_tenant_scope on "better_supabase"."product_prices" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+create policy bsb_tenant_scope on "better_supabase"."categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+create policy bsb_tenant_scope on "better_supabase"."product_categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+create policy bsb_tenant_scope on "better_supabase"."product_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+create policy bsb_tenant_scope on "better_supabase"."collection_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+create policy bsb_tenant_scope on "better_supabase"."storefronts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channel_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.catalog.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -7311,12 +8186,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_69_catalog.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
+-- @bsb-hash sha256:c3ced8535b68687c89d10c7e474f654ad0172725bed2fa28ecfd0a3febb42c52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -7324,12 +8200,29 @@ values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== adopt: schema supabase/schemas/900_better_supabase_69_catalog.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
--- @bsb-block catalog@3 adopt
+-- @bsb-block catalog@3 managed
+-- @bsb-hash sha256:6f46c16ccd6a1ec00759e3467f0472351692a391cf78bc4a8b1c54e9cc7ef3aa
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -7365,6 +8258,76 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Products with options, variants and prices in minor units, plus
@@ -7380,6 +8343,256 @@ as $$
   select c.units from (values ('AED', 2), ('AFN', 2), ('ALL', 2), ('AMD', 2), ('AOA', 2), ('ARS', 2), ('AUD', 2), ('AWG', 2), ('AZN', 2), ('BAM', 2), ('BBD', 2), ('BDT', 2), ('BHD', 3), ('BIF', 0), ('BMD', 2), ('BND', 2), ('BOB', 2), ('BOV', 2), ('BRL', 2), ('BSD', 2), ('BTN', 2), ('BWP', 2), ('BYN', 2), ('BZD', 2), ('CAD', 2), ('CDF', 2), ('CHE', 2), ('CHF', 2), ('CHW', 2), ('CLF', 4), ('CLP', 0), ('CNY', 2), ('COP', 2), ('COU', 2), ('CRC', 2), ('CUP', 2), ('CVE', 2), ('CZK', 2), ('DJF', 0), ('DKK', 2), ('DOP', 2), ('DZD', 2), ('EGP', 2), ('ERN', 2), ('ETB', 2), ('EUR', 2), ('FJD', 2), ('FKP', 2), ('GBP', 2), ('GEL', 2), ('GHS', 2), ('GIP', 2), ('GMD', 2), ('GNF', 0), ('GTQ', 2), ('GYD', 2), ('HKD', 2), ('HNL', 2), ('HTG', 2), ('HUF', 2), ('IDR', 2), ('ILS', 2), ('INR', 2), ('IQD', 3), ('IRR', 2), ('ISK', 0), ('JMD', 2), ('JOD', 3), ('JPY', 0), ('KES', 2), ('KGS', 2), ('KHR', 2), ('KMF', 0), ('KPW', 2), ('KRW', 0), ('KWD', 3), ('KYD', 2), ('KZT', 2), ('LAK', 2), ('LBP', 2), ('LKR', 2), ('LRD', 2), ('LSL', 2), ('LYD', 3), ('MAD', 2), ('MDL', 2), ('MGA', 2), ('MKD', 2), ('MMK', 2), ('MNT', 2), ('MOP', 2), ('MRU', 2), ('MUR', 2), ('MVR', 2), ('MWK', 2), ('MXN', 2), ('MXV', 2), ('MYR', 2), ('MZN', 2), ('NAD', 2), ('NGN', 2), ('NIO', 2), ('NOK', 2), ('NPR', 2), ('NZD', 2), ('OMR', 3), ('PAB', 2), ('PEN', 2), ('PGK', 2), ('PHP', 2), ('PKR', 2), ('PLN', 2), ('PYG', 0), ('QAR', 2), ('RON', 2), ('RSD', 2), ('RUB', 2), ('RWF', 0), ('SAR', 2), ('SBD', 2), ('SCR', 2), ('SDG', 2), ('SEK', 2), ('SGD', 2), ('SHP', 2), ('SLE', 2), ('SOS', 2), ('SRD', 2), ('SSP', 2), ('STN', 2), ('SVC', 2), ('SYP', 2), ('SZL', 2), ('THB', 2), ('TJS', 2), ('TMT', 2), ('TND', 3), ('TOP', 2), ('TRY', 2), ('TTD', 2), ('TWD', 2), ('TZS', 2), ('UAH', 2), ('UGX', 0), ('USD', 2), ('USN', 2), ('UYI', 0), ('UYU', 2), ('UYW', 4), ('UZS', 2), ('VED', 2), ('VES', 2), ('VND', 0), ('VUV', 0), ('WST', 2), ('XAD', 2), ('XAF', 0), ('XCD', 2), ('XCG', 2), ('XOF', 0), ('XPF', 0), ('YER', 2), ('ZAR', 2), ('ZMW', 2), ('ZWG', 2)) as c (code, units) where c.code = $1
 $$;
 grant execute on function "better_supabase"."currency_minor_units"(text) to anon, authenticated, service_role;
+
+-- better_supabase.products is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."products" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."products" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."products" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+alter table "better_supabase"."products" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."products" add column if not exists "description" text;
+alter table "better_supabase"."products" add column if not exists "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service'));
+alter table "better_supabase"."products" add column if not exists "status" text not null default 'draft';
+alter table "better_supabase"."products" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."products" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
+alter table "better_supabase"."products" enable row level security;
+grant select on "better_supabase"."products" to authenticated;
+grant all on "better_supabase"."products" to service_role;
+drop policy if exists bsb_products_select on "better_supabase"."products";
+create policy bsb_products_select on "better_supabase"."products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_options is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_options" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."product_options" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_options" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
+alter table "better_supabase"."product_options" add column if not exists "name" text check (length("name") between 1 and 80);
+alter table "better_supabase"."product_options" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."product_options" enable row level security;
+grant select on "better_supabase"."product_options" to authenticated;
+grant all on "better_supabase"."product_options" to service_role;
+drop policy if exists bsb_product_options_select on "better_supabase"."product_options";
+create policy bsb_product_options_select on "better_supabase"."product_options" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_option_values is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_option_values" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."product_option_values" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_option_values" add column if not exists "option_id" uuid references "better_supabase"."product_options" ("id") on delete cascade;
+alter table "better_supabase"."product_option_values" add column if not exists "value" text check (length("value") between 1 and 80);
+alter table "better_supabase"."product_option_values" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."product_option_values" enable row level security;
+grant select on "better_supabase"."product_option_values" to authenticated;
+grant all on "better_supabase"."product_option_values" to service_role;
+drop policy if exists bsb_product_option_values_select on "better_supabase"."product_option_values";
+create policy bsb_product_option_values_select on "better_supabase"."product_option_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_variants is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_variants" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."product_variants" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_variants" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
+alter table "better_supabase"."product_variants" add column if not exists "sku" text check (length("sku") between 1 and 100);
+alter table "better_supabase"."product_variants" add column if not exists "title" text;
+alter table "better_supabase"."product_variants" add column if not exists "barcode" text;
+alter table "better_supabase"."product_variants" add column if not exists "weight_grams" integer check ("weight_grams" >= 0);
+alter table "better_supabase"."product_variants" add column if not exists "track_inventory" boolean not null default true;
+alter table "better_supabase"."product_variants" add column if not exists "allow_backorder" boolean not null default false;
+alter table "better_supabase"."product_variants" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."product_variants" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."product_variants" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists product_variants_product_idx on "better_supabase"."product_variants" ("product_id");
+alter table "better_supabase"."product_variants" enable row level security;
+grant select on "better_supabase"."product_variants" to authenticated;
+grant all on "better_supabase"."product_variants" to service_role;
+drop policy if exists bsb_product_variants_select on "better_supabase"."product_variants";
+create policy bsb_product_variants_select on "better_supabase"."product_variants" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_variant_values is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_variant_values" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_variant_values" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."product_variant_values" add column if not exists "option_value_id" uuid references "better_supabase"."product_option_values" ("id");
+create index if not exists product_variant_values_value_idx on "better_supabase"."product_variant_values" ("option_value_id");
+alter table "better_supabase"."product_variant_values" enable row level security;
+grant select on "better_supabase"."product_variant_values" to authenticated;
+grant all on "better_supabase"."product_variant_values" to service_role;
+drop policy if exists bsb_product_variant_values_select on "better_supabase"."product_variant_values";
+create policy bsb_product_variant_values_select on "better_supabase"."product_variant_values" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.price_lists is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."price_lists" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."price_lists" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."price_lists" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."price_lists" add column if not exists "customer_group" text;
+alter table "better_supabase"."price_lists" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."price_lists" enable row level security;
+grant select on "better_supabase"."price_lists" to authenticated;
+grant all on "better_supabase"."price_lists" to service_role;
+drop policy if exists bsb_price_lists_select on "better_supabase"."price_lists";
+create policy bsb_price_lists_select on "better_supabase"."price_lists" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_prices is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_prices" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."product_prices" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_prices" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
+alter table "better_supabase"."product_prices" add column if not exists "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete cascade;
+alter table "better_supabase"."product_prices" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."product_prices" add column if not exists "amount" bigint check ("amount" >= 0);
+alter table "better_supabase"."product_prices" add column if not exists "compare_at_amount" bigint check ("compare_at_amount" > "amount");
+alter table "better_supabase"."product_prices" add column if not exists "valid_from" timestamptz;
+alter table "better_supabase"."product_prices" add column if not exists "valid_until" timestamptz check ("valid_until" > "valid_from");
+alter table "better_supabase"."product_prices" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."product_prices" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
+create index if not exists product_prices_price_list_idx on "better_supabase"."product_prices" ("price_list_id");
+alter table "better_supabase"."product_prices" enable row level security;
+grant select on "better_supabase"."product_prices" to authenticated;
+grant all on "better_supabase"."product_prices" to service_role;
+drop policy if exists bsb_product_prices_select on "better_supabase"."product_prices";
+create policy bsb_product_prices_select on "better_supabase"."product_prices" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.categories is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."categories" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."categories" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."categories" add column if not exists "parent_id" uuid references "better_supabase"."categories" ("id");
+alter table "better_supabase"."categories" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."categories" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+alter table "better_supabase"."categories" add column if not exists "description" text;
+alter table "better_supabase"."categories" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."categories" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."categories" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists categories_parent_idx on "better_supabase"."categories" ("parent_id");
+alter table "better_supabase"."categories" enable row level security;
+grant select on "better_supabase"."categories" to authenticated;
+grant all on "better_supabase"."categories" to service_role;
+drop policy if exists bsb_categories_select on "better_supabase"."categories";
+create policy bsb_categories_select on "better_supabase"."categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_categories is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_categories" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_categories" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
+alter table "better_supabase"."product_categories" add column if not exists "category_id" uuid references "better_supabase"."categories" ("id") on delete cascade;
+create index if not exists product_categories_category_idx on "better_supabase"."product_categories" ("category_id");
+alter table "better_supabase"."product_categories" enable row level security;
+grant select on "better_supabase"."product_categories" to authenticated;
+grant all on "better_supabase"."product_categories" to service_role;
+drop policy if exists bsb_product_categories_select on "better_supabase"."product_categories";
+create policy bsb_product_categories_select on "better_supabase"."product_categories" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.product_collections is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."product_collections" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."product_collections" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."product_collections" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."product_collections" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+alter table "better_supabase"."product_collections" add column if not exists "kind" text not null default 'manual' check ("kind" in ('manual', 'rule'));
+alter table "better_supabase"."product_collections" add column if not exists "rule" jsonb;
+alter table "better_supabase"."product_collections" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."product_collections" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."product_collections" enable row level security;
+grant select on "better_supabase"."product_collections" to authenticated;
+grant all on "better_supabase"."product_collections" to service_role;
+drop policy if exists bsb_product_collections_select on "better_supabase"."product_collections";
+create policy bsb_product_collections_select on "better_supabase"."product_collections" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.collection_products is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."collection_products" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."collection_products" add column if not exists "collection_id" uuid references "better_supabase"."product_collections" ("id") on delete cascade;
+alter table "better_supabase"."collection_products" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
+alter table "better_supabase"."collection_products" add column if not exists "rank" text collate "C" not null default 'V';
+create index if not exists collection_products_product_idx on "better_supabase"."collection_products" ("product_id");
+alter table "better_supabase"."collection_products" enable row level security;
+grant select on "better_supabase"."collection_products" to authenticated;
+grant all on "better_supabase"."collection_products" to service_role;
+drop policy if exists bsb_collection_products_select on "better_supabase"."collection_products";
+create policy bsb_collection_products_select on "better_supabase"."collection_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+-- better_supabase.storefronts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."storefronts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."storefronts" add column if not exists "published_at" timestamptz;
+alter table "better_supabase"."storefronts" enable row level security;
+grant select on "better_supabase"."storefronts" to authenticated;
+grant all on "better_supabase"."storefronts" to service_role;
+drop policy if exists bsb_storefronts_select on "better_supabase"."storefronts";
+create policy bsb_storefronts_select on "better_supabase"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."catalog_channels" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete set null,
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+create index if not exists catalog_channels_price_list_idx on "better_supabase"."catalog_channels" ("price_list_id");
+alter table "better_supabase"."catalog_channels" enable row level security;
+revoke all on "better_supabase"."catalog_channels" from anon, authenticated;
+grant select on "better_supabase"."catalog_channels" to authenticated;
+grant all on "better_supabase"."catalog_channels" to service_role;
+drop policy if exists catalog_channels_read on "better_supabase"."catalog_channels";
+create policy catalog_channels_read on "better_supabase"."catalog_channels" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."catalog_channel_products" (
+  "tenant_id" uuid not null,
+  "channel_id" uuid not null references "better_supabase"."catalog_channels" ("id") on delete cascade,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "listed_at" timestamptz not null default now(),
+  primary key ("channel_id", "product_id")
+);
+create index if not exists catalog_channel_products_product_idx on "better_supabase"."catalog_channel_products" ("product_id");
+alter table "better_supabase"."catalog_channel_products" enable row level security;
+revoke all on "better_supabase"."catalog_channel_products" from anon, authenticated;
+grant select on "better_supabase"."catalog_channel_products" to authenticated;
+grant all on "better_supabase"."catalog_channel_products" to service_role;
+drop policy if exists catalog_channel_products_read on "better_supabase"."catalog_channel_products";
+create policy catalog_channel_products_read on "better_supabase"."catalog_channel_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_translations" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "title" text check (length("title") between 1 and 500),
+  "description" text,
+  "updated_at" timestamptz not null default now(),
+  primary key ("product_id", "locale")
+);
+alter table "better_supabase"."product_translations" enable row level security;
+revoke all on "better_supabase"."product_translations" from anon, authenticated;
+grant select on "better_supabase"."product_translations" to authenticated;
+grant all on "better_supabase"."product_translations" to service_role;
+drop policy if exists product_translations_read on "better_supabase"."product_translations";
+create policy product_translations_read on "better_supabase"."product_translations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variant_translations" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "title" text check (length("title") between 1 and 500),
+  "updated_at" timestamptz not null default now(),
+  primary key ("variant_id", "locale")
+);
+alter table "better_supabase"."product_variant_translations" enable row level security;
+revoke all on "better_supabase"."product_variant_translations" from anon, authenticated;
+grant select on "better_supabase"."product_variant_translations" to authenticated;
+grant all on "better_supabase"."product_variant_translations" to service_role;
+drop policy if exists product_variant_translations_read on "better_supabase"."product_variant_translations";
+create policy product_variant_translations_read on "better_supabase"."product_variant_translations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);
@@ -7482,7 +8695,7 @@ begin
   end) then
     raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
   end if;
-  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  update "better_supabase"."products" x set "status" = better_supabase.as_column_type(set_product_status.status, (null::"better_supabase"."products")."status"), "updated_at" = now()
   where x."id" = set_product_status.product;
   null;
   return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
@@ -8401,6 +9614,272 @@ $$;
 revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
 
+-- Creates a sales channel (channel null) or updates one. A channel has a
+-- key, unique per organization, and optionally a currency and a price list
+-- its prices come from.
+create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid := save_catalog_channel.channel;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
+  end if;
+  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
+      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      returning x."id", x."active" into v_id, v_active;
+    else
+      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      returning x."active" into v_active;
+      if not found then
+        raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+end;
+$$;
+revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+
+-- Deletes a channel and its listings.
+create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."catalog_channels" x where x."id" = delete_catalog_channel.channel;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."catalog_channels" x where x."id" = delete_catalog_channel.channel;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_catalog_channel"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_catalog_channel"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at on a channel: variant_price in the channel's
+-- currency and price list. Null when the channel has no currency.
+create or replace function "better_supabase"."channel_price"(channel uuid, variant uuid, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."variant_price"($2, k."currency", k."price_list_id", $3)
+  from "better_supabase"."catalog_channels" k
+  where k."id" = $1 and k."currency" is not null
+$$;
+revoke execute on function "better_supabase"."channel_price"(uuid, uuid, timestamptz) from public;
+grant execute on function "better_supabase"."channel_price"(uuid, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Lists products on a channel (listed true) or takes them off it. Returns
+-- how many listings changed.
+create or replace function "better_supabase"."set_channel_listing"(channel uuid, products uuid[], listed boolean)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."catalog_channels" x where x."id" = set_channel_listing.channel for update;
+  if v_tenant is null then
+    raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_channel_listing.products, '{}'::uuid[])) i
+    where not exists (select 1 from "better_supabase"."products" x where x."id" = i and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if coalesce(set_channel_listing.listed, true) then
+    insert into "better_supabase"."catalog_channel_products" ("tenant_id", "channel_id", "product_id")
+    select distinct v_tenant, set_channel_listing.channel, i from unnest(coalesce(set_channel_listing.products, '{}'::uuid[])) i
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."catalog_channel_products" x
+    where x."channel_id" = set_channel_listing.channel
+      and x."product_id" = any (coalesce(set_channel_listing.products, '{}'::uuid[]));
+  end if;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."set_channel_listing"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."set_channel_listing"(uuid, uuid[], boolean) to authenticated, service_role;
+
+-- The products listed on a channel by slug, with their text in locale
+-- (the default text where a translation is missing). after is the last
+-- slug of the previous page. Runs as the caller, so the read policies
+-- decide what it sees.
+create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(item order by slug collate "C"), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'id', p."id",
+      'slug', p."slug",
+      'status', p."status",
+      'kind', p."kind",
+      'locale', (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end),
+      'title', coalesce(t."title", p."title"),
+      'description', coalesce(t."description", p."description"),
+      'listedAt', l."listed_at"
+    ) as item, p."slug" as slug
+    from "better_supabase"."catalog_channel_products" l
+    join "better_supabase"."products" p on p."id" = l."product_id"
+    left join "better_supabase"."product_translations" t on t."product_id" = p."id" and t."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)
+    where l."channel_id" = $1
+      and ($4 is null or p."slug" collate "C" > $4 collate "C")
+    order by p."slug" collate "C"
+    limit least(greatest(coalesce($3, 100), 1), 500)
+  ) items
+$$;
+revoke execute on function "better_supabase"."channel_products"(uuid, text, integer, text) from public;
+grant execute on function "better_supabase"."channel_products"(uuid, text, integer, text) to anon, authenticated, service_role;
+
+-- Sets a product's title and description in a locale other than the
+-- default. Null text falls back to the default text; both null removes the
+-- translation. Returns whether one is stored.
+create or replace function "better_supabase"."set_product_translation"(product uuid, locale text, title text, description text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_translation.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_translation.locale is null or not (set_product_translation.locale = any ('{en}'::text[])) then
+    raise exception 'the locale is not one of blocks.catalog.options.locales' using errcode = '22023', hint = 'CATALOG_LOCALE_INVALID';
+  end if;
+  if set_product_translation.locale = 'en' then
+    raise exception 'the default locale''s text lives on the record itself' using errcode = '22023', hint = 'CATALOG_LOCALE_DEFAULT';
+  end if;
+  if set_product_translation.title is not null and length(set_product_translation.title) not between 1 and 500 then
+    raise exception 'a title has 1 to 500 characters' using errcode = '22023', hint = 'CATALOG_TITLE_INVALID';
+  end if;
+  if set_product_translation.title is null and set_product_translation.description is null then
+    delete from "better_supabase"."product_translations" x
+    where x."product_id" = set_product_translation.product and x."locale" = set_product_translation.locale;
+    return false;
+  end if;
+  insert into "better_supabase"."product_translations" as x ("tenant_id", "product_id", "locale", "title", "description")
+  values (v_tenant, set_product_translation.product, set_product_translation.locale, set_product_translation.title, set_product_translation.description)
+  on conflict ("product_id", "locale") do update
+    set "title" = excluded."title", "description" = excluded."description", "updated_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_translation"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."set_product_translation"(uuid, text, text, text) to authenticated, service_role;
+
+-- Sets a variant's title in a locale other than the default; a null title
+-- removes the translation. Returns whether one is stored.
+create or replace function "better_supabase"."set_variant_translation"(variant uuid, locale text, title text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_variant_translation.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_variant_translation.locale is null or not (set_variant_translation.locale = any ('{en}'::text[])) then
+    raise exception 'the locale is not one of blocks.catalog.options.locales' using errcode = '22023', hint = 'CATALOG_LOCALE_INVALID';
+  end if;
+  if set_variant_translation.locale = 'en' then
+    raise exception 'the default locale''s text lives on the record itself' using errcode = '22023', hint = 'CATALOG_LOCALE_DEFAULT';
+  end if;
+  if set_variant_translation.title is not null and length(set_variant_translation.title) not between 1 and 500 then
+    raise exception 'a title has 1 to 500 characters' using errcode = '22023', hint = 'CATALOG_TITLE_INVALID';
+  end if;
+  if set_variant_translation.title is null then
+    delete from "better_supabase"."product_variant_translations" x
+    where x."variant_id" = set_variant_translation.variant and x."locale" = set_variant_translation.locale;
+    return false;
+  end if;
+  insert into "better_supabase"."product_variant_translations" as x ("tenant_id", "variant_id", "locale", "title")
+  values (v_tenant, set_variant_translation.variant, set_variant_translation.locale, set_variant_translation.title)
+  on conflict ("variant_id", "locale") do update
+    set "title" = excluded."title", "updated_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_translation"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_translation"(uuid, text, text) to authenticated, service_role;
+
 -- A product's text and its variants' titles in locale: the locale itself,
 -- then its language, then the default locale's text on the product. Runs
 -- as the caller, so the read policies decide what it sees.
@@ -8415,18 +9894,167 @@ as $$
     'id', p."id",
     'slug', p."slug",
     'locale', (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end),
-    'title', p."title",
-    'description', p."description",
+    'title', coalesce(t."title", p."title"),
+    'description', coalesce(t."description", p."description"),
     'variants', coalesce((
-      select jsonb_agg(jsonb_build_object('id', w."id", 'sku', w."sku", 'title', w."title") order by w."rank" collate "C", w."id")
+      select jsonb_agg(jsonb_build_object('id', w."id", 'sku', w."sku", 'title', coalesce((select y."title" from "better_supabase"."product_variant_translations" y where y."variant_id" = w."id" and y."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)), w."title")) order by w."rank" collate "C", w."id")
       from "better_supabase"."product_variants" w where w."product_id" = p."id"
     ), '[]'::jsonb)
   )
   from "better_supabase"."products" p
+  left join "better_supabase"."product_translations" t on t."product_id" = p."id" and t."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)
   where p."id" = $1
 $$;
 revoke execute on function "better_supabase"."product_text"(uuid, text) from public;
 grant execute on function "better_supabase"."product_text"(uuid, text) to anon, authenticated, service_role;
+drop policy if exists catalog_channels_storefront on "better_supabase"."catalog_channels";
+drop policy if exists catalog_channel_products_storefront on "better_supabase"."catalog_channel_products";
+drop policy if exists product_translations_storefront on "better_supabase"."product_translations";
+drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."products";
+create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_options";
+create policy bsb_tenant_scope on "better_supabase"."product_options" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_option_values";
+create policy bsb_tenant_scope on "better_supabase"."product_option_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variants";
+create policy bsb_tenant_scope on "better_supabase"."product_variants" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_values";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_values" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."price_lists";
+create policy bsb_tenant_scope on "better_supabase"."price_lists" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_prices";
+create policy bsb_tenant_scope on "better_supabase"."product_prices" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."categories";
+create policy bsb_tenant_scope on "better_supabase"."categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_categories";
+create policy bsb_tenant_scope on "better_supabase"."product_categories" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_collections";
+create policy bsb_tenant_scope on "better_supabase"."product_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_products";
+create policy bsb_tenant_scope on "better_supabase"."collection_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."storefronts";
+create policy bsb_tenant_scope on "better_supabase"."storefronts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channels";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."catalog_channel_products";
+create policy bsb_tenant_scope on "better_supabase"."catalog_channel_products" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."product_variant_translations";
+create policy bsb_tenant_scope on "better_supabase"."product_variant_translations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -8441,15 +10069,16 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== adopt: data supabase/better-supabase-data/900_better_supabase_69_catalog.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
+-- @bsb-hash sha256:c3ced8535b68687c89d10c7e474f654ad0172725bed2fa28ecfd0a3febb42c52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 3, 'adopt')
+values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

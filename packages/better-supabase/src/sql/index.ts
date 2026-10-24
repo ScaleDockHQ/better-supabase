@@ -18,9 +18,14 @@ export {
 
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
-export { moduleFilePaths } from "./paths.ts";
+export { moduleDataDir, moduleFilePaths } from "./paths.ts";
 
-export { moduleFileVersion, sameBlockFile } from "./markers.ts";
+export {
+  blockFileState,
+  isModuleDataFile,
+  moduleFileVersion,
+  sameBlockFile,
+} from "./markers.ts";
 
 export {
   modulePermissionKeys,
@@ -101,7 +106,9 @@ export { subjectColumns } from "./subject-registry.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 
 export {
+  declaredTableColumns,
   declaredTables,
+  declaredUpdatedAtTriggers,
   rlsTables,
   extensionSchema,
   policyGrants,
@@ -139,3 +146,13 @@ export type { MigrationOptionUse } from "./migration-options.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";
 
 export type { CompiledReadSet } from "./read-sets.ts";
+
+export { hasColumnAccess } from "../config/app-access.ts";
+
+export { scopePolicyName } from "./modules/app-table-enrich.ts";
+
+export { notNullCheckName } from "./shared.ts";
+
+export { TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
+
+export { declaredPolicies, widenedCommands } from "./policy-cover.ts";

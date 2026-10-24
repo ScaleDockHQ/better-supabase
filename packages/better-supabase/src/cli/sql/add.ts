@@ -72,10 +72,12 @@ export async function addModules(
   const added = resolveBlocks(names, sqlLayout).map((module) => module.name);
   const affected = integratingModules(config.blockNames, added);
 
-  const lines = await write(config, args, listed, sqlLayout, deps.now, [
+  const written = await write(config, args, listed, sqlLayout, deps.now, [
     ...added,
     ...affected.map((entry) => entry.name),
   ]);
+
+  const lines = [...written.lines];
 
   if (affected.length > 0) {
     lines.push(
@@ -115,8 +117,11 @@ export async function addModules(
   }
 
   return {
-    code: 0,
+    code: written.error === undefined ? 0 : 1,
     output: lines.join("\n"),
+    ...(written.error === undefined
+      ? {}
+      : { error: written.error, errorCode: "file_conflict" as const }),
     data: { added, pulledIn, untracked },
     next: [await nextStep(config)],
   };

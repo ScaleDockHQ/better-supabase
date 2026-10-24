@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_86_forms.sql
+-- ==== schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
+-- @bsb-hash sha256:0991e155168071de62c60eb7bd6f4cdcb07fb0787e1f88959e7f9860c2cf1e37
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -39,6 +40,28 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."form_answer_keys";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."forms" (
@@ -697,7 +720,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -870,7 +893,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -1017,6 +1040,46 @@ $$;
 revoke execute on function "better_supabase"."delete_form_submission"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_form_submission"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."forms";
+create policy bsb_tenant_scope on "better_supabase"."forms" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."form_versions";
+create policy bsb_tenant_scope on "better_supabase"."form_versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."form_submissions";
+create policy bsb_tenant_scope on "better_supabase"."form_submissions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1030,12 +1093,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_86_forms.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block-data forms
+-- @bsb-hash sha256:ba046d701cddbc2f816944c4e89a65d5c3aa2d200a4356ce41ce71820acfd8f0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

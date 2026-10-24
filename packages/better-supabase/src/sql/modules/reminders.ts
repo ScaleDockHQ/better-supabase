@@ -38,6 +38,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     rules: {
       name: "recurrence_rules",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -66,6 +67,7 @@ const NAMES: BlockSqlNames = {
     },
     reminders: {
       name: "reminders",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -79,6 +81,7 @@ const NAMES: BlockSqlNames = {
     },
     deliveries: {
       name: "reminder_deliveries",
+      app: {},
       columns: {
         id: "id",
         reminder: "reminder_id",
@@ -392,7 +395,7 @@ export const REMINDERS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "queue"],
   integrates: ["notifications", "outbox"],
   target: "schema",
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
   contract,

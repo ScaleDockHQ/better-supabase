@@ -39,6 +39,7 @@ import {
   optionalCol,
   platformTable,
   raise,
+  sharesTable,
   statusOf,
   tenantTable,
   tokenHash,
@@ -101,6 +102,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     invitations: {
       name: "invitations",
+      app: {},
       lifecycle: { tenant: "tenant", omit: ["tokenHash"] },
       columns: {
         ...PLATFORM_COLUMNS,
@@ -129,7 +131,7 @@ const NAMES: BlockSqlNames = {
         "revokedAt",
       ],
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
   hooks: [
@@ -254,9 +256,29 @@ end;
 $$;
 revoke execute on function ${ctx.fn("platform_invitations_readable")}() from public, anon;
 grant execute on function ${ctx.fn("platform_invitations_readable")}() to authenticated, service_role;
-drop policy if exists bsb_platform_invitations_read on ${p.table};
+${platformReadPolicy(ctx, p)}`;
+}
+
+/**
+ * Platform invitations' select policy. In a table shared with tenant
+ * invitations it joins theirs, so the table keeps one permissive select
+ * policy.
+ */
+function platformReadPolicy(ctx: BlockSqlContext, p: InviteTable): string {
+  const readable = `(select ${ctx.fn("platform_invitations_readable")}())`;
+
+  if (!sharesTable(ctx)) {
+    return `drop policy if exists bsb_platform_invitations_read on ${p.table};
 create policy bsb_platform_invitations_read on ${p.table} for select to authenticated
-  using ((select ${ctx.fn("platform_invitations_readable")}()));
+  using (${readable});
+`;
+  }
+
+  return `-- Tenant and platform invitations share ${p.table}, so one policy reads both.
+drop policy if exists bsb_platform_invitations_read on ${p.table};
+drop policy if exists bsb_invitations_read on ${p.table};
+create policy bsb_invitations_read on ${p.table} for select to authenticated
+  using (${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable});
 `;
 }
 
@@ -909,7 +931,7 @@ export const INVITATIONS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor", "isPlatformFor", "canAssignFor"],
   target: "schema",
   version: 2,
-  modes: ["managed", "adopt", "custom"],
+  modes: ["managed", "custom"],
   names: NAMES,
   contract: (ctx) => [
     {
@@ -944,7 +966,7 @@ export const INVITATIONS: BlockSqlDefinition = {
       description:
         "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.permissions, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
       sql: (ctx) =>
-        ctx.manages
+        ctx.owns("invitations")
           ? renameSql({
               schema: ctx.tableName("invitations").schema,
               table: ctx.tableName("invitations").name,

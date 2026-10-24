@@ -20,6 +20,7 @@ const UPGRADE_ARGS = {
   },
   "tests-dir": SQL_ARGS["tests-dir"],
   "dry-run": SQL_ARGS["dry-run"],
+  force: SQL_ARGS.force,
 } as const;
 
 /**

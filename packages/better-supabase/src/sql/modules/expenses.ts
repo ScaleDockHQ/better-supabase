@@ -9,17 +9,13 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
   EXPENSE_REPORT_RESERVED,
   EXPENSE_REPORT_SUBJECT,
   expensesFunctions,
 } from "./expenses-functions.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const REPORT_PAYLOAD = [
@@ -85,6 +81,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     categories: {
       name: "expense_categories",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -98,9 +95,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["limitAmount", "receiptOver"],
     },
     reports: {
       name: "expense_reports",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -119,9 +118,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["note", "approvalTransaction", "reimbursement"],
     },
     lines: {
       name: "expense_lines",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -135,6 +136,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["merchant"],
     },
   },
 };
@@ -157,6 +159,31 @@ function tables(ctx: BlockSqlContext): string {
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
+  // A partial index on a nullable column, left out without the column.
+  const linkIndex = (suffix: string, logical: string): string =>
+    ctx.has("reports", logical)
+      ? `\ncreate index if not exists ${index("reports", suffix)} on ${reports} (${r(logical)}) where ${r(logical)} is not null;`
+      : "";
+
+  const policed = ["limitAmount", "receiptOver"].filter((logical) =>
+    ctx.has("categories", logical),
+  );
+
+  const policyCheck =
+    policed.length === 0
+      ? ""
+      : `,\n  check ((${policed.map((logical) => `${k(logical)} is null`).join(" and ")}) or ${k("currency")} is not null)`;
+
   return `
 -- A category with its spend policy: limit_amount caps a report's total in
 -- the category, receipt_over needs a receipt on any line above it.
@@ -165,17 +192,14 @@ create table if not exists ${categories} (
   ${k("tenant")} ${ctx.idType} not null,
   ${k("key")} text not null check (${k("key")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${k("name")} text not null check (length(${k("name")}) between 1 and 200),
-  ${k("currency")} char(3) check (${k("currency")} is null or ${k("currency")} ~ '^[A-Z]{3}$'),
-  ${k("limitAmount")} bigint check (${k("limitAmount")} is null or ${k("limitAmount")} > 0),
-  ${k("receiptOver")} bigint check (${k("receiptOver")} is null or ${k("receiptOver")} >= 0),
+  ${k("currency")} char(3) check (${k("currency")} is null or ${k("currency")} ~ '^[A-Z]{3}$'),${column("categories", "limitAmount", (name) => `${name} bigint check (${name} is null or ${name} > 0)`)}${column("categories", "receiptOver", (name) => `${name} bigint check (${name} is null or ${name} >= 0)`)}
   ${k("archivedAt")} timestamptz,
   ${k("createdAt")} timestamptz not null default now(),
   ${k("updatedAt")} timestamptz not null default now(),
   unique (${k("tenant")}, ${k("key")}),
-  unique (${k("tenant")}, ${k("id")}),
-  check ((${k("limitAmount")} is null and ${k("receiptOver")} is null) or ${k("currency")} is not null)
-);
-${lockTable(categories, { read: true })}
+  unique (${k("tenant")}, ${k("id")})${policyCheck}
+);${appUniqueIndex(ctx, "categories", ["tenant", "key"])}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
+${lockModuleTable(ctx, "categories", { read: true })}
 drop policy if exists ${index("categories", "read")} on ${categories};
 create policy ${index("categories", "read")} on ${categories} for select to authenticated
   using (${ctx.scope.check(k("tenant"), read)});
@@ -185,24 +209,19 @@ create table if not exists ${reports} (
   ${r("tenant")} ${ctx.idType} not null,
   ${r("user")} uuid not null references auth.users (id) on delete cascade,
   ${r("title")} text not null check (length(${r("title")}) between 1 and 200),
-  ${r("currency")} char(3) not null check (${r("currency")} ~ '^[A-Z]{3}$'),
-  ${r("note")} text check (${r("note")} is null or length(${r("note")}) <= 2000),
+  ${r("currency")} char(3) not null check (${r("currency")} ~ '^[A-Z]{3}$'),${column("reports", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
   ${r("approval")} uuid references ${approvals.table("requests")} (${approvals.col("requests", "id")}) on delete set null,
   ${r("submittedAt")} timestamptz,
-  ${r("approvedAt")} timestamptz,
-  ${r("approvalTransaction")} uuid,
-  ${r("reimbursedAt")} timestamptz,
-  ${r("reimbursement")} uuid,
+  ${r("approvedAt")} timestamptz,${column("reports", "approvalTransaction", (name) => `${name} uuid`)}
+  ${r("reimbursedAt")} timestamptz,${column("reports", "reimbursement", (name) => `${name} uuid`)}
   ${r("cancelledAt")} timestamptz,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now()
 );${addExtraColumns(reports, ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED))}
 create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc);
 create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("user")}, ${r("tenant")});
-create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;
-create index if not exists ${index("reports", "approval_tx_idx")} on ${reports} (${r("approvalTransaction")}) where ${r("approvalTransaction")} is not null;
-create index if not exists ${index("reports", "reimbursement_idx")} on ${reports} (${r("reimbursement")}) where ${r("reimbursement")} is not null;
-${lockTable(reports, { read: true })}
+create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}
+${lockModuleTable(ctx, "reports", { read: true })}
 drop policy if exists ${index("reports", "read")} on ${reports};
 create policy ${index("reports", "read")} on ${reports} for select to authenticated
   using (${r("user")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)});
@@ -213,8 +232,7 @@ create table if not exists ${lines} (
   ${x("report")} uuid not null references ${reports} (${r("id")}) on delete cascade,
   ${x("category")} uuid not null,
   ${x("spentOn")} date not null,
-  ${x("description")} text not null check (length(${x("description")}) between 1 and 500),
-  ${x("merchant")} text check (${x("merchant")} is null or length(${x("merchant")}) <= 200),
+  ${x("description")} text not null check (length(${x("description")}) between 1 and 500),${column("lines", "merchant", (name) => `${name} text check (${name} is null or length(${name}) <= 200)`)}
   -- Minor units of the report's currency (ADR 0037).
   ${x("amount")} bigint not null check (${x("amount")} > 0),
   ${x("createdAt")} timestamptz not null default now(),
@@ -223,7 +241,7 @@ create table if not exists ${lines} (
 );
 create index if not exists ${index("lines", "report_idx")} on ${lines} (${x("report")}, ${x("spentOn")});
 create index if not exists ${index("lines", "category_idx")} on ${lines} (${x("tenant")}, ${x("category")});
-${lockTable(lines, { read: true })}
+${lockModuleTable(ctx, "lines", { read: true })}
 drop policy if exists ${index("lines", "read")} on ${lines};
 create policy ${index("lines", "read")} on ${lines} for select to authenticated
   using (

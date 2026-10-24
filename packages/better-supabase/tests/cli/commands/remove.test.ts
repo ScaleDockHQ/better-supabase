@@ -9,7 +9,7 @@ import { run } from "../../../src/cli/core/run.ts";
 const WIRING =
   'import { createBlocks } from "better-supabase/blocks";\n\nexport const blocks = createBlocks({ transport }, {});\n';
 
-const AUDIT_SCHEMA = "supabase/schemas/900_better_supabase_03_audit.sql";
+const AUDIT_SCHEMA = "supabase/schemas/900_better_supabase_003_audit.sql";
 
 describe("remove", () => {
   let dir: string;

@@ -598,3 +598,58 @@ describe("subject types", () => {
     expect(source).not.toContain("SubjectType");
   });
 });
+
+describe("app tables over the app's own tables", () => {
+  /**
+   * `public.tags` as `public.<name>`, with `organization_id` renamed and
+   * nullable.
+   */
+  const appTable =
+    (name: string, tenant: string): Edit =>
+    (generator) => {
+      const copied = copyTable("tags", { name })(generator);
+      const id = tableNamed(generator, "tags").id + 900_000;
+
+      return {
+        ...copied,
+        columns: copied.columns!.map((column) =>
+          column.table_id === id && column.name === "organization_id"
+            ? { ...column, name: tenant, is_nullable: true }
+            : column,
+        ),
+      };
+    };
+
+  it("types the scope column an enriched table adds nullable and filters on it", async () => {
+    const input = await model(appTable("invoices", "organization_id"), {
+      auth: { organization: { column: "organization_id" } },
+      tables: { invoices: {} },
+    });
+
+    const invoices = input.tables.find((table) => table.key === "invoices")!;
+
+    expect(
+      invoices.columns.find((column) => column.db === "organization_id"),
+    ).toMatchObject({ app: "organizationId", nullable: true });
+    expect(invoices.meta.flags.tenant).toBe("organizationId");
+  });
+
+  it("filters a block-over-app table on the tenant column its subject names", async () => {
+    const input = await model(appTable("client_rows", "company_id"), {
+      auth: { organization: { column: "organization_id" } },
+      records: {
+        client: { table: "public.client_rows", tenant: "company_id" },
+      },
+    });
+
+    const rows = input.tables.find((table) => table.key === "clientRows")!;
+
+    expect(rows.meta.flags.tenant).toBe("companyId");
+
+    const source = emitModule(input, { importPathFor: (from) => from });
+
+    expect(source).toMatch(
+      /clientRows: \{\n {4}Row: \{[^}]*companyId: string \| null;[\s\S]*?Flags: \{[^}]*tenant: "companyId";/u,
+    );
+  });
+});

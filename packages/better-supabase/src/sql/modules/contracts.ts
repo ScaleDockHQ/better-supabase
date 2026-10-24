@@ -154,7 +154,7 @@ create table if not exists ${contracts} (
   -- How many days before ends_on notice of termination is due.
   ${c("noticeDays")} integer not null default 30 check (${c("noticeDays")} between 0 and 3650),
   ${c("renewedCount")} integer not null default 0,
-  ${c("signatureRequest")} uuid${signatures.manages ? ` references ${signatures.table("requests")} (${signatures.col("requests", "id")}) on delete set null` : ""},
+  ${c("signatureRequest")} uuid${signatures.owns("requests") ? ` references ${signatures.table("requests")} (${signatures.col("requests", "id")}) on delete set null` : ""},
   ${c("signedAt")} timestamptz,
   ${c("terminatedAt")} timestamptz,
   ${c("terminationReason")} text check (${c("terminationReason")} is null or length(${c("terminationReason")}) <= 2000),
