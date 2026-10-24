@@ -1060,6 +1060,39 @@ describe("doctor rules", () => {
           "BS206",
         ),
       ).toEqual([]);
+
+      // Constant arguments keep it once per statement; a column makes it per row.
+      const withArgument = (argument: string) =>
+        snapshot((tables) => {
+          for (const name of names) {
+            table(tables, name).policies = [
+              memberPolicy(
+                `${name}_member`,
+                `(organization_id IN ( SELECT private.is_member(${argument}) AS is_member))`,
+              ),
+            ];
+          }
+        });
+
+      expect(
+        await codes(
+          context(
+            withFunctions(withArgument("'crm.read'::text"), [helper({})]),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual([]);
+
+      expect(
+        await codes(
+          context(
+            withFunctions(withArgument("organization_id"), [helper({})]),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual(["BS206"]);
     });
 
     it("flags overlapping permissive policies and defers to splinter's lint (BS207)", async () => {

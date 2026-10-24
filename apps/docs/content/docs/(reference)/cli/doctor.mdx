@@ -188,7 +188,10 @@ an error, so an update or delete matches 0 rows and the UI looks like it
 worked. Add the missing policies, or a restrictive `using (false)` policy to
 make a read-only table explicit, and cover the table with
 [`expectTenantIsolation`](/docs/testing#tenant-isolation). The tenant table
-itself (the one the tenant column references) is skipped.
+itself (the one the tenant column references) is skipped. On an app table a
+block runs over, only your own policies decide whether the table is reported:
+the block reads it through its `bsb_` policies and writes it through its own
+functions, so a table with only block policies is left alone.
 
 ### BS108
 
@@ -334,7 +337,8 @@ runs once per row. Call it as `(select helper(...))` when its arguments don't
 come from the row, so Postgres evaluates it once per statement as an
 InitPlan, or have it return the allowed ids as a set and compare with
 `organization_id in (select helper())`. A policy whose every call to the
-helper already reads `(select helper())`, with no arguments, doesn't count.
+helper already reads `(select helper(...))` with constant arguments, such as
+`(select tenant_ids_with('crm.read'))`, doesn't count.
 
 ### BS207
 
@@ -1338,11 +1342,15 @@ reports it first. Register the type in `config.records`, or remove it from
 **Warning: block policy widens an app table's access.** A block that runs
 over one of your tables adds its own permissive policies there, named
 `bsb_<table>_<command>` (such as `bsb_teams_select`), so they never replace
-one of yours. Postgres ORs permissive policies, so when none of your policies
-for that command has the same condition, or `true`, for the same roles, the
-block's policy can let a user reach rows yours keep closed. Doctor compares
-the conditions as text, so it also reports a condition that means the same
-thing written differently. If the block's condition is what you mean, repeat
+one of yours. Postgres ORs permissive policies, so when you have policies for
+that command and none has the same condition, or `true`, for the same roles,
+the block's policy can let a user reach rows yours keep closed. A block
+condition that is yours with more `and` operands (such as the block's
+`authz_actor_may_write()` check) is narrower, so it isn't reported either. A
+command you have no policy for is the block's to grant, so doctor doesn't
+report it. Doctor compares the conditions as text, so it also reports a
+condition that means the same thing written differently. If the block's
+condition is what you mean, repeat
 it in your policy. Otherwise narrow the permission key the block checks, or
 drop the `bsb_` policy in a schema file that runs after the block's. Your
 policy and the block's for the same command don't also count as an overlap

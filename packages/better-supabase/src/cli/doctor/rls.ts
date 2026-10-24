@@ -457,9 +457,15 @@ const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
   grant.role === role || grant.role === "PUBLIC";
 
 /**
- * Whether every call of `name` (`schema.function`) in `expressions` takes no
- * arguments inside `(select ...)`, which Postgres runs once per statement. An
- * argument may come from the row, and then it runs per row.
+ * Constant arguments, as Postgres prints them back: string literals with an
+ * optional cast, numbers, booleans and null.
+ */
+const LITERAL_ARGS = String.raw`(?:\s*(?:'(?:[^']|'')*'(?:::[\w ]+(?:\[\])?)?|-?\d+(?:\.\d+)?|true|false|null)\s*,?)*\s*`;
+
+/**
+ * Whether every call of `name` (`schema.function`) in `expressions` takes only
+ * constant arguments inside `(select ...)`, which Postgres runs once per
+ * statement. An argument from the row makes it run per row.
  */
 function onlyWrapped(
   name: string,
@@ -470,7 +476,12 @@ function onlyWrapped(
   const call = `"?${escape(name.slice(0, dot))}"?\\s*\\.\\s*"?${escape(name.slice(dot + 1))}"?\\s*\\(`;
 
   const any = new RegExp(`(?<![\\w."])${call}`, "gi");
-  const wrapped = new RegExp(`\\(\\s*select\\s+${call}\\s*\\)`, "gi");
+
+  const wrapped = new RegExp(
+    `\\(\\s*select\\s+${call}${LITERAL_ARGS}\\)(?:\\s+as\\s+"?\\w+"?)?\\s*\\)`,
+    "gi",
+  );
+
   let calls = 0;
   let wraps = 0;
 
@@ -685,7 +696,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Security definer policy helper that cannot be inlined",
     description:
-      "A security definer function is used in many policies. Postgres never inlines a security definer function, so a call that takes a column of the row runs once per row. Wrapped in `(select ...)`, or returning a set the policy compares with `in (select ...)`, it runs once per statement.",
+      "A security definer function is used in many policies. Postgres never inlines a security definer function, so a call that takes a column of the row runs once per row. Wrapped in `(select ...)` with constant arguments, or returning a set the policy compares with `in (select ...)`, it runs once per statement.",
     check: (context) => {
       const limit = context.config.doctor.policyHelperLimit;
       const functions = functionsByName(context);

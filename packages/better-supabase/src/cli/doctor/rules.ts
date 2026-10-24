@@ -28,6 +28,7 @@ import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
+import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { ENV_RULES } from "./env.ts";
@@ -419,7 +420,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant table without a policy for every command",
     description:
-      "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.",
+      "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`. On an app table a block runs over, only the app's own policies decide whether it's reported, since the block writes through its own functions.",
     check: (context) => {
       const column = context.config.extensions.tenant?.column;
 
@@ -433,6 +434,7 @@ const OWN_RULES: readonly Rule[] = [
       ];
 
       const tables = exposed(context);
+      const blocked = blockTargets(context);
 
       const roots = new Set(
         tables.flatMap((table) =>
@@ -472,8 +474,16 @@ const OWN_RULES: readonly Rule[] = [
             ["authenticated", "public"].includes(role),
           );
 
-        const granting = table.policies.filter(
+        // A block reads the app tables it runs over through its own policies
+        // and writes them through its own functions, so only the app's count.
+        const blockTable = blocked.has(qualified(table));
+
+        const permissive = table.policies.filter(
           (policy) => policy.permissive && forAuthenticated(policy),
+        );
+
+        const granting = permissive.filter(
+          (policy) => !(blockTable && policy.name.startsWith(BLOCK_PREFIX)),
         );
 
         if (granting.length === 0) {
@@ -508,7 +518,7 @@ const OWN_RULES: readonly Rule[] = [
         );
 
         const covered = new Set(
-          [...granting, ...denying].flatMap((policy) =>
+          [...permissive, ...denying].flatMap((policy) =>
             policy.command === "all" ? COMMANDS : [policy.command],
           ),
         );

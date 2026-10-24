@@ -1938,12 +1938,29 @@ describe("block policy widens an app table's access (BS347)", () => {
     ]);
   });
 
-  it("reports a command the app grants no policy for", async () => {
+  it("leaves a command the app has no policy for to the block", async () => {
     const findings = await run(
       "BS347",
       context(
         withPolicies(
           policy("notes_read", "select", tenantRead),
+          policy("bsb_notes_insert", "insert", tenantRead),
+          policy("bsb_notes_select_all", "all", tenantRead),
+        ),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it("still reports a wider block policy for a command the app also grants", async () => {
+    const findings = await run(
+      "BS347",
+      context(
+        withPolicies(
+          policy("notes_owner", "insert", "(owner_id = auth.uid())"),
           policy("bsb_notes_insert", "insert", tenantRead),
         ),
         {},
@@ -1952,8 +1969,32 @@ describe("block policy widens an app table's access (BS347)", () => {
     );
 
     expect(findings.map((finding) => finding.message)).toEqual([
-      expect.stringContaining("the app has no policy of its own for insert"),
+      expect.stringContaining("no policy of the app's for insert"),
     ]);
+  });
+
+  it("passes a block condition that adds an and operand to the app's", async () => {
+    const mayWrite =
+      "( SELECT centrakit.authz_actor_may_write() AS authz_actor_may_write)";
+
+    const run347 = (block: string) =>
+      run(
+        "BS347",
+        context(
+          withPolicies(
+            policy("notes_insert", "insert", tenantRead),
+            policy("bsb_notes_insert", "insert", block),
+          ),
+          {},
+          config,
+        ),
+      );
+
+    expect(await run347(`(${tenantRead} AND ${mayWrite})`)).toEqual([]);
+    expect(await run347(`(${tenantRead} OR ${mayWrite})`)).toHaveLength(1);
+    expect(
+      await run347(`((${tenantRead} AND ${mayWrite}) OR true)`),
+    ).toHaveLength(1);
   });
 
   it("passes the same condition, an unconditional app policy and app-only tables", async () => {
@@ -1999,6 +2040,33 @@ describe("block policy widens an app table's access (BS347)", () => {
     );
 
     expect(findings).toHaveLength(1);
+  });
+
+  it("leaves an app table with only block policies out of BS107", async () => {
+    const onNotes = (findings: readonly { target?: string }[]) =>
+      findings.filter((finding) => finding.target === "public.notes");
+
+    const blockOnly = withPolicies(
+      policy("bsb_notes_select", "select", tenantRead),
+    );
+
+    expect(onNotes(await run("BS107", context(blockOnly, {}, config)))).toEqual(
+      [],
+    );
+    expect(
+      onNotes(await run("BS107", context(blockOnly, {}, {}))),
+    ).toHaveLength(1);
+
+    const withApp = withPolicies(
+      policy("notes_read", "select", tenantRead),
+      policy("bsb_notes_insert", "insert", tenantRead),
+    );
+
+    expect(
+      onNotes(await run("BS107", context(withApp, {}, config))).map(
+        (finding) => (finding as { message: string }).message,
+      ),
+    ).toEqual([expect.stringContaining("has no update, delete policy")]);
   });
 
   it("leaves one app policy next to the block's to BS347, not BS207", async () => {

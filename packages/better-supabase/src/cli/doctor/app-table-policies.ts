@@ -24,21 +24,24 @@ const normalized = (expression: string | null): string =>
 
 /**
  * The expressions that decide `command`: `using` reads rows, `check` writes
- * them.
+ * them, and an update needs both.
  */
-function condition(policy: CatalogPolicy, command: Command): string {
+function conditions(policy: CatalogPolicy, command: Command): string[] {
   switch (command) {
     case "select":
     case "delete": {
-      return normalized(policy.using);
+      return [normalized(policy.using)];
     }
 
     case "insert": {
-      return normalized(policy.check);
+      return [normalized(policy.check)];
     }
 
     case "update": {
-      return `${normalized(policy.using)} | ${normalized(policy.check ?? policy.using)}`;
+      return [
+        normalized(policy.using),
+        normalized(policy.check ?? policy.using),
+      ];
     }
 
     default: {
@@ -49,11 +52,99 @@ function condition(policy: CatalogPolicy, command: Command): string {
   }
 }
 
+/** Whether the parentheses that open `text` close at its last character. */
+function enclosed(text: string): boolean {
+  if (!(text.startsWith("(") && text.endsWith(")"))) {
+    return false;
+  }
+
+  let depth = 0;
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted && char === "(") {
+      depth += 1;
+    } else if (!quoted && char === ")") {
+      depth -= 1;
+
+      if (depth === 0 && index < text.length - 1) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+const unwrapped = (expression: string): string => {
+  let text = expression.trim();
+
+  while (enclosed(text)) {
+    text = text.slice(1, -1).trim();
+  }
+
+  return text;
+};
+
+/** The operands of the top-level `and`s in `expression`, as Postgres prints it. */
+function conjuncts(expression: string): Set<string> {
+  const text = unwrapped(expression);
+  const parts: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted && char === "(") {
+      depth += 1;
+    } else if (!quoted && char === ")") {
+      depth -= 1;
+    } else if (
+      !quoted &&
+      depth === 0 &&
+      text.slice(index, index + 5).toLowerCase() === " and "
+    ) {
+      parts.push(text.slice(start, index));
+      start = index + 5;
+      index += 4;
+    }
+  }
+
+  parts.push(text.slice(start));
+
+  return new Set(parts.map(unwrapped));
+}
+
+/**
+ * Whether the block's condition for `command` is the app's with more `and`
+ * operands, so it admits no row the app's policy doesn't. The same condition
+ * counts.
+ */
+const narrows = (
+  block: CatalogPolicy,
+  app: CatalogPolicy,
+  command: Command,
+): boolean => {
+  const own = conditions(app, command);
+
+  return conditions(block, command).every((expression, index) => {
+    const required = conjuncts(own[index] ?? "");
+    const present = conjuncts(expression);
+
+    return [...required].every((operand) => present.has(operand));
+  });
+};
+
 const unconditional = (policy: CatalogPolicy, command: Command): boolean =>
-  command === "update"
-    ? normalized(policy.using) === "true" &&
-      normalized(policy.check ?? policy.using) === "true"
-    : condition(policy, command) === "true";
+  conditions(policy, command).every((expression) => expression === "true");
 
 const reachesRoles = (app: CatalogPolicy, block: CatalogPolicy): boolean =>
   app.roles.includes("public") ||
@@ -63,7 +154,8 @@ const reachesRoles = (app: CatalogPolicy, block: CatalogPolicy): boolean =>
  * Block policies (`bsb_*`, permissive) on the app's tables that grant a command
  * more than the app's own permissive policies do. Postgres ORs permissive
  * policies, so a block policy whose condition no app policy repeats can open
- * rows the app's policies keep closed.
+ * rows the app's policies keep closed. A command the app has no policy for is
+ * the block's to grant.
  */
 export function widenedAppTablePolicies(
   context: DoctorContext,
@@ -105,12 +197,15 @@ export function widenedAppTablePolicies(
             return false;
           }
 
-          return !own.some(
-            (app) =>
-              covers(app, command) &&
-              reachesRoles(app, policy) &&
-              (unconditional(app, command) ||
-                condition(app, command) === condition(policy, command)),
+          const apps = own.filter((app) => covers(app, command));
+
+          return (
+            apps.length > 0 &&
+            !apps.some(
+              (app) =>
+                reachesRoles(app, policy) &&
+                (unconditional(app, command) || narrows(policy, app, command)),
+            )
           );
         });
 
@@ -118,14 +213,7 @@ export function widenedAppTablePolicies(
           return [];
         }
 
-        const unguarded = widened.filter(
-          (command) => !own.some((app) => covers(app, command)),
-        );
-
-        const reason =
-          unguarded.length === widened.length
-            ? `the app has no policy of its own for ${widened.join(", ")}, so this one grants it alone`
-            : `no policy of the app's for ${widened.join(", ")} has the same condition and roles, so it can open rows the app's policies keep closed`;
+        const reason = `no policy of the app's for ${widened.join(", ")} reaches its roles with a condition it repeats (alone or with more "and" operands), so it can open rows the app's policies keep closed`;
 
         return [
           {
