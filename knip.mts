@@ -82,6 +82,10 @@ const config: KnipConfig = {
       entry: ["better-supabase.config.ts"],
       ignore: exampleIgnore,
     },
+    "apps/examples/content-mapper": {
+      entry: ["better-supabase.config.ts"],
+      ignore: ["**/generated.ts"],
+    },
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
       ...browserExample,

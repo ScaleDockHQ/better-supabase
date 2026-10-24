@@ -204,7 +204,7 @@ catalogs:
     typescript: 6.0.3
   # The first release with content mappers, type-checked in tests/types/ts-7.1
   # and apps/examples/content-mapper while the toolchain stays on 7.0
-  # (docs/decisions/0095).
+  # (docs/decisions/0097).
   ts71:
     typescript: 7.1.0-beta
   # The previous major of each framework adapter whose peer range still
