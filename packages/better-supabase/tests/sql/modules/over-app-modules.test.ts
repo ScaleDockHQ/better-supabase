@@ -9,7 +9,26 @@ import { renderBlocks } from "../../../src/sql/render.ts";
 import { declaredTables } from "../../../src/sql/schema-scan.ts";
 
 /** The domain modules that run over tables the app already has. */
-const MODULES = ["shipments"] as const;
+const MODULES = [
+  "quotes",
+  "invoices",
+  "tasks",
+  "contacts",
+  "orders",
+  "shipments",
+  "expenses",
+  "leave",
+  "hiring",
+  "assets",
+  "approvals",
+  "templates",
+  "workflows",
+  "workflow-editor",
+  "messaging",
+  "comments",
+  "timeline",
+  "ledger",
+] as const;
 
 const SCHEMAS = ["public", "better_supabase"];
 
