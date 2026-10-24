@@ -1,7 +1,5 @@
 "use client";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DbError } from "../core/errors.ts";
@@ -25,7 +23,7 @@ export interface PresenceHookOptions<I> {
    */
   readonly state?: I | null;
   /** A supabase-js client for apps without `<BetterSupabaseProvider>`. */
-  readonly client?: SupabaseClient;
+  readonly client?: RealtimeClient;
 }
 
 export interface Presence<I, O> {
@@ -78,7 +76,9 @@ export function usePresence<P extends string, I, O>(
   options: PresenceHookOptions<I> = {},
 ): Presence<I, O> {
   const context = useContext(ClientContext);
-  const supabase = options.client ?? context?.client.supabase;
+
+  const supabase =
+    options.client ?? context?.realtime ?? context?.client.supabase;
 
   if (!supabase) {
     throw new Error(

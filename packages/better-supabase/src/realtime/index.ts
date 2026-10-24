@@ -2,6 +2,14 @@ export { defineTopic, rowChange, rowKeys } from "./topic.ts";
 
 export { topicPort, watchTopic } from "./watch-topic.ts";
 
+export { relayRealtimeClient, relayTopicPort } from "./relay.ts";
+
+export type {
+  RelayClientOptions,
+  RelayEventSource,
+  RelayEventSourceConstructor,
+} from "./relay.ts";
+
 export {
   SUBJECT_PRESENCE_TEMPLATE,
   subjectPresence,

@@ -108,6 +108,10 @@ export { SessionProvider, useSession, useSupportSession } from "./session.ts";
 
 export { usePresence } from "./presence.ts";
 
+export { useRealtimeRelay } from "./relay.ts";
+
+export type { UseRealtimeRelayOptions } from "./relay.ts";
+
 export type {
   Presence,
   PresenceHookOptions,

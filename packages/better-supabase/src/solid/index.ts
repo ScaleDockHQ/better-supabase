@@ -39,6 +39,7 @@ import type { QuerySpec } from "../core/spec.ts";
 import type {
   EventSchemas,
   PresenceMember,
+  RealtimeClient,
   SubscriptionStatus,
   TemplateValues,
   Topic,
@@ -265,7 +266,7 @@ function follow(
 
 function useCaller(
   context: Context | undefined,
-  client: SupabaseClient | undefined,
+  client: RealtimeClient | undefined,
 ): Accessor<Caller> {
   if (context && client === undefined) {
     return () => callerOf(context.auth());
@@ -293,8 +294,8 @@ function useCaller(
 function supabaseFor(
   hook: string,
   context: Context | undefined,
-  client: SupabaseClient | undefined,
-): SupabaseClient {
+  client: RealtimeClient | undefined,
+): RealtimeClient {
   const supabase = client ?? context?.client.supabase;
 
   if (!supabase) {

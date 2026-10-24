@@ -125,6 +125,13 @@ everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
 Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)
 follow, and `ctx.storage` reads and writes Storage as the target (see below).
 
+Realtime joins in the browser carry the admin's token, so they would show the
+admin's topics. Join through
+[`realtimeRelay`](/docs/platform/realtime#without-a-browser-token) instead:
+it checks each topic as the target, and `useRealtimeRelay(url)` switches the
+React hooks to it while the support session runs. Sends are refused in a
+read-only session.
+
 ### Storage in a support session
 
 Storage policies read `auth.uid()` from the request's token, and there is no

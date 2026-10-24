@@ -646,6 +646,73 @@ The collaborative editor blocks sync Yjs documents through
 stays an app dependency; check that it joins a private channel before you
 rely on a topic policy to guard the document.
 
+## Without a browser token
+
+Realtime checks a join against the token of the browser's connection. A
+support session ("view as user") has no token of the viewed user, and an app
+that keeps sessions in httpOnly cookies has none in the browser at all.
+`realtimeRelay` from `better-supabase/server` joins for them: it resolves the
+caller, checks the topic's policies as that caller, joins upstream with the
+secret key and streams the topic's broadcasts and presence as server-sent
+events.
+
+```ts title="app/api/realtime/route.ts"
+import { createPostgres } from "better-supabase/postgres";
+import { liveRelayTopic, realtimeRelay } from "better-supabase/server";
+
+import { bsb } from "@/lib/supabase/server";
+import { notifications, room } from "@/lib/topics";
+
+export const { GET, POST } = realtimeRelay(bsb, {
+  topics: [notifications, room, liveRelayTopic],
+  postgres: createPostgres(),
+});
+```
+
+`relayRealtimeClient(url)` from `better-supabase/realtime` has the
+`RealtimeClient` surface, so `subscribe`, `send`, `liveQuery`, `watchTopic`
+and the hooks take it unchanged; `relayTopicPort(url)` is the port for the
+block controllers:
+
+```ts
+import { relayRealtimeClient } from "better-supabase/realtime";
+
+const realtime = relayRealtimeClient("/api/realtime");
+using sub = notifications.subscribe(
+  realtime,
+  { organizationId, userId },
+  { created: (n) => toast(n.title) },
+);
+```
+
+- **Access.** Only the listed topics are served; `liveRelayTopic` adds the
+  `realtime-tables` channels of `liveQuery`. Each join is checked against the
+  `realtime.messages` policies the way Realtime checks one: a probe message
+  is read as the caller, then the transaction rolls back. In a support
+  session the check runs with the viewed user's claims. `authorize(input)`
+  replaces the policy check; a throw denies. Signed-out callers only join
+  public topics.
+- **Sending.** `POST { topic, event, payload }` broadcasts for the caller on
+  a topic with `send: true`, after the insert policy allows it and the
+  event's schema accepts the payload. A read-only support session gets 403
+  `SUPPORT_READ_ONLY`.
+- **Presence.** Joins with presence forward every sync, so `onPresence` and
+  `usePresence` show the members. `track` answers an error: the relay joins
+  as the server and does not track for the caller.
+- **Lifetimes.** A keep-alive comment goes out every `heartbeatMs` (25000).
+  A stream ends with an `end` event when the session or the support session
+  expires (`expired`), after `maxDurationMs` (240000, `max_duration`), when
+  the client falls more than `maxQueued` (256) events behind (`overflow`), or
+  when the upstream join fails (`upstream_error`). The client reconnects on
+  its own, every reconnect checks access again, and the rejoin it reports
+  makes live queries refetch what they missed.
+- **Connections.** Joins of one topic share one upstream channel per server
+  process. Each topic is one stream per browser tab, so serve the route over
+  HTTP/2.
+
+`realtimeTopicAccess(postgres, { claims, topic, action })` runs the same
+policy check on its own.
+
 ## React
 
 ```tsx
@@ -664,6 +731,26 @@ signed-in user changes. `invalidate` refetches the table's
 [TanStack queries](/docs/frontend/query) after each message. It needs
 `queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
 `subscribed`, `closed` or `error`.
+
+`<BetterSupabaseProvider realtime={...}>` makes `useBroadcast`,
+`usePresence`, `useLiveQuery` and `useLiveCount` join through another client.
+`useRealtimeRelay(url)` returns a [relay client](#without-a-browser-token)
+while `useSupportSession()` reports a support session, and `undefined`
+otherwise; `{ when: "always" }` relays every session:
+
+```tsx
+const realtime = useRealtimeRelay("/api/realtime");
+
+return (
+  <BetterSupabaseProvider
+    client={bsb}
+    queryClient={queryClient}
+    realtime={realtime}
+  >
+    {children}
+  </BetterSupabaseProvider>
+);
+```
 
 An app that uses supabase-js without the better-supabase client passes its
 client (and a `queryClient` for `invalidate`) instead of the provider. The

@@ -1,12 +1,33 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/**
- * Whether the client has an auth module to follow. A client built by hand for
- * Storage or Realtime only (or a test stand-in) has none.
- */
-export function hasAuthModule(supabase: SupabaseClient): boolean {
-  const auth: Partial<SupabaseClient["auth"]> | undefined = supabase.auth;
+type AuthEvents = Pick<SupabaseClient["auth"], "onAuthStateChange">;
 
-  // oxlint-disable-next-line typescript/no-unnecessary-condition, typescript/no-deprecated -- the type says present, a hand-built client may not have it; only the presence is read.
-  return typeof auth?.onAuthStateChange === "function";
+/**
+ * The client's auth module, when it has one to follow. A client built by hand
+ * for Storage or Realtime only (a `relayRealtimeClient`, a test stand-in) has
+ * none.
+ */
+export function authModuleOf(client: object): AuthEvents | undefined {
+  if (!("auth" in client)) {
+    return undefined;
+  }
+
+  const auth: unknown = client.auth;
+
+  if (
+    typeof auth !== "object" ||
+    auth === null ||
+    !("onAuthStateChange" in auth) ||
+    typeof auth.onAuthStateChange !== "function"
+  ) {
+    return undefined;
+  }
+
+  // SAFETY: a supabase-js auth module; `onAuthStateChange` was checked above.
+  return auth as AuthEvents;
+}
+
+/** Whether the client has an auth module to follow. */
+export function hasAuthModule(supabase: object): boolean {
+  return authModuleOf(supabase) !== undefined;
 }

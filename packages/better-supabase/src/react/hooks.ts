@@ -35,6 +35,7 @@ import type {
   TopicHandlers,
 } from "../realtime/index.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
+import type { RealtimeClient } from "../realtime/topic.ts";
 import type { ContextValue } from "./context.ts";
 
 import {
@@ -47,7 +48,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { sessionUserId, specKey } from "../bindings/keys.ts";
-import { hasAuthModule } from "../core/auth-module.ts";
+import { authModuleOf, hasAuthModule } from "../core/auth-module.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
 import { ClientContext } from "./context.ts";
 import { useSession } from "./session.ts";
@@ -69,6 +70,11 @@ export interface BetterSupabaseProviderProps {
   readonly client: ClientLike;
   /** Better-supabase queries are removed when the user signs out or changes. */
   readonly queryClient?: QueryClient;
+  /**
+   * The Realtime client the hooks join with instead of the client's `supabase`,
+   * such as `useRealtimeRelay(url)` in a support session.
+   */
+  readonly realtime?: RealtimeClient;
   readonly children?: ReactNode;
 }
 
@@ -76,7 +82,7 @@ export interface BetterSupabaseProviderProps {
 export function BetterSupabaseProvider(
   props: BetterSupabaseProviderProps,
 ): ReactNode {
-  const { client, queryClient } = props;
+  const { client, queryClient, realtime } = props;
 
   useEffect(
     () =>
@@ -84,7 +90,10 @@ export function BetterSupabaseProvider(
     [client, queryClient],
   );
 
-  const value = useMemo(() => ({ client, queryClient }), [client, queryClient]);
+  const value = useMemo(
+    () => ({ client, queryClient, realtime }),
+    [client, queryClient, realtime],
+  );
 
   return createElement(ClientContext.Provider, { value }, props.children);
 }
@@ -187,7 +196,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   options?: BroadcastOptions,
 ): SubscriptionStatus {
   const context = useContext(ClientContext);
-  const supabase = options?.client ?? context?.client.supabase;
+
+  const supabase =
+    options?.client ?? context?.realtime ?? context?.client.supabase;
 
   if (!supabase) {
     throw new Error(
@@ -245,7 +256,7 @@ const NO_AUTH = (): (() => void) => () => undefined;
  */
 export function useBroadcastAuth(
   client: ClientLike | undefined,
-  supabase: SupabaseClient,
+  supabase: RealtimeClient,
 ): { readonly status: AuthSnapshot["status"]; readonly userId: string | null } {
   const snapshot = useSyncExternalStore(
     client?.auth.subscribe ?? NO_AUTH,
@@ -263,11 +274,13 @@ export function useBroadcastAuth(
       return;
     }
 
-    if (!hasAuthModule(supabase)) {
+    const authModule = authModuleOf(supabase);
+
+    if (!authModule) {
       return;
     }
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = authModule.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
         userId: session ? sessionUserId(session) : null,
@@ -324,7 +337,7 @@ export function useLiveQuery(
   spec: QuerySpec | null | undefined,
   options: LiveQueryHookOptions = {},
 ): SubscriptionStatus {
-  const { client, queryClient } = useClientContext();
+  const { client, queryClient, realtime } = useClientContext();
   const auth = useAuth();
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
 
@@ -353,6 +366,7 @@ export function useLiveQuery(
 
     return startLiveQuery({
       client,
+      ...(realtime ? { realtime } : {}),
       queryClient,
       spec: held.spec,
       auth: latest.current.auth,
@@ -360,7 +374,7 @@ export function useLiveQuery(
       resumed,
       onStatus: setStatus,
     });
-  }, [client, queryClient, held, key]);
+  }, [client, realtime, queryClient, held, key]);
 
   return status;
 }
@@ -387,7 +401,7 @@ export function useLiveCount(
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options: LiveCountHookOptions = {},
 ): LiveCount {
-  const { client } = useClientContext();
+  const { client, realtime } = useClientContext();
   const auth = useAuth();
   const parsed = countSource(source, options);
   const [state, setState] = useState<CountState>(NO_COUNT);
@@ -415,6 +429,7 @@ export function useLiveCount(
 
     return startLiveCount({
       client,
+      ...(realtime ? { realtime } : {}),
       spec: held.spec,
       key: specKey,
       auth: latest.current.auth,
@@ -434,7 +449,7 @@ export function useLiveCount(
       onStatus: setStatus,
     });
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `key` holds the spec, tenant, user and debounce.
-  }, [client, held.spec, held.key, key, hasInitial, seedAt]);
+  }, [client, realtime, held.spec, held.key, key, hasInitial, seedAt]);
 
   const shown = shownCount(state, held.key, parsed);
 

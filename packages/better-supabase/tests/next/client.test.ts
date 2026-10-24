@@ -2,7 +2,10 @@ import type * as ReactModule from "react";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSessionChange } from "../../src/next/client/index.ts";
+import {
+  useSessionChange,
+  useSessionWatch,
+} from "../../src/next/client/index.ts";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn<(href: string) => void>(),
@@ -13,9 +16,28 @@ vi.mock("next/navigation.js", () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
 
+const effects = vi.hoisted(() => ({
+  cleanups: [] as (() => void)[],
+  states: [] as unknown[],
+}));
+
 vi.mock("react", async (original) => ({
   ...(await original<typeof ReactModule>()),
   useCallback: <T>(fn: T): T => fn,
+  useRef: <T>(current: T) => ({ current }),
+  useState: <T>(initial: T) => [
+    initial,
+    (next: T) => {
+      effects.states.push(next);
+    },
+  ],
+  useEffect: (effect: () => (() => void) | undefined) => {
+    const cleanup = effect();
+
+    if (cleanup) {
+      effects.cleanups.push(cleanup);
+    }
+  },
 }));
 
 describe("useSessionChange", () => {
@@ -78,5 +100,74 @@ describe("useSessionChange", () => {
     });
 
     await expect(failing()).rejects.toThrow("expired");
+  });
+});
+
+describe("useSessionWatch", () => {
+  const active = (fingerprint: string) => ({
+    status: "active",
+    userId: "u1",
+    fingerprint,
+    expiresAt: null,
+    support: null,
+  });
+
+  const flush = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+  beforeEach(() => {
+    mocks.refresh.mockClear();
+    effects.cleanups.length = 0;
+    effects.states.length = 0;
+  });
+
+  it("refreshes the router when the claims change and reports each answer", async () => {
+    const fetch = vi.fn(async () => Response.json(active("f2")));
+
+    useSessionWatch({
+      fetch,
+      fingerprint: "f1",
+      intervalMs: 0,
+      channel: false,
+    });
+    await flush();
+
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(effects.states).toEqual([active("f2")]);
+
+    for (const cleanup of effects.cleanups) {
+      cleanup();
+    }
+  });
+
+  it("hands changes to onChange and stays off when disabled", async () => {
+    const onChange = vi.fn();
+
+    const fetch = vi.fn(async () =>
+      Response.json({ ...active("x"), status: "ended", fingerprint: null }),
+    );
+
+    useSessionWatch({
+      fetch,
+      onChange,
+      fingerprint: "f1",
+      intervalMs: 0,
+      channel: false,
+    });
+    await flush();
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "ended", source: "check" }),
+    );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+
+    useSessionWatch({ fetch, enabled: false });
+    expect(fetch).toHaveBeenCalledOnce();
+
+    for (const cleanup of effects.cleanups) {
+      cleanup();
+    }
   });
 });

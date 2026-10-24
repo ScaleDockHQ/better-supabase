@@ -46,6 +46,7 @@ import type { QuerySpec } from "../core/spec.ts";
 import type {
   EventSchemas,
   PresenceMember,
+  RealtimeClient,
   SubscriptionStatus,
   TemplateValues,
   Topic,
@@ -261,7 +262,7 @@ export function createBindings<B extends ClientLike>(): BetterComposables<B> {
 /** The caller a subscription runs as: the plugin's auth, or a plain client's. */
 function useCaller(
   context: Context | null,
-  client: SupabaseClient | undefined,
+  client: RealtimeClient | undefined,
 ): Readonly<Ref<Caller>> {
   if (context && client === undefined) {
     return computed(() => callerOf(context.auth.value));
@@ -289,8 +290,8 @@ function useCaller(
 function supabaseFor(
   hook: string,
   context: Context | null,
-  client: SupabaseClient | undefined,
-): SupabaseClient {
+  client: RealtimeClient | undefined,
+): RealtimeClient {
   const supabase = client ?? context?.client.supabase;
 
   if (!supabase) {

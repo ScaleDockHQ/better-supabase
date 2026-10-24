@@ -4,10 +4,13 @@ import type { Context } from "react";
 import { createContext } from "react";
 
 import type { ClientLike } from "../bindings/client.ts";
+import type { RealtimeClient } from "../realtime/topic.ts";
 
 export interface ContextValue {
   readonly client: ClientLike;
   readonly queryClient: QueryClient | undefined;
+  /** The provider's `realtime` client, when it has one. */
+  readonly realtime?: RealtimeClient | undefined;
 }
 
 /**

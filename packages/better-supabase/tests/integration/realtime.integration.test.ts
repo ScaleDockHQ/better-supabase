@@ -7,7 +7,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TopicMessage } from "../../src/realtime/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineTopic, rowKeys } from "../../src/realtime/index.ts";
+import { realtimeTopicAccess } from "../../src/server/realtime-relay.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
@@ -453,6 +455,39 @@ describe.skipIf(!live)("Realtime module", async () => {
     },
     20_000,
   );
+
+  it("checks relay access with the topic's policies as the caller", async () => {
+    const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
+    const topic = notifications.topic({ organizationId: ACME, userId: USER });
+
+    const member = { sub: USER, role: "authenticated", tenant_id: ACME };
+    const outsider = { ...member, tenant_id: OTHER };
+    const stranger = { ...member, sub: crypto.randomUUID() };
+
+    const access = (
+      claims: Record<string, unknown>,
+      action: "receive" | "send",
+      name = topic,
+    ) => realtimeTopicAccess(postgres, { claims, topic: name, action });
+
+    try {
+      expect(await access(member, "receive")).toBe(true);
+      expect(await access(member, "send")).toBe(true);
+      expect(await access(outsider, "receive")).toBe(false);
+      expect(await access(stranger, "receive")).toBe(false);
+      expect(await access(stranger, "send")).toBe(false);
+      expect(await access({ role: "anon" }, "receive")).toBe(false);
+      expect(await access(member, "receive", `nope:${ACME}`)).toBe(false);
+
+      const left = await pool.query(
+        "select count(*)::int as n from realtime.messages where event = 'bsb_relay_probe'",
+      );
+
+      expect(left.rows[0]).toEqual({ n: 0 });
+    } finally {
+      await postgres.end();
+    }
+  });
 
   it("refuses private topics of another tenant", async () => {
     const sub = customers.subscribe(other, { organizationId: ACME }, {});
