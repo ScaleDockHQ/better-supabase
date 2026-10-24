@@ -1,7 +1,8 @@
 {
   "calibration": {
-    "ts6": 0.11,
-    "ts7": 0.022
+    "ts6": 0.13,
+    "ts7": 0.028,
+    "ts71": 0.023
   },
   "profiles": {
     "default": {
@@ -10,20 +11,36 @@
       "composite": false,
       "measurement": {
         "ts6": {
-          "types": 12189,
-          "instantiations": 36037,
-          "checkTime": 0.19
+          "types": 12545,
+          "instantiations": 38437,
+          "checkTime": 0.23
         },
         "ts7": {
-          "types": 16917,
-          "instantiations": 37387,
-          "checkTime": 0.023
+          "types": 17522,
+          "instantiations": 40112,
+          "checkTime": 0.027
+        },
+        "ts71": {
+          "types": 17615,
+          "instantiations": 39935,
+          "checkTime": 0.018
+        },
+        "ts71Mapper": {
+          "types": 16726,
+          "instantiations": 39990,
+          "checkTime": 0.021
         }
       },
       "gen": {
-        "cold": 0.18,
-        "warm": 0.16,
-        "incremental": 0.17
+        "cold": 0.47,
+        "warm": 0.31,
+        "incremental": 0.34
+      },
+      "mapper": {
+        "files": 0.09,
+        "cold": 0.4,
+        "warm": 0.36,
+        "incremental": 0.41
       }
     },
     "centrakit": {
@@ -32,20 +49,36 @@
       "composite": true,
       "measurement": {
         "ts6": {
-          "types": 18524,
-          "instantiations": 45961,
-          "checkTime": 0.27
+          "types": 18966,
+          "instantiations": 48614,
+          "checkTime": 0.34
         },
         "ts7": {
-          "types": 27376,
-          "instantiations": 47332,
-          "checkTime": 0.039
+          "types": 28155,
+          "instantiations": 50310,
+          "checkTime": 0.055
+        },
+        "ts71": {
+          "types": 28282,
+          "instantiations": 50121,
+          "checkTime": 0.034
+        },
+        "ts71Mapper": {
+          "types": 29119,
+          "instantiations": 215781,
+          "checkTime": 0.061
         }
       },
       "gen": {
-        "cold": 0.2,
-        "warm": 0.18,
-        "incremental": 0.21
+        "cold": 0.41,
+        "warm": 0.32,
+        "incremental": 0.37
+      },
+      "mapper": {
+        "files": 0.11,
+        "cold": 0.49,
+        "warm": 0.43,
+        "incremental": 0.49
       }
     }
   }
