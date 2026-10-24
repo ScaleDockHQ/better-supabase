@@ -1,5 +1,296 @@
 # better-supabase
 
+## 0.15.0
+
+### Minor Changes
+
+- [#358](https://github.com/ScaleDockHQ/better-supabase/pull/358) [`624b3fa`](https://github.com/ScaleDockHQ/better-supabase/commit/624b3fa0cc9e102b45ef35be5b8c5ef3b1d72cc1) Thanks [@martijn00](https://github.com/martijn00)! - Framework adapters now come in two tiers. Next.js, Hono, Expo Router, SvelteKit, TanStack Start and React Router are supported adapters: they get the full test matrix, an example app and every new guide. Astro, Edge Functions, Elysia, H3, Nuxt and Nitro 2 (`better-supabase/h3/v1`), NestJS, Node and SolidStart are community adapters: they keep shipping in every release with a smoke test that serves a request, and their docs pages carry a community note. No adapter is removed and no import changes. Read more under [adapter tiers](https://bettersupabase.com/docs/frameworks#adapter-tiers) and in ADR 0094.
+
+- [#348](https://github.com/ScaleDockHQ/better-supabase/pull/348) [`b831bf9`](https://github.com/ScaleDockHQ/better-supabase/commit/b831bf975c1fbb60e00d62e98f6809c0680ca403) Thanks [@martijn00](https://github.com/martijn00)! - Blocks declare what they give `approvals`, `bulk`, `pipelines`,
+  `share-links` and `subjects` in a new `contributes` field, and those generic
+  blocks no longer name their consumers. A second instance contributes to the
+  generic instance its `uses` names. Two contributions with the same subject or
+  action name fail at render. Run `better-supabase upgrade` and `db diff`; the
+  rendered functions change only in the order of their branches.
+
+- [#350](https://github.com/ScaleDockHQ/better-supabase/pull/350) [`ae12e19`](https://github.com/ScaleDockHQ/better-supabase/commit/ae12e19755ce91e6da09dde3e3880cc829ed42c7) Thanks [@martijn00](https://github.com/martijn00)! - Block clients are keyed by instance. `gen` writes a `blocks.generated.ts`
+  entry for every instance, with the block it installs, its `uses` and the
+  function names its SQL writes, plus a renamed client such as `ticketsBlock`.
+  `createBlocks` reads the entry under the instance key, binds a port that two
+  blocks provide through the consumer's `uses` or the new `ports` option, and
+  `createBlockClient` takes `instance`. Block queries use the table key space
+  `["bsb", instance, method, ...args]`, so `invalidateTables` makes table and
+  instance queries stale, optionally narrowed to methods.
+
+- [#349](https://github.com/ScaleDockHQ/better-supabase/pull/349) [`162a817`](https://github.com/ScaleDockHQ/better-supabase/commit/162a8174ff791e33968c59e13bcbff95217a0e7b) Thanks [@martijn00](https://github.com/martijn00)! - Blocks that attach to records take their record types from `on` on the block
+  entry instead of `options.subjects`, and `field-history` takes
+  `on: { <type>: { fields: [...] } }`. `better-supabase upgrade` moves the
+  value. A config that still sets `options.subjects` fails with the key to move,
+  and the new doctor check BS346 reports an `on` entry that `config.records`
+  doesn't register.
+
+- [#341](https://github.com/ScaleDockHQ/better-supabase/pull/341) [`1466392`](https://github.com/ScaleDockHQ/better-supabase/commit/1466392880fedcd245aa6f4d22ef7b14ec8b83a0) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: 26 blocks take plain names. The block name changes in the config, the CLI, the subpath (`better-supabase/blocks/<name>`), the exports, the operation names (`<block>.<action>`) and the CloudEvent source (`better-supabase/<block>`). Table names, permission keys, event types, hint codes and queue names don't change. `better-supabase codemod 0.15` renames the config keys, the imports and the subpaths, and lists event sources for review. `better-supabase upgrade` moves the installed blocks to their new names and renames two tables that clashed: hiring's `jobs` becomes `job_openings` and catalog's `collections` becomes `product_collections`. A 0.14 name in the config stops `add` and `gen` with a message that names the codemod.
+  
+  | 0.14                 | 0.15               |
+  | -------------------- | ------------------ |
+  | `work-items`         | `tasks`            |
+  | `parties`            | `contacts`         |
+  | `engagements`        | `activities`       |
+  | `targets`            | `goals`            |
+  | `number-sequences`   | `numbering`        |
+  | `actor`              | `created-by`       |
+  | `ensure-rls`         | `rls-guard`        |
+  | `shared-signals`     | `security-events`  |
+  | `service-principals` | `service-accounts` |
+  | `support-sessions`   | `impersonation`    |
+  | `controls`           | `compliance`       |
+  | `ai-tasks`           | `ai-schedules`     |
+  | `ai-providers`       | `ai-keys`          |
+  | `workflow-builder`   | `workflow-editor`  |
+  | `jobs`               | `queue`            |
+  | `access`             | `permissions`      |
+  | `rules`              | `automations`      |
+  | `tenant`             | `memberships`      |
+  | `activity`           | `timeline`         |
+  | `workflow-sdk-world` | `workflow-sdk`     |
+  
+  The docs pages move with their blocks, and `/docs/blocks/<old>` redirects to the new page.
+
+- [#337](https://github.com/ScaleDockHQ/better-supabase/pull/337) [`9bcb9d5`](https://github.com/ScaleDockHQ/better-supabase/commit/9bcb9d56a281f6a3e824b2fafc27971492df1f41) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the SQL engine says block. `SqlModule` is `BlockSql`, `ModuleDefinition` is `BlockSqlDefinition`, and the other `Module*` types from `better-supabase/sql` are `BlockSql*` (`BlockSqlContext`, `BlockSqlLayout`, `BlockSqlNames`). `renderModules`, `resolveModules`, `resolveModule`, `isModuleIdType`, `sameModuleFile`, `InstalledModule` and `SkippedModule` are `renderBlocks`, `resolveBlocks`, `resolveBlock`, `isBlockSqlIdType`, `sameBlockFile`, `InstalledBlock` and `SkippedBlock`.
+  
+  Four exports take their glossary names: `SubjectRef` is `RecordRef`, `entityForm` is `recordForm` (with `useRecordForm` and the `RecordForm*` types), `ShipmentCarrier` is `ShippingProvider` (`testShippingProvider`), and `QueueBackend` is `QueueProvider` (`sqlQueueProvider`, `transportQueueProvider`, `vercelQueueProvider`, `testQueueProvider`). `better-supabase codemod 0.15` renames these imports.
+  
+  Installed versions live in `better_supabase.blocks` instead of `better_supabase.modules`. `sql upgrade` creates the new table and copies the rows before the schema diff drops the old one, and doctor reads the old table while the new one is missing. Block files carry `-- @bsb-block`, `-- @bsb-block-data`, `-- @bsb-block-test`, `-- @bsb-names` and `-- @bsb-tables` lines; `sql upgrade`, `sql sync` and doctor read the `@bs-*` lines of files written by 0.14 and older.
+
+- [#337](https://github.com/ScaleDockHQ/better-supabase/pull/337) [`e2660f9`](https://github.com/ScaleDockHQ/better-supabase/commit/e2660f974f901a97663bbb2cd1b59eb25d57c84e) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the runtime instance is `bsb`, matching the CLI's short name, so `const db = await bsb.db()` replaces `bs.db()` in the docs, skills, examples, generated files and the `ctx.bsb` key on request contexts (`c.var.bsb`, `locals.bsb`, `context.bsb`). Run `better-supabase codemod 0.15` to rename the instance where a file creates, imports or destructures it; it lists cache tags and query keys that start with `bs` for review.
+  
+  Strings on the wire move with it, so deploy the new package and run `better-supabase sql upgrade` together: realtime topics start with `bsb:t:`, the request and job headers are `x-bsb-actor`, `x-bsb-job` and `x-bsb-signature`, workflow run attributes are `bsb.*`, the debug header is `x-bsb-db-calls`, the stats route is `/api/bsb-stats`, and Server-Timing names are `bsb-proxy` and `bsb-verify`. Workflow runs started before the upgrade keep their `bs.*` attributes, so failure alerts don't count them. The support session cookie is `bsb-support` and the replica cookie is `bsb-primary-until`, so staff in a support session start it again after the deploy.
+  
+  The triggers, policies, constraints, indexes and functions the blocks install are named `bsb_` instead of `bs_` (`bsb_audit`, `bsb_session_active`, `bsb_json_<table>_<column>`). `sql upgrade` renames the installed `bs_` objects in place before it applies the new block files, so nothing is created twice; an object on a table the migration role doesn't own (`auth.users`, `storage.objects`, `realtime.messages`) gets a warning naming the rename to do by hand. Doctor and the error mapper read both prefixes.
+  
+  Stored names keep `bs`, because renaming them would orphan existing data: Vault secret names (`bs:field-key:`, `bs:cred:`, `bs:signing:`, `bs:marketplace:`), the queue envelope key `$bs` and the API key prefix `bs`, which existing keys are verified against.
+
+- [#339](https://github.com/ScaleDockHQ/better-supabase/pull/339) [`11cd84d`](https://github.com/ScaleDockHQ/better-supabase/commit/11cd84dad5d2da1c1d295ca3d880f1078c5ca7d8) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the CLI has one command per job: `init`, `add`, `remove`, `upgrade`, `blocks`, `gen`, `dev`, `db`, `doctor`, `config`, `spec`, `scaffold`, `mcp`, `codemod`, `skills` and `completion`. Running a moved command exits 2 and names the new one, and `better-supabase codemod 0.15` rewrites the calls in `package.json` scripts and GitHub workflows.
+  
+  | 0.14                          | 0.15                                          |
+  | ----------------------------- | --------------------------------------------- |
+  | `apply --preset <p>`          | `add --preset <p>`                            |
+  | `adopt <block>`               | `add --adopt <block>`                         |
+  | `sql add <block>`             | `add <block>`                                 |
+  | `sql sync`, `sql upgrade`     | `upgrade`                                     |
+  | `sql data`                    | `add --adopt`                                 |
+  | `sql list`                    | `blocks list --installed`                     |
+  | `sql print <block>`           | `blocks view <block> --sql`                   |
+  | `preset decode <code>`        | `blocks list --preset <code>`                 |
+  | `preset info`                 | `config --preset`                             |
+  | `introspect`                  | `gen --save-snapshot`                         |
+  | `seed`                        | `db seed`                                     |
+  | `env`, `run`, `keys`, `stack` | `dev env`, `dev run`, `dev keys`, `dev stack` |
+  
+  `remove <block...>` is new: it takes blocks out of the config and `lib/blocks.ts`, deletes their module files and points to `db diff` for the migration that drops their tables. `add --adopt --check` exits 1 when the data migration is out of date, and a comment-only change to a data file no longer needs a new data migration. The MCP tools follow the commands: `config_preset`, `blocks_installed`, `add_preset_dry_run`, `upgrade`, `add_preset` and `remove`. The CLI docs move to `/docs/cli/dev` (env, run, keys and stack), `/docs/cli/db#seed` and `/docs/cli/gen#saving-a-snapshot`; the old pages redirect.
+
+- [#354](https://github.com/ScaleDockHQ/better-supabase/pull/354) [`92178e7`](https://github.com/ScaleDockHQ/better-supabase/commit/92178e7633b67d2b1ab7516298a3f7ab8e94db03) Thanks [@martijn00](https://github.com/martijn00)! - Block instances live on `db`. `.blocks(blockSet)` on the definition puts each instance on the repository object (`db.comments`), running through the same executor as the tables and acting in the active organization. An instance whose name a table already uses stays at `db.$blocks.<instance>`, and `db.$api(fn, args)` calls a function in the API schema. `blocks.generated.ts` exports `blocks`, the block for each instance, so `defineBlocks(blockConfig, blocks)` lists them all.
+  
+  `gen.hooks` writes `hooks.ts` with a list and a record hook per table (`useCustomers`, `useCustomer`) for React, Vue, Svelte or Solid, built on `defineDataHooks`. The hooks share reads, update cached rows at once on `create`, `update` and `delete`, and roll back on an error. They keep reads in memory by default; `createClient(definition, { engine: queryEngine(queryClient) })` from `better-supabase/query` keeps them in TanStack Query.
+  
+  The `requireTenant` option and helper are now `requireOrganization`. Run `better-supabase codemod 0.15` to rename them; doctor reports a `requireTenant` that is left.
+
+- [#352](https://github.com/ScaleDockHQ/better-supabase/pull/352) [`bbc7bf8`](https://github.com/ScaleDockHQ/better-supabase/commit/bbc7bf8e67902d40e0f202619632e0f2b3363842) Thanks [@martijn00](https://github.com/martijn00)! - Blocks stop copying tables other blocks own. Leases drops its maintenance
+  requests (install a `tasks` instance named `maintenance_request` instead; the
+  upgrade renames the old table to `maintenance_requests_legacy`), admission
+  pass credits post on the ledger, inventory can keep stock at the assets
+  locations with `tables: { locations: null }`, and donations requires
+  `numbering` and contributes a `donation_receipt` sequence (`R-{n}`) that an
+  app entry replaces. Blocks contribute numbering defaults through
+  `contributes.numbering`. A renamed instance now reaches notifications and
+  the queue under their own names, and `gen` names its events type after the
+  instance (`MaintenanceEvents`) and adds it to `BlockEvents`.
+
+- [#338](https://github.com/ScaleDockHQ/better-supabase/pull/338) [`f163f0e`](https://github.com/ScaleDockHQ/better-supabase/commit/f163f0ed638b2121a324dba976f90d9c9d911d55) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: `better-supabase.config.ts` groups its keys into `database` (`source`, `schemas`, `sql`, `seed`, `expose`, `buckets`, `realtime`, `topics`, `vectorSearch`), `auth` (`organization`, `claims`, `authorization`, `entitlements`), `gen` (`output`, `casing`, the generator `tables` overrides and the other type options), `api` (`openapi`, `specs`) and `tooling` (`doctor`, `env`, `keys`, `skills`, `scaffold`). `preset`, `blocks`, `plugins`, `records`, `tables` and `adapters` stay at the top level.
+  
+  | 0.14                     | 0.15                       |
+  | ------------------------ | -------------------------- |
+  | `subjects`               | `records`                  |
+  | `appTables`              | `tables`                   |
+  | `appTables.<name>.scope` | `tables.<name>.owner`      |
+  | `integrations`           | `adapters`                 |
+  | `sql.scope`              | `database.sql.owner`       |
+  | `claims.tenant`          | `auth.organization.claim`  |
+  | `plugins.tenant.column`  | `auth.organization.column` |
+  | `blocks.<name>.mode`     | `blocks.<name>.ownership`  |
+  | `blocks.<name>.scope`    | `blocks.<name>.owner`      |
+  | `blocks.<name>.entities` | `blocks.<name>.names`      |
+  | `blocks.<name>.hooks`    | `blocks.<name>.callbacks`  |
+  
+  `better-supabase codemod 0.15` regroups a config file, its environment blocks and a `better-supabase.config.json`. Loading a config with a 0.14 key fails with a message that names the key's new place. `resolveConfig` returns the same resolved config as before, and `flattenConfig`, `groupConfig` and `blockEntrySource` from `better-supabase/config` convert between the two shapes. `init` and `add` write the grouped keys, and CLI and doctor messages name the grouped paths. Doctor finding targets keep their 0.14 names, so saved baselines still match. Create designs keep `appTables` and `scope` in this release.
+
+- [#345](https://github.com/ScaleDockHQ/better-supabase/pull/345) [`3d1b4f0`](https://github.com/ScaleDockHQ/better-supabase/commit/3d1b4f0600d93df8095bbab70066adfb9859bef3) Thanks [@martijn00](https://github.com/martijn00)! - Blocks install as instances. Each key in `blocks` names an instance; a key
+  other than a block's name installs a second instance of the block in its
+  `block` setting, `on` lists the record types an attachable block attaches
+  to, and `uses` picks the instance of a dependency. The options of a named
+  instance are typed from its block. `resolveConfig` reports unknown blocks,
+  renamed or repeated core blocks, unknown `uses` keys and a missing `uses`
+  together, and `ResolvedConfig.instances` lists the resolved instances. The
+  config JSON schema accepts instance keys.
+
+- [#344](https://github.com/ScaleDockHQ/better-supabase/pull/344) [`2345830`](https://github.com/ScaleDockHQ/better-supabase/commit/23458301b2e84e420e47710ad4521e66f2966ce4) Thanks [@martijn00](https://github.com/martijn00)! - Repositories and block clients share one data contract. Reads are `list`, `page`, `get`, `count` and `aggregate`; writes are `create`, `update`, `upsert` and `delete`; `attach` and `detach` link a row to a record. `findMany`, `findFirst`, `findOnly`, `findUnique`, `findById`, `paginate`, `exists` and the `*Many` methods go: `get` takes a primary key, a unique key or `{ where }` (with `{ optional: true }` for null), `create` and `upsert` take one row or an array, and `update` and `delete` take a key or `{ where }`.
+  
+  Block clients move to the same verbs. `tags.tag` and `untag` become `attach` and `detach`, `tags.create`, `update` and `list` take objects, `forSubject(record)` on tags, channels and scores becomes `list({ on: record })`, and `save` on the block clients and `set` on ai-cache and ai-files `providerFiles` become `upsert`. The lint rules `no-unbounded-find-many` and `no-delete-many-without-where` become `no-unbounded-list` and `no-empty-where`, and the guards `noUnboundedFindMany` and `noDeleteManyWithoutWhere` become `noUnboundedList` and `noDeleteWithoutWhere`.
+  
+  Run `better-supabase codemod 0.15` to rewrite the repository calls, the guard options and the lint rule names. It lists the block client calls to review.
+
+- [#340](https://github.com/ScaleDockHQ/better-supabase/pull/340) [`ce02ba3`](https://github.com/ScaleDockHQ/better-supabase/commit/ce02ba3326ffa5aa5a043b3bee98ec6d98fc60b7) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: designs replace preset codes. The config's `preset` key takes a preset name or an object with the conventions that differ from the defaults and the blocks, a Create URL is `/create?preset=<name>` or `/create?design=<code>` with the preset inside the design (format 7), and a design file is the design JSON with its preset. `init`, `add` and `blocks list` stop on a 0.14 code and name `better-supabase codemod 0.15`, which converts the config's code and `*.design.json` files.
+  
+  | 0.14                                         | 0.15                                                    |
+  | -------------------------------------------- | ------------------------------------------------------- |
+  | `encodePreset(preset)`                       | `presetSpec(preset)` or `createUrl(resolved)`           |
+  | `decodePreset(code)`                         | `presetAndDesignOf(input)` or `presetOfSpec(value)`     |
+  | `defaultPresetCode()`                        | `defaultPreset()`                                       |
+  | `withPresetField(preset, key, value)`        | `presetFromSpec({ ...presetSpec(preset), key: value })` |
+  | `designConfigSource(resolved, design, code)` | `presetConfigSource(resolved, design)` (async)          |
+  | `designInstallCommand(resolved, code)`       | `presetInstallCommand(resolved, design)` (async)        |
+  | `designApplyCommand(resolved, code)`         | `presetApplyCommand(resolved, design)` (async)          |
+  
+  `isPresetCode`, `PRESET_BLOCKS`, `PRESET_FIELDS`, `PRESET_VERSION` and `DecodedPreset` are removed; `CONVENTION_FIELDS` lists the convention fields. The docs page `/docs/presets/codes` moves to `/docs/presets/designs`.
+
+- [#342](https://github.com/ScaleDockHQ/better-supabase/pull/342) [`6ee49d7`](https://github.com/ScaleDockHQ/better-supabase/commit/6ee49d7f1085252109d6013975b59d6c96ee869b) Thanks [@martijn00](https://github.com/martijn00)! - Every block that owns tables now declares the nouns it names its tables, indexes, policies, triggers, functions and events after, so `blocks.<name>.entities` renames them. That covers 43 more blocks, among them `quotes`, `invoices`, `orders`, `inventory`, `bookings`, `forms`, `pipelines`, `hiring`, `ai-chat`, `knowledge`, `agents`, `teams`, `tags`, `templates` and `automations`. Quotes, invoices, orders, bookings and forms are also record types, so comments, attachments, tags and activity can point at them.
+  
+  Run `better-supabase upgrade` after updating. The new record types widen the subject switches in the blocks that read record titles, and three internal keys move: the orders advisory lock key, the relations lock key and the `better_supabase.restoring_version` setting that `versions` sets while it restores a row.
+  
+  A config that declares `records.quote`, `records.invoice`, `records.order`, `records.booking` or `records.form` now fails. Remove the entry when it points at the block's own table, or set `blocks.<name>.names.<noun>.subject` to `false` to keep a table of your own.
+
+- [#355](https://github.com/ScaleDockHQ/better-supabase/pull/355) [`588c42c`](https://github.com/ScaleDockHQ/better-supabase/commit/588c42c4304a0021af4ef6386f2515ecbf8d7878) Thanks [@martijn00](https://github.com/martijn00)! - The per-block framework subpaths go: `better-supabase/blocks/<block>/react`, `/vue`, `/svelte` and `/solid` (120 subpaths) and `better-supabase/chat-sdk/react`. A block's React hooks are now a registry item that shadcn copies into the app: `npx shadcn add @better-supabase/use-<block>` writes `hooks/use-<block>.ts`, with the same hook names, options and return values, and the app imports from `@/hooks/use-<block>`. Presets install the hook item with each block.
+  
+  Vue, Svelte and Solid call `useBlockController(create<Name>Controller, options)` from `better-supabase/vue`, `better-supabase/svelte` or `better-supabase/solid`, with the controller from the block's main entry. It returns what the per-block hooks returned. `better-supabase/react` now exports `useController`, `useLatest`, `useBlockEnv` and `useBlockTenant` for your own hooks, and `better-supabase/blocks` exports `envBlockOptions`, `envBlockSettings` and the `BlockEnv` type.
+  
+  Doctor's BS418 finds imports of the removed subpaths and names the registry item.
+
+- [#367](https://github.com/ScaleDockHQ/better-supabase/pull/367) [`2bcc1c7`](https://github.com/ScaleDockHQ/better-supabase/commit/2bcc1c7b38c1ffd79a307fa6f13fa206ebbde545) Thanks [@martijn00](https://github.com/martijn00)! - Sessions verify once per request across cache scopes, and the Next.js proxy and sign-in take fewer round trips.
+  
+  - `createServer` keeps a session memo keyed by the token's hash. `server.snapshot(request)` returns a verified `SessionSnapshot`, and `server.contextFromSession(snapshot)` builds a context from it with no cookie read, no network call and no second verification. In Next.js, `bsb.getRequestSession()` returns the snapshot, so ten `'use cache: private'` islands verify the token once. `sessionCacheKey`, `sessionIdTag`, `sessionMemo` and `bsb.sessions.stats()` are new; `createNext(..., { sessions })` sizes the memo or turns it off. See the [island pattern](https://bettersupabase.com/docs/frameworks/next-islands) and ADR 0095.
+  - `contextFromSession` accepts only a snapshot the server made: a copy (a spread, `structuredClone`, a cached function's arguments) gets the `invalid` context. Pass plain values into cached functions.
+  - The proxy refreshes a token only within `refreshSkewSeconds` of its expiry (`auth.leeway`, else 60), stores a refreshed session in the memo, and treats `refresh_token_already_used` as `raced`: it keeps the cookies the other request set instead of signing the user out.
+  - `serverTiming: true` now reports `bsb-auth` for resolving the session and `bsb-parse`, `bsb-verify`, `bsb-refresh` and `bsb-ended` per phase. `bsb-verify` used to be the whole resolution; read `bsb-auth` for that number now.
+  - `isPrefetch` also recognizes `next-router-segment-prefetch`, `x-middleware-prefetch` and `x-moz: prefetch`. Expo's `bsb.middleware()` and API routes no longer refresh on a prefetch, like the other adapters.
+  - `bsb.signIn({ email, password, next })` signs in from a Server Action in one Auth call, writes the cookies, stores the session for the next render and returns a same-origin `redirectTo` (and `mfa`), so the form calls `router.replace` once. `safeRedirectPath` and `passwordGrant` are exported from `better-supabase/server`.
+  - `AuthSession` and `SessionSnapshot` gain `issuedAt` (from `iat`) and `authzVersion` (from an `authz_ver` claim, or `null`).
+  - `createServer(def, { versions })` takes an authorization library's version cache. Authorizers get `{ versions, memo }` as a runtime, `invalidateSession(userId)` evicts the user from it, and `subscribeAuthzVersions({ client, topic, event, userIdKey, versions })` evicts users when the database broadcasts a change on a private Realtime channel. See [the version cache](https://bettersupabase.com/docs/extending/authorization-providers#version-cache) and ADR 0096.
+  - SvelteKit, TanStack Start, React Router, Hono (`c.var.snapshot`) and Expo hand loaders and handlers the snapshot.
+
+- [#361](https://github.com/ScaleDockHQ/better-supabase/pull/361) [`b265157`](https://github.com/ScaleDockHQ/better-supabase/commit/b265157fd6fb95812889c589ecba11be45ffed51) Thanks [@martijn00](https://github.com/martijn00)! - Installed blocks now work together where they overlap. `ai-chat` records each
+  run's tokens on the `ai.input_tokens` and `ai.output_tokens` meters when
+  `usage` is installed (turn it off with `meterUsage: false`). `knowledge`
+  queues ingestion through `queue` (`ingest.queue` and `ingestJob()`). With
+  `invoices` installed, a paid order creates, issues and pays an invoice and
+  returns its id. Quote lines that name a catalog variant take its price and
+  title when they leave them out. Time entries and leave requests carry an
+  `employee_id` when `employees` is installed. `attachments` takes a
+  `publicBuckets` option and `Attachments.publicUrl()` for files anyone may
+  read. The registry adds `@better-supabase/ai-chat-next`, the AI chat route
+  with its stream and stop routes.
+
+- [#360](https://github.com/ScaleDockHQ/better-supabase/pull/360) [`e053be6`](https://github.com/ScaleDockHQ/better-supabase/commit/e053be64a628269ca6235688d509f5f75a3c85f5) Thanks [@martijn00](https://github.com/martijn00)! - PowerSync, SQLite and TanStack DB run as engines behind the generated data hooks. `powersyncEngine(powersync, { connector, local })` from `better-supabase/powersync`, `sqliteEngine(database)` from the new `better-supabase/sqlite` (Expo SQLite through `expoSqliteDatabase`, Supabase Lite through `liteDatabase`) and `tanstackDbEngine({ collections })` from `better-supabase/tanstack-db` go to `createClient` or `createNativeClient`, so native screens read `useCustomers(...)` like web screens. With a device engine, `bsb.db` runs on the local database for the tables in `local` and on PostgREST for the rest. `useSyncStatus()` and `useConflicts()` move to `better-supabase/react` and read the engine.
+  
+  `memoryEngine` and `queryEngine` take `live`, a change feed such as `realtimeChanges(betterSupabase, supabase)` from `better-supabase/realtime`, and `tables` to map a hook name to its tables. `where` on every hook and repository takes a filter tree from a list query or saved view, checked against the filterable columns.
+  
+  Breaking: `better-supabase/powersync/react` (`useWatch`), `better-supabase/expo-sqlite` (`expoSqliteExecutor`) and `better-supabase/tanstack-db/supabase` (`supabaseCollection`) are removed, along with `watch` and `sqliteTables`, and `@supabase-labs/tanstack-db` is no longer a peer. Doctor reports what is left as BS418. See the 0.14 to 0.15 guide.
+
+- [#358](https://github.com/ScaleDockHQ/better-supabase/pull/358) [`bce09f7`](https://github.com/ScaleDockHQ/better-supabase/commit/bce09f722a81c72a1a0269d49461a92a2a9bc079) Thanks [@martijn00](https://github.com/martijn00)! - `defineApi` publishes every table and every block instance by default. Without `resources`, each table gets its CRUD operations; a map now publishes only the tables it names, and `resources: false` publishes none. Each table also gets the contract verbs `page`, `count`, `aggregate` and `upsert` as `POST /<table>/<verb>` (operation ids such as `countCustomers`), served by `defineResource`, `bsb.resource` and `bsb.resources` too; `verbs` limits them, and a write hook drops `upsert`. Each block instance gets `POST /<instance>/<method>` per client method, configured with the new `blocks` option (`verbs`, `path`, `tag`, `permissions`).
+  
+  `createOrpc(betterSupabase).router(api, { guard, meta })` serves that model as oRPC procedures, with routes that match the document. `bsb.blockRouter` is removed: serve `bsb.router(defineApi(betterSupabase, options))` instead. Doctor reports BS418 for a `blockRouter` call that is left.
+
+- [#359](https://github.com/ScaleDockHQ/better-supabase/pull/359) [`09d3bc4`](https://github.com/ScaleDockHQ/better-supabase/commit/09d3bc4f8038c70b7f695788854f1046ea4cd02c) Thanks [@martijn00](https://github.com/martijn00)! - One automation model. Automations, workflow action steps and sequence action steps run actions from
+  one registry: `defineAction` declares an action (`apiVersion: 1`, with an optional config schema)
+  and `createActionRegistry` collects them; `createRuleDispatcher` takes `{ actions }` instead of
+  `handlers`. The action hints are now `ACTION_UNKNOWN` and `ACTION_CONFIG_INVALID`.
+  
+  `better-supabase/flows` is removed. Blocks ship default automations instead: the inbox opens a task
+  for each new conversation, hiring preboards each hired candidate and quotes orders each accepted
+  quote (turned off). Each organization gets its own copy, which it may turn off, edit or reset with
+  `resetDefault`. The conversions are actions of the target block (`taskFromConversationAction`,
+  `employeeFromApplicationAction`, `orderFromQuoteAction`). `createRuleSink` falls back to
+  `eventTarget(event)` when `load` returns nothing.
+  
+  Workflow definitions lose their event triggers (`triggers.onEvent`, `builder.sink()`); an
+  automation's `workflow` action starts them. Block timers (SLA checks, sequence waits, AI schedules,
+  workflow schedules) run on the queue through `blockSchedules` and `blockTickHandler`. Doctor
+  BS418 names each removed API and its replacement.
+
+- [#358](https://github.com/ScaleDockHQ/better-supabase/pull/358) [`d67dee1`](https://github.com/ScaleDockHQ/better-supabase/commit/d67dee12f0542a29cc84b1e8ab1ff02b6b88cde7) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/spec` is the one entry for API documents. It exports the
+  OpenAPI, AsyncAPI, Arazzo and Overlay renderers (`createOpenApi`,
+  `createAsyncApi`, `createArazzo`, `defineWorkflow`, `applyOverlays`,
+  `defineOverlay` and the rest) next to `defineApi`. The subpaths
+  `better-supabase/openapi`, `better-supabase/asyncapi`,
+  `better-supabase/arazzo` and `better-supabase/overlay` are removed: import
+  the same names from `better-supabase/spec`. `better-supabase codemod 0.15`
+  rewrites the imports, and doctor reports BS418 for any that are left.
+
+- [#343](https://github.com/ScaleDockHQ/better-supabase/pull/343) [`04eb6be`](https://github.com/ScaleDockHQ/better-supabase/commit/04eb6bed4fe9d11f25a731003497ae2747d406bd) Thanks [@martijn00](https://github.com/martijn00)! - The built-in plugins become block extensions, and the `plugins` config key and the six `better-supabase/plugins/*` subpaths go. The `updated-at`, `created-by`, `trash` and `memberships` blocks carry `updatedAtExtension`, `createdByExtension`, `trashExtension` and `membershipsExtension`, and `gen` installs the extensions of the installed blocks in the generated schema, with `validation()` and the generated validators when a schema generator is configured. `auth.organization.column` turns the memberships extension on for an app's own tenancy. The query rules move to `better-supabase/lint` as `guards()`, `safeGuards()`, `recommendedGuards()` and `strictGuards()`, and `validation()` is exported from `better-supabase`. `definePlugin` stays the versioned interface for your own plugins.
+  
+  `.use()` of an extension the schema already installed replaces it, so passing options still works. A query on an organization table without an organization is now left to RLS by default; set `auth.organization.onMissing: "error"` to fail it. Without Temporal and a `now` option, the updated-at extension leaves `created_at` and `updated_at` to the column defaults and the block's trigger.
+  
+  Run `better-supabase codemod 0.15` to move the config and the imports. A config that still has `plugins` fails with a message that names the blocks.
+
+- [#364](https://github.com/ScaleDockHQ/better-supabase/pull/364) [`e0667c0`](https://github.com/ScaleDockHQ/better-supabase/commit/e0667c0ab8848794c49df41a0b38e3f3d5a298a8) Thanks [@martijn00](https://github.com/martijn00)! - Presets now install the automations and queue blocks their default automations and block timers need: `helpdesk`, `people`, `erp` and `automation` gain automations, and `crm`, `helpdesk`, `cms`, `itsm`, `claims`, `ai`, `ai-chat` and `ai-agents` gain the queue. `erp` turns on the `quotes.quote_to_order` default. The automations block takes `enable` and `disable` options with default automation keys. The content block publishes scheduled entries from a `content.publish` block timer, and its `publishSchedule` option and pg_cron job are removed.
+
+- [#362](https://github.com/ScaleDockHQ/better-supabase/pull/362) [`6345c1c`](https://github.com/ScaleDockHQ/better-supabase/commit/6345c1c8aa682f4f604ce43a180241b4d0553f95) Thanks [@martijn00](https://github.com/martijn00)! - The `crm` preset now installs mail-sync, sequences, segments, assignment,
+  enrichment, forecasts and lead-scoring next to deals, so leads (contacts in
+  the `lead` lifecycle) are synced, scored, assigned and enrolled in email
+  sequences. The new `cms` preset installs content with publish approvals,
+  versions and public media; `erp` installs a catalog, stock, quotes priced
+  from the catalog, orders that invoice when paid, and employees with time and
+  leave; `pim` installs a catalog with channels, translations and public
+  product media, plus custom fields, imports and bulk edits. Write the old
+  `crm` block list as a preset object to keep the 0.14 selection.
+
+- [#353](https://github.com/ScaleDockHQ/better-supabase/pull/353) [`40ecd25`](https://github.com/ScaleDockHQ/better-supabase/commit/40ecd253851ff08059dbe38bed2fe9aafed35ca6) Thanks [@martijn00](https://github.com/martijn00)! - Presets write block instances, and doctor finds the 0.15 APIs left in app code.
+  
+  - A preset object takes `instances`: `blocks` entries with `block`, `names`, `options`, `tables`, `on` and `uses`. An instance named after a block selects it; one with another `block` installs only what that block requires next to it. Your own `blocks` entry for the same key is merged over the preset's.
+  - `helpdesk` and `itsm` name the tasks block's work items `ticket` and its projects `issue`, and `property` adds a `maintenance` instance of tasks for maintenance requests. Set `blocks.tasks.names` in your config to keep the old names.
+  - The design JSON reads format 8, which adds the preset's `instances`, and `design-v1.json` and `config-v1.json` describe them.
+  - `presetBlocksSource` wires each extra instance in `lib/blocks.ts` (`maintenance: tasksBlock`), and the config source lists it.
+  - Doctor reports BS418 for imports of a renamed block or plugin subpath, an export named after a renamed block, and the record feature, leases maintenance and pass credit APIs 0.15 removed.
+  - The 0.14 to 0.15 guide ends with the upgrade order, and the consumer skill covers instances.
+
+- [#351](https://github.com/ScaleDockHQ/better-supabase/pull/351) [`5e06268`](https://github.com/ScaleDockHQ/better-supabase/commit/5e06268332659135a7708b88c779b360942404f2) Thanks [@martijn00](https://github.com/martijn00)! - Record sections become record bindings. A block declares one `record` binding,
+  named by its key in the config, and `gen` writes one `records/<type>.ts` per
+  record type instead of the `features/` folder, the navigation and the command
+  files. `bsb.record(type)` replaces `recordServer` and `bsb.sectionAction`, and
+  `gen.recordTypes` replaces `gen.generateFeatures`. `better-supabase codemod 0.15`
+  renames the section exports and lists the calls to move.
+
+- [#358](https://github.com/ScaleDockHQ/better-supabase/pull/358) [`bdfdf76`](https://github.com/ScaleDockHQ/better-supabase/commit/bdfdf7613e239dc2c95d893534f2a0a4d8c4c34c) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase scaffold api`, the `scaffold` config key (`tooling.scaffold`) and the `scaffold` step of `gen` are removed. `defineApi` from `better-supabase/spec` now includes every app table and block instance by default, and `createOrpc(betterSupabase).router(api)` from `better-supabase/orpc` serves it, so there is no API module to generate. Running `scaffold api` prints that replacement, and a config that still sets `scaffold` fails to load with a message that tells you to delete the key. Delete `lib/api.generated.ts` and the routes `scaffold api` wrote, and serve the router instead: https://bettersupabase.com/docs/frameworks/orpc#serve-the-api
+
+- [#356](https://github.com/ScaleDockHQ/better-supabase/pull/356) [`36ebf3b`](https://github.com/ScaleDockHQ/better-supabase/commit/36ebf3b14bfc17cb7291bc43deb7febd2b25c96c) Thanks [@martijn00](https://github.com/martijn00)! - Removes `better-supabase scaffold screens`. The library writes no pages: build a table's screens
+  on its generated data hooks (`useTasks`, `useTask`) and start from the `record-*` UI recipes.
+  Running the old command exits with a message that says so. `scaffold api` is unchanged.
+
+- [#347](https://github.com/ScaleDockHQ/better-supabase/pull/347) [`3951dc3`](https://github.com/ScaleDockHQ/better-supabase/commit/3951dc3d7a368dbc29d9d87f3eabc5348eac456a) Thanks [@martijn00](https://github.com/martijn00)! - Each block instance renders its own SQL. A second instance writes files
+  named after it, prefixes the table, function, trigger and index names its
+  entity renames leave unchanged with the instance name, reads the dependency
+  instance its `uses` names, and records itself in `better_supabase.blocks`
+  with the new `block` column. Its block marker names the block, the default
+  roles grant its renamed permission keys, and `doctor` and `upgrade` track
+  each instance's version.
+
+- [#368](https://github.com/ScaleDockHQ/better-supabase/pull/368) [`10c0592`](https://github.com/ScaleDockHQ/better-supabase/commit/10c059227d04dddb42a63abcc6d71ac2f523da17) Thanks [@martijn00](https://github.com/martijn00)! - TypeScript 7.1 can get the schema types from better-supabase's content mapper, so the repository no longer holds `database.types.ts` or the type half of `generated.ts`.
+  
+  - `gen.contentMapper: true` turns on mapper mode. `gen` writes a `schema.bsb` marker and a `generated.ts` that keeps the runtime values and re-exports the types with `export type * from "./schema.bsb"`, and writes no `database.types.ts`. `Database` (the enriched one) now comes from `generated.ts`. Files mode stays the default, and its output is unchanged.
+  - `init --content-mapper` sets the option, adds `{ "package": "better-supabase", "extensions": [".bsb"] }` to `contentMappers` in `tsconfig.json` and adds `--runExternalCode` to the `typecheck` script. It prints the change instead when a file holds comments or has no such script.
+  - The mapper renders the same types `gen` writes in files mode, from the same config and snapshot, and caches them in `node_modules/.cache/better-supabase`; `gen` fills that cache, so the first `tsc` after it reads the types. It watches the config, the snapshot, `supabase/config.toml` and a stamp `gen` rewrites when the types change, so `gen --watch` reloads the editor. A failure becomes a diagnostic (BS603 to BS606) instead of stopping `tsc`, and a config or snapshot that fails to load keeps the last types.
+  - Doctor's new BS602 check reports a missing `contentMappers` entry, a TypeScript older than 7.1 and a `typecheck` script without `--runExternalCode`.
+  - The content mapper protocol version is pinned as `SPEC_PINS.typescriptContentMapper` (`"1"`).
+  
+  Content mappers need TypeScript 7.1, which is in beta (`7.1.0-beta`). See the [content mapper](https://bettersupabase.com/docs/content-mapper) page and ADR 0097.
+
+- [#363](https://github.com/ScaleDockHQ/better-supabase/pull/363) [`4870935`](https://github.com/ScaleDockHQ/better-supabase/commit/4870935c5d21e97c61db9e1bea38e8ef8d76150e) Thanks [@martijn00](https://github.com/martijn00)! - Blocks declare their wiring. A block manifest now lists its `env` keys, `providers`, `routes` and `workers`, and the preset catalog carries them. `better-supabase add` and `init` append missing keys to `.env.example`, write commented provider stubs into `providers.ts` next to `blocks.generated.ts`, and print a numbered checklist with the registry command for the routes and the crons to schedule. `add` also renders installed blocks again when a new block changes their SQL, such as entitlements once billing is installed. Two doctor checks fail on missing wiring: BS504 for a required env key no env file lists, and BS505 for a required provider (enrichment, mail-sync) that no source passes with `.with(...)` or `.using(...)`.
+
+### Patch Changes
+
+- [#366](https://github.com/ScaleDockHQ/better-supabase/pull/366) [`078a023`](https://github.com/ScaleDockHQ/better-supabase/commit/078a0231b03e6ce5cc6d139d22132aaaec25ce40) Thanks [@martijn00](https://github.com/martijn00)! - The package README now leads with `db.customers.list` and `useCustomers`, and points at the docs catalog instead of listing every block.
+
+- [#353](https://github.com/ScaleDockHQ/better-supabase/pull/353) [`7c83550`](https://github.com/ScaleDockHQ/better-supabase/commit/7c83550b9b2debb0654b43faad2b26efbe36065f) Thanks [@martijn00](https://github.com/martijn00)! - Search no longer creates its index triggers on the tables of blocks that render after it. Each of those blocks adds the trigger to its own file, so a design that searches a later block's table (the helpdesk preset's tickets, for example) applies on a fresh database.
+
 ## 0.14.0
 
 ### Minor Changes
