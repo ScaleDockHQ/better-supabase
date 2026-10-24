@@ -19,7 +19,9 @@ import {
   fail,
   ensureCheck,
 } from "../shared.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { recordWorkflowRunSql } from "./workflows-record.ts";
 
 const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
@@ -74,6 +76,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     runs: {
       name: "workflow_runs",
+      app: {},
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
@@ -97,6 +100,8 @@ const NAMES: BlockSqlNames = {
         mode: "mode",
         triggerNode: "trigger_node",
       },
+      optional: ["subjectType", "subjectId", "mode", "triggerNode"],
+      typed: ["status", "mode"],
     },
     schedules: {
       name: "workflow_schedules",
@@ -193,6 +198,15 @@ function build(ctx: BlockSqlContext): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
+  const linked = ctx.has("runs", "subjectType") && ctx.has("runs", "subjectId");
+  const moded = ctx.has("runs", "mode");
+  const nodded = ctx.has("runs", "triggerNode");
+  const app = ctx.appOwned.includes("runs");
+
+  // A subject column of row, or null without the subject columns.
+  const subjectOf = (row: string, logical: string): string =>
+    linked ? `${row}.${cr(logical)}` : "null";
+
   const runJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cr("id")},
     'engine', ${alias}.${cr("engine")},
@@ -208,12 +222,12 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'startedAt', ${alias}.${cr("startedAt")},
     'completedAt', ${alias}.${cr("completedAt")},
     'cancelRequestedAt', ${alias}.${cr("cancelRequestedAt")},
-    'subjectType', ${alias}.${cr("subjectType")},
-    'subjectId', ${alias}.${cr("subjectId")},
+    'subjectType', ${subjectOf(alias, "subjectType")},
+    'subjectId', ${subjectOf(alias, "subjectId")},
     'principalKind', ${alias}.${cr("principalKind")},
     'principalId', ${alias}.${cr("principalId")},
-    'mode', ${alias}.${cr("mode")},
-    'triggerNode', ${alias}.${cr("triggerNode")}
+    'mode', ${moded ? `${alias}.${cr("mode")}` : "'live'"},
+    'triggerNode', ${nodded ? `${alias}.${cr("triggerNode")}` : `${alias}.${cr("attributes")} ->> 'bsb.trigger_node'`}
   )`;
 
   const scheduleJson = (alias: string): string => `jsonb_build_object(
@@ -234,7 +248,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const emitTerminal = (status: string): string =>
     ctx.record({
       type: `workflow_run.${status}`,
-      payload: `jsonb_build_object('runId', new.${cr("id")}, 'organizationId', new.${cr("tenant")}::text, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")}, 'subjectType', new.${cr("subjectType")}, 'subjectId', new.${cr("subjectId")})`,
+      payload: `jsonb_build_object('runId', new.${cr("id")}, 'organizationId', new.${cr("tenant")}::text, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")}, 'subjectType', ${subjectOf("new", "subjectType")}, 'subjectId', ${subjectOf("new", "subjectId")})`,
       subject: `'workflow-runs/' || new.${cr("id")}`,
       tenant: `new.${cr("tenant")}`,
       key: `'workflow_run.${status}:' || new.${cr("id")}`,
@@ -276,7 +290,7 @@ create table if not exists ${r} (
   ${cr("completedAt")} timestamptz,
   ${cr("cancelRequestedAt")} timestamptz,
   constraint workflow_runs_engine_external_key unique (${cr("engine")}, ${cr("externalId")})
-);
+);${appUniqueIndex(ctx, "runs", ["engine", "externalId"])}
 create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_actor_idx on ${r} (${cr("actor")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${cr("completedAt")});
@@ -284,18 +298,20 @@ create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table ${r} add column if not exists ${cr("subjectType")} text check (length(${cr("subjectType")}) between 1 and 100);
+${
+  linked
+    ? `alter table ${r} add column if not exists ${cr("subjectType")} text check (length(${cr("subjectType")}) between 1 and 100);
 alter table ${r} add column if not exists ${cr("subjectId")} text check (length(${cr("subjectId")}) between 1 and 200);
-alter table ${r} add column if not exists ${cr("principalKind")} text check (${cr("principalKind")} in (${PRINCIPAL_KINDS.map(sqlString).join(", ")}));
-alter table ${r} add column if not exists ${cr("principalId")} text check (length(${cr("principalId")}) between 1 and 200);
-alter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));
-alter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);
-${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}
-create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;
-alter table ${r} enable row level security;
-${revokeTable(r)}
-grant select on ${r} to authenticated;
-grant all on ${r} to service_role;
+`
+    : ""
+}alter table ${r} add column if not exists ${cr("principalKind")} text check (${cr("principalKind")} in (${PRINCIPAL_KINDS.map(sqlString).join(", ")}));
+alter table ${r} add column if not exists ${cr("principalId")} text check (length(${cr("principalId")}) between 1 and 200);${moded ? `\nalter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));` : ""}${nodded ? `\nalter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);` : ""}${
+    linked
+      ? `${app ? "" : `\n${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}`}
+create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;`
+      : ""
+  }
+${lockModuleTable(ctx, "runs", { read: true })}
 drop policy if exists workflow_runs_read on ${r};
 create policy workflow_runs_read on ${r} for select to authenticated
   using (
@@ -390,10 +406,14 @@ begin
   end if;${
     terminalEvents === ""
       ? ""
-      : `
+      : `${
+          moded
+            ? `
   if new.${cr("mode")} = 'test' then
     return null;
-  end if;
+  end if;`
+            : ""
+        }
   case new.${cr("status")}${terminalEvents}
     else null;
   end case;`
@@ -406,58 +426,7 @@ drop trigger if exists ${statusTrigger} on ${r};
 create trigger ${statusTrigger} after insert or update of ${cr("status")} on ${r}
   for each row execute function ${fn("workflow_runs_changed")}();
 
--- Creates or updates the run an engine reports. tenant, actor, the subject,
--- the principal, the trigger node and started_at keep their first non-null
--- value, mode keeps the first report's (default live); attributes merge.
-drop function if exists ${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz);
-create or replace function ${fn("record_workflow_run")}(
-  engine text,
-  external_id text,
-  definition text,
-  status text,
-  tenant ${id} default null,
-  actor uuid default null,
-  attributes jsonb default '{}'::jsonb,
-  error text default null,
-  started_at timestamptz default null,
-  completed_at timestamptz default null,
-  subject_type text default null,
-  subject_id text default null,
-  principal_kind text default null,
-  principal_id text default null,
-  mode text default null,
-  trigger_node text default null
-)
-returns uuid
-language plpgsql
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_id uuid;
-begin
-  insert into ${r} as x (${cr("engine")}, ${cr("externalId")}, ${cr("definition")}, ${cr("status")}, ${cr("tenant")}, ${cr("actor")}, ${cr("attributes")}, ${cr("error")}, ${cr("startedAt")}, ${cr("completedAt")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("principalKind")}, ${cr("principalId")}, ${cr("mode")}, ${cr("triggerNode")})
-  values (engine, external_id, definition, status, tenant, actor, coalesce(attributes, '{}'::jsonb), left(error, 4000), started_at, completed_at, subject_type, subject_id, principal_kind, principal_id, coalesce(mode, 'live'), trigger_node)
-  on conflict on constraint workflow_runs_engine_external_key do update set
-    ${cr("definition")} = excluded.${cr("definition")},
-    ${cr("status")} = excluded.${cr("status")},
-    ${cr("tenant")} = coalesce(x.${cr("tenant")}, excluded.${cr("tenant")}),
-    ${cr("actor")} = coalesce(x.${cr("actor")}, excluded.${cr("actor")}),
-    ${cr("attributes")} = x.${cr("attributes")} || excluded.${cr("attributes")},
-    ${cr("error")} = coalesce(excluded.${cr("error")}, x.${cr("error")}),
-    ${cr("startedAt")} = coalesce(x.${cr("startedAt")}, excluded.${cr("startedAt")}),
-    ${cr("completedAt")} = coalesce(excluded.${cr("completedAt")}, x.${cr("completedAt")}),
-    ${cr("subjectType")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectType")} else x.${cr("subjectType")} end,
-    ${cr("subjectId")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectId")} else x.${cr("subjectId")} end,
-    ${cr("principalKind")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalKind")} else x.${cr("principalKind")} end,
-    ${cr("principalId")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalId")} else x.${cr("principalId")} end,
-    ${cr("triggerNode")} = coalesce(x.${cr("triggerNode")}, excluded.${cr("triggerNode")}),
-    ${cr("updatedAt")} = now()
-  returning x.${cr("id")} into v_id;
-  return v_id;
-end;
-$$;
-${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text)`)}
+${recordWorkflowRunSql(ctx)}
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
@@ -483,11 +452,11 @@ as $$
     select * from ${r} y
     where (workflow_runs_list.tenant is null or y.${cr("tenant")} = workflow_runs_list.tenant)
       and (workflow_runs_list.definition is null or y.${cr("definition")} = workflow_runs_list.definition)
-      and (workflow_runs_list.status is null or y.${cr("status")} = workflow_runs_list.status)
+      and (workflow_runs_list.status is null or ${asText(ctx, "runs", `y.${cr("status")}`)} = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y.${cr("createdAt")} < workflow_runs_list.before)
-      and (workflow_runs_list.subject_type is null or y.${cr("subjectType")} = workflow_runs_list.subject_type)
-      and (workflow_runs_list.subject_id is null or y.${cr("subjectId")} = workflow_runs_list.subject_id)
-      and (workflow_runs_list.mode is null or y.${cr("mode")} = workflow_runs_list.mode)
+      and (workflow_runs_list.subject_type is null or ${linked ? `y.${cr("subjectType")} = workflow_runs_list.subject_type` : "false"})
+      and (workflow_runs_list.subject_id is null or ${linked ? `y.${cr("subjectId")} = workflow_runs_list.subject_id` : "false"})
+      and (workflow_runs_list.mode is null or ${moded ? asText(ctx, "runs", `y.${cr("mode")}`) : "'live'"} = workflow_runs_list.mode)
     order by y.${cr("createdAt")} desc
     limit ${pageSize("workflow_runs_list.max", 50, 500)}
   ) x;
@@ -790,7 +759,14 @@ as $$
 #variable_conflict use_variable
 declare
   v_id uuid;
-begin
+begin${
+    linked
+      ? ""
+      : `
+  if subject_type is not null or subject_id is not null then
+    ${fail("WORKFLOW_SUBJECT_UNSUPPORTED", "this workflow runs table has no subject columns", "22023")}
+  end if;`
+  }
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(key));
   if coalesce(singleton, false) and (
     ${fn("workflow_admission_active")}(key) > 0

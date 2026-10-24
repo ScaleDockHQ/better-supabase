@@ -22,6 +22,7 @@ export function builderPublisherSql(s: BuilderSql): string {
     userHolds,
     principal,
     callable,
+    scoped,
   } = s;
 
   const revoked = (message: string): string =>
@@ -91,7 +92,7 @@ begin
   if v_row.${cv("status")} = 'draft' then
     ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow version was never published", "P0002")}
   end if;
-  select case when x.${cd("scope")} = 'system' then tenant else x.${cd("tenant")} end into v_tenant
+  select ${scoped ? `case when x.${cd("scope")} = 'system' then tenant else x.${cd("tenant")} end` : `x.${cd("tenant")}`} into v_tenant
   from ${d} x where x.${cd("id")} = v_row.${cv("definition")};
   if v_row.${cv("owner")} is null then
     ${revoked("'This workflow version was published before publishers were recorded; publish it again'")}

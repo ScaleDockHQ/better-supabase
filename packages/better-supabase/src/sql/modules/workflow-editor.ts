@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import {
   addExtraColumns,
-  ensureCheck,
   extraFieldsArg,
   fail,
   lockTable,
@@ -18,8 +17,13 @@ import {
   SERVICE_CALLER,
   writeExtraColumns,
 } from "../shared.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { builderPublisherSql } from "./workflow-editor-publisher.ts";
-import { builderRuntimeSql, builderSql } from "./workflow-editor-sql.ts";
+import {
+  builderRuntimeSql,
+  builderSql,
+  definitionColumnsSql,
+} from "./workflow-editor-sql.ts";
 import {
   builderStartsSql,
   GRANT_ACTIONS,
@@ -61,6 +65,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     definitions: {
       name: "workflow_definitions",
+      app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
         id: "id",
@@ -77,9 +82,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["subjectTypes", "scope", "forkedFrom", "forkedFromVersion"],
+      typed: ["scope"],
     },
     optOuts: {
       name: "workflow_opt_outs",
+      app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
         tenant: "tenant_id",
@@ -90,6 +98,7 @@ const NAMES: BlockSqlNames = {
     },
     grants: {
       name: "workflow_definition_grants",
+      app: {},
       lifecycle: { user: "createdBy" },
       columns: {
         id: "id",
@@ -100,6 +109,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      typed: ["principalKind", "action"],
     },
     versions: {
       name: "workflow_versions",
@@ -168,6 +178,7 @@ const NAMES: BlockSqlNames = {
     },
     nodeRuns: {
       name: "workflow_node_runs",
+      app: {},
       columns: {
         run: "run_id",
         node: "node_id",
@@ -178,6 +189,7 @@ const NAMES: BlockSqlNames = {
         startedAt: "started_at",
         endedAt: "ended_at",
       },
+      typed: ["status"],
     },
     alerts: {
       name: "workflow_alerts",
@@ -266,6 +278,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     definitionReadable,
     definitionJson,
     versionJson,
+    scoped,
+    forked,
+    subjectTyped,
   } = s;
 
   const extras = ctx.extraColumns("definitions", ["fields"]);
@@ -296,22 +311,11 @@ create index if not exists ${ctx.naming.rename("workflow_definitions_created_by_
 -- forked_from: the definition and version a fork copied.
 -- restricted: running or editing it also needs a workflow_definition_grants
 -- row (or workflow.admin).
-alter table ${d} add column if not exists ${cd("subjectTypes")} text[] not null default '{}';
-alter table ${d} add column if not exists ${cd("scope")} text not null default 'tenant'
-  check (${cd("scope")} in ('tenant', 'system'));
-alter table ${d} add column if not exists ${cd("forkedFrom")} uuid references ${d} (${cd("id")}) on delete set null;
-alter table ${d} add column if not exists ${cd("forkedFromVersion")} integer check (${cd("forkedFromVersion")} > 0);
-alter table ${d} add column if not exists ${cd("restricted")} boolean not null default false;
-${ensureCheck(d, ctx.naming.rename("workflow_definitions_system_check"), `${cd("scope")} = 'tenant' or ${cd("tenant")} is null`)}
-${ensureCheck(d, ctx.naming.rename("workflow_definitions_subject_types_check"), `cardinality(${cd("subjectTypes")}) <= 50 and array_position(${cd("subjectTypes")}, null) is null`)}
-create index if not exists ${ctx.naming.rename("workflow_definitions_forked_from_idx")} on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;${addExtraColumns(d, extras)}
-alter table ${d} enable row level security;
-${revokeTable(d)}
-grant select on ${d} to authenticated;
-grant all on ${d} to service_role;
+${definitionColumnsSql(ctx, s)}${addExtraColumns(d, extras)}
+${lockModuleTable(ctx, "definitions", { read: true })}
 drop policy if exists ${ctx.naming.rename("workflow_definitions_read")} on ${d};
 create policy ${ctx.naming.rename("workflow_definitions_read")} on ${d} for select to authenticated
-  using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))})));
+  using (${scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant"))});
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
@@ -321,13 +325,10 @@ create table if not exists ${o} (
   ${co("createdBy")} uuid references auth.users (id) on delete set null,
   ${co("createdAt")} timestamptz not null default now(),
   primary key (${co("tenant")}, ${co("definition")})
-);
+);${appUniqueIndex(ctx, "optOuts", ["tenant", "definition"])}
 create index if not exists workflow_opt_outs_definition_idx on ${o} (${co("definition")});
 create index if not exists workflow_opt_outs_created_by_idx on ${o} (${co("createdBy")});
-alter table ${o} enable row level security;
-${revokeTable(o)}
-grant select on ${o} to authenticated;
-grant all on ${o} to service_role;
+${lockModuleTable(ctx, "optOuts", { read: true })}
 drop policy if exists workflow_opt_outs_read on ${o};
 create policy workflow_opt_outs_read on ${o} for select to authenticated
   using (${readable(co("tenant"))});
@@ -343,13 +344,10 @@ create table if not exists ${g} (
   ${cg("createdBy")} uuid references auth.users (id) on delete set null,
   ${cg("createdAt")} timestamptz not null default now(),
   constraint ${ctx.naming.rename("workflow_definition_grants_key")} unique (${cg("definition")}, ${cg("principalKind")}, ${cg("principalId")}, ${cg("action")})
-);
+);${appUniqueIndex(ctx, "grants", ["definition", "principalKind", "principalId", "action"])}
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_principal_idx")} on ${g} (${cg("principalKind")}, ${cg("principalId")});
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_created_by_idx")} on ${g} (${cg("createdBy")});
-alter table ${g} enable row level security;
-${revokeTable(g)}
-grant select on ${g} to authenticated;
-grant all on ${g} to service_role;
+${lockModuleTable(ctx, "grants", { read: true })}
 drop policy if exists ${ctx.naming.rename("workflow_definition_grants_read")} on ${g};
 create policy ${ctx.naming.rename("workflow_definition_grants_read")} on ${g} for select to authenticated
   using (${definitionReadable(cg("definition"))});
@@ -473,11 +471,8 @@ create table if not exists ${n} (
   ${cn("startedAt")} timestamptz,
   ${cn("endedAt")} timestamptz,
   primary key (${cn("run")}, ${cn("node")})
-);
-alter table ${n} enable row level security;
-${revokeTable(n)}
-grant select on ${n} to authenticated;
-grant all on ${n} to service_role;
+);${appUniqueIndex(ctx, "nodeRuns", ["run", "node"])}
+${lockModuleTable(ctx, "nodeRuns", { read: true })}
 drop policy if exists workflow_node_runs_read on ${n};
 create policy workflow_node_runs_read on ${n} for select to authenticated
   using (${cn("run")} in (select x.${cr("id")} from ${r} x));
@@ -602,17 +597,35 @@ begin
   end if;
   if v_scope = 'system' and not (${SERVICE_CALLER}) then
     ${forbidden("Only the service role saves a system workflow")}
-  end if;
+  end if;${
+    scoped
+      ? ""
+      : `
+  if v_scope = 'system' then
+    ${fail("WORKFLOW_SCOPE_UNSUPPORTED", "this workflow definitions table has no scope column, so there are no system workflows", "22023")}
+  end if;`
+  }${
+    subjectTyped
+      ? ""
+      : `
+  if cardinality(coalesce(subject_types, '{}')) > 0 then
+    ${fail("WORKFLOW_SUBJECT_UNSUPPORTED", "this workflow definitions table has no subject types column", "22023")}
+  end if;`
+  }
   if not ${allowed("tenant", "edit")} then
     ${forbidden("You may not edit workflows here")}
   end if;
   select * into v_row from ${d} x
   where x.${cd("tenant")} is not distinct from tenant and x.${cd("slug")} = slug
   for update;
-  if found then
-    if scope is not null and scope <> v_row.${cd("scope")} then
+  if found then${
+    scoped
+      ? `
+    if scope is not null and scope <> ${asText(ctx, "definitions", `v_row.${cd("scope")}`)} then
       ${fail("WORKFLOW_SCOPE_FIXED", "A workflow's scope never changes", "22023")}
-    end if;
+    end if;`
+      : ""
+  }
     if not ${granted(`v_row.${cd("id")}`, "tenant", "edit")} then
       ${forbidden("You may not edit this workflow")}
     end if;
@@ -621,8 +634,7 @@ begin
     end if;
     update ${d} x set
       ${cd("name")} = name,
-      ${cd("description")} = description,
-      ${cd("subjectTypes")} = coalesce(subject_types, x.${cd("subjectTypes")}),
+      ${cd("description")} = description,${subjectTyped ? `\n      ${cd("subjectTypes")} = coalesce(subject_types, x.${cd("subjectTypes")}),` : ""}
       ${cd("restricted")} = coalesce(restricted, x.${cd("restricted")}),
       ${cd("updatedAt")} = now()
     where x.${cd("id")} = v_row.${cd("id")}
@@ -631,8 +643,8 @@ begin
     if coalesce(restricted, false) and not ${allowed("tenant", "admin")} then
       ${forbidden("Only a workflow admin restricts a workflow")}
     end if;
-    insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}, ${cd("subjectTypes")}, ${cd("scope")}, ${cd("restricted")}, ${cd("createdBy")})
-    values (tenant, slug, name, description, coalesce(subject_types, '{}'), v_scope, coalesce(restricted, false), (select auth.uid()))
+    insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}${subjectTyped ? `, ${cd("subjectTypes")}` : ""}${scoped ? `, ${cd("scope")}` : ""}, ${cd("restricted")}, ${cd("createdBy")})
+    values (tenant, slug, name, description${subjectTyped ? ", coalesce(subject_types, '{}')" : ""}${scoped ? `, ${ctx.cast("definitions", "scope", "v_scope")}` : ""}, coalesce(restricted, false), (select auth.uid()))
     returning * into v_row;
   end if;${writeExtraColumns(d, extras, "save_workflow_definition.fields", `x.${cd("id")} = v_row.${cd("id")}`, "v_row")}
   return ${definitionJson("v_row")};
@@ -657,20 +669,32 @@ as $$
     ${definitionJson("x")} || jsonb_build_object(
       'published', (select y.${cv("version")} from ${v} y where y.${cv("definition")} = x.${cd("id")} and y.${cv("status")} = 'published'),
       'draft', exists (select 1 from ${v} y where y.${cv("definition")} = x.${cd("id")} and y.${cv("status")} = 'draft'),
-      'upstreamVersion', u.version,
-      'behind', coalesce(u.version > x.${cd("forkedFromVersion")}, false),
+      'upstreamVersion', ${forked ? "u.version" : "null"},
+      'behind', ${forked ? `coalesce(u.version > x.${cd("forkedFromVersion")}, false)` : "false"},
       'optedOut', case when workflow_definitions_list.tenant is null then null else ${optedOut(`x.${cd("id")}`, "workflow_definitions_list.tenant")} end
     ) order by x.${cd("name")}), '[]'::jsonb)
-  from ${d} x
+  from ${d} x${
+    forked
+      ? `
   left join lateral (
     select y.${cv("version")} as version from ${v} y
     where y.${cv("definition")} = x.${cd("forkedFrom")} and y.${cv("status")} = 'published'
-  ) u on true
+  ) u on true`
+      : ""
+  }
   where (workflow_definitions_list.tenant is null
-      or x.${cd("tenant")} = workflow_definitions_list.tenant
-      or x.${cd("scope")} = 'system')
-    and (workflow_definitions_list.subject_type is null
-      or workflow_definitions_list.subject_type = any (x.${cd("subjectTypes")}));
+      or x.${cd("tenant")} = workflow_definitions_list.tenant${
+        scoped
+          ? `
+      or x.${cd("scope")} = 'system')`
+          : ")"
+      }
+    and ${
+      subjectTyped
+        ? `(workflow_definitions_list.subject_type is null
+      or workflow_definitions_list.subject_type = any (x.${cd("subjectTypes")}))`
+        : "workflow_definitions_list.subject_type is null"
+    };
 $$;
 ${callable(`${fn("workflow_definitions_list")}(${id}, text)`)}
 
