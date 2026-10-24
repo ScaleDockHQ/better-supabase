@@ -1,12 +1,14 @@
 import type { FindingInput, DoctorContext, Rule } from "./rules.ts";
 
-import { hasColumnAccess } from "../../config/app-access.ts";
-import { sqlIdent } from "../../core/template.ts";
-import { scopePolicyName } from "../../sql/modules/app-table-enrich.ts";
-import { notNullCheckName } from "../../sql/shared.ts";
-import { TENANT_SCOPE_POLICY } from "../../sql/tenant-scope.ts";
+import {
+  hasColumnAccess,
+  notNullCheckName,
+  scopePolicyName,
+  TENANT_SCOPE_POLICY,
+} from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
 import { blockDeclaredTables } from "../sql-layout.ts";
+import { ident as sqlIdent } from "./live.ts";
 import { catalogOf } from "./shared.ts";
 
 const SCHEMA = "public";

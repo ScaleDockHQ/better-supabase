@@ -205,8 +205,8 @@ describe("proposeAdoption", () => {
   });
 
   it("refuses blocks that create all their tables", () => {
-    expect(proposeAdoption("comments", []).errors[0]).toContain(
-      "comments creates all its tables. Blocks that can run over yours: ",
+    expect(proposeAdoption("queue", []).errors[0]).toContain(
+      "queue creates all its tables. Blocks that can run over yours: ",
     );
     expect(proposeAdoption("nope", []).errors).toEqual([
       "nope is not a block. See `better-supabase blocks list`.",
