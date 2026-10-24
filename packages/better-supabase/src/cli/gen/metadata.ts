@@ -91,8 +91,13 @@ async function renderEmit(
 ): Promise<Rendered & { readonly contents: string }> {
   const generator = emitGenerator(config, emit);
 
+  // The printed module stands alone, so it holds the types even in mapper mode.
   const { files, warnings, notices } = await render(
-    { ...config, generators: generator ? [generator] : [] },
+    {
+      ...config,
+      gen: { ...config.gen, contentMapper: false },
+      generators: generator ? [generator] : [],
+    },
     snapshot,
     { inlineMeta: emit === "schema" },
   );

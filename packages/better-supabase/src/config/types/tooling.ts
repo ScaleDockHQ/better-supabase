@@ -75,6 +75,14 @@ export interface GenConfig {
   readonly tasks?: readonly GenTask[];
   /** Milliseconds between checks in `gen --watch` and `spec emit --watch`. */
   readonly watchInterval?: number;
+  /**
+   * Serves the schema types through the TypeScript 7.1 content mapper instead
+   * of writing them. `gen` then writes a slim `generated.ts` with the runtime
+   * values and a `schema.bsb` next to it, and no `database.types.ts`. The app
+   * still imports from `./generated`. Needs a `contentMappers` entry in
+   * `tsconfig.json` and `tsc --runExternalCode`. Defaults to `false`.
+   */
+  readonly contentMapper?: boolean;
 }
 
 /** Glue `better-supabase init` and `add` write for a framework or runtime. */
