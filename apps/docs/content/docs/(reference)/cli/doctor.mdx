@@ -697,7 +697,10 @@ can't run inside a transaction.
 key or a check scans the whole table while it holds a lock that blocks writes.
 Add the constraint with `not valid`, then run
 `alter table ... validate constraint ...` in a later statement, which scans
-without blocking writes.
+without blocking writes. A `references` or `check` written inline in
+`add column` can't be `not valid`, so BS230 flags it too: add the column,
+then the constraint. For a check, [BS236](#bs236) tells you when the rows
+pass and `doctor --fix` validates it.
 
 ### BS231
 
@@ -707,7 +710,9 @@ types are binary compatible. `set not null` scans the table under the same
 lock. For a type change, add a new column, backfill it, and switch reads to
 it. For `set not null`, first add `check (column is not null) not valid`,
 validate it, and then set not null, which Postgres then accepts without a
-scan.
+scan. BS231 also flags `add column ... not null` without a default, which
+fails once the table has rows: add the column nullable, fill it with
+[`db backfill`](/docs/cli/db#backfill), and then add the check.
 
 ### BS232
 
@@ -723,7 +728,9 @@ default, backfill it in batches, and then set the default.
 alters an existing table waits behind long-running queries for its lock, and
 every query that arrives after it waits too. Start the migration with
 `set lock_timeout = '5s';` so it fails fast and can be retried instead of
-stalling the app.
+stalling the app. A statement that only runs `validate constraint` takes a
+share update exclusive lock, which doesn't block reads or writes, so it
+doesn't count.
 
 ### BS234
 
