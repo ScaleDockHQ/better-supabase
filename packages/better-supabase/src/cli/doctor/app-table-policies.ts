@@ -1,154 +1,16 @@
 import type { BlockSqlDeprecation } from "../../sql/index.ts";
-import type { CatalogPolicy } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import {
   adoptedTables,
   moduleDeprecations,
   SQL_MODULES,
+  widenedCommands,
 } from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { BLOCK_PREFIX } from "./block-policies.ts";
 import { moduleFiles } from "./module-files.ts";
 import { catalogOf, qualified } from "./shared.ts";
-
-type Command = "select" | "insert" | "update" | "delete";
-
-const COMMANDS: readonly Command[] = ["select", "insert", "update", "delete"];
-
-const covers = (policy: CatalogPolicy, command: Command): boolean =>
-  policy.command === "all" || policy.command === command;
-
-const normalized = (expression: string | null): string =>
-  (expression ?? "").replaceAll(/\s+/g, " ").trim();
-
-/**
- * The expressions that decide `command`: `using` reads rows, `check` writes
- * them, and an update needs both.
- */
-function conditions(policy: CatalogPolicy, command: Command): string[] {
-  switch (command) {
-    case "select":
-    case "delete": {
-      return [normalized(policy.using)];
-    }
-
-    case "insert": {
-      return [normalized(policy.check)];
-    }
-
-    case "update": {
-      return [
-        normalized(policy.using),
-        normalized(policy.check ?? policy.using),
-      ];
-    }
-
-    default: {
-      const unhandled: never = command;
-
-      return unhandled;
-    }
-  }
-}
-
-/** Whether the parentheses that open `text` close at its last character. */
-function enclosed(text: string): boolean {
-  if (!(text.startsWith("(") && text.endsWith(")"))) {
-    return false;
-  }
-
-  let depth = 0;
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (char === "'") {
-      quoted = !quoted;
-    } else if (!quoted && char === "(") {
-      depth += 1;
-    } else if (!quoted && char === ")") {
-      depth -= 1;
-
-      if (depth === 0 && index < text.length - 1) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-const unwrapped = (expression: string): string => {
-  let text = expression.trim();
-
-  while (enclosed(text)) {
-    text = text.slice(1, -1).trim();
-  }
-
-  return text;
-};
-
-/** The operands of the top-level `and`s in `expression`, as Postgres prints it. */
-function conjuncts(expression: string): Set<string> {
-  const text = unwrapped(expression);
-  const parts: string[] = [];
-  let depth = 0;
-  let quoted = false;
-  let start = 0;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (char === "'") {
-      quoted = !quoted;
-    } else if (!quoted && char === "(") {
-      depth += 1;
-    } else if (!quoted && char === ")") {
-      depth -= 1;
-    } else if (
-      !quoted &&
-      depth === 0 &&
-      text.slice(index, index + 5).toLowerCase() === " and "
-    ) {
-      parts.push(text.slice(start, index));
-      start = index + 5;
-      index += 4;
-    }
-  }
-
-  parts.push(text.slice(start));
-
-  return new Set(parts.map(unwrapped));
-}
-
-/**
- * Whether the block's condition for `command` is the app's with more `and`
- * operands, so it admits no row the app's policy doesn't. The same condition
- * counts.
- */
-const narrows = (
-  block: CatalogPolicy,
-  app: CatalogPolicy,
-  command: Command,
-): boolean => {
-  const own = conditions(app, command);
-
-  return conditions(block, command).every((expression, index) => {
-    const required = conjuncts(own[index] ?? "");
-    const present = conjuncts(expression);
-
-    return [...required].every((operand) => present.has(operand));
-  });
-};
-
-const unconditional = (policy: CatalogPolicy, command: Command): boolean =>
-  conditions(policy, command).every((expression) => expression === "true");
-
-const reachesRoles = (app: CatalogPolicy, block: CatalogPolicy): boolean =>
-  app.roles.includes("public") ||
-  block.roles.every((role) => app.roles.includes(role));
 
 /**
  * Block policies (`bsb_*`, permissive) on the app's tables that grant a command
@@ -192,22 +54,7 @@ export function widenedAppTablePolicies(
     return permissive
       .filter((policy) => policy.name.startsWith(BLOCK_PREFIX))
       .flatMap((policy): FindingInput[] => {
-        const widened = COMMANDS.filter((command) => {
-          if (!covers(policy, command)) {
-            return false;
-          }
-
-          const apps = own.filter((app) => covers(app, command));
-
-          return (
-            apps.length > 0 &&
-            !apps.some(
-              (app) =>
-                reachesRoles(app, policy) &&
-                (unconditional(app, command) || narrows(policy, app, command)),
-            )
-          );
-        });
+        const widened = widenedCommands(policy, own);
 
         if (widened.length === 0) {
           return [];

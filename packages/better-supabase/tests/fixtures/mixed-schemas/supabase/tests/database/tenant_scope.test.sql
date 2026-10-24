@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select extensions.plan(13);
 
-select extensions.policies_are('public', 'invoices', array['members read invoices', 'bsb_invoices_select', 'bsb_tenant_scope'], 'public.invoices keeps the app''s policy next to the bsb_ ones');
+select extensions.policies_are('public', 'invoices', array['members read invoices', 'bsb_tenant_scope'], 'public.invoices keeps the app''s policy, which covers the block''s read, next to the scope');
 select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'invoices' and policyname = 'bsb_tenant_scope'), 'the scope on public.invoices is restrictive');
 select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'notes' and policyname = 'bsb_tenant_scope'), 'the scope on the enriched public.notes is restrictive');
 

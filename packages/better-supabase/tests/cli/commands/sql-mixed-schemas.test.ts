@@ -210,7 +210,13 @@ describe("an app's own declarative schema with blocks over it", () => {
     expect(text).toContain(
       "create policy bsb_tenant_scope on public.invoices as restrictive",
     );
-    expect(text).not.toContain("members read invoices");
+    expect(text).not.toMatch(
+      /(?:create|drop|alter) policy (?:if exists )?members read invoices/,
+    );
+    expect(text).toContain(
+      "-- public.invoices: the app's policy members read invoices already allows what bsb_invoices_select would, so the block adds none.",
+    );
+    expect(text).not.toContain("create policy bsb_invoices_select");
 
     for (const table of Object.keys(APP)) {
       expect(text).not.toContain(`revoke all on ${table} from`);

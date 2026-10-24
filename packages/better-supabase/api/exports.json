@@ -7481,6 +7481,7 @@
       "currentBlockName",
       "customContracts",
       "dataExportPlan",
+      "declaredPolicies",
       "declaredTableColumns",
       "declaredTables",
       "declaredUpdatedAtTriggers",
@@ -7531,7 +7532,8 @@
       "templateFunctions",
       "TENANT_SCOPE_POLICY",
       "tenantsQuery",
-      "upgradePlan"
+      "upgradePlan",
+      "widenedCommands"
     ],
     "types": [
       "AdoptedTable",

@@ -82,8 +82,13 @@ When your table already has a trigger that keeps `updated_at` current (one
 that calls `set_updated_at`, `moddatetime` or a function that sets
 `new.updated_at`), the block adds no `bsb_updated_at` trigger, and doctor
 reports it as [BS348](/docs/cli/doctor#bs348). Postgres combines permissive
-policies with `or`, so a block's `bsb_` policy next to your own can open rows
-your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports that pair.
+policies with `or`, so the block adds no `bsb_` policy for a command one of
+your permissive policies already allows for the block's roles: with `true`,
+the block's condition, the block's condition without some of its `and`
+operands, or one of those as an `or` operand of your condition. A comment in the block's file names your policy, and the
+`drop policy if exists` before it removes the copy an earlier install left. A
+`bsb_` policy whose condition is wider than yours stays, because it can open
+rows your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports it.
 On tenant tables, a restrictive `bsb_tenant_scope` policy keeps every row
 inside the caller's organizations, so your own permissive policy can't widen
 access beyond them.

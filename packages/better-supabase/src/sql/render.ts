@@ -37,6 +37,7 @@ import {
   withoutUnmappedTables,
 } from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
+import { withoutCoveredPolicies } from "./policy-cover.ts";
 import {
   checkMigrationOptions,
   checkModules,
@@ -99,10 +100,13 @@ export function moduleBody(
 
   return ctx.mode === "custom"
     ? undefined
-    : overApp(
-        renameQualifiers(moduleSql(module, ctx, layout), ctx),
-        ctx,
-        layout,
+    : withoutCoveredPolicies(
+        overApp(
+          renameQualifiers(moduleSql(module, ctx, layout), ctx),
+          ctx,
+          layout,
+        ),
+        layout.ownPolicies,
       );
 }
 
@@ -215,7 +219,11 @@ export function renderBlocks(
 
   return [...files, ...appTablesFiles(layout, installed)].map((file) => ({
     ...file,
-    contents: withBlockHash(file.contents),
+    contents: withBlockHash(
+      file.kind === "schema"
+        ? withoutCoveredPolicies(file.contents, layout.ownPolicies)
+        : file.contents,
+    ),
   }));
 }
 

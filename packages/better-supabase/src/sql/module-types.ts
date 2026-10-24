@@ -11,6 +11,7 @@ import type {
   BlockMode,
 } from "../config/blocks.ts";
 import type { ResolvedInstance } from "../config/instances.ts";
+import type { CatalogPolicy } from "../config/snapshot.ts";
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
@@ -321,6 +322,11 @@ export interface BlockSqlLayout {
    * there.
    */
   readonly ownUpdatedAtTriggers?: Readonly<Record<string, string>>;
+  /**
+   * The app's own policies on a table in `ownTables`, by `schema.table`. A
+   * block adds no permissive policy that one of them already covers.
+   */
+  readonly ownPolicies?: Readonly<Record<string, readonly CatalogPolicy[]>>;
   /**
    * The declared tables with row level security on, for tables `fromPolicies`
    * makes service-only.

@@ -154,3 +154,5 @@ export { scopePolicyName } from "./modules/app-table-enrich.ts";
 export { notNullCheckName } from "./shared.ts";
 
 export { TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
+
+export { declaredPolicies, widenedCommands } from "./policy-cover.ts";

@@ -10,12 +10,14 @@ import type {
   AuditedTable,
 } from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
+import type { CatalogPolicy } from "./introspect/types.ts";
 
 import {
   adoptedColumnProblems,
   auditRegistrations,
   declaredTableColumns,
   declaredTables,
+  declaredPolicies,
   declaredUpdatedAtTriggers,
   extensionSchema,
   moduleLayout,
@@ -213,13 +215,16 @@ export async function moduleLayoutFor(
 }
 
 /**
- * `ownTables`, `ownColumns` and `ownUpdatedAtTriggers`: the database's tables,
- * then the app's files.
+ * `ownTables`, `ownColumns`, `ownUpdatedAtTriggers` and `ownPolicies`: the
+ * database's tables, then the app's files.
  */
 async function ownLayout(
   config: ResolvedConfig,
 ): Promise<
-  Pick<BlockSqlLayout, "ownTables" | "ownColumns" | "ownUpdatedAtTriggers">
+  Pick<
+    BlockSqlLayout,
+    "ownTables" | "ownColumns" | "ownUpdatedAtTriggers" | "ownPolicies"
+  >
 > {
   const database = await databaseTables(config);
 
@@ -243,6 +248,10 @@ async function ownLayout(
     ownUpdatedAtTriggers: {
       ...database.updatedAtTriggers,
       ...declaredUpdatedAtTriggers(own, config.schemas),
+    },
+    ownPolicies: {
+      ...database.policies,
+      ...declaredPolicies(own, config.schemas),
     },
   };
 }
@@ -284,8 +293,9 @@ async function databaseTables(
   readonly tables: Readonly<Record<string, string>>;
   readonly columns: Readonly<Record<string, readonly string[]>>;
   readonly updatedAtTriggers: Readonly<Record<string, string>>;
+  readonly policies: Readonly<Record<string, readonly CatalogPolicy[]>>;
 }> {
-  const none = { tables: {}, columns: {}, updatedAtTriggers: {} };
+  const none = { tables: {}, columns: {}, updatedAtTriggers: {}, policies: {} };
   const path = config.source.snapshot;
 
   if (path === undefined || !existsSync(resolve(config.root, path))) {
@@ -317,6 +327,7 @@ async function databaseTables(
   const tables: Record<string, string> = {};
   const columns: Record<string, readonly string[]> = {};
   const updatedAtTriggers: Record<string, string> = {};
+  const policies: Record<string, readonly CatalogPolicy[]> = {};
 
   for (const table of toCatalog(snapshot).tables) {
     const name = `${table.schema}.${table.name}`;
@@ -335,10 +346,14 @@ async function databaseTables(
       if (kept !== undefined) {
         updatedAtTriggers[name] = kept.name;
       }
+
+      policies[name] = table.policies.filter(
+        (policy) => !policy.name.startsWith("bsb_"),
+      );
     }
   }
 
-  return { tables, columns, updatedAtTriggers };
+  return { tables, columns, updatedAtTriggers, policies };
 }
 
 /**
