@@ -13,7 +13,6 @@ import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   fail,
-  lockTable,
   schemaPreamble,
   triggerGrant,
   userGrant,
@@ -22,6 +21,7 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const APPLICATION = [
@@ -63,6 +63,15 @@ const EVENTS: BlockSqlEvents<HiringEvents> = {
   },
 };
 
+/** The optional job columns `save_job` writes: logical, attrs key, and name. */
+const JOB_ATTRS: readonly (readonly [string, string, string])[] = [
+  ["team", "teamId", "team"],
+  ["location", "location", "location"],
+  ["employmentType", "employmentType", "employment type"],
+  ["description", "description", "description"],
+  ["hiringManager", "hiringManagerId", "hiring manager"],
+];
+
 const NAMES: BlockSqlNames = {
   entities: {
     job: { table: "jobs", singular: "job_opening", primary: true },
@@ -75,6 +84,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     jobs: {
       name: "job_openings",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -91,9 +101,20 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "team",
+        "location",
+        "employmentType",
+        "description",
+        "hiringManager",
+        "openedAt",
+        "closedAt",
+      ],
+      typed: ["status"],
     },
     applications: {
       name: "applications",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -113,9 +134,18 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "source",
+        "owner",
+        "stageEnteredAt",
+        "rejectionReason",
+        "hiredAt",
+      ],
+      typed: ["state"],
     },
     scorecards: {
       name: "application_scorecards",
+      app: {},
       lifecycle: { tenant: "tenant", user: "reviewer", export: true },
       columns: {
         id: "id",
@@ -128,9 +158,12 @@ const NAMES: BlockSqlNames = {
         notes: "notes",
         submittedAt: "submitted_at",
       },
+      optional: ["notes"],
+      typed: ["recommendation"],
     },
     interviews: {
       name: "interviews",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -144,6 +177,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["kind", "location", "createdBy"],
     },
   },
   migrations: [
@@ -177,6 +211,69 @@ function build(ctx: BlockSqlContext): string {
   const service = "(auth.role() = 'service_role')";
   const pipelines = ctx.of("pipelines");
   const st = (column: string): string => pipelines.col("stages", column);
+
+  // A column definition, left out when the app maps the column to null.
+  const column = (table: string, logical: string, type: string): string =>
+    ctx.has(table, logical) ? `\n  ${ctx.col(table, logical)} ${type},` : "";
+
+  // A column of row, or null when the app maps it to null.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // ", <value>" matching also().
+  const alsoValue = (table: string, logical: string, value: string): string =>
+    ctx.has(table, logical) ? `, ${value}` : "";
+
+  // value when the column exists, for lines().
+  const present = (
+    table: string,
+    logical: string,
+    value: string,
+  ): string | undefined => (ctx.has(table, logical) ? value : undefined);
+
+  // The values of an insert, the present ones of each group on a line.
+  const lines = (
+    indent: string,
+    ...groups: readonly (string | undefined)[][]
+  ): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(`,\n${indent}`);
+
+  // Refuses a non-null `value` for a column the app maps to null.
+  const refuse = (
+    table: string,
+    logical: string,
+    value: string,
+    code: string,
+    message: string,
+    indent = "  ",
+  ): string =>
+    ctx.has(table, logical)
+      ? ""
+      : `\n${indent}if ${value} is not null then
+${indent}  ${fail(code, message, "22023")}
+${indent}end if;`;
+
+  // A job column save_job keeps unless attrs has its key.
+  const keep = (logical: string, key: string, value: string): string =>
+    ctx.has("jobs", logical)
+      ? `\n        ${j(logical)} = case when save_job.attrs ? '${key}' then ${value} else x.${j(logical)} end,`
+      : "";
+
+  // The update that stamps a job's open and close times, when it has them.
+  const stamp = (sets: readonly (string | undefined)[]): string => {
+    const kept = sets.filter((set) => set !== undefined);
+
+    return kept.length === 0
+      ? ""
+      : `\n      update ${t("jobs")} x set ${kept.join(", ")} where x.${j("id")} = v_job.${j("id")} returning * into v_job;`;
+  };
 
   const payload = (alias: string, extra = ""): string =>
     `jsonb_build_object('organizationId', ${alias}.${a("tenant")}, 'applicationId', ${alias}.${a("id")}, 'subjectType', 'application', 'subjectId', ${alias}.${a("id")}::text, 'jobId', ${alias}.${a("job")}, 'candidateType', ${alias}.${a("candidateType")}, 'candidateId', ${alias}.${a("candidateId")}${extra})`;
@@ -217,20 +314,13 @@ function build(ctx: BlockSqlContext): string {
 create table if not exists ${t("jobs")} (
   ${j("id")} uuid primary key default gen_random_uuid(),
   ${j("tenant")} ${ctx.idType} not null,
-  ${j("title")} text not null check (length(${j("title")}) between 1 and 200),
-  ${j("team")} uuid,
-  ${j("location")} text,
-  ${j("employmentType")} text,
-  ${j("description")} text,
-  ${j("hiringManager")} uuid,
-  ${j("status")} text not null default 'draft' check (${j("status")} in ('draft', 'open', 'closed')),
-  ${j("openedAt")} timestamptz,
-  ${j("closedAt")} timestamptz,
+  ${j("title")} text not null check (length(${j("title")}) between 1 and 200),${column("jobs", "team", "uuid")}${column("jobs", "location", "text")}${column("jobs", "employmentType", "text")}${column("jobs", "description", "text")}${column("jobs", "hiringManager", "uuid")}
+  ${j("status")} text not null default 'draft' check (${j("status")} in ('draft', 'open', 'closed')),${column("jobs", "openedAt", "timestamptz")}${column("jobs", "closedAt", "timestamptz")}
   ${j("createdAt")} timestamptz not null default now(),
   ${j("updatedAt")} timestamptz not null default now()
 );
 create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
-${lockTable(t("jobs"), { read: true })}
+${lockModuleTable(ctx, "jobs", { read: true })}
 drop policy if exists jobs_read on ${t("jobs")};
 create policy jobs_read on ${t("jobs")} for select to authenticated
 using (${ctx.scope.check(j("tenant"), read)});
@@ -240,15 +330,10 @@ create table if not exists ${t("applications")} (
   ${a("tenant")} ${ctx.idType} not null,
   ${a("job")} uuid not null references ${t("jobs")} (${j("id")}) on delete cascade,
   ${a("candidateType")} text not null,
-  ${a("candidateId")} text not null,
-  ${a("source")} text,
-  ${a("owner")} uuid,
+  ${a("candidateId")} text not null,${column("applications", "source", "text")}${column("applications", "owner", "uuid")}
   ${a("pipeline")} uuid,
-  ${a("stage")} uuid,
-  ${a("stageEnteredAt")} timestamptz,
-  ${a("state")} text not null default 'active' check (${a("state")} in ('active', 'hired', 'rejected', 'withdrawn')),
-  ${a("rejectionReason")} text,
-  ${a("hiredAt")} timestamptz,
+  ${a("stage")} uuid,${column("applications", "stageEnteredAt", "timestamptz")}
+  ${a("state")} text not null default 'active' check (${a("state")} in ('active', 'hired', 'rejected', 'withdrawn')),${column("applications", "rejectionReason", "text")}${column("applications", "hiredAt", "timestamptz")}
   ${a("rank")} text collate "C" not null default 'V',
   ${a("createdAt")} timestamptz not null default now(),
   ${a("updatedAt")} timestamptz not null default now(),
@@ -256,7 +341,7 @@ create table if not exists ${t("applications")} (
 );
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${a("pipeline")}, ${a("stage")}, ${a("rank")});
 create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${a("candidateType")}, ${a("candidateId")});
-${lockTable(t("applications"), { read: true })}
+${lockModuleTable(ctx, "applications", { read: true })}
 drop policy if exists ${ctx.naming.rename("applications_read")} on ${t("applications")};
 create policy ${ctx.naming.rename("applications_read")} on ${t("applications")} for select to authenticated
 using (${ctx.scope.check(a("tenant"), read)});
@@ -268,13 +353,12 @@ create table if not exists ${t("scorecards")} (
   ${s("stage")} uuid,
   ${s("reviewer")} uuid not null,
   ${s("rating")} smallint not null check (${s("rating")} between 1 and 4),
-  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),
-  ${s("notes")} text,
+  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),${column("scorecards", "notes", "text")}
   ${s("submittedAt")} timestamptz not null default now(),
   unique nulls not distinct (${s("application")}, ${s("stage")}, ${s("reviewer")})
-);
+);${appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
 create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
-${lockTable(t("scorecards"), { read: true })}
+${lockModuleTable(ctx, "scorecards", { read: true })}
 drop policy if exists ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")};
 create policy ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")} for select to authenticated
 using (${ctx.scope.check(s("tenant"), read)});
@@ -282,18 +366,15 @@ using (${ctx.scope.check(s("tenant"), read)});
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
   ${v("tenant")} ${ctx.idType} not null,
-  ${v("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,
-  ${v("kind")} text,
+  ${v("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,${column("interviews", "kind", "text")}
   ${v("startsAt")} timestamptz not null,
-  ${v("endsAt")} timestamptz not null,
-  ${v("location")} text,
-  ${v("interviewers")} uuid[] not null default '{}',
-  ${v("createdBy")} uuid,
+  ${v("endsAt")} timestamptz not null,${column("interviews", "location", "text")}
+  ${v("interviewers")} uuid[] not null default '{}',${column("interviews", "createdBy", "uuid")}
   ${v("createdAt")} timestamptz not null default now(),
   check (${v("endsAt")} > ${v("startsAt")})
 );
 create index if not exists ${ctx.naming.rename("interviews_application_idx")} on ${t("interviews")} (${v("application")}, ${v("startsAt")});
-${lockTable(t("interviews"), { read: true })}
+${lockModuleTable(ctx, "interviews", { read: true })}
 drop policy if exists ${ctx.naming.rename("interviews_read")} on ${t("interviews")};
 create policy ${ctx.naming.rename("interviews_read")} on ${t("interviews")} for select to authenticated
 using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
@@ -317,13 +398,15 @@ begin
     new.${a("updatedAt")} := now();
     return new;
   end if;
-  new.${a("hiredAt")} := case when new.${a("state")} = 'hired' then now() end;
-  if new.${a("state")} <> 'rejected' then
+${ctx.has("applications", "hiredAt") ? `  new.${a("hiredAt")} := case when new.${a("state")} = 'hired' then now() end;\n` : ""}${
+    ctx.has("applications", "rejectionReason")
+      ? `  if new.${a("state")} <> 'rejected' then
     new.${a("rejectionReason")} := null;
-  end if;
-  case new.${a("state")}
+  end if;\n`
+      : ""
+  }  case new.${a("state")}
     when 'hired' then ${record("application.hired", "new")}
-    when 'rejected' then ${record("application.rejected", "new", `, 'reason', new.${a("rejectionReason")}`)}
+    when 'rejected' then ${record("application.rejected", "new", `, 'reason', ${or("applications", "new", "rejectionReason")}`)}
     when 'withdrawn' then ${record("application.retracted", "new")}
     else null;
   end case;
@@ -358,23 +441,44 @@ begin
       ${fail("HIRING_JOB_NOT_FOUND", "job not found", "P0002")}
     end if;
     v_was := v_job.${j("status")};
-  end if;
+  end if;${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
   begin
     if save_job.job is null then
-      insert into ${t("jobs")} (${j("tenant")}, ${j("title")}, ${j("team")}, ${j("location")}, ${j("employmentType")}, ${j("description")}, ${j("hiringManager")}, ${j("status")})
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      insert into ${t("jobs")} (${j("tenant")}, ${j("title")}${also("jobs", "team")}${also("jobs", "location")}${also("jobs", "employmentType")}${also("jobs", "description")}${also("jobs", "hiringManager")}, ${j("status")})
+      values (${lines(
+        "        ",
+        [
+          "save_job.tenant",
+          "save_job.attrs ->> 'title'",
+          present("jobs", "team", "(save_job.attrs ->> 'teamId')::uuid"),
+          present("jobs", "location", "save_job.attrs ->> 'location'"),
+        ],
+        [
+          present(
+            "jobs",
+            "employmentType",
+            "save_job.attrs ->> 'employmentType'",
+          ),
+          present("jobs", "description", "save_job.attrs ->> 'description'"),
+          present(
+            "jobs",
+            "hiringManager",
+            "(save_job.attrs ->> 'hiringManagerId')::uuid",
+          ),
+        ],
+        [
+          ctx.cast(
+            "jobs",
+            "status",
+            "coalesce(save_job.attrs ->> 'status', 'draft')",
+          ),
+        ],
+      )})
       returning * into v_job;
     else
       update ${t("jobs")} x set
-        ${j("title")} = coalesce(save_job.attrs ->> 'title', x.${j("title")}),
-        ${j("team")} = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x.${j("team")} end,
-        ${j("location")} = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x.${j("location")} end,
-        ${j("employmentType")} = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x.${j("employmentType")} end,
-        ${j("description")} = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x.${j("description")} end,
-        ${j("hiringManager")} = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x.${j("hiringManager")} end,
-        ${j("status")} = coalesce(save_job.attrs ->> 'status', x.${j("status")}),
+        ${j("title")} = coalesce(save_job.attrs ->> 'title', x.${j("title")}),${keep("team", "teamId", "(save_job.attrs ->> 'teamId')::uuid")}${keep("location", "location", "save_job.attrs ->> 'location'")}${keep("employmentType", "employmentType", "save_job.attrs ->> 'employmentType'")}${keep("description", "description", "save_job.attrs ->> 'description'")}${keep("hiringManager", "hiringManagerId", "(save_job.attrs ->> 'hiringManagerId')::uuid")}
+        ${j("status")} = coalesce(${ctx.cast("jobs", "status", "save_job.attrs ->> 'status'")}, x.${j("status")}),
         ${j("updatedAt")} = now()
       where x.${j("id")} = save_job.job
       returning * into v_job;
@@ -382,12 +486,17 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation then
     ${fail("HIRING_JOB_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
   end;${writeExtraColumns(t("jobs"), extras, "save_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
-  if v_job.${j("status")} is distinct from v_was then
-    if v_job.${j("status")} = 'open' then
-      update ${t("jobs")} x set ${j("openedAt")} = coalesce(x.${j("openedAt")}, now()), ${j("closedAt")} = null where x.${j("id")} = v_job.${j("id")} returning * into v_job;
+  if ${asText(ctx, "jobs", `v_job.${j("status")}`)} is distinct from v_was then
+    if v_job.${j("status")} = 'open' then${stamp([
+      ctx.has("jobs", "openedAt")
+        ? `${j("openedAt")} = coalesce(x.${j("openedAt")}, now())`
+        : undefined,
+      ctx.has("jobs", "closedAt") ? `${j("closedAt")} = null` : undefined,
+    ])}
       ${jobRecord("job.opened")}
-    elsif v_job.${j("status")} = 'closed' then
-      update ${t("jobs")} x set ${j("closedAt")} = now() where x.${j("id")} = v_job.${j("id")} returning * into v_job;
+    elsif v_job.${j("status")} = 'closed' then${stamp([
+      ctx.has("jobs", "closedAt") ? `${j("closedAt")} = now()` : undefined,
+    ])}
       ${jobRecord("job.closed")}
     end if;
   end if;
@@ -424,9 +533,9 @@ begin
   where x.${a("job")} = v_job.${j("id")} and x.${a("candidateType")} = v_type and x.${a("candidateId")} = v_id;
   if v_row.${a("id")} is not null then
     return to_jsonb(v_row);
-  end if;
-  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${a("candidateType")}, ${a("candidateId")}, ${a("source")}, ${a("owner")})
-  values (v_job.${j("tenant")}, v_job.${j("id")}, v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
+  end if;${refuse("applications", "source", "nullif(trim(apply_to_job.source), '')", "HIRING_SOURCE_UNSUPPORTED", "this applications table has no source column")}${refuse("applications", "owner", "apply_to_job.owner", "HIRING_OWNER_UNSUPPORTED", "this applications table has no owner column")}
+  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${a("candidateType")}, ${a("candidateId")}${also("applications", "source")}${also("applications", "owner")})
+  values (v_job.${j("tenant")}, v_job.${j("id")}, v_type, v_id${alsoValue("applications", "source", "nullif(trim(apply_to_job.source), '')")}${alsoValue("applications", "owner", "coalesce(apply_to_job.owner, auth.uid())")})
   returning * into v_row;
   ${record("application.created", "v_row")}
   return to_jsonb(v_row);
@@ -456,7 +565,17 @@ begin
   if close_application.outcome = 'hired' then
     ${ctx.hook("before_application_hire", [["uuid", `v_row.${a("id")}`]])}
   end if;
-  update ${t("applications")} x set ${a("rejectionReason")} = nullif(trim(close_application.reason), '') where x.${a("id")} = v_row.${a("id")};
+${
+  ctx.has("applications", "rejectionReason")
+    ? `  update ${t("applications")} x set ${a("rejectionReason")} = nullif(trim(close_application.reason), '') where x.${a("id")} = v_row.${a("id")};`
+    : refuse(
+        "applications",
+        "rejectionReason",
+        "nullif(trim(close_application.reason), '')",
+        "HIRING_REASON_UNSUPPORTED",
+        "this applications table has no rejection reason column",
+      ).slice(1)
+}
   case close_application.outcome
     when 'hired' then ${moveTo("success", "hired")}
     when 'rejected' then ${moveTo("failure", "rejected")}
@@ -486,13 +605,21 @@ begin
   if v_row.${a("id")} is null or not (${editable(`v_row.${a("tenant")}`)} or exists (
     select 1 from ${t("interviews")} y where y.${v("application")} = v_row.${a("id")} and auth.uid() = any (y.${v("interviewers")}))) then
     ${fail("HIRING_APPLICATION_NOT_FOUND", "no such application you can review", "P0002")}
-  end if;
+  end if;${refuse("scorecards", "notes", "submit_scorecard.notes", "HIRING_NOTES_UNSUPPORTED", "this scorecards table has no notes column")}${
+    ctx.appOwned.includes("scorecards")
+      ? `
+  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4
+    or submit_scorecard.recommendation is null or submit_scorecard.recommendation not in ('strong_no', 'no', 'yes', 'strong_yes') then
+    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
+  end if;`
+      : ""
+  }
   begin
-    insert into ${t("scorecards")} (${s("tenant")}, ${s("application")}, ${s("stage")}, ${s("reviewer")}, ${s("rating")}, ${s("recommendation")}, ${s("notes")})
-    values (v_row.${a("tenant")}, v_row.${a("id")}, v_row.${a("stage")}, auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
+    insert into ${t("scorecards")} (${s("tenant")}, ${s("application")}, ${s("stage")}, ${s("reviewer")}, ${s("rating")}, ${s("recommendation")}${also("scorecards", "notes")})
+    values (v_row.${a("tenant")}, v_row.${a("id")}, v_row.${a("stage")}, auth.uid(), submit_scorecard.rating, ${ctx.cast("scorecards", "recommendation", "submit_scorecard.recommendation")}${alsoValue("scorecards", "notes", "submit_scorecard.notes")})
     on conflict (${s("application")}, ${s("stage")}, ${s("reviewer")}) do update set
       ${s("rating")} = excluded.${s("rating")}, ${s("recommendation")} = excluded.${s("recommendation")},
-      ${s("notes")} = excluded.${s("notes")}, ${s("submittedAt")} = now()
+      ${ctx.has("scorecards", "notes") ? `${s("notes")} = excluded.${s("notes")}, ` : ""}${s("submittedAt")} = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
     ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
@@ -518,11 +645,31 @@ begin
   select * into v_row from ${t("applications")} x where x.${a("id")} = schedule_interview.application;
   if v_row.${a("id")} is null or not ${editable(`v_row.${a("tenant")}`)} then
     ${fail("HIRING_APPLICATION_NOT_FOUND", "no such application you can change", "P0002")}
-  end if;
+  end if;${refuse("interviews", "kind", "schedule_interview.kind", "HIRING_INTERVIEW_KIND_UNSUPPORTED", "this interviews table has no kind column")}${refuse("interviews", "location", "schedule_interview.location", "HIRING_INTERVIEW_LOCATION_UNSUPPORTED", "this interviews table has no location column")}${
+    ctx.appOwned.includes("interviews")
+      ? `
+  if not (schedule_interview.ends_at > schedule_interview.starts_at) then
+    ${fail("HIRING_INTERVIEW_INVALID", "an interview needs a start before its end", "22023")}
+  end if;`
+      : ""
+  }
   begin
-    insert into ${t("interviews")} (${v("tenant")}, ${v("application")}, ${v("kind")}, ${v("startsAt")}, ${v("endsAt")}, ${v("location")}, ${v("interviewers")}, ${v("createdBy")})
-    values (v_row.${a("tenant")}, v_row.${a("id")}, schedule_interview.kind, schedule_interview.starts_at, schedule_interview.ends_at,
-      schedule_interview.location, coalesce(schedule_interview.interviewers, '{}'), auth.uid())
+    insert into ${t("interviews")} (${v("tenant")}, ${v("application")}${also("interviews", "kind")}, ${v("startsAt")}, ${v("endsAt")}${also("interviews", "location")}, ${v("interviewers")}${also("interviews", "createdBy")})
+    values (${lines(
+      "      ",
+      [
+        `v_row.${a("tenant")}`,
+        `v_row.${a("id")}`,
+        present("interviews", "kind", "schedule_interview.kind"),
+        "schedule_interview.starts_at",
+        "schedule_interview.ends_at",
+      ],
+      [
+        present("interviews", "location", "schedule_interview.location"),
+        "coalesce(schedule_interview.interviewers, '{}')",
+        present("interviews", "createdBy", "auth.uid()"),
+      ],
+    )})
     returning * into v_interview;
   exception when check_violation or not_null_violation then
     ${fail("HIRING_INTERVIEW_INVALID", "an interview needs a start before its end", "22023")}
@@ -579,25 +726,21 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
-/** How applications run on pipelines. */
+/** The application state each stage category writes. */
+const APPLICATION_STATES: Readonly<Record<string, string>> = {
+  active: "active",
+  hired: "hired",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+};
+
+/** The stage categories and stages of an application's first pipeline. */
 const APPLICATION_PIPELINE: Readonly<Record<string, unknown>> = {
-  enteredAt: "stage_entered_at",
-  owner: "owner_user_id",
-  scope: "job_id",
   categories: {
     active: "open",
     hired: "success",
     rejected: "failure",
     withdrawn: "failure",
-  },
-  status: {
-    column: "state",
-    values: {
-      active: "active",
-      hired: "hired",
-      rejected: "rejected",
-      withdrawn: "withdrawn",
-    },
   },
   stages: [
     { key: "applied", name: "Applied", category: "active" },
@@ -610,6 +753,26 @@ const APPLICATION_PIPELINE: Readonly<Record<string, unknown>> = {
   ],
 };
 
+/** How applications run on pipelines, in the columns of `own`'s table. */
+function applicationPipeline(
+  own: BlockSqlContext,
+): Readonly<Record<string, unknown>> {
+  const column = (logical: string): string | undefined =>
+    own.has("applications", logical)
+      ? own.colName("applications", logical)
+      : undefined;
+
+  return {
+    stage: column("stage"),
+    pipeline: column("pipeline"),
+    enteredAt: column("stageEnteredAt"),
+    owner: column("owner"),
+    scope: column("job"),
+    ...APPLICATION_PIPELINE,
+    status: { column: column("state"), values: APPLICATION_STATES },
+  };
+}
+
 const CONTRIBUTES: BlockContributes = {
   pipelines: (own) => {
     const { schema, name } = own.tableName("applications");
@@ -618,7 +781,7 @@ const CONTRIBUTES: BlockContributes = {
       {
         type: own.resolved.entityNaming.rename("application"),
         table: `${schema}.${name}`,
-        entry: APPLICATION_PIPELINE,
+        entry: applicationPipeline(own),
       },
     ];
   },

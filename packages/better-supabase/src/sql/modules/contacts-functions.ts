@@ -5,6 +5,7 @@ import { sqlString } from "../../core/template.ts";
 import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
 import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
+import { asText } from "./over-app.ts";
 
 export interface PartyNames {
   /** The block's scope checks. */
@@ -95,6 +96,28 @@ const SPEC = {
   },
 } as const;
 
+/** The fields of `kind` whose column the table has. */
+const fieldsOf = (ctx: BlockSqlContext, kind: Kind): readonly Field[] =>
+  FIELDS[kind].filter((field) => ctx.has(SPEC[kind].table, field.column));
+
+/** PL/pgSQL that refuses attrs keys of `kind` whose column the app maps to null. */
+function unsupported(ctx: BlockSqlContext, kind: Kind, attrs: string): string {
+  const { table } = SPEC[kind];
+
+  return [
+    ...FIELDS[kind].map((field) => [field.key, field.column] as const),
+    ...(kind === "company" ? [["address", "address"] as const] : []),
+  ]
+    .filter(([, column]) => !ctx.has(table, column))
+    .map(
+      ([key, column]) => `
+  if ${attrs} ->> ${sqlString(key)} is not null then
+    ${fail("PARTY_FIELD_UNSUPPORTED", `this ${ctx.tableName(table).name} table has no ${column} column`, "22023")}
+  end if;`,
+    )
+    .join("");
+}
+
 const guard = (
   scope: BlockSqlScope,
   tenant: string,
@@ -116,7 +139,10 @@ function saveFunction(
   const fnName = spec.fn;
   const arg = (key: string): string => `${fnName}.attrs ->> ${sqlString(key)}`;
   const has = (key: string): string => `${fnName}.attrs ? ${sqlString(key)}`;
-  const fields = FIELDS[kind];
+  const fields = fieldsOf(ctx, kind);
+  const exists = (logical: string): boolean => ctx.has(spec.table, logical);
+  const address = kind === "company" && exists("address");
+  const owner = exists("owner");
   const stages = kind === "company" ? names.companyStages : names.personStages;
   // options.extraColumns adds columns to companies; people take custom fields.
   const extras = kind === "company" ? ctx.extraColumns("companies") : [];
@@ -125,11 +151,15 @@ function saveFunction(
   const extraValue = (ident: string): string =>
     `(jsonb_populate_record(null::${table}, ${fnName}.attrs)).${ident}`;
 
+  // The lifecycle column can be the app's enum.
+  const lifecycle = (value: string): string =>
+    ctx.cast(spec.table, "lifecycle", value);
+
   const insertColumns = [
     col("tenant"),
     ...fields.map((field) => col(field.column)),
-    ...(kind === "company" ? [col("address")] : []),
-    col("createdBy"),
+    ...(address ? [col("address")] : []),
+    ...(exists("createdBy") ? [col("createdBy")] : []),
     ...extras.map((extra) => extra.ident),
   ];
 
@@ -137,20 +167,20 @@ function saveFunction(
     `${fnName}.tenant`,
     ...fields.map((field) =>
       field.key === "lifecycle"
-        ? `coalesce(${field.value(arg(field.key))}, (${stages})[1])`
+        ? lifecycle(`coalesce(${field.value(arg(field.key))}, (${stages})[1])`)
         : field.value(arg(field.key)),
     ),
-    ...(kind === "company" ? [`${fnName}.attrs -> 'address'`] : []),
-    "auth.uid()",
+    ...(address ? [`${fnName}.attrs -> 'address'`] : []),
+    ...(exists("createdBy") ? ["auth.uid()"] : []),
     ...extras.map((extra) => extraValue(extra.ident)),
   ];
 
   const updates = [
     ...fields.map(
       (field) =>
-        `${col(field.column)} = case when ${has(field.key)} then ${field.key === "name" || field.key === "lifecycle" ? `coalesce(${field.value(arg(field.key))}, x.${col(field.column)})` : field.value(arg(field.key))} else x.${col(field.column)} end`,
+        `${col(field.column)} = case when ${has(field.key)} then ${field.key === "name" || field.key === "lifecycle" ? `coalesce(${field.key === "lifecycle" ? lifecycle(field.value(arg(field.key))) : field.value(arg(field.key))}, x.${col(field.column)})` : field.value(arg(field.key))} else x.${col(field.column)} end`,
     ),
-    ...(kind === "company"
+    ...(address
       ? [
           `${col("address")} = case when ${has("address")} then ${fnName}.attrs -> 'address' else x.${col("address")} end`,
         ]
@@ -162,7 +192,7 @@ function saveFunction(
     `${col("updatedAt")} = now()`,
   ];
 
-  const payload = `jsonb_build_object('organizationId', ${fnName}.tenant, ${sqlString(spec.idKey)}, v_id, 'name', v_row ->> 'name')`;
+  const payload = `jsonb_build_object('organizationId', ${fnName}.tenant, ${sqlString(spec.idKey)}, v_id, 'name', v_row ->> ${sqlString(ctx.colName(spec.table, "name"))})`;
   const subject = `'${spec.subject}/' || v_id::text`;
 
   const watch = watchSql(ctx, {
@@ -191,7 +221,7 @@ begin
   ${guard(names.scope, `${fnName}.tenant`, names.write, "PARTY_FORBIDDEN")}
   if jsonb_typeof(coalesce(${fnName}.attrs, '{}')) <> 'object' then
     ${fail("PARTY_ATTRS_INVALID", "attrs must be an object", "22023")}
-  end if;
+  end if;${unsupported(ctx, kind, `${fnName}.attrs`)}
   if ${has("lifecycle")} and not (${arg("lifecycle")} = any (${stages})) then
     ${fail("PARTY_LIFECYCLE_INVALID", "unknown lifecycle stage", "22023")}
   end if;
@@ -207,13 +237,17 @@ begin
       end if;
       insert into ${table} (${insertColumns.join(", ")})
       values (${insertValues.join(", ")})
-      returning ${col("id")}, ${col("owner")} into v_id, v_owner;
-    else
+      returning ${owner ? `${col("id")}, ${col("owner")} into v_id, v_owner` : `${col("id")} into v_id`};
+    else${
+      owner
+        ? `
       select x.${col("owner")} into v_previous_owner from ${table} x
-      where x.${col("id")} = ${fnName}.${kind} and x.${col("tenant")} = ${fnName}.tenant;
+      where x.${col("id")} = ${fnName}.${kind} and x.${col("tenant")} = ${fnName}.tenant;`
+        : ""
+    }
       update ${table} x set ${updates.join(",\n        ")}
       where x.${col("id")} = ${fnName}.${kind} and x.${col("tenant")} = ${fnName}.tenant and x.${col("mergedInto")} is null
-      returning x.${col("owner")} into v_owner;
+      returning x.${owner ? col("owner") : col("id")} into ${owner ? "v_owner" : "v_id"};
       if not found then
         ${fail("PARTY_NOT_FOUND", `${kind} not found`, "P0002")}
       end if;
@@ -298,6 +332,7 @@ function mergeFunction(
   const col = (logical: string): string => c(spec.table, logical);
   const li = (logical: string): string => c("links", logical);
   const linkColumn = kind === "company" ? li("company") : li("person");
+  const role = ctx.has("links", "role");
 
   return recordMergeFunction(ctx, {
     name: kind === "company" ? "merge_companies" : "merge_people",
@@ -310,14 +345,14 @@ function mergeFunction(
       "merge two different, unmerged records of one organization",
     ],
     clear: [kind === "company" ? "domain" : "email"],
-    fill: FIELDS[kind]
+    fill: fieldsOf(ctx, kind)
       .filter((field) => field.key !== "name" && field.key !== "lifecycle")
       .map((field) => field.column),
     move: (
       keep,
       drop,
-    ) => `insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}, ${li("role")}, ${li("isPrimary")})
-  select l.${li("tenant")}, ${kind === "company" ? `${keep}, l.${li("person")}` : `l.${li("company")}, ${keep}`}, l.${li("role")}, false
+    ) => `insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}${role ? `, ${li("role")}` : ""}, ${li("isPrimary")})
+  select l.${li("tenant")}, ${kind === "company" ? `${keep}, l.${li("person")}` : `l.${li("company")}, ${keep}`}${role ? `, l.${li("role")}` : ""}, false
   from ${t("links")} l where l.${linkColumn} = ${drop}
   on conflict do nothing;
   delete from ${t("links")} l where l.${linkColumn} = ${drop};`,
@@ -376,8 +411,8 @@ begin
       where x.${col("tenant")} = ${name}.tenant
         and x.${col("archivedAt")} is null
         and (${name}.search is null or ${searchable})
-        and (${name}.lifecycle is null or x.${col("lifecycle")} = ${name}.lifecycle)
-        and (${name}.owner is null or x.${col("owner")} = ${name}.owner)
+        and (${name}.lifecycle is null or ${asText(ctx, spec.table, `x.${col("lifecycle")}`)} = ${name}.lifecycle)
+        and (${name}.owner is null or ${ctx.has(spec.table, "owner") ? `x.${col("owner")} = ${name}.owner` : "false"})
         and (${name}.after_name is null or (lower(x.${col("name")}), x.${col("id")}) > (lower(${name}.after_name), ${name}.after_id))
       order by lower(x.${col("name")}), x.${col("id")}
       limit ${pageSize(`${name}.page_size`, 50, 200)}
@@ -397,6 +432,7 @@ export function partyFunctions(
   const li = (logical: string): string => c("links", logical);
   const co = (logical: string): string => c("companies", logical);
   const pe = (logical: string): string => c("people", logical);
+  const role = ctx.has("links", "role");
 
   const linkPayload = (name: string): string =>
     `jsonb_build_object('organizationId', v_tenant, 'companyId', ${name}.company, 'personId', ${name}.person, 'role', v_role)`;
@@ -427,7 +463,14 @@ as $$
 declare
   v_tenant ${ctx.idType};
   v_role text := nullif(trim(set_company_person.role), '');
-begin
+begin${
+    role
+      ? ""
+      : `
+  if v_role is not null then
+    ${fail("PARTY_ROLE_UNSUPPORTED", `this ${ctx.tableName("links").name} table has no role column`, "22023")}
+  end if;`
+  }
   select x.${co("tenant")} into v_tenant from ${t("companies")} x
   join ${t("people")} p on p.${pe("id")} = set_company_person.person and p.${pe("tenant")} = x.${co("tenant")}
   where x.${co("id")} = set_company_person.company;
@@ -439,10 +482,10 @@ begin
     update ${t("links")} l set ${li("isPrimary")} = false
     where l.${li("company")} = set_company_person.company and l.${li("person")} <> set_company_person.person and l.${li("isPrimary")};
   end if;
-  insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}, ${li("role")}, ${li("isPrimary")})
-  select x.${co("tenant")}, set_company_person.company, set_company_person.person, v_role, coalesce(set_company_person.is_primary, false)
+  insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}${role ? `, ${li("role")}` : ""}, ${li("isPrimary")})
+  select x.${co("tenant")}, set_company_person.company, set_company_person.person${role ? ", v_role" : ""}, coalesce(set_company_person.is_primary, false)
   from ${t("companies")} x where x.${co("id")} = set_company_person.company
-  on conflict (${li("company")}, ${li("person")}) do update set ${li("role")} = excluded.${li("role")}, ${li("isPrimary")} = excluded.${li("isPrimary")};
+  on conflict (${li("company")}, ${li("person")}) do update set ${role ? `${li("role")} = excluded.${li("role")}, ` : ""}${li("isPrimary")} = excluded.${li("isPrimary")};
   ${ctx.record({
     type: "company.person_linked",
     payload: linkPayload("set_company_person"),
@@ -465,7 +508,7 @@ declare
   v_tenant ${ctx.idType};
   v_role text;
 begin
-  select l.${li("tenant")}, l.${li("role")} into v_tenant, v_role from ${t("links")} l
+  select l.${li("tenant")}, ${role ? `l.${li("role")}` : "null"} into v_tenant, v_role from ${t("links")} l
   where l.${li("company")} = remove_company_person.company and l.${li("person")} = remove_company_person.person;
   if v_tenant is null then
     return false;
@@ -492,7 +535,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('role', l.${li("role")}, 'is_primary', l.${li("isPrimary")})
+  select coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('role', ${role ? `l.${li("role")}` : "null"}, 'is_primary', l.${li("isPrimary")})
     order by l.${li("isPrimary")} desc, lower(p.${pe("name")}), p.${pe("id")}), '[]'::jsonb)
   from ${t("links")} l join ${t("people")} p on p.${pe("id")} = l.${li("person")}
   where l.${li("company")} = company_people_of.company and p.${pe("archivedAt")} is null

@@ -1,7 +1,9 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
-import { fail, lockTable, userGrant } from "../shared.ts";
+import { sqlString } from "../../core/template.ts";
+import { fail, userGrant } from "../shared.ts";
+import { lockModuleTable } from "./over-app.ts";
 
 /**
  * With the inbox installed: which person an inbox contact is, so a conversation
@@ -38,7 +40,7 @@ create table if not exists ${t("personContacts")} (
   ${pc("createdAt")} timestamptz not null default now(),
   primary key (${pc("person")}, ${pc("contact")})
 );
-${lockTable(t("personContacts"), { read: true })}
+${lockModuleTable(ctx, "personContacts", { read: true })}
 drop policy if exists ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")};
 create policy ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")} for select to authenticated
 using (${ctx.scope.check(pc("tenant"), names.read)});
@@ -122,7 +124,7 @@ begin
       ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
     end if;
     v_person := (${fn("save_person")}(v_contact.${ic("tenant")}, null, jsonb_strip_nulls(jsonb_build_object(
-      'name', v_contact.${ic("name")}, 'email', v_contact.${ic("email")}, 'phone', v_contact.${ic("phone")}))) ->> 'id')::uuid;
+      'name', v_contact.${ic("name")}, 'email', v_contact.${ic("email")}, 'phone', v_contact.${ic("phone")}))) ->> ${sqlString(ctx.colName("people", "id"))})::uuid;
   end if;
   if v_person is null then
     return null;

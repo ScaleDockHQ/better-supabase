@@ -3,15 +3,13 @@ import type { WorkItemNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import {
-  columnsObject,
-  fail,
-  lockTable,
-  serviceGrant,
-  userGrant,
-} from "../shared.ts";
+import { columnsObject, fail, serviceGrant, userGrant } from "../shared.ts";
+import { lockModuleTable } from "./over-app.ts";
 
-/** The reminders rule table a work item's recurrence lives in, when it has one. */
+/**
+ * The reminders rule table a work item's recurrence lives in, when it has one
+ * and the items table has the column that links a repeat to its source.
+ */
 function recurrenceRules(
   ctx: BlockSqlContext,
 ):
@@ -19,7 +17,12 @@ function recurrenceRules(
   | undefined {
   const r = ctx.installed("reminders") ? ctx.of("reminders") : undefined;
 
-  if (r === undefined || r.mode === "custom" || !r.has("rules", "rrule")) {
+  if (
+    r === undefined ||
+    r.mode === "custom" ||
+    !r.has("rules", "rrule") ||
+    !ctx.has("items", "recursFrom")
+  ) {
     return;
   }
 
@@ -56,24 +59,32 @@ export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
   const w = (column: string): string => c("items", column);
   const name = ctx.tableName("checklist").name;
 
-  return `
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has("checklist", logical) ? `\n  ${definition(k(logical))},` : "";
+
+  const recurs = ctx.has("items", "recursFrom")
+    ? `
 alter table ${t("items")} add column if not exists ${w("recursFrom")} uuid references ${t("items")} (${w("id")}) on delete set null;
-create unique index if not exists ${ctx.naming.rename("work_items_recurs_from_idx")} on ${t("items")} (${w("recursFrom")});
+create unique index if not exists ${ctx.naming.rename("work_items_recurs_from_idx")} on ${t("items")} (${w("recursFrom")});`
+    : "";
+
+  return `${recurs}
 
 create table if not exists ${t("checklist")} (
   ${k("id")} uuid primary key default gen_random_uuid(),
   ${k("tenant")} ${ctx.idType} not null,
   ${k("item")} uuid not null references ${t("items")} (${w("id")}) on delete cascade,
   ${k("title")} text not null check (length(${k("title")}) between 1 and 500),
-  ${k("done")} boolean not null default false,
-  ${k("doneAt")} timestamptz,
-  ${k("doneBy")} uuid,
-  ${k("rank")} text collate "C" not null check (${k("rank")} ~ ${RANK_KEY_PATTERN}),
-  ${k("createdBy")} uuid,
+  ${k("done")} boolean not null default false,${column("doneAt", (name) => `${name} timestamptz`)}${column("doneBy", (name) => `${name} uuid`)}
+  ${k("rank")} text collate "C" not null check (${k("rank")} ~ ${RANK_KEY_PATTERN}),${column("createdBy", (name) => `${name} uuid`)}
   ${k("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("work_item_checklist_item_idx")} on ${t("checklist")} (${k("item")}, ${k("rank")});
-${lockTable(t("checklist"), { read: true })}
+${lockModuleTable(ctx, "checklist", { read: true })}
 drop policy if exists ${name}_read on ${t("checklist")};
 create policy ${name}_read on ${t("checklist")} for select to authenticated
 using (${ctx.scope.check(k("tenant"), n.read)});
@@ -167,6 +178,35 @@ export function workItemExtraFunctions(
     "P0002",
   );
 
+  // A column of row, or null when the app maps it to null.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${c(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${c(table, logical)}` : "";
+
+  // value when the column exists, for lines().
+  const present = (
+    table: string,
+    logical: string,
+    value: string,
+  ): string | undefined => (ctx.has(table, logical) ? value : undefined);
+
+  // The values of an insert, the present ones of each group on a line.
+  const lines = (
+    indent: string,
+    ...groups: readonly (string | undefined)[][]
+  ): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(`,\n${indent}`);
+
+  // A set clause line of an update, for a column that exists.
+  const set = (table: string, logical: string, value: string): string =>
+    `,\n        ${c(table, logical)} = ${value}`;
+
   const touched = (field: string): string =>
     record(
       "work_item.updated",
@@ -175,7 +215,7 @@ export function workItemExtraFunctions(
     );
 
   const checklistRow = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${k("id")}, ${sqlString(e("workItemId"))}, ${alias}.${k("item")}, 'title', ${alias}.${k("title")}, 'done', ${alias}.${k("done")}, 'doneAt', ${alias}.${k("doneAt")}, 'doneBy', ${alias}.${k("doneBy")}, 'rank', ${alias}.${k("rank")}, 'createdAt', ${alias}.${k("createdAt")})`;
+    `jsonb_build_object('id', ${alias}.${k("id")}, ${sqlString(e("workItemId"))}, ${alias}.${k("item")}, 'title', ${alias}.${k("title")}, 'done', ${alias}.${k("done")}, 'doneAt', ${or("checklist", alias, "doneAt")}, 'doneBy', ${or("checklist", alias, "doneBy")}, 'rank', ${alias}.${k("rank")}, 'createdAt', ${alias}.${k("createdAt")})`;
 
   const checklist = `
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
@@ -199,18 +239,34 @@ begin
   begin
     if v_id is null then
       select max(y.${k("rank")}) into v_last from ${t("checklist")} y where y.${k("item")} = v_row.${w("id")};
-      insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("done")}, ${k("doneAt")}, ${k("doneBy")}, ${k("rank")}, ${k("createdBy")})
-      values (v_row.${w("tenant")}, v_row.${w("id")}, trim(save_work_item_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
-        case when v_done then now() end, case when v_done then auth.uid() end,
-        coalesce(save_work_item_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")}), auth.uid())
+      insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("done")}${also("checklist", "doneAt")}${also("checklist", "doneBy")}, ${k("rank")}${also("checklist", "createdBy")})
+      values (${lines(
+        "        ",
+        [
+          `v_row.${w("tenant")}`,
+          `v_row.${w("id")}`,
+          "trim(save_work_item_checklist_item.attrs ->> 'title')",
+          "coalesce(v_done, false)",
+        ],
+        [
+          present("checklist", "doneAt", "case when v_done then now() end"),
+          present(
+            "checklist",
+            "doneBy",
+            "case when v_done then auth.uid() end",
+          ),
+        ],
+        [
+          `coalesce(save_work_item_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")})`,
+          present("checklist", "createdBy", "auth.uid()"),
+        ],
+      )})
       returning ${k("id")} into v_id;
     else
       update ${t("checklist")} y set
         ${k("title")} = coalesce(trim(save_work_item_checklist_item.attrs ->> 'title'), y.${k("title")}),
         ${k("rank")} = coalesce(save_work_item_checklist_item.attrs ->> 'rank', y.${k("rank")}),
-        ${k("done")} = coalesce(v_done, y.${k("done")}),
-        ${k("doneAt")} = case when v_done is null then y.${k("doneAt")} when v_done then coalesce(y.${k("doneAt")}, now()) end,
-        ${k("doneBy")} = case when v_done is null then y.${k("doneBy")} when v_done then coalesce(y.${k("doneBy")}, auth.uid()) end
+        ${k("done")} = coalesce(v_done, y.${k("done")})${ctx.has("checklist", "doneAt") ? set("checklist", "doneAt", `case when v_done is null then y.${k("doneAt")} when v_done then coalesce(y.${k("doneAt")}, now()) end`) : ""}${ctx.has("checklist", "doneBy") ? set("checklist", "doneBy", `case when v_done is null then y.${k("doneBy")} when v_done then coalesce(y.${k("doneBy")}, auth.uid()) end`) : ""}
       where y.${k("id")} = v_id and y.${k("item")} = v_row.${w("id")};
       if not found then
         ${fail("WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND", "no such checklist item on this work item", "P0002")}
@@ -298,6 +354,15 @@ function recurrence(
   const r = rules.col;
   const item = sqlString(e("work_item"));
 
+  // A column of v_src, or null when the app maps it to null.
+  const src = (logical: string): string =>
+    ctx.has("items", logical) ? `v_src.${w(logical)}` : "null";
+
+  const anchor = ["dueAt", "endAt", "startAt"]
+    .filter((logical) => ctx.has("items", logical))
+    .map((logical) => `v_src.${w(logical)}`)
+    .join(", ");
+
   const fields =
     n.extras.length === 0
       ? ""
@@ -366,17 +431,17 @@ begin
   if v_id is not null then
     return (select ${helpers.row("x")} from ${t("items")} x where x.${w("id")} = v_id);
   end if;
-  v_shift := coalesce(repeat_work_item.due_at - coalesce(v_src.${w("dueAt")}, v_src.${w("endAt")}, v_src.${w("startAt")}), interval '0');
+  v_shift := coalesce(repeat_work_item.due_at - coalesce(${anchor}), interval '0');
   v_next := ${n.fn("create_work_item")}(v_src.${w("tenant")}, jsonb_strip_nulls(jsonb_build_object(
-    'title', v_src.${w("title")}, 'body', v_src.${w("body")}, 'parentId', v_src.${w("parent")}, 'teamId', v_src.${w("team")},
-    ${sqlString(e("projectId"))}, v_src.${w("project")}, 'priority', v_src.${w("priority")}, 'estimate', v_src.${w("estimate")},
-    'startAt', v_src.${w("startAt")} + v_shift, 'endAt', v_src.${w("endAt")} + v_shift, 'dueAt', repeat_work_item.due_at,
+    'title', v_src.${w("title")}, 'body', ${src("body")}, 'parentId', v_src.${w("parent")}, 'teamId', v_src.${w("team")},
+    ${sqlString(e("projectId"))}, ${src("project")}, 'priority', v_src.${w("priority")}, 'estimate', ${src("estimate")},
+    'startAt', ${src("startAt")} + v_shift, 'endAt', ${src("endAt")} + v_shift, 'dueAt', repeat_work_item.due_at,
     'pipelineId', v_src.${w("pipeline")}))${fields},
     array(select y.${c("assignees", "user")} from ${t("assignees")} y where y.${c("assignees", "item")} = v_src.${w("id")}));
   v_id := (v_next ->> 'id')::uuid;
   update ${t("items")} x set ${w("recursFrom")} = v_src.${w("id")} where x.${w("id")} = v_id;
-  insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("rank")}, ${k("createdBy")})
-  select y.${k("tenant")}, v_id, y.${k("title")}, y.${k("rank")}, y.${k("createdBy")} from ${t("checklist")} y where y.${k("item")} = v_src.${w("id")};
+  insert into ${t("checklist")} (${k("tenant")}, ${k("item")}, ${k("title")}, ${k("rank")}${ctx.has("checklist", "createdBy") ? `, ${k("createdBy")}` : ""})
+  select y.${k("tenant")}, v_id, y.${k("title")}, y.${k("rank")}${ctx.has("checklist", "createdBy") ? `, y.${k("createdBy")}` : ""} from ${t("checklist")} y where y.${k("item")} = v_src.${w("id")};
   update ${rules.table} rr set ${r("subjectId")} = v_id::text
   where rr.${r("tenant")} = v_src.${w("tenant")} and rr.${r("subjectType")} = ${item} and rr.${r("subjectId")} = v_src.${w("id")}::text;
   return (select ${helpers.row("x")} from ${t("items")} x where x.${w("id")} = v_id);

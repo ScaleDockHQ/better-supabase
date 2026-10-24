@@ -22,6 +22,7 @@ import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
+import { appUniqueIndex } from "./over-app.ts";
 import { myWorkTenant } from "./subjects.ts";
 
 const NAMES: BlockSqlNames = {
@@ -29,6 +30,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     tasks: {
       name: "comment_tasks",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         message: "message_id",
@@ -37,6 +39,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["createdBy", "createdAt"],
     },
   },
 };
@@ -271,6 +274,14 @@ function build(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const tasks = ctx.table("tasks");
   const groups = mentionGroupsOf(ctx);
+  const anchors = m.has("messages", "anchor");
+
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has("tasks", logical) ? `,\n  ${definition(k(logical))}` : "";
 
   const expand =
     groups === undefined
@@ -293,13 +304,10 @@ function build(ctx: BlockSqlContext): string {
 create table if not exists ${tasks} (
   ${k("message")} uuid primary key,
   ${k("tenant")} ${ctx.scope.column()},
-  ${k("task")} uuid not null,
-  ${k("createdBy")} uuid default auth.uid(),
-  ${k("createdAt")} timestamptz not null default now()
-);
+  ${k("task")} uuid not null${column("createdBy", (name) => `${name} uuid default auth.uid()`)}${column("createdAt", (name) => `${name} timestamptz not null default now()`)}
+);${appUniqueIndex(ctx, "tasks", ["message"])}
 create index if not exists ${ctx.naming.rename("comment_tasks_task_idx")} on ${tasks} (${k("task")});
-alter table ${tasks} enable row level security;
-${revokeTable(tasks)}
+alter table ${tasks} enable row level security;${ctx.appOwned.includes("tasks") ? "" : `\n${revokeTable(tasks)}`}
 grant select on ${tasks} to authenticated;
 grant insert (${[k("message"), k("tenant"), k("task")].join(", ")}) on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
@@ -328,7 +336,7 @@ create policy ${sqlIdent(`${ctx.tableName("tasks").name}_read`)} on ${tasks} for
   using (${fn("comment_message_readable")}(${k("message")}, ${k("tenant")}));
 drop policy if exists ${sqlIdent(`${ctx.tableName("tasks").name}_insert`)} on ${tasks};
 create policy ${sqlIdent(`${ctx.tableName("tasks").name}_insert`)} on ${tasks} for insert to authenticated
-  with check (${k("createdBy")} = (select auth.uid()) and ${fn("comment_message_readable")}(${k("message")}, ${k("tenant")}));
+  with check (${ctx.has("tasks", "createdBy") ? `${k("createdBy")} = (select auth.uid()) and ` : ""}${fn("comment_message_readable")}(${k("message")}, ${k("tenant")}));
 
 -- A record's conversation, or null before its first comment.
 create or replace function ${fn("comment_conversation")}(tenant ${id}, subject_type text, subject_id text)
@@ -484,8 +492,12 @@ begin
   return ${fn("comments_json")}(array(
     select x.${ms("id")} from ${m.table("messages")} x
     join ${m.table("conversations")} c on c.${cv("id")} = x.${ms("conversation")} and c.${cv("kind")} = 'subject'
-    where x.${ms("anchor")} ->> 'kind' = 'file'
-      and x.${ms("anchor")} ->> 'attachmentId' = list_file_comments.attachment::text
+    where ${
+      anchors
+        ? `x.${ms("anchor")} ->> 'kind' = 'file'
+      and x.${ms("anchor")} ->> 'attachmentId' = list_file_comments.attachment::text`
+        : "false"
+    }
       and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null
     order by x.${ms("sentAt")}, x.${ms("id")}
     limit ${pageSize("list_file_comments.max_rows", 100, 500)}
@@ -562,9 +574,9 @@ begin
     from ${m.table("messages")} y
     where y.${ms("conversation")} = v_from and y.${ms("sentAt")} is not null
   ), inserted as (
-    insert into ${m.table("messages")} (${[ms("id"), ms("tenant"), ms("conversation"), ms("parent"), ms("thread"), ms("author"), ms("body"), ms("document"), ms("anchor"), ms("mentions"), ms("replyCount"), ms("lastReplyAt"), ms("replyUsers"), ms("sentAt"), ms("editedAt"), ms("deletedAt"), ms("createdAt")].join(", ")})
+    insert into ${m.table("messages")} (${[ms("id"), ms("tenant"), ms("conversation"), ms("parent"), ms("thread"), ms("author"), ms("body"), ms("document"), ...(anchors ? [ms("anchor")] : []), ms("mentions"), ms("replyCount"), ms("lastReplyAt"), ms("replyUsers"), ms("sentAt"), ms("editedAt"), ms("deletedAt"), ms("createdAt")].join(", ")})
     select n.new_id, y.${ms("tenant")}, v_to, p.new_id, r.new_id, y.${ms("author")},
-      y.${ms("body")}, y.${ms("document")}, y.${ms("anchor")}, y.${ms("mentions")}, y.${ms("replyCount")}, y.${ms("lastReplyAt")}, y.${ms("replyUsers")}, y.${ms("sentAt")}, y.${ms("editedAt")}, y.${ms("deletedAt")}, y.${ms("createdAt")}
+      y.${ms("body")}, y.${ms("document")}, ${anchors ? `y.${ms("anchor")}, ` : ""}y.${ms("mentions")}, y.${ms("replyCount")}, y.${ms("lastReplyAt")}, y.${ms("replyUsers")}, y.${ms("sentAt")}, y.${ms("editedAt")}, y.${ms("deletedAt")}, y.${ms("createdAt")}
     from ${m.table("messages")} y
     join copies n on n.old_id = y.${ms("id")}
     left join copies p on p.old_id = y.${ms("parent")}
