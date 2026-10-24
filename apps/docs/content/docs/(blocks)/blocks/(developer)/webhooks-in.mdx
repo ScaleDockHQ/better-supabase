@@ -197,7 +197,7 @@ With the [`data-lifecycle` module](/docs/blocks/data-lifecycle) installed,
 a tenant's endpoints are in its organization export, without `token_hash`,
 the secrets and their Vault ids, and the purge deletes them together with
 their Vault secrets. To keep endpoints in a table of your own, see
-[Adopting your own tables](#adopting-your-own-tables).
+[Over your own tables](#over-your-own-tables).
 
 ### Upgrading from version 1
 
@@ -279,17 +279,15 @@ already, which `receive` answers with `200`.
 [`testIncomingDestination`](/docs/extending/conformance) checks that a
 destination reports a repeated endpoint and message id as a duplicate.
 
-## Adopting your own tables
+## Over your own tables
 
-With `ownership: "adopt"`, the module runs over an endpoint table your app
-already has. Map its table and columns, and map a column to `null` when the
-table lacks it:
+The module runs over an endpoint table your app already has. Map its table
+and columns, and map an optional column to `null` when you don't want it:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
     "webhooks-in": {
-      ownership: "adopt",
       tables: { endpoints: "public.integration_hooks" },
       columns: {
         endpoints: {
@@ -309,23 +307,21 @@ export default defineConfig({
 });
 ```
 
-The module then writes its functions and the Vault cleanup trigger, and
-leaves the table, its indexes, grants and policies to you. `id`, `tenant`,
-`name`, `tokenHash`, `verify` and `enabled` are required, and so is
-`secretId` (or `secret` with `secretStorage: "column"`). Each optional
-column turns off what needs it: without the previous-secret columns a
-rotation with `graceSeconds` fails with `WEBHOOK_IN_NO_GRACE`, without the
-subject columns `subjects` can't be configured, without `metadata` endpoints
-take no metadata, and without the counters `receive` records nothing. In
-managed mode the module owns its table, so a column mapping there is an
-error.
+The module then skips its `create table`, adds the columns it needs that
+your table lacks, and writes its functions, policies, indexes and the Vault
+cleanup trigger over it. `id`, `tenant`, `name`, `tokenHash`, `verify` and
+`enabled` are required, and so is `secretId` (or `secret` with
+`secretStorage: "column"`). Each optional column mapped to `null` turns off
+what needs it: without the previous-secret columns a rotation with
+`graceSeconds` fails with `WEBHOOK_IN_NO_GRACE`, without the subject columns
+`subjects` can't be configured, without `metadata` endpoints take no
+metadata, and without the counters `receive` records nothing.
 
-The webhook inbox adopts a table the same way, through
+The webhook inbox runs over a table of yours the same way, through
 `blocks.webhook-inbox` with the `messages` table:
 
 ```ts title="better-supabase.config.ts"
 "webhook-inbox": {
-  ownership: "adopt",
   tables: { messages: "public.inbound_events" },
   columns: {
     messages: { messageId: "external_id", tenant: "organization_id", checkpoint: null },
@@ -336,10 +332,10 @@ The webhook inbox adopts a table the same way, through
 `id` (a `bigint`), `source`, `messageId`, `payload`, `status`, `attempts`,
 `availableAt`, `lockedBy`, `lockedUntil` and `receivedAt` are required.
 `eventType`, `headers`, `maxAttempts` (8 when missing), `lastError`,
-`processedAt`, `memberships` and `checkpoint` are optional; a missing column
-reads as the managed table's default. The functions stay in
+`processedAt`, `memberships` and `checkpoint` are optional; one mapped to
+`null` reads as the managed table's default. The functions stay in
 `better_supabase`, and `receive_webhook` takes a lock per message before it
-looks the message up, so the adopted table needs no particular unique
+looks the message up, so your table needs no particular unique
 constraint, though one on source, tenant and message id is a good guard.
 
 ## Hooks and transports

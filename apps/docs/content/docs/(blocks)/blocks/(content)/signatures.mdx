@@ -3,7 +3,7 @@ title: Signatures
 description: Simple electronic signatures on a frozen version of a record, with sequential or parallel signers, a SHA-256 hash per signature and a check that the signed content is unchanged.
 ---
 
-The `signatures` SQL module asks members to sign one version of a record, kept by the [versions](/docs/blocks/versions) block. It needs `versions` in managed or adopt mode. Requesting needs `signatures.request`, and reading a record's requests needs `signatures.read`; signers always read the requests they are on. The signature is a simple electronic signature: the module records who signed which content, how and when, and the app renders the final document.
+The `signatures` SQL module asks members to sign one version of a record, kept by the [versions](/docs/blocks/versions) block. It needs `versions` in `managed` ownership, over its own tables or yours. Requesting needs `signatures.request`, and reading a record's requests needs `signatures.read`; signers always read the requests they are on. The signature is a simple electronic signature: the module records who signed which content, how and when, and the app renders the final document.
 
 ```bash
 better-supabase add versions signatures

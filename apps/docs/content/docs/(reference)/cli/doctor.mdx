@@ -831,11 +831,12 @@ primary key, or run `alter table ... replica identity full`.
 ### BS307
 
 **Error: custom SQL module without its contract.** A module in `blocks` uses
-`mode: 'custom'`, so the app writes the functions other modules and the
+`ownership: "custom"`, so the app writes the functions other modules and the
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
 for a `create function` in `supabase/schemas` and the migrations. Write the
-function, or switch the module to `adopt` or `managed`. `better-supabase blocks
+function, or switch the module to `managed`, which also runs over tables you
+already have. `better-supabase blocks
 view <module> --sql` lists the signatures.
 
 ### BS308
@@ -859,8 +860,8 @@ one minor release; a removed one fails at run time. The message names the
 replacement. A renamed column such as `memberships.org_id` also counts
 unqualified (`m.org_id`) in a statement that names its table. Block files and
 migrations are skipped, and so is a claim the config maps in `claims`. Tables
-and columns of a module in adopt or custom mode are the app's names and are
-never reported.
+and columns a block maps onto the app's own, and those of a module in custom
+mode, are the app's names and are never reported.
 
 ### BS310
 
@@ -906,13 +907,14 @@ function. Doctor needs a database connection for this check. With
 ### BS314
 
 **Warning: migration-only block option.** A module in `blocks` sets an option
-that only exists to match a schema you are adopting: `tokenStorage: "plain"`
+that only exists to match a schema the app already has: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` for credentials,
-`secretStorage: "column"` or an `eventIdType` or `runIdType` other than
-`text` for webhooks-out, a `blockSource` or `defaultSource` for
-the outbox, or `values` for the audit log. The config only accepts them with
-`ownership: "adopt"`. Move the data to the managed default (hash the tokens, move
-the secrets into Vault), then remove the option.
+`secretStorage: "column"`, `statuses` or an `eventIdType` or `runIdType`
+other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+the outbox, or `values` or `metadataColumns` for the audit log. The config
+only accepts them when the block runs over a table the app already has.
+Move the data to the managed default (hash the tokens, move the secrets into
+Vault), then remove the option.
 
 ### BS315
 
@@ -921,7 +923,7 @@ the secrets into Vault), then remove the option.
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
-skips the block schemas and the tables SQL modules adopt; list other tables in
+skips the block schemas and the app's tables that blocks run over; list other tables in
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
 its changes need no audit entry. A bare glob string still works, but doctor
@@ -1022,7 +1024,7 @@ that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
 until it expires. Set `blocks.sessions.options.policies` to `true` and
 run `better-supabase upgrade` to write the policy on every table, or add it
-by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
+by hand. Doctor skips the block schemas and the app's tables that blocks run over; list
 other tables in `blocks.sessions.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 
@@ -1119,20 +1121,20 @@ with `supabase lite upgrade`.
 
 ### BS330
 
-**Error: adopted table without a mapped column.** A module in adopt mode
-maps a table, or a column of it, that the live database lacks, so the
-module's functions fail when they run. Doctor reads every column the
-module's SQL names: the ones in `blocks.<name>.columns` and the
-defaults for the unmapped ones, leaving out the columns mapped to `null`.
-Tables that an adopted module uses only when `blocks.<name>.tables` maps
-them (the notifications `deliveryEvents` and `suppressions`, the audit
+**Error: app table without a column a block uses.** A block runs over a
+table of the app's, and the live database lacks a column the block's SQL
+names, so the block's functions fail until that column exists. Doctor reads
+every column the module's SQL names: the ones in `blocks.<name>.columns`
+and the defaults for the unmapped ones, leaving out the columns mapped to
+`null`. Tables that a block uses only when `blocks.<name>.tables` maps them
+(the notifications `deliveryEvents` and `suppressions`, the audit
 `restricted` table and the invitations `platformInvitations`) are checked
 once they are mapped, and skipped otherwise, as the generated SQL skips them.
-Map the logical column to the column that holds it, map it to `null` when
-the module allows that, or add the column. `better-supabase upgrade`
-refuses an optional column that the `create table` in `supabase/schemas`
-lacks; this check compares every column with the live database. Needs a
-database.
+Apply the block's migration, which adds the missing column with
+`add column if not exists`, or map the logical column to the column that
+holds it, or to `null` when the module allows that. A column on a table that
+`blocks.<name>.on` names isn't added by the block: map it or add it yourself.
+Needs a database.
 
 ### BS331
 
@@ -1264,11 +1266,12 @@ table the app already has, and the snapshot declares that column as an enum;
 string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
-The columns the module casts to their declared type may stay enums: the tags
-`kind` and `subjectType`, and the numbering `entity`. `upgrade` and
+The columns the module casts to their declared type may stay enums or
+domains: status columns, the tags `kind` and `subjectType`, and the numbering
+`entity`. `upgrade` and
 `better-supabase add --adopt` refuse the same columns when the schema files declare
 the enum. See
-[existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
+[existing tables](/docs/blocks/sql#over-your-own-tables).
 
 ### BS343
 
@@ -1286,8 +1289,8 @@ In pgTAP, `tests.partitions_have_rls('schema')` checks the same thing.
 
 ### BS344
 
-**Warning: adopted webhook endpoints without a format.** `webhooks-out` is
-in adopt mode, its endpoints table maps no `format` column, and
+**Warning: app webhook endpoints without a format.** `webhooks-out` runs
+over an endpoints table of the app's, that table maps no `format` column, and
 `blocks.webhooks-out.options.defaultFormat` isn't set. Every endpoint then
 gets `defaultFormat`, whose default changed from the 0.8 body (`standard`)
 to `cloudevents` in 0.9, so receivers built for the old body break with no

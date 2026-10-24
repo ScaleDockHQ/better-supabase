@@ -61,19 +61,19 @@ Every SQL module has a contract: the functions your policies, other
 modules and the TypeScript APIs call. `blocks.<module>.ownership` decides what stands
 behind it.
 
-| Mode                | Use it when                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `managed` (default) | you have nothing for this feature yet; the block creates the tables             |
-| `adopt`             | you have the tables; the block writes functions over them and never creates one |
-| `custom`            | you have the tables and the functions; you write the contract yourself          |
+| Ownership           | Use it when                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `managed` (default) | the block creates the tables you don't have, and runs over the ones you do, adding only the columns they lack |
+| `custom`            | you have the tables and the functions; you write the contract yourself                                        |
 
-Start with `adopt` for the features you already built (organizations,
-invitations, an audit log, an events table) and `managed` for the ones you
-don't have. `custom` is for a function you can't replace yet; doctor checks its
+`managed` covers both the features you already built (organizations,
+invitations, an audit log, an events table) and the ones you don't have: per
+table, the block skips the `create table` when your schema already has it.
+`custom` is for a function you can't replace yet; doctor checks its
 signature against the contract (BS307), and `sql print` with the module
 name lists the signatures. The
-[SQL modules page](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) shows
-which modules support which modes.
+[SQL modules page](/docs/blocks/sql#existing-tables-managed-and-custom) shows
+which modules support `custom`.
 
 ## Map your names
 
@@ -88,7 +88,6 @@ export default defineConfig({
     permissions: {},
     "webhooks-out": {},
     memberships: {
-      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: {
         memberships: {
@@ -99,7 +98,6 @@ export default defineConfig({
       },
     },
     organizations: {
-      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       permissions: { update: "organization.settings.manage" },
@@ -110,7 +108,6 @@ export default defineConfig({
       options: { attributes: ["website", "logo_path", "default_currency"] },
     },
     outbox: {
-      ownership: "adopt",
       tables: { events: "public.workflow_events" },
       columns: {
         events: {
@@ -159,7 +156,7 @@ when you store it on the profile, or `'resolver'` when the URL decides.
 
 ## Keep your events and your receivers
 
-An adopted outbox writes to your events table. SQL modules emit in the same
+An outbox over your events table writes to it. SQL modules emit in the same
 transaction as the change, with the source in `blockSource`, and
 `emit_event` calls without a source get `defaultSource`. Your existing
 webhook receivers keep their signature format through a

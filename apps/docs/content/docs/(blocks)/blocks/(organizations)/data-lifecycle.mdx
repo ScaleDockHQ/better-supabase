@@ -268,10 +268,10 @@ so the order of the tables doesn't matter and your foreign keys can stay;
 when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
 and names the tables.
 
-The tenant row is the organizations module's (managed or adopted), or the
+The tenant row is the organizations module's (on its own table or yours), or the
 row of the table `blocks.permissions.disabled.tenant` names, or the one in
-`options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
-adopted tenant table needs no `on_organization_purge` hook to go.
+`options.tenantRow` (`"schema.table.column"`, `false` to keep it), so a
+tenant table of your own needs no `on_organization_purge` hook to go.
 
 A bucket name in `buckets` clears `{organizationId}/`. For buckets laid out
 another way, pass `{ bucket, path }` with a template, or a function that

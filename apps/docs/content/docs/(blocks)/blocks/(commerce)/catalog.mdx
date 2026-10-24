@@ -333,15 +333,16 @@ The TypeScript client takes `hooks` keyed by method name.
 
 ## Adopting existing tables
 
-In `adopt` mode, map `products`, `variants` and `prices` to your tables. Every
-other table is optional: set it to `null` and the functions that need it are
+To run over tables you already have, map `products`, `variants` and `prices`
+to yours. Every other table is optional: set it to `null` and the functions that need it are
 left out. Columns such as `description`, `barcode`, `compareAt` or
 `validFrom` can also be `null`.
 
 The tables added in version 3 (`channels`, `channelProducts`,
-`productTranslations`, `variantTranslations` and `media`) exist in adopt mode
-only when you map them, so an adopted catalog that upgrades gets no new
-tables until it asks for them.
+`productTranslations`, `variantTranslations` and `media`) run over a table of
+yours only when `tables` maps them. Unmapped, the module creates its own, so
+a table of yours under one of those default names is an error until you map
+it.
 
 ## Not included
 

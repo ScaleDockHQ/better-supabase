@@ -169,13 +169,12 @@ import { driveSubject } from "better-supabase/blocks/drive";
 export default defineConfig({ records: { drive_node: driveSubject() } });
 ```
 
-## Adopt
+## Over your own tables
 
-`ownership: "adopt"` runs the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
 
 ```ts title="better-supabase.config.ts"
 drive: {
-  ownership: "adopt",
   tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
   columns: {
     nodes: { tenant: "organization_id", attachment: null, path: null, rank: null, deletedAt: null },

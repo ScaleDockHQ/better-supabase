@@ -21,7 +21,7 @@ better-supabase add tags
 import { createTags } from "better-supabase/blocks/tags";
 ```
 
-In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). In adopt mode each subject can name its own link table.
+In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). Over your own tables, each subject can name its own link table ([below](#over-your-own-tables)).
 
 Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record is a `RecordRef`, `{ type, id }`.
 
@@ -160,11 +160,10 @@ export function CustomerTags(props: {
 
 Tags run in every [scope](/docs/blocks/sql#scope-and-naming). In `user` scope each user has their own tags, and in `none` scope every signed-in user shares one set.
 
-## Adopt mode
+## Over your own tables
 
 ```ts title="better-supabase.config.ts"
 tags: {
-  ownership: "adopt",
   tables: { tags: "public.organization_tags" },
   on: {
     task: {
@@ -178,11 +177,11 @@ tags: {
 
 `links` columns are `subject`, `tag` and optional `memberships` and `createdAt`.
 
-The adopted `kind` and `subjectType` columns may be enums, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
+Your `kind` and `subjectType` columns may be enums or domains, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
 
 ## Order
 
-Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). `create` appends a tag after the last one of its kind, and `reorder(id, { previous, next })` moves it between the tags with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. In adopt mode `rank` is optional; map it to `null` when the table has no such column.
+Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). `create` appends a tag after the last one of its kind, and `reorder(id, { previous, next })` moves it between the tags with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. On a table of your own `rank` is optional: map it to `null` when you don't want the column, and the module otherwise adds it.
 
 ## Your own columns
 

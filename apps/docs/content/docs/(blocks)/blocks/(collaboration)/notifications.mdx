@@ -863,17 +863,17 @@ The managed tables are `notification_events` (with `type`, `data` and
 `actor_id`), `notification_recipients` (keyed on `user_id`),
 `notification_deliveries`, `notification_subscriptions`,
 `notification_preferences`, keyed on `organization_id`,
-`notification_suppressions` and `notification_delivery_events`. Adopt yours
-and rename what differs; map columns and tables you don't have to `null`. An
-adopted module honours suppressions only when `tables.suppressions` names
-your table, and tracks delivery events only when `tables.deliveryEvents`
-does (its `provider_event_id` must be unique):
+`notification_suppressions` and `notification_delivery_events`. When your
+app has its own, the module runs over them: rename what differs and map the
+optional columns and tables you don't want to `null`. Over your tables the
+module honours suppressions only when `tables.suppressions` names your table,
+and tracks delivery events only when `tables.deliveryEvents` does (its
+`provider_event_id` must be unique):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
     notifications: {
-      ownership: "adopt",
       schema: "public",
       idType: "uuid",
       tables: { subscriptions: null },

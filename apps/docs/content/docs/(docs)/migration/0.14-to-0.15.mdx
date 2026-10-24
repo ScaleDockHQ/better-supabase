@@ -311,6 +311,40 @@ manual step. Rows written before have `block` set to null, which means the
 row's `name` is the block. Block markers keep their format; a second instance
 adds its block after the mode (`-- @bsb-block tickets@1 managed tasks`).
 
+## Adoption is per table and detected
+
+`ownership: "adopt"` is removed. A managed block now leaves alone every table
+your schema already has: the CLI reads your declarative schema files, or the
+schema snapshot or live database for an app on migrations, and for each block
+table it finds at the default name or at the name `blocks.<name>.tables`
+maps, the block skips its `create table`. It adds only the columns it needs
+that your table lacks, with `add column if not exists` (nullable unless the
+column has a default), and writes its functions, policies, triggers and
+indexes over your table. `tables` and `columns` work as before, and an
+optional column mapped to `null` still turns its feature off.
+
+A config that still sets `ownership: "adopt"` fails to load with a message
+that names the key. `better-supabase codemod 0.15` deletes it and keeps the
+block's `tables` and `columns`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  audit: {
+    tables: { log: "public.activity_log" },
+    columns: { log: { tenant: "workspace_id" } },
+  },
+},
+```
+
+`add --adopt <block> --tables ...` still proposes `tables` and `columns`, but
+writes no `ownership`, and a required column your table lacks is a warning,
+because the block's migration adds it. The migration-only options
+(`tokenStorage: "plain"`, `secretStorage: "column"`, `statuses` and the rest)
+are accepted when the block runs over a table your app already has, and
+doctor still reports them as [BS314](/docs/cli/doctor#bs314). `custom`
+ownership is unchanged. See
+[Over your own tables](/docs/blocks/sql#over-your-own-tables).
+
 ## Blocks contribute to approvals, pipelines and the other generic blocks
 
 `approvals`, `bulk`, `pipelines`, `share-links` and `subjects` no

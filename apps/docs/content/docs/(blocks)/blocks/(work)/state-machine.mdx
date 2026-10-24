@@ -151,11 +151,11 @@ machines: {
 },
 ```
 
-## Adopt mode
+## Over your own tables
 
 Point `history.table` at `public.quote_status_history` or `public.invoice_status_history`. Portal-only columns such as `actor_customer_id` stay on the table and are not required by the module. `history()` reads the table's `id` and `created_at` columns; name others with `history.id` and `history.createdAt`.
 
-A machine with `lifecycle: true` needs a lifecycles table with the columns of `subject_lifecycles` and a unique key on `(subject_type, subject_id)`. In adopt mode the module doesn't create read policies on your tables, so add the ones your app needs.
+A machine with `lifecycle: true` needs a lifecycles table with the columns of `subject_lifecycles` and a unique key on `(subject_type, subject_id)`. Over a table of your own the module doesn't create read policies, so add the ones your app needs.
 
 ## Hooks
 

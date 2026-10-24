@@ -107,18 +107,21 @@ pnpm better-supabase add --preset crm --only blocks --adopt --dry-run
 
 With `--adopt`, `add --preset` reads the tables in the database and looks for each
 block's tables under their default names (`teams` and `team_members` for
-`teams`). For every block it finds there, it writes `blocks.<block>` in
-[adopt mode](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) instead of letting the managed block skip the
-table: `tables` names the existing tables, `columns` the columns that differ
-from the defaults, and an optional column the table lacks maps to `null`.
-The proposed mapping of each block is printed before the diff, so
-`--dry-run` shows both. Blocks with no existing table stay managed, and a
-block whose config already sets a mode keeps it.
+`teams`). For every block it finds there, it writes the `tables` and
+`columns` of `blocks.<block>`, so the block
+[runs over your tables](/docs/blocks/sql#over-your-own-tables): `tables`
+names the existing tables, `columns` the columns that differ from the
+defaults, and an optional column the table lacks maps to `null`. It writes
+no `ownership`. The proposed mapping of each block is printed before the
+diff, so `--dry-run` shows both. Blocks with no existing table are left as
+they are, and so is a block in `custom` ownership.
 
-When a block has a table under a default name that can't be adopted as it
-is, for example because a column the block needs is missing, `add --preset`
-writes nothing and prints what is missing. Add the column, map the block
-with `better-supabase add --adopt`, or leave the block out of the preset.
+When a block has a table under a default name that the block can't run
+over, for example because a value it writes doesn't fit a column,
+`add --preset` writes nothing and prints why. Change the column, map the
+block with `better-supabase add --adopt`, or leave the block out of the
+preset. A required column the table lacks is a warning, because the block's
+migration adds it.
 `--adopt` reads the tables where `gen` does: the config's `source`,
 `$DATABASE_URL`, `$SUPABASE_DB_URL` or the local stack, or `--snapshot`,
 `--db-url-stdin` and `--project-ref`.
@@ -137,10 +140,14 @@ pnpm better-supabase add --adopt tags --tables app.labels,app.label_links --json
 ```
 
 `add --adopt <block>` maps one block onto tables the app already has and writes the
-proposed `blocks.<block>` entry in adopt mode. Each table in `--tables`
+proposed `tables` and `columns` of `blocks.<block>`; it writes no
+`ownership`, because a managed block
+[runs over every table your schema already has](/docs/blocks/sql#over-your-own-tables).
+Each table in `--tables`
 (`table` or `schema.table`, comma-separated or repeated) goes to the block's
 logical table whose columns it matches best; the block's other tables are
-looked up by their default names. Each logical column then takes the column
+looked up by their default names, and the ones the app doesn't have are left
+for the block to create. Each logical column then takes the column
 of the same name, or a likely rename: `organization_id` for `tenant`,
 `position` for `rank`, `recipient_user_id` for `user`. Those guesses are
 marked in the output, so check them before you keep the entry. When the
@@ -148,18 +155,19 @@ tenant column is a `bigint`, `text` or `integer`, the entry sets `idType`
 too.
 
 The output lists every logical table and column with what it maps to, then
-a report like doctor's: errors for what can't map (a missing table, a
-required column the table lacks, a value the module refuses) and warnings
-for the migration-only options the entry keeps. With an error `add --adopt` exits
+a report like doctor's: errors for what can't map (none of the block's
+tables found, a value the module refuses) and warnings for a required column
+the table lacks, which the block's migration adds, and for the
+migration-only options the entry keeps. With an error `add --adopt` exits
 1 and writes nothing. Otherwise it prints the diff of the config and writes
 it; `--dry-run` writes nothing, and `--check` exits 1 when the config doesn't
 hold the mapping yet. Run `better-supabase upgrade` afterwards to
-write the block's module over the adopted tables. `--json` prints the entry,
+write the block's module over your tables. `--json` prints the entry,
 the mapping and the report as data. The tables are read like `gen`
 reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.
 
-Only blocks with an adopt mode can be adopted; `blocks view <name>` lists a
-block's modes.
+A block that creates all its tables can't be mapped; the error lists the
+blocks that can run over yours.
 
 Without a block, `add --adopt` writes the data migration instead: the rows
 and settings of the installed blocks that a schema diff skips

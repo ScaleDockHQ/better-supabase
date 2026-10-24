@@ -97,7 +97,7 @@ const views = await savedViews.list(organizationId, "tasks").orThrow();
 
 `list` returns the caller's `preference` with every view, hidden ones
 included, so a menu can offer to show them again. Only the user reads their
-own rows, and deleting a view deletes its preferences. An adopted setup can
+own rows, and deleting a view deletes its preferences. A setup over your own tables can
 leave the table out with `tables: { preferences: null }`; `preference` is
 then always false.
 

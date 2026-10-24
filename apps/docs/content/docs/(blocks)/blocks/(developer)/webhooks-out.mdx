@@ -432,8 +432,9 @@ contract.
 
 The managed tables are `webhook_endpoints` with `event_types`,
 `webhook_endpoint_secrets` and `webhook_deliveries` with `event_type`, keyed
-on `organization_id`. Adopt yours, rename what differs and map what you
-don't have to `null`. This adopts a `webhook_destinations` table with
+on `organization_id`. When your app has its own, the block runs over them:
+rename what differs and map what you don't want to `null`. This runs over a
+`webhook_destinations` table with
 `event_kinds`, keeps secrets in a column, stores uuid event and run ids,
 maps the stored statuses and signs with an existing HMAC format:
 
@@ -441,7 +442,6 @@ maps the stored statuses and signs with an existing HMAC format:
 export default defineConfig({
   blocks: {
     "webhooks-out": {
-      ownership: "adopt",
       idType: "uuid",
       tables: {
         endpoints: "public.webhook_destinations",
@@ -487,7 +487,7 @@ createWebhooks({
 });
 ```
 
-With the default `secretStorage: "vault"`, an adopted secrets table needs
+With the default `secretStorage: "vault"`, a secrets table of yours needs
 the `vault_secret_id` column (map `columns.secrets.vaultId` when yours has
 another name) and no `secret` column: the module never reads it, so `sql
 sync` doesn't ask you to map it to `null`. With `secretStorage: "column"` it
@@ -495,13 +495,13 @@ is the other way round.
 
 The `permissions`, `batch`, `signing`, `format` and `credentialRef` endpoint
 columns and the `subject` delivery column are new in version 3 of the module.
-An adopted table has them only when you map them under `columns`, so without
-them service endpoints get only events published without `readPermission`,
+On a table of yours the block adds the ones it lacks; map one to `null` to go
+without it. Without them, service endpoints get only events published without `readPermission`,
 nothing is sent as a batch, every endpoint signs with `v1` and gets
 `defaultFormat`, no request carries a connector credential and deliveries
 carry no `subject`.
 
-An adopted endpoints table without a mapped `format` column needs an explicit
+An endpoints table of yours without a mapped `format` column needs an explicit
 `defaultFormat`, since that one value then decides the body of every request.
 `upgrade` refuses the config without it, and doctor reports it as
 [BS344](/docs/cli/doctor#bs344). Use `standard` to keep the 0.8 body, or
@@ -509,7 +509,6 @@ An adopted endpoints table without a mapped `format` column needs an explicit
 
 ```ts title="better-supabase.config.ts"
 "webhooks-out": {
-  ownership: "adopt",
   tables: { endpoints: "public.webhook_endpoints" },
   options: { defaultFormat: "standard" },
 },
@@ -520,22 +519,23 @@ Without `expiresAt`, rotating replaces the secret at once instead of
 overlapping. With `secretStorage: "column"` the secret is stored as plain
 text in a table no client can read. `statuses` maps each status to the value
 your table stores; the ones you leave out keep their names. The options
-marked migration-only match an existing schema: the config accepts them in
-`ownership: "adopt"` only, and doctor warns about them (BS314) until you remove them.
+marked migration-only match an existing schema: the config accepts them only
+when the block runs over a table your app already has, and doctor warns about
+them (BS314) until you remove them.
 The module's functions stay in its own schema (`better_supabase` unless
 `schema` names another one that the Data API doesn't expose, see
-[BS312](/docs/cli/doctor#bs312)); `tables` points at the adopted tables
+[BS312](/docs/cli/doctor#bs312)); `tables` points at your tables
 wherever they are.
 
-| Option          | Default       | Meaning                                                                                               |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
-| `secretStorage` | `vault`       | `vault`, or `column` (migration-only, adopt mode)                                                     |
-| `allowHttp`     | `false`       | Allow `http:` endpoint URLs                                                                           |
-| `defaultFormat` | `cloudevents` | The format of new endpoints and of rows without one; required in adopt mode without a `format` column |
-| `disableAfter`  | `5 days`      | How long an endpoint fails without a success before it's disabled                                     |
-| `eventIdType`   | `text`        | The type of the event id column: `text` or `uuid`; others are migration-only                          |
-| `runIdType`     | `text`        | The type of the run id column: `text` or `uuid`; others are migration-only                            |
-| `statuses`      | none          | The stored value of each status, in adopt mode only                                                   |
+| Option          | Default       | Meaning                                                                                                 |
+| --------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
+| `secretStorage` | `vault`       | `vault`, or `column` (migration-only, over your own table)                                              |
+| `allowHttp`     | `false`       | Allow `http:` endpoint URLs                                                                             |
+| `defaultFormat` | `cloudevents` | The format of new endpoints and of rows without one; required over your table without a `format` column |
+| `disableAfter`  | `5 days`      | How long an endpoint fails without a success before it's disabled                                       |
+| `eventIdType`   | `text`        | The type of the event id column: `text` or `uuid`; others are migration-only                            |
+| `runIdType`     | `text`        | The type of the run id column: `text` or `uuid`; others are migration-only                              |
+| `statuses`      | none          | The stored value of each status, over your own table only                                               |
 
 ## Error codes
 
