@@ -12,11 +12,17 @@ const live = await reachable();
 const fixture = fileURLToPath(new URL("..", import.meta.url));
 
 describe("the committed module files", () => {
-  it("are what upgrade writes for the config and the provider snapshot", async () => {
-    const result = await run(["upgrade", "--check", "--cwd", fixture]);
+  // The first command loads the CLI from source, which takes about 5 s on a
+  // CI runner.
+  it(
+    "are what upgrade writes for the config and the provider snapshot",
+    { timeout: 30_000 },
+    async () => {
+      const result = await run(["upgrade", "--check", "--cwd", fixture]);
 
-    expect(result).toMatchObject({ code: 0, stderr: "" });
-  });
+      expect(result).toMatchObject({ code: 0, stderr: "" });
+    },
+  );
 });
 
 describe.skipIf(!live)("doctor on the installed fixture", () => {
