@@ -21,7 +21,6 @@ import {
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import { revokeTable } from "../shared.ts";
 import { TENANT_SCOPE_POLICY, tenantScopePolicy } from "../tenant-scope.ts";
 import {
   columnAccessChecks,
@@ -30,7 +29,13 @@ import {
   writableColumns,
 } from "./app-table-access.ts";
 import { constraintChecks, sampleValue } from "./app-table-checks.ts";
-import { enrichChecks, enrichSql } from "./app-table-enrich.ts";
+import {
+  enrichChecks,
+  enrichSql,
+  grantsPrelude,
+  privilegeChecks,
+  scopePolicyName,
+} from "./app-table-enrich.ts";
 import {
   checkSealBlocks,
   revealSql,
@@ -527,7 +532,7 @@ function policiesSql(table: AppTable): string {
   const own = ownRows(table);
 
   const policy = (command: (typeof COMMANDS)[number], body: string): string => {
-    const name = sqlIdent(`${table.name}_${command}`);
+    const name = sqlIdent(scopePolicyName(table, command));
 
     return `drop policy if exists ${name} on ${target};
 create policy ${name} on ${target} for ${command} to authenticated ${body};`;
@@ -579,7 +584,7 @@ function grantsSql(table: AppTable): string {
       ? "select, insert, update, delete"
       : "select";
 
-    return `${revokeTable(target)}
+    return `${grantsPrelude(target, table.enrich !== undefined)}
 grant ${privileges} on ${target} to authenticated;
 grant all on ${target} to service_role;`;
   }
@@ -591,7 +596,7 @@ grant all on ${target} to service_role;`;
   const writable = writableColumns(table.config, columnNames(table));
 
   return [
-    revokeTable(target),
+    grantsPrelude(target, table.enrich !== undefined),
     `grant select (${list(readable)}) on ${target} to authenticated;`,
     ...(table.scope
       ? [
@@ -1000,8 +1005,8 @@ function testSql(table: AppTable): string {
   const regclass = `${sqlString(qualified(table.name))}::regclass`;
 
   const policies = [
-    ...(table.scope ? COMMANDS : (["select"] as const)).map(
-      (command) => `${table.name}_${command}`,
+    ...(table.scope ? COMMANDS : (["select"] as const)).map((command) =>
+      scopePolicyName(table, command),
     ),
     ...(table.sessionPolicy ? ["bsb_session_active"] : []),
     ...(tenantScoped(table) ? [TENANT_SCOPE_POLICY] : []),
@@ -1060,25 +1065,12 @@ function testSql(table: AppTable): string {
   };
 
   if (!table.exposed) {
-    const privileges = hasColumnAccess(table.config)
-      ? table.scope
-        ? ["DELETE"]
-        : []
-      : table.scope
-        ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
-        : ["SELECT"];
-
-    checks.push(
-      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'anon', array[]::text[], ${sqlString(`anon has no privileges on ${label}`)});`,
-      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', ${privileges.length === 0 ? "array[]::text[]" : `array[${privileges.map((privilege) => sqlString(privilege)).join(", ")}]`}, ${sqlString(`authenticated has the privileges for its scope on ${label}`)});`,
-      ...columnAccessChecks(access),
-    );
+    checks.push(...privilegeChecks(table), ...columnAccessChecks(access));
   }
 
   checks.push(...appViewChecks(table.name, table.config));
 
-  // The app's table may have required columns of its own, which the test
-  // can't fill.
+  // The test can't fill the required columns of the app's own table.
   const seeded = table.enrich === undefined ? foreignRow(table) : undefined;
 
   const sealed = sealChecks(

@@ -626,7 +626,53 @@ describe("appTables SQL errors", () => {
       expect(schema).not.toContain("not valid");
       expect(schema).not.toContain("bsb_tenant_scope");
       expect(schema).toContain(
-        'create policy "invoices_select" on "public"."invoices" for select to authenticated',
+        'create policy "bsb_invoices_select" on "public"."invoices" for select to authenticated',
+      );
+    });
+
+    it("names its policies bsb_<table>_<command>, so a policy the app wrote stays", () => {
+      const schema = schemaOf(BLOCKS, { ...OWN, appTables: { invoices: {} } });
+
+      for (const command of ["select", "insert", "update", "delete"]) {
+        expect(schema).toContain(
+          `drop policy if exists "bsb_invoices_${command}" on "public"."invoices";`,
+        );
+        expect(schema).not.toContain(`"invoices_${command}"`);
+      }
+
+      expect(schemaOf(BLOCKS, { appTables: { invoices: {} } })).toContain(
+        'create policy "invoices_select" on "public"."invoices"',
+      );
+    });
+
+    it("grants what the scope needs without revoking the app's grants", () => {
+      const schema = schemaOf(BLOCKS, { ...OWN, appTables: { invoices: {} } });
+
+      expect(schema).not.toMatch(/revoke [^;]* on "public"\."invoices"/);
+      expect(schema).toContain(
+        `-- "public"."invoices" keeps the app's own grants; these add what the scope needs.
+grant select, insert, update, delete on "public"."invoices" to authenticated;`,
+      );
+
+      const columns = schemaOf(BLOCKS, {
+        ...OWN,
+        appTables: {
+          invoices: { columns: { note: { type: "text", access: "read" } } },
+        },
+      });
+
+      expect(columns).not.toMatch(/revoke [^;]* on "public"\."invoices"/);
+      expect(columns).toContain("grant select (");
+    });
+
+    it("tests the grants of the app's table as a floor", () => {
+      const test = render(BLOCKS, { ...OWN, appTables: { invoices: {} } }).find(
+        (file) => file.kind === "test",
+      )?.contents;
+
+      expect(test).not.toContain("table_privs_are");
+      expect(test).toContain(
+        "select extensions.ok(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']::text[] <@ array(select g.privilege_type::text from information_schema.role_table_grants g",
       );
     });
 
@@ -665,7 +711,7 @@ describe("appTables SQL errors", () => {
 
       expect(test).not.toContain("policies_are");
       expect(test).toContain(
-        "select extensions.ok(array['invoices_select', 'invoices_insert', 'invoices_update', 'invoices_delete', 'bsb_tenant_scope']::name[] <@",
+        "select extensions.ok(array['bsb_invoices_select', 'bsb_invoices_insert', 'bsb_invoices_update', 'bsb_invoices_delete', 'bsb_tenant_scope']::name[] <@",
       );
       expect(test).toContain(
         "'new rows of public.invoices must fill organization_id'",

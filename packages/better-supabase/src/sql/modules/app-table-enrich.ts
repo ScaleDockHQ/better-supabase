@@ -1,7 +1,8 @@
 import type { AppTableConfig } from "../../config/types/app-tables.ts";
 
+import { hasColumnAccess } from "../../config/app-access.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { addNotNullCheck, notNullCheckName } from "../shared.ts";
+import { addNotNullCheck, notNullCheckName, revokeTable } from "../shared.ts";
 
 const SCHEMA = "public";
 
@@ -20,6 +21,25 @@ export interface EnrichTable {
   readonly source: string;
   /** The columns the app's table already has, when they are known. */
   readonly existing: ReadonlySet<string>;
+}
+
+/**
+ * The name of a scope policy. On the app's own table it carries the `bsb_`
+ * prefix, so it never replaces a policy the app wrote.
+ */
+export const scopePolicyName = (
+  table: { readonly name: string; readonly enrich?: unknown },
+  command: string,
+): string => `${table.enrich ? "bsb_" : ""}${table.name}_${command}`;
+
+/**
+ * Before the scope's grants: the app's own grants on its table stay, and doctor
+ * reports broader ones (BS237); a table it creates starts from none.
+ */
+export function grantsPrelude(target: string, enriched: boolean): string {
+  return enriched
+    ? `-- ${target} keeps the app's own grants; these add what the scope needs.`
+    : revokeTable(target);
 }
 
 const qualified = (table: string): string =>
@@ -96,4 +116,51 @@ export function enrichChecks(
   }
 
   return checks;
+}
+
+/**
+ * The table privileges the pgTAP test expects. A table better-supabase creates
+ * has exactly these; on the app's own table they are a floor, since its grants
+ * stay (BS237 reports broader ones).
+ */
+export function privilegeChecks(table: {
+  readonly name: string;
+  readonly config: AppTableConfig;
+  readonly scope: unknown;
+  readonly enrich: unknown;
+}): readonly string[] {
+  const scoped = table.scope !== undefined;
+
+  const privileges = hasColumnAccess(table.config)
+    ? scoped
+      ? ["DELETE"]
+      : []
+    : scoped
+      ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
+      : ["SELECT"];
+
+  const name = sqlString(table.name);
+  const label = `${SCHEMA}.${table.name}`;
+
+  const message = sqlString(
+    `authenticated has the privileges for its scope on ${label}`,
+  );
+
+  const list =
+    privileges.length === 0
+      ? "array[]::text[]"
+      : `array[${privileges.map((privilege) => sqlString(privilege)).join(", ")}]`;
+
+  if (table.enrich) {
+    return privileges.length === 0
+      ? []
+      : [
+          `select extensions.ok(${list}::text[] <@ array(select g.privilege_type::text from information_schema.role_table_grants g where g.table_schema = '${SCHEMA}' and g.table_name = ${name} and g.grantee = 'authenticated'), ${message});`,
+        ];
+  }
+
+  return [
+    `select extensions.table_privs_are('${SCHEMA}', ${name}, 'anon', array[]::text[], ${sqlString(`anon has no privileges on ${label}`)});`,
+    `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', ${list}, ${message});`,
+  ];
 }
