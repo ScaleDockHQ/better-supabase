@@ -212,6 +212,41 @@ export interface Reservation {
   readonly signedUrl: string;
 }
 
+/**
+ * A signed upload for a TUS client such as `tus-js-client`: send every request
+ * to `tusEndpoint` with `headers` (`x-signature` carries the token, `x-upsert`
+ * the upsert choice) and `metadata` plus the file's `contentType` and
+ * `cacheControl`. The browser needs no access token. Finish it with
+ * `claimReserved`, as a plain reservation.
+ */
+export interface ResumableReservation extends Reservation {
+  readonly bucket: string;
+  /** `<storage>/upload/resumable/sign`, on the direct Storage host when hosted. */
+  readonly tusEndpoint: string;
+  /** When the token expires (ISO 8601); start the upload before then. */
+  readonly expiresAt: string;
+  readonly headers: {
+    readonly "x-signature": string;
+    readonly "x-upsert": "true" | "false";
+  };
+  /** The TUS metadata Storage needs to place the object. */
+  readonly metadata: {
+    readonly bucketName: string;
+    readonly objectName: string;
+  };
+}
+
+export interface ReserveResumableOptions {
+  readonly upsert?: boolean;
+  /**
+   * Use the direct Storage host (`<project-ref>.storage.supabase.co`) on a
+   * hosted project. Defaults to true.
+   */
+  readonly direct?: boolean;
+  /** Epoch ms, for the expiry fallback when the token carries no `exp`. */
+  readonly now?: () => number;
+}
+
 export interface ReplaceOptions<
   Id extends string = string,
 > extends UploadOptions {
@@ -397,6 +432,15 @@ export interface BucketClient<
     target: ObjectTarget<P, Id>,
     options?: { upsert?: boolean },
   ): AsyncResult<Reservation>;
+  /**
+   * A signed resumable (TUS) upload for a browser or another service, with the
+   * endpoint, headers and metadata the client sends. In a support session the
+   * target must be allowed to write the path, as for `reserve`.
+   */
+  reserveResumable(
+    target: ObjectTarget<P, Id>,
+    options?: ReserveResumableOptions,
+  ): AsyncResult<ResumableReservation>;
   uploadReserved(
     reservation: Pick<Reservation, "path" | "token">,
     body: UploadBody,

@@ -622,6 +622,57 @@ it makes the target the owner of the uploaded object and records the
 session, so call it before you record the file wherever the code may run in
 one.
 
+### Resumable uploads
+
+Large files go to Storage over TUS, which resumes after a dropped
+connection. `reserveResumable` signs the upload on the server and returns
+everything a TUS client such as `tus-js-client` needs, so the browser sends
+no access token and an app with httpOnly session cookies never hands one
+out:
+
+```ts
+// server
+const upload = await files
+  .connect(supabase)
+  .reserveResumable({ organizationId, fileId }, { upsert: false })
+  .orThrow();
+// upload: { path, token, signedUrl, bucket, tusEndpoint, expiresAt, headers, metadata }
+```
+
+```ts
+// browser
+import { Upload } from "tus-js-client";
+
+new Upload(file, {
+  endpoint: upload.tusEndpoint,
+  headers: upload.headers,
+  metadata: {
+    ...upload.metadata,
+    contentType: file.type,
+    cacheControl: "3600",
+  },
+  chunkSize: 6 * 1024 * 1024,
+  uploadDataDuringCreation: true,
+  removeFingerprintOnSuccess: true,
+  onSuccess: () => finish(upload.path),
+}).start();
+```
+
+| Field         | Holds                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `tusEndpoint` | `<storage>/upload/resumable/sign`; on a hosted project the direct `<project-ref>.storage.supabase.co` host |
+| `headers`     | `x-signature` (the signed upload token) and `x-upsert`; send both on every TUS request                     |
+| `metadata`    | `bucketName` and `objectName`; add `contentType` and `cacheControl`                                        |
+| `expiresAt`   | When the token expires (ISO 8601, two hours after signing); start the upload before then                   |
+
+`{ direct: false }` keeps the project host, and a local stack or a custom
+domain keeps its own. `resumableEndpoint(url)` builds the same endpoint from
+`SUPABASE_URL`, the Storage URL or a signed upload URL. Finish with
+`claimReserved(reservation)` as for a plain reservation: in a
+[support session](/docs/auth/impersonation#storage-in-a-support-session) the
+reservation is only signed when the target may write the path, and the claim
+makes the target the owner.
+
 ### Several files and progress
 
 The dropzone block in the Supabase library uploads every file again when one

@@ -24,6 +24,7 @@ import { isInstant, optionalTemporal } from "../core/temporal.ts";
 import { fromStorageError } from "./errors.ts";
 import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
+import { resumableEndpoint, uploadTokenExpiry } from "./resumable.ts";
 import { storageApiOf } from "./storage-api.ts";
 import { ttlSeconds } from "./ttl.ts";
 import { transformFor } from "./variants.ts";
@@ -765,6 +766,33 @@ export function connectBucket<
           path: data.path,
           token: data.token,
           signedUrl: data.signedUrl,
+        }));
+      }),
+    reserveResumable: (target, options) =>
+      AsyncResult.from(async () => {
+        const path = resolve(target);
+        const upsert = options?.upsert ?? false;
+
+        return run(() =>
+          api().createSignedUploadUrl(path, upsert ? { upsert } : undefined),
+        ).map((data) => ({
+          path: data.path,
+          token: data.token,
+          signedUrl: data.signedUrl,
+          bucket: bucket.id,
+          tusEndpoint: resumableEndpoint(
+            data.signedUrl,
+            options?.direct === undefined ? {} : { direct: options.direct },
+          ),
+          expiresAt: uploadTokenExpiry(
+            data.token,
+            options?.now?.() ?? Date.now(),
+          ),
+          headers: {
+            "x-signature": data.token,
+            "x-upsert": upsert ? "true" : "false",
+          },
+          metadata: { bucketName: bucket.id, objectName: data.path },
         }));
       }),
     uploadReserved: (reservation, body, options) =>

@@ -77,6 +77,8 @@ export type {
   ReplaceOptions,
   ReplaceResult,
   Reservation,
+  ReserveResumableOptions,
+  ResumableReservation,
   StorageAdminClient,
   StoredObject,
   SweepOptions,
@@ -111,6 +113,10 @@ export type {
   StorageTransform,
   StorageUrlOptions,
 } from "./storage-api.ts";
+
+export { resumableEndpoint } from "./resumable.ts";
+
+export type { ResumableEndpointOptions } from "./resumable.ts";
 
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 

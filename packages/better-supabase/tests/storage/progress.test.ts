@@ -123,7 +123,7 @@ describe("upload progress", () => {
     expect(calls.map((call) => call.method)).toEqual(["createSignedUploadUrl"]);
     expect(sent[0]).toMatchObject({
       method: "PUT",
-      url: "https://storage.test/upload/docs/o1/a.txt",
+      url: "https://storage.test/storage/v1/object/upload/sign/docs/o1/a.txt?token=token-o1/a.txt",
       headers: {
         "x-upsert": "true",
         "cache-control": "max-age=60",
