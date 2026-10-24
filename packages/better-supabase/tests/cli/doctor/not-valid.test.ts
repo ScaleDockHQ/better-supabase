@@ -89,6 +89,22 @@ describe("BS236", () => {
     );
   });
 
+  it("leaves out the public schema, and asks to fix rows a check on no column fails", async () => {
+    const findings = await run(
+      database(new Set(['"public"."invoices"', '"public"."tasks"']), []),
+    );
+
+    expect(findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining(
+        "`better-supabase db backfill invoices.organization_id --from <table.column> via <column>`",
+      ),
+      expect.stringContaining("no row fails it"),
+      expect.stringMatching(
+        /rows still fail it\. Fix those rows, then run `better-supabase doctor --fix`\.$/u,
+      ),
+    ]);
+  });
+
   it("skips a saved snapshot", async () => {
     expect(await run({ skipped: "a file" })).toEqual([]);
   });

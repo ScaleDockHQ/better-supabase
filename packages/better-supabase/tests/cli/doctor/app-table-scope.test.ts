@@ -355,6 +355,29 @@ describe("BS238", () => {
     );
   });
 
+  it("names one row without its user on a user-scoped table", async () => {
+    const findings = await run(
+      context(
+        snapshot((notes) => {
+          notes.columns = [...notes.columns, column("user_id")];
+        }),
+        { notes: { scope: "user" } },
+        { database: database(1) },
+      ),
+      "BS238",
+    );
+
+    expect(findings).toMatchObject([
+      {
+        code: "BS238",
+        target: "public.notes.user_id",
+        message: expect.stringContaining(
+          "public.notes has 1 row without user_id, which no user reads or writes, and updates to them fail notes_user_id_not_null.",
+        ),
+      },
+    ]);
+  });
+
   it("reports nothing once every row has an owner, or for a table it created", async () => {
     expect(
       await run(

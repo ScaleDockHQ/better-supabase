@@ -2471,6 +2471,21 @@ describe("doctor command", () => {
           "--snapshot",
           "snapshot.json",
           "--only",
+          "BS204",
+          "--fail-on",
+          "sometimes",
+          "--cwd",
+          dir,
+        ])
+      ).code,
+    ).toBe(2);
+    expect(
+      (
+        await run([
+          "doctor",
+          "--snapshot",
+          "snapshot.json",
+          "--only",
           "BS999",
           "--cwd",
           dir,
