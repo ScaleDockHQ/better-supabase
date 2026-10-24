@@ -441,7 +441,12 @@ export function resolveBlocks(
     visit(name);
   }
 
-  return ordered.toSorted((a, b) => renderPosition(a) - renderPosition(b));
+  // Modules that share a position sort by name, so the rendered SQL doesn't
+  // depend on the order of the app's `blocks` keys.
+  return ordered.toSorted(
+    (a, b) =>
+      renderPosition(a) - renderPosition(b) || a.name.localeCompare(b.name),
+  );
 }
 
 /**

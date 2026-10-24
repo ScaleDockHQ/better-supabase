@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { blockFileState } from "../../src/sql/markers.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 import { ownTablesOf } from "../fixtures/own-tables.ts";
@@ -88,6 +89,52 @@ describe("SQL module output", () => {
       .join("\n");
 
     await expect(out).toMatchFileSnapshot(`__golden__/${module}.sql`);
+  });
+
+  it("renders the same files whatever order the modules come in", () => {
+    const names = NAMES.filter((name) => name !== "pgtap");
+    const forward = renderBlocks(names, {});
+
+    const reversed = new Map(
+      renderBlocks(names.toReversed(), {}).map((file) => [
+        file.path,
+        file.contents,
+      ]),
+    );
+
+    expect(
+      forward
+        .filter((file) => reversed.get(file.path) !== file.contents)
+        .map((file) => file.path),
+    ).toEqual([]);
+  });
+
+  it("stamps every file with the hash of its own body", () => {
+    const each = VARIANTS.filter(
+      (variant) => variant.name !== "with every module",
+    ).flatMap((variant) =>
+      NAMES.filter((module) => variant.applies(module)).flatMap((module) => {
+        try {
+          return renderBlocks(variant.modules(module), variant.layout(module));
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const files = [
+      ...each,
+      ...renderBlocks(
+        NAMES.filter((name) => name !== "pgtap"),
+        {},
+      ),
+    ];
+
+    expect(
+      files
+        .filter((file) => blockFileState(file.contents) !== "clean")
+        .map((file) => file.path),
+    ).toEqual([]);
   });
 
   it("gives every table one owning module", () => {

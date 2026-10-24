@@ -278,7 +278,13 @@ describe("BS237", () => {
             ...exposed,
             config: {
               ...exposed.config,
-              expose: { "public.notes": { anon: ["select"] } },
+              expose: {
+                "public.notes": {
+                  anon: ["select"],
+                  authenticated: [],
+                  serviceRole: [],
+                },
+              },
             },
           },
           "BS237",
