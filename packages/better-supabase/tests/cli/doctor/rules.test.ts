@@ -163,12 +163,14 @@ describe("advisor findings (BS100, BS200)", () => {
           overlap(null),
           overlap({ schema: "public", name: "nowhere", type: "table" }),
           overlap({ schema: "public", name: "notes", type: "table" }),
+          overlap({ schema: "public", name: "organizations", type: "table" }),
         ]),
       }),
       RULES.filter((rule) => ["BS200", "BS207"].includes(rule.code)),
     );
 
     expect(findings.map((finding) => finding.code)).toEqual([
+      "BS200",
       "BS200",
       "BS200",
       "BS200",

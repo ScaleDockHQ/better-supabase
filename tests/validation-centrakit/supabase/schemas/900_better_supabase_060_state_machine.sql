@@ -1,9 +1,27 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:c6acca0001632d3200cdfb6c2702b5e96b23be95fe314094ae7166906a2be593
+-- @bsb-hash sha256:286aa941bfc70fb8c4218e52a48fdeeb6269cb9ee27beee2f89dff9887e1bd2a
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "centrakit"."status_history";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -12,8 +30,8 @@ create index if not exists status_history_subject_idx on "centrakit"."status_his
 alter table "centrakit"."status_history" enable row level security;
 grant select on "centrakit"."status_history" to authenticated;
 grant all on "centrakit"."status_history" to service_role;
-drop policy if exists status_history_read on "centrakit"."status_history";
-create policy status_history_read on "centrakit"."status_history" for select to authenticated
+drop policy if exists bsb_status_history_select on "centrakit"."status_history";
+create policy bsb_status_history_select on "centrakit"."status_history" for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),

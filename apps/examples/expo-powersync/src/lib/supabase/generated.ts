@@ -338,6 +338,7 @@ export type Models = {
       slug: string;
       created_at: string;
       updated_at: string;
+      stripe_customer_id: string | null;
     };
     Insert: {
       id?: string;
@@ -345,6 +346,7 @@ export type Models = {
       slug: string;
       created_at?: string;
       updated_at?: string;
+      stripe_customer_id?: string | null;
     };
     Update: {
       id?: string;
@@ -352,6 +354,7 @@ export type Models = {
       slug?: string;
       created_at?: string;
       updated_at?: string;
+      stripe_customer_id?: string | null;
     };
     Relations: {
       client_notes: { table: "client_notes"; kind: "many"; nullable: true };
@@ -369,6 +372,7 @@ export type Models = {
     PrimaryKey: "id";
     UniqueKeys: {
       organizations_slug_key: readonly ["slug"];
+      organizations_stripe_customer_id_key: readonly ["stripe_customer_id"];
     };
     Checks: never;
     ForeignKeys: never;

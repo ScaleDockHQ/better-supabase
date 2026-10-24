@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@1 managed
--- @bsb-hash sha256:956e9c55bf1f4fb98bc18a60b289fe6a174eb86a43581ca0c93a83b72bc811d9
+-- @bsb-hash sha256:d2c32966d6f53265128d322c886232a7f75481577b15a7ec678dc07b796fee8a
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,6 +39,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."teams";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."team_members";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.

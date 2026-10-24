@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:8ab0510e4f1f739e4d78a601c8eb97b5bd8b6f9beebd84e9d7c9fe417b91380f
+-- @bsb-hash sha256:36241dca8ffdaff8110af03ba1012e5d5314091b3179caa5862e59141b34c1af
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,13 +46,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create unique index if not exists organizations_slug_idx on "public"."organizations" (lower("slug"::text));
 alter table "public"."organizations" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "public"."organizations";
-create trigger bsb_updated_at before update on "public"."organizations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+-- public.organizations keeps updated_at current with its own trigger organizations_set_updated_at.
 alter table "public"."organizations" enable row level security;
 grant select on "public"."organizations" to authenticated;
 grant all on "public"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "public"."organizations";
-create policy bsb_organizations_read on "public"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_select on "public"."organizations";
+create policy bsb_organizations_select on "public"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from

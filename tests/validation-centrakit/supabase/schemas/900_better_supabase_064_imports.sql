@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:1d127685afad55c346137539b1efc6f60b0dc0f9d283ef52e3666486cbdc1f77
+-- @bsb-hash sha256:07d8ce9936390ab807c2848e52ca469ab2ce0716e74c0a013778a2a901cbbed6
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,6 +55,16 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- centrakit.import_runs is the app's table, and it has every column this block needs.

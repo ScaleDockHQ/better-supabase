@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:f1ce441a9e1077bc84d70b2beb5a17d2f5897d1449a568fdcb362156bed584e0
+-- @bsb-hash sha256:e582234d23a12925fb3ad2d65836dcb36c5ba697849e24dce5d09fb0d74760bb
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,6 +39,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "centrakit"."file_node";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "centrakit"."file_node_grant";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- centrakit.file_node is the app's table, and it has every column this block needs.
@@ -147,8 +161,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "centrakit"."file_node";
-create policy drive_nodes_read on "centrakit"."file_node" for select to authenticated
+drop policy if exists bsb_file_node_select on "centrakit"."file_node";
+create policy bsb_file_node_select on "centrakit"."file_node" for select to authenticated
   using ("better_supabase"."drive_can"("id", 'viewer'));
 
 create or replace function "better_supabase"."drive_clean_name"(name text)

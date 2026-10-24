@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
--- @bsb-block organizations@1 adopt
--- @bsb-hash sha256:73adf38ef658094d22fd35100fc42cf83456836ffd8954220348393c09fc30ee
+-- @bsb-block organizations@1 managed
+-- @bsb-hash sha256:4d6e518f274b75cf5fd1bef6305d1e968a04e34d748532da5e2dd9de5ba352c3
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,20 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- Adopted: "public"."organizations" belongs to the app (blocks.organizations.tables.organizations).
+-- public.organizations is the app's table, and it has every column this block needs.
+create unique index if not exists organizations_slug_idx on "public"."organizations" (lower("slug"::text));
+alter table "public"."organizations" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "public"."organizations";
+-- public.organizations keeps updated_at current with its own trigger organizations_set_updated_at.
+-- The Stripe customer the entitlements module reads (config.entitlements.customer).
+alter table "public"."organizations" add column if not exists stripe_customer_id text unique;
+alter table "public"."organizations" enable row level security;
+grant select on "public"."organizations" to authenticated;
+grant all on "public"."organizations" to service_role;
+drop policy if exists bsb_organizations_read on "public"."organizations";
+drop policy if exists bsb_organizations_select on "public"."organizations";
+create policy bsb_organizations_select on "public"."organizations" for select to authenticated
+  using ("id" in (select better_supabase.member_organization_ids()));
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the

@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@1 managed
--- @bsb-hash sha256:8012572cfc23d6b131ceec4b64cebf9c43f25a74ea4c6b26f95d24c6d2aa7547
+-- @bsb-hash sha256:353db49134eac0429dbd74f142cc396a4583170df20fbc3002930951317cd0d8
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,6 +39,20 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "public"."teams";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "public"."team_members";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
@@ -46,8 +60,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "public"."teams" enable row level security;
 grant select on "public"."teams" to authenticated;
 grant all on "public"."teams" to service_role;
-drop policy if exists teams_read on "public"."teams";
-create policy teams_read on "public"."teams" for select to authenticated
+drop policy if exists bsb_teams_select on "public"."teams";
+create policy bsb_teams_select on "public"."teams" for select to authenticated
 using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 -- public.team_members is the app's table, and it has every column this block needs.
@@ -56,8 +70,8 @@ create index if not exists team_members_membership_idx on "public"."team_members
 alter table "public"."team_members" enable row level security;
 grant select on "public"."team_members" to authenticated;
 grant all on "public"."team_members" to service_role;
-drop policy if exists team_members_read on "public"."team_members";
-create policy team_members_read on "public"."team_members" for select to authenticated
+drop policy if exists bsb_team_members_select on "public"."team_members";
+create policy bsb_team_members_select on "public"."team_members" for select to authenticated
 using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 

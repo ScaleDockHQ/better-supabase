@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:0bb15d65a9fa26d6d6abce0ebb3b0e6a47c2fb01474ba31d7078c9ab547a4587
+-- @bsb-hash sha256:872de6b51819534dafa08141aa1289c349a82a947ff18dec43516831ebd4a0d9
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,8 @@ alter table "centrakit"."organizations" enable row level security;
 grant select on "centrakit"."organizations" to authenticated;
 grant all on "centrakit"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "centrakit"."organizations";
-create policy bsb_organizations_read on "centrakit"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_select on "centrakit"."organizations";
+create policy bsb_organizations_select on "centrakit"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
