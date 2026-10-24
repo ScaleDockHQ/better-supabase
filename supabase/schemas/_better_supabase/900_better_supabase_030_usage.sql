@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:142f6451512df2b2d57aed698a3886191330d4bb16dbc16d05c48dbe53dd01c4
+-- @bsb-hash sha256:aad4dd0485a670ea211afc92df827b74e57892bfee4bd9861ce5b43d93bb28e5
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -639,6 +639,26 @@ grant execute on function "better_supabase"."record_usage"(uuid, text, numeric, 
 grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.usage.api: entry points for the Data API.
 create schema if not exists "api";

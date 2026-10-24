@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:22d624dc6f901554dd95fc5199f4596096d600c7b273ba9d347e8c99f00f5af8
+-- @bsb-hash sha256:6db0a64a502ffce6068288e398e7e2ee92dc924ee1498cf6b4c32ddf3a8f73db
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1511,6 +1511,74 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
+create policy bsb_tenant_scope on "better_supabase"."conversations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    and case "better_supabase"."conversations"."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
+      else false
+    end))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope on "better_supabase"."conversation_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
+create policy bsb_tenant_scope on "better_supabase"."messages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("sent_at" is not null or "author_id" = (select auth.uid()))
+  and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
+create policy bsb_tenant_scope on "better_supabase"."message_edits" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope on "better_supabase"."thread_reads" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope on "better_supabase"."message_record_mentions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope on "better_supabase"."thread_summaries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1541,7 +1609,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:c0b69179c2c01eeda8423bd4ba018ed0ba2e68fe06c3c6c2d1d30feb1c366830
+-- @bsb-hash sha256:27515d31f2dda3e5b811636dfba2499dcc0e04b7647783d801486b09f24963ef
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3320,6 +3388,78 @@ create trigger "bsb_messages_moderation_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."messages_moderation_guard"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
+create policy bsb_tenant_scope on "better_supabase"."conversations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ((case when "better_supabase"."conversations"."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"("better_supabase"."conversations"."id"::text)
+    else ("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    and case "better_supabase"."conversations"."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
+      else false
+    end)
+    or ("better_supabase"."conversations"."kind" = 'subject' and (("better_supabase"."conversations"."tenant_id")::text, ("better_supabase"."conversations"."subject_type")::text, ("better_supabase"."conversations"."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope on "better_supabase"."conversation_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
+create policy bsb_tenant_scope on "better_supabase"."messages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("sent_at" is not null or "author_id" = (select auth.uid()))
+  and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
+  and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id")))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
+create policy bsb_tenant_scope on "better_supabase"."message_edits" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope on "better_supabase"."thread_reads" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope on "better_supabase"."message_record_mentions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope on "better_supabase"."thread_summaries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3350,7 +3490,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:6a28cb467aa5f2b3d38350d56e6c3767d5684f9d4248e267a5ef7e44e2e43115
+-- @bsb-hash sha256:921ace461f151af4ec8684300237934da89b70af50ffb992c3e01ddc469080e7
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4862,6 +5002,74 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."conversations";
+create policy bsb_tenant_scope on "app_private"."conversations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("app_private"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    and case "app_private"."conversations"."access"
+      when 'tenant' then true
+      when 'members' then "app_private"."is_conversation_member"("app_private"."conversations"."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"("app_private"."conversations"."subject_type", "app_private"."conversations"."subject_id", 'read'), false)
+      else false
+    end))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."conversation_members";
+create policy bsb_tenant_scope on "app_private"."conversation_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  or exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."messages";
+create policy bsb_tenant_scope on "app_private"."messages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("sent_at" is not null or "author_id" = (select auth.uid()))
+  and exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."message_edits";
+create policy bsb_tenant_scope on "app_private"."message_edits" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."thread_reads";
+create policy bsb_tenant_scope on "app_private"."thread_reads" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."message_record_mentions";
+create policy bsb_tenant_scope on "app_private"."message_record_mentions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."thread_summaries";
+create policy bsb_tenant_scope on "app_private"."thread_summaries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4892,7 +5100,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:91aeb89b630c91d23b8676d9cb17b7f877a29fd2ae546cc6f04d89ee021b17c3
+-- @bsb-hash sha256:3e8027c2544732475e00d2fe033c4fa91ea220db7fbf444a1e0c672d0c8fb91b
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6401,6 +6609,74 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
+create policy bsb_tenant_scope on "better_supabase"."conversations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+    and case "better_supabase"."conversations"."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
+      else false
+    end))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
+create policy bsb_tenant_scope on "better_supabase"."conversation_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
+create policy bsb_tenant_scope on "better_supabase"."messages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("sent_at" is not null or "author_id" = (select auth.uid()))
+  and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
+create policy bsb_tenant_scope on "better_supabase"."message_edits" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
+create policy bsb_tenant_scope on "better_supabase"."thread_reads" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
+create policy bsb_tenant_scope on "better_supabase"."message_record_mentions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
+create policy bsb_tenant_scope on "better_supabase"."thread_summaries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.messaging.api: entry points for the Data API.
 create schema if not exists "api";

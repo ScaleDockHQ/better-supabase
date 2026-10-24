@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:a8ed6635cba4e60661abc0693ceea161ec499ffe2a53d18a05fea3001b356802
+-- @bsb-hash sha256:b0c86e57bad4823de751bc658379ff285fbef2c473f14b1b9a6cb4f5dcf5523a
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -258,6 +258,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.forecasts.api: entry points for the Data API.
 create schema if not exists "api";

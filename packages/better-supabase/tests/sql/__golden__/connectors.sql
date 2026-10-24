@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:725700291569715c51b4c1f9e05a4e1e9a162a285c9534c02b09d490666c0437
+-- @bsb-hash sha256:c579d63dfc876ffe5742cd5c6705f0781bf5cefce568c78f6115590dd210bb0d
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -499,6 +499,26 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -529,7 +549,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:f738e8a17e830be8b857badf2190f86af4c79dee04ad4fdfb930f3aa73e1a1f4
+-- @bsb-hash sha256:4d09c1b83e104740702d0275946d03d9b639509396934bcbdde31fe623f86a0d
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1070,6 +1090,26 @@ $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1100,7 +1140,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:cb3c4e8ca2563f2ec57518a12d0996713c57903a773a43d79dbcd6c53d9ad8d9
+-- @bsb-hash sha256:ef6c41004d0eeb21895883960d3687eb385936195f4b63baba9ebf85460f9a26
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1600,6 +1640,26 @@ $$;
 revoke execute on function "app_private"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "app_private"."purge_connector_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."connector_servers";
+create policy bsb_tenant_scope on "app_private"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."connector_grants";
+create policy bsb_tenant_scope on "app_private"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1630,7 +1690,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:b6a09605ed65a51699169054b2e098a5fb071df35ce77fecc10de84fca6231e9
+-- @bsb-hash sha256:2a68ae582069771ac6d2d6714f7f1261184c1603445cd2c9b3847592f2727846
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2127,6 +2187,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";

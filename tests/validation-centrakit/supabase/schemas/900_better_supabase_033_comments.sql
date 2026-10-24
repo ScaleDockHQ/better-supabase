@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:7d0b6ff16944d25376a59739af35c93d6086f385374e1e49690600a76662464c
+-- @bsb-hash sha256:0873514cf27ddb1fd1332d09162654b3e3884e90c2d0873f9c5f961dd66c4796
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -409,6 +409,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+  );
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

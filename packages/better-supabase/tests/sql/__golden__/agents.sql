@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:b4e545da48bb56de3f854d812da8416e39c348567279cc5d3d21ec72ec5a31aa
+-- @bsb-hash sha256:e30077704d18cbe180bed1fde47d579ac2fdf42ccedf6cbd2ea50371d7e56e6b
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -417,6 +417,26 @@ $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -447,7 +467,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:f2a51fde83c2d9f0c54cb1091e6734df414ccc6129cffe93fa0e783a4222da90
+-- @bsb-hash sha256:cf636020f5e855741d5dd836b3776eb11a5aab8282d83e1feddebfe52e51ca0c
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -906,6 +926,26 @@ $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -936,7 +976,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:6b94d4b48caf071dd40aa2016864d1a6c1fae3e825abb3b7699c14808ab9c6f0
+-- @bsb-hash sha256:bf097955ecba560e0242a4c16ddcc1504f273f4497ca468f11c3aac2e92beed0
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1354,6 +1394,26 @@ $$;
 revoke execute on function "app_private"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."agents";
+create policy bsb_tenant_scope on "app_private"."agents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("app_private"."agents"."owner_id" = (select auth.uid()) or ("app_private"."agents"."published_at" is not null and ("app_private"."agents"."visibility" = 'public' or ("app_private"."agents"."visibility" = 'organization' and "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "app_private"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."agent_installs";
+create policy bsb_tenant_scope on "app_private"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1384,7 +1444,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:07ebf011b1138e008074e524aa6b355ea30bbb900fc38ade1f1239892a8caaa9
+-- @bsb-hash sha256:53739a478ae9a2f2f4058af70dfe48bfecd710af6a504b54c2116e0fbbd775d6
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1799,6 +1859,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.agents.api: entry points for the Data API.
 create schema if not exists "api";

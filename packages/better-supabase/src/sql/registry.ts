@@ -152,6 +152,7 @@ import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import { WORKFLOW_BUILDER } from "./modules/workflow-editor.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
+import { applyTenantScope } from "./tenant-scope.ts";
 
 function built(definition: BlockSqlDefinition): BlockSql {
   let cached: string | undefined;
@@ -159,10 +160,16 @@ function built(definition: BlockSqlDefinition): BlockSql {
   return {
     ...definition,
     get sql() {
-      return (cached ??= applyActorWriteGuards(
-        definition.build(moduleContext(definition.name, {}), {}),
-        {},
-      ));
+      if (cached === undefined) {
+        const ctx = moduleContext(definition.name, {});
+
+        cached = applyActorWriteGuards(
+          applyTenantScope(definition.build(ctx, {}), ctx),
+          {},
+        );
+      }
+
+      return cached;
     },
   };
 }

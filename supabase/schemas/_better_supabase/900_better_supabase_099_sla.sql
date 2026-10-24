@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:f0739301979fe8ed40f237f12457bc4067df38295b44c5a9ba27b81d9592f7d0
+-- @bsb-hash sha256:00de45fc98042641cb8e7ff3b95f08f2c125ebc65d3382413c5c8fd77ce84c1b
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -568,6 +568,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."check_sla_clocks"() from public, anon, authenticated;
 grant execute on function "better_supabase"."check_sla_clocks"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_policies";
+create policy bsb_tenant_scope on "better_supabase"."sla_policies" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
+create policy bsb_tenant_scope on "better_supabase"."sla_clocks" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.sla.api: entry points for the Data API.
 create schema if not exists "api";

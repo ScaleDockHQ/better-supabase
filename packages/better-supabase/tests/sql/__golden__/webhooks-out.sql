@@ -632,7 +632,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:edf3f519b5372ca3346161acf6ff5106a5e7f2d6c36350a538adb832236feeb5
+-- @bsb-hash sha256:099b98fd36d727a9deff954edcd9ede16ff991d277daf4e3588e78b319a5351c
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1264,6 +1264,30 @@ as $$
 $$;
 revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope on "better_supabase"."webhook_endpoints" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."webhook_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

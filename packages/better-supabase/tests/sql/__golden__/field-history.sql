@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1dbaf23dd1071894fbbcb32e7771539c05ad0ece94c50eb94d0f0f3984d1a390
+-- @bsb-hash sha256:5722a48737bc60433d45b4a27403edd1532c981e204034fccdf75e01b8e72773
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,6 +67,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -98,7 +110,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:1dbaf23dd1071894fbbcb32e7771539c05ad0ece94c50eb94d0f0f3984d1a390
+-- @bsb-hash sha256:5722a48737bc60433d45b4a27403edd1532c981e204034fccdf75e01b8e72773
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -165,6 +177,18 @@ $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -195,7 +219,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:c7b31cc0d89c11862ac8b43703294ccf5d312690448ffd7de4d080a8292eba66
+-- @bsb-hash sha256:dfb221cd7678ba984a2f3ce9e46cf8d31eb913044ba311f6bd167d647ffaf1c9
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -264,6 +288,18 @@ $$;
 revoke execute on function "app_private"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "app_private"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."field_changes";
+create policy bsb_tenant_scope on "app_private"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -294,7 +330,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:0214c624bf5b9937a8ae3514bbb1274a13a77f83d5c9a3f7caa2c7859d6e1965
+-- @bsb-hash sha256:f20e731f496043559844c17ada43296369d881f6f5d85db11313a6c6513c333a
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -360,6 +396,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) from public, anon;
 grant execute on function "better_supabase"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
+create policy bsb_tenant_scope on "better_supabase"."field_changes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.field-history.api: entry points for the Data API.
 create schema if not exists "api";

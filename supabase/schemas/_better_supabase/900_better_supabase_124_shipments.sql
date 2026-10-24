@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:ed61e9cdfc24107c98972a0b30fc6ed07be791265c2b2b3a4a6af7ed86a6303f
+-- @bsb-hash sha256:b02e27c6db7b01e9adea195d0d6df79a5574bc05846f16c8fda1f39062542ae5
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -621,6 +621,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."shipments_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."shipments_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."shipments";
+create policy bsb_tenant_scope on "better_supabase"."shipments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_packages";
+create policy bsb_tenant_scope on "better_supabase"."shipment_packages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_tracking_events";
+create policy bsb_tenant_scope on "better_supabase"."shipment_tracking_events" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.shipments.api: entry points for the Data API.
 create schema if not exists "api";

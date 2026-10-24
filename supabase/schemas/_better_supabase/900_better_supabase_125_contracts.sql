@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:91de54207f278eeb98f55424c990d085989952d2588ed2d3eec4274656b3e0ab
+-- @bsb-hash sha256:d71df70506bb95b1200920d669ddaabdd1304dbc8b1c4802d4970c57f1475541
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -832,6 +832,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."contracts_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."contracts_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."contracts";
+create policy bsb_tenant_scope on "better_supabase"."contracts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."contract_obligations";
+create policy bsb_tenant_scope on "better_supabase"."contract_obligations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.contracts.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:a4136dc4221846b89ce8fb8c21a9b394dd1c12365b6b4867c7ff396fd2048cb8
+-- @bsb-hash sha256:b0258a14a8d9ef9d3c5556e6397f678c66cc0121609a85b2d660c7eac0e41049
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,6 +109,18 @@ revoke execute on function "better_supabase"."list_activity"(uuid, text, text, t
 revoke execute on function "better_supabase"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope on "better_supabase"."activity_entries" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('activity.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

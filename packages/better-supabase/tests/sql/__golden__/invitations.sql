@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:034df969ece9618764c38f5057ce5b3c9b2d6072776f7ae22e8caa365107a14c
+-- @bsb-hash sha256:ba492df285183b5602212175666cd08c054c7b053c29d300871e790e6ee9ae18
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -699,6 +699,18 @@ grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to 
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -729,7 +741,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:287f6cf05b78a39726f3e09ea244bae9748cc321f8bf1abaa8eda4fee5109bb3
+-- @bsb-hash sha256:0a367aa1380447283cecfde050a1f1fe961eb5f0673b60679a3b3664f76f4573
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1520,6 +1532,18 @@ grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to 
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1550,7 +1574,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:90fd0d2ca9af8832d103508cb370c9c104499fa781a73bb08bfd527c5ef1abe1
+-- @bsb-hash sha256:8a2f901c0c0318bd09b6e5fb945a9aa81c5339025d3e064b4efce1893f259970
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2250,6 +2274,18 @@ grant execute on function "app_private"."decline_invitation_by_id"(uuid) to auth
 revoke execute on function "app_private"."my_invitations"() from public, anon;
 grant execute on function "app_private"."my_invitations"() to authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."invitations";
+create policy bsb_tenant_scope on "app_private"."invitations" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "app_private"."invitation_tenant_ids"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2280,7 +2316,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:af6ce0a208591c6f3e9a1b60fa8e15fef38a5016575d5b1156aad532f39f2031
+-- @bsb-hash sha256:0d1359603321b0794cde51e35e47d04862efc1ff6e953f5b1d85ed8c1df9806f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2977,6 +3013,18 @@ revoke execute on function "better_supabase"."decline_invitation_by_id"(uuid) fr
 grant execute on function "better_supabase"."decline_invitation_by_id"(uuid) to authenticated;
 revoke execute on function "better_supabase"."my_invitations"() from public, anon;
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
+create policy bsb_tenant_scope on "better_supabase"."invitations" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.invitations.api: entry points for the Data API.
 create schema if not exists "api";

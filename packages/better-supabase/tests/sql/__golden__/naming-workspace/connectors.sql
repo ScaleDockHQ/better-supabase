@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:93e1017f53da19ca16200194aef239e4af0bd5b0eadefe5dfea1cad531ac9897
+-- @bsb-hash sha256:4efc5d906e3a6fd4ef90ed7ec7d2d35c8581b624c5002eb9f6347d3eddb7b2a8
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -498,6 +498,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

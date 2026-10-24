@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:21ef847259431dd0a70aa8cb02c5122084f494aaf07d56707a4fc55a6014502d
+-- @bsb-hash sha256:63d8a2d39e9f341f27bc06fb8cb4c507d94220d128fcc9a9923c529dddcfe1d1
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,6 +315,18 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
+create policy bsb_tenant_scope on "better_supabase"."streams" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.streams.api: entry points for the Data API.
 create schema if not exists "api";

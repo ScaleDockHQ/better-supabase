@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:699b1f34297ce27785f5e835a22200c42649606331cda274aab4dd44de00f13b
+-- @bsb-hash sha256:0c187916380d26d2b4076fce17eaa74eeb4ad61826ab5df93d2ac96a0425c15b
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2265,6 +2265,98 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."carts";
+create policy bsb_tenant_scope on "better_supabase"."carts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."cart_lines";
+create policy bsb_tenant_scope on "better_supabase"."cart_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."shipping_rates";
+create policy bsb_tenant_scope on "better_supabase"."shipping_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."orders";
+create policy bsb_tenant_scope on "better_supabase"."orders" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_lines";
+create policy bsb_tenant_scope on "better_supabase"."order_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_payments";
+create policy bsb_tenant_scope on "better_supabase"."order_payments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillments";
+create policy bsb_tenant_scope on "better_supabase"."fulfillments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillment_lines";
+create policy bsb_tenant_scope on "better_supabase"."fulfillment_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_returns";
+create policy bsb_tenant_scope on "better_supabase"."order_returns" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_return_lines";
+create policy bsb_tenant_scope on "better_supabase"."order_return_lines" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_refunds";
+create policy bsb_tenant_scope on "better_supabase"."order_refunds" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";

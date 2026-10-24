@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:c94c0b35a71c9fc3c395787ac727f6b20778eefa624b9b0efbbb733056644ef6
+-- @bsb-hash sha256:568ac83f1ee4fb4e4f877df27b47fe84d27a816f5b7dd2ef83dd1f34f3834509
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,6 +416,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."workspace_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

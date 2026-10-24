@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:9d1de006cba66b2e9fee9f742920dd4921b418764870854f8d71fc300abec275
+-- @bsb-hash sha256:5637664cdcf956899b3137f1cc4a9989fe40036259b173ad48f30d65c48b2b29
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -660,6 +660,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."leases_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."leases_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.leases.api: entry points for the Data API.
 create schema if not exists "api";

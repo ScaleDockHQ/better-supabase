@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:b573296fa2f7e532136418d3f3ad2cb7fb086833b81e59bd2e1c8ade1019ed46
+-- @bsb-hash sha256:b7ecbf4ab90b0ebd635af4ee220093a8639b7ca17bff542950ed38804a39b7c0
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -916,6 +916,26 @@ $$;
 revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -946,7 +966,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:169533ecdc0ac17a0a6c961474ae19aeb743110f104d4bb3ae9279988d6a0158
+-- @bsb-hash sha256:c851820fc0d8cb31a6444c9cb2e05f99d75e3f2a3979db40f1cd1318ed4588bd
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1864,6 +1884,26 @@ $$;
 revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1894,7 +1934,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:43b52b81456dbbfa9d5b93dcb96e66f8247db9fad0b191bbc3eb830990f8bbf1
+-- @bsb-hash sha256:fe4050ecb15812f5455d8ec3eb89c53ddacc8939b9c5d9ee9560e08abef81cce
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2811,6 +2851,26 @@ $$;
 revoke execute on function "app_private"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "app_private"."purge_memory_documents"(integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."memories";
+create policy bsb_tenant_scope on "app_private"."memories" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."ai_message_embeddings";
+create policy bsb_tenant_scope on "app_private"."ai_message_embeddings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2841,7 +2901,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:55a7b6fc08ce76cb9e0a288207cb8ce05f6cfdaa852730895b7a5050a1e6d713
+-- @bsb-hash sha256:583182cd6803a9ccf186b7493b17530c9ecc32295a113d211d2bd517c158590a
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3755,6 +3815,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.memory.api: entry points for the Data API.
 create schema if not exists "api";

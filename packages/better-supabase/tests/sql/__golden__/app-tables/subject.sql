@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:3e304a1c67016b60f9fe5c662703ba955ac21b886817070834ab53136938c6c6
+-- @bsb-hash sha256:c68dddf0d06a5c03b829a0cd3035cfd8a063d25088a6a3ef99d3a1567ec6d821
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -30,6 +30,11 @@ drop policy if exists "projects_update" on "public"."projects";
 create policy "projects_update" on "public"."projects" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."projects";
+create policy bsb_tenant_scope on "public"."projects" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 create index if not exists "projects_stage_rank_idx" on "public"."projects" ("stage", "rank");
 drop trigger if exists "bsb_updated_at" on "public"."projects";
@@ -44,7 +49,7 @@ create trigger "bsb_search_project_index"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:2948f52a3911059441d262ab06270b74e2df9ea5397e2e606706c7f456d0caab
+-- @bsb-hash sha256:6ecce10941ab210a642a75d6f2193e5685d4c4c3841569f32da15eec80246956
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -54,7 +59,7 @@ select extensions.plan(7);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_tenant_scope'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.projects');
 
@@ -65,10 +70,13 @@ with o as (
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."projects" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope');
-select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
+select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope even through an app policy using (true)');
 reset role;
 
 select * from extensions.finish();

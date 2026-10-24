@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:767ee87bfd58a90ae2e506503589d332d3231f1308eda449fdc825b4ceb4c5bd
+-- @bsb-hash sha256:c0e8acc1315c8ad193eee87c4bbe8d89e6e685c22def0f8260b8534d41214abe
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,6 +762,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."refresh_due_segments"(integer, interval) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
+create policy bsb_tenant_scope on "better_supabase"."segments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
+create policy bsb_tenant_scope on "better_supabase"."segment_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.segments.api: entry points for the Data API.
 create schema if not exists "api";

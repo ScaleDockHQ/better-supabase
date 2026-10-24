@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:f0b46515748fb0b95f14fc612e2d2f757985573318782da83accbb05cf47b6e7
+-- @bsb-hash sha256:0f5c9ba8e01229c578ab2dd66018302aed7822ce9ba8b0a3247dec0a1da3608a
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -513,6 +513,41 @@ begin
 end;
 $do$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -543,7 +578,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:59b2e5e7814b986dcb3eab2b340608c34654cf0225250e73000b865c9248166a
+-- @bsb-hash sha256:c0991927548a632c90caa12668524da3aa7e78e4bbf47f2abb40dec5577bcb28
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,6 +1090,41 @@ begin
 end;
 $do$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1085,7 +1155,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ce46abb61d896b61b8c704afce142c6e535602763790a0edc0750d33b51e6bf5
+-- @bsb-hash sha256:2d796e12e84be97dbff9b515f4bf154ad3652318ba5b5b1d4df369b0edaae72a
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1599,6 +1669,41 @@ begin
 end;
 $do$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."reactions";
+create policy bsb_tenant_scope on "app_private"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "app_private"."reaction_scores";
+create policy bsb_tenant_scope on "app_private"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."custom_emoji";
+create policy bsb_tenant_scope on "app_private"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1629,7 +1734,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:c73be7a14aaced12a5461671df1364752581a2735fb4be870181e0e7d5613cf5
+-- @bsb-hash sha256:87bd7d3a99b2236c65001789f2c01b7a84b5cb1b3b31e7302c931d6bc1b2bacb
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2140,6 +2245,41 @@ begin
   end if;
 end;
 $do$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.reactions.api: entry points for the Data API.
 create schema if not exists "api";

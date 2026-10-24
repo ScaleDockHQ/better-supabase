@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:3d8b7ae93723e862985b7d471edf16105eb963865f66ded5fd290ed7daf30ed5
+-- @bsb-hash sha256:fe16685103bf0d0779f5266b461d4a939f4d084d1421bd588a7394a218422df6
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1850,6 +1850,18 @@ drop trigger if exists "bsb_documents_product_variant_cascade" on "better_supaba
 create trigger "bsb_documents_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."documents_subject_deleted"('product_variant', 'id');
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
+create policy bsb_tenant_scope on "better_supabase"."documents" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";

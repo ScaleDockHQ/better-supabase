@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:d54e10f555c4420d8aec350edbbbf7b8211dc88aae9f56c18b00afe802ea0068
+-- @bsb-hash sha256:3116dddca4bf8e19c9c56adfa23b580c67a75cea8afcb8f10dc52f43a1c2c22c
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,6 +489,19 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -519,7 +532,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:f86a9e8ed4be51f69cb57cf641718742564e7616b4a62585b3e7830f916abbd2
+-- @bsb-hash sha256:d21e334724568c833cde35ced10d65996577d9e2e2c383bebeedf7f274efbd19
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,6 +1068,19 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1085,7 +1111,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:cfdef7ae6a6c198e20227435613f39639f864baa1b042282af61641b36d794c5
+-- @bsb-hash sha256:bacb7f8d1c212009a4c39261817c7dfb282bca6e94d4999cba5f14e13a577ee8
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1575,6 +1601,19 @@ grant execute on function "app_private"."incoming_webhook_by_token"(text) to ser
 revoke execute on function "app_private"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "app_private"."record_incoming_webhook"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."incoming_webhooks";
+create policy bsb_tenant_scope on "app_private"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "app_private"."incoming_webhook_tenant_ids"())
+    and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1605,7 +1644,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:83066d1c960107ba3562cfd1a7909a6df7447baa9090ccbb6423d175511ed8d0
+-- @bsb-hash sha256:9928e487e9b55bc042c7624c8d7dd8ea486eb7de4a6e0f7002501812ddf5c6d5
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2092,6 +2131,19 @@ revoke execute on function "better_supabase"."incoming_webhook_by_token"(text) f
 grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to service_role;
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
+create policy bsb_tenant_scope on "better_supabase"."incoming_webhooks" as restrictive
+  for all to authenticated
+  using (
+    "tenant" in (select better_supabase.member_organization_ids())
+    or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
+  )
+  with check ("tenant" in (select better_supabase.member_organization_ids()));
 
 -- blocks.webhooks-in.api: entry points for the Data API.
 create schema if not exists "api";

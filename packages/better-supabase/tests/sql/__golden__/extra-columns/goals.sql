@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:271db03ede7be17cee7a5d574387df22e25d79d0dd9f86148963b6ad84959398
+-- @bsb-hash sha256:7b4518064ce00c3a9f3082570029fdd645da05e02dd84d36297e1dcc0b4bb48e
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -143,6 +143,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."target_progress"(uuid, date, uuid) from public, anon;
 grant execute on function "better_supabase"."target_progress"(uuid, date, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
+create policy bsb_tenant_scope on "better_supabase"."targets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:8406659f39c44692145a929e135366a092434be0510bb3d68cadc555a3f1068f
+-- @bsb-hash sha256:3b7f6498248c0c7c2bf53be4a8ebb0d0a900e29e3a35d7d872b99e04cc3b8d9b
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -632,6 +632,30 @@ as $$
 $$;
 revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
+create policy bsb_tenant_scope on "better_supabase"."webhook_endpoints" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."webhook_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.webhooks-out.api: entry points for the Data API.
 create schema if not exists "api";

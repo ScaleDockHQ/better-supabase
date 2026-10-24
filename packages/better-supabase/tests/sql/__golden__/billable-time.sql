@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:f1a1fc36fe6d83eb1093bf2b1ae1660b9d9e40e8979f40c7e61aaa5b7d21c8e2
+-- @bsb-hash sha256:4f11aad33c713afc0dc5623f1c8c2bf8ed1ca3e867870051f281b91a7b8eadb9
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -583,6 +583,26 @@ $$;
 revoke execute on function "better_supabase"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -613,7 +633,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:c797c61f9cfb9ef47343475df698217c5a8234fb36d3dd52257f6aff2043f131
+-- @bsb-hash sha256:7c40ccbbb617c750c720e1825e42c7e3c65e8e14dff53e85949fa1f37fffbe17
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1204,6 +1224,26 @@ $$;
 revoke execute on function "better_supabase"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1234,7 +1274,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:207ef58046646c386aaaf7debd77548a93cb36e0434415112dd79434e5b5d955
+-- @bsb-hash sha256:5f87e714cb083b003519af36283aed221ba33446e7504433602b41d65f64dbc1
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1818,6 +1858,26 @@ $$;
 revoke execute on function "app_private"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "app_private"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."time_rates";
+create policy bsb_tenant_scope on "app_private"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."time_invoice_entries";
+create policy bsb_tenant_scope on "app_private"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1848,7 +1908,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:37b68558cee25d6d826aa3aecb29ea3c6a8c0a435826372da8f7b4ea45474ea8
+-- @bsb-hash sha256:c506f14b8f5265747f1767e540945a6b2a511f8cd4b1b623e42e7217869e5869
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2429,6 +2489,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";

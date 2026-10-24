@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:95866eae5fb64dbf017bac92613103d59db0fd0eb092824aba1561d697edc5d6
+-- @bsb-hash sha256:61afe88f3beacc927891c81aaaf0e15ce311e1825ce676dd9c4474c23a3746de
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -628,6 +628,18 @@ $$;
 revoke all on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -658,7 +670,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:6d3f8cb43b75ba29fc7fa7bff17c4ec737ef07bd24d159b21f2291a17b16982a
+-- @bsb-hash sha256:3bbd0a87c0d65ac037412c8229732a4a6cc3950072ae4aff03c039a827af99ad
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1349,6 +1361,18 @@ $$;
 revoke all on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1379,7 +1403,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:855f8b5c094452f2933c971fdc34e7d1775d471f8e70882b42522c111bc0f3c7
+-- @bsb-hash sha256:9fc60e67f375275d65dc4d9716b1f7c786e6870d568d6dc5c89debe2a6dbb680
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2008,6 +2032,18 @@ $$;
 revoke all on function "app_private"."public_content_entries"(uuid, text, text, integer, timestamptz) from public, anon, authenticated;
 grant execute on function "app_private"."public_content_entries"(uuid, text, text, integer, timestamptz) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."content_entries";
+create policy bsb_tenant_scope on "app_private"."content_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2038,7 +2074,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:4db161dad2a57dce325c445c3489cd710d6de2dd5bea52ed0c1c79addf9b7dd1
+-- @bsb-hash sha256:12eefd657edbeaa953df34502ca76d55fa6f48f26a92c26e5f633fb7cc7e3233
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2664,6 +2700,18 @@ as $$
 $$;
 revoke all on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) to anon, authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.content.api: entry points for the Data API.
 create schema if not exists "api";

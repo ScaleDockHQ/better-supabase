@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:393eb894ec0e25291fb37144c1331dcd48fd1d773286990e06989f4e177cc971
+-- @bsb-hash sha256:121188a797441be4be97e03f053c82b8cbade55cb13e13a2ec62d453f0526c2d
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -421,6 +421,15 @@ begin
   );
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.share-links.api: entry points for the Data API.
 create schema if not exists "api";

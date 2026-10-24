@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:6c2231136eca4133b30b6033f5c84d1ad3a3b919fc427af142b5ea0c4af33ec5
+-- @bsb-hash sha256:6ac0db975c483e6efa931224e7a497409eb84f589bf008deb1be88a1ae16b720
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -449,6 +449,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
+create policy bsb_tenant_scope on "better_supabase"."relations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

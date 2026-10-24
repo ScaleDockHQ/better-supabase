@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:f778f7f2b96c9c07232cd297ba950c10b7ad60132edfb351485b98b5611edac8
+-- @bsb-hash sha256:14550f23b1f1662cdca19d1587740fdecc61a5fda8e98b5d32ca7ea245f3c676
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,6 +526,18 @@ drop trigger if exists "bsb_versions_project_auto" on "public"."projects";
 create trigger "bsb_versions_project_auto"
   after insert or update of "name", "budget_minor", "currency" on "public"."projects"
   for each row execute function "better_supabase"."versions_capture"('project', 'id', 'organization_id', 'name,budget_minor,currency', '', '');
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";

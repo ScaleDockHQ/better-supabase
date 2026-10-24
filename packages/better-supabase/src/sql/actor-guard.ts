@@ -268,7 +268,8 @@ function wrapClause(
   return `${statement.slice(0, open + 1)}(${inner}) and (select ${expression})${statement.slice(close)}`;
 }
 
-function closingParen(text: string, open: number): number {
+/** The index of the `)` that closes the `(` at `open`, or -1. */
+export function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:8f91ac7c1d286a4eab42c0ee9ec48142dc18a6405f345158a25385b9119c7a5e
+-- @bsb-hash sha256:865ed16aabc56950c1e4cbb28add55c1c270b2bc9471f5bd7378426f04b47bc0
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -133,6 +133,15 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -163,7 +172,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:23abe50e76e0f3aea7b22c2bc6f43ef5b004d233575bc1a8a7ec76d605f93d27
+-- @bsb-hash sha256:e979e61d2ec70f26978a621cbea72c4c4dcf9971133f587140a0d039178acddf
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -295,6 +304,15 @@ $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -325,7 +343,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:2e4c3ab1f864dfe646fb18aacacfa51f1423629a0efd81b07f648ff9847acc38
+-- @bsb-hash sha256:550c9b7bdc172331fe47acbf6115ad01e06a034a6ae56467825b1b8f93c85241
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -459,6 +477,15 @@ $$;
 revoke execute on function "app_private"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "app_private"."finish_import"(uuid, text, integer, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
+create policy bsb_tenant_scope on "app_private"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -489,7 +516,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 managed
--- @bsb-hash sha256:040d42a9cb704abfcdfef4301dc00c33ae0e21b7c563abfff005bc11bfee868f
+-- @bsb-hash sha256:686d7a3e88d27a622e132b6ad5f0f71f02aa8100399ef65471f5940173ef5502
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,6 +647,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_import"(uuid, text, integer, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
+create policy bsb_tenant_scope on "better_supabase"."import_runs" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.imports.api: entry points for the Data API.
 create schema if not exists "api";

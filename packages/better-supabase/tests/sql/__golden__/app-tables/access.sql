@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:6b2e49b2587a3999a5b4f15f51171eb3406fc1754aae20d69cd2ac6e06b889c0
+-- @bsb-hash sha256:b5cb866f25269f57362e7e4dfa0218e6f2885937890530e577dccd9b017c7274
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -48,6 +48,11 @@ drop policy if exists "projects_update" on "public"."projects";
 create policy "projects_update" on "public"."projects" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."projects";
+create policy bsb_tenant_scope on "public"."projects" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 drop trigger if exists "bsb_updated_at" on "public"."projects";
 create trigger "bsb_updated_at" before update on "public"."projects"
@@ -65,6 +70,11 @@ drop policy if exists "tasks_update" on "public"."tasks";
 create policy "tasks_update" on "public"."tasks" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."tasks";
+create policy bsb_tenant_scope on "public"."tasks" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
 drop trigger if exists "bsb_updated_at" on "public"."tasks";
@@ -104,7 +114,7 @@ comment on view "public"."projects_view" is 'The rollups and lookups of public.p
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:8572a02c2284f231e5e9ba69a6f90a4294a33ed7d67503aca9b126367eec6833
+-- @bsb-hash sha256:76ce2c9ec34923634388a6231756e142e32bf0c5ebec0e9ff92a173f8b521409
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -114,7 +124,7 @@ select extensions.plan(39);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_tenant_scope'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.projects');
 select extensions.ok(has_column_privilege('authenticated', '"public"."projects"', 'budget', 'SELECT'), 'authenticated may select public.projects.budget');
@@ -135,10 +145,13 @@ with o as (
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."projects" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope');
-select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
+select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope even through an app policy using (true)');
 select extensions.is((select count(*)::integer from "public"."projects_view"), 0, 'a stranger sees no rows of public.projects_view');
 select extensions.throws_ok($$select "internal_notes" from "public"."projects"$$, '42501', null, 'a signed-in user cannot read public.projects.internal_notes');
 select extensions.throws_ok($$update "public"."projects" set "budget" = null where false$$, '42501', null, 'a signed-in user cannot write public.projects.budget');
@@ -147,15 +160,18 @@ reset role;
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
-select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete'], 'public.tasks has the policies for its scope');
+select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_tenant_scope'], 'public.tasks has the policies for its scope');
 select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."tasks"'::regclass and k.conname = 'tasks_project_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.tasks.project_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'tasks', 'anon', array[]::text[], 'anon has no privileges on public.tasks');
 select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.tasks');
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."tasks" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.skip('public.tasks has a required reference, so the read test can''t insert a row of another tenant', 1);
-select extensions.throws_ok($$insert into "public"."tasks" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope');
+select extensions.throws_ok($$insert into "public"."tasks" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope even through an app policy using (true)');
 reset role;
 
 select extensions.has_table('public', 'rates', 'public.rates exists');

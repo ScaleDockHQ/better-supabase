@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:153c91e8edb0db60b06d23e66cb20a3d06740a7b1915a72fa18427ddce18ec5d
+-- @bsb-hash sha256:ccc2c101b06ccbdba8b8b85046d6d407ec027bf1ae35747018e4e71280d9acab
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -269,6 +269,23 @@ drop function if exists "better_supabase"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -299,7 +316,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:04a88107534e2cc7b37a44873366338d12acaa54a66bbd21e3a04100ce958528
+-- @bsb-hash sha256:6a3d5263895ac5a4ed51c92b45d5186e4908b4b821477b234e14faace51f1254
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -639,6 +656,23 @@ drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platf
 create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -669,7 +703,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:3ef9cc6ca4e178e13f448b6bc91f27ca8b41022e7b0b2ab066d5a9db60d079ab
+-- @bsb-hash sha256:ac7d523222eec9dea02a559cdd3a3d61e18ce01c782c656b5fc9e2ee0c2cc971
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -939,6 +973,23 @@ drop function if exists "app_private"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "app_private"."platform_settings";
 drop function if exists "app_private"."record_platform_setting"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
+create policy bsb_tenant_scope on "app_private"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -969,7 +1020,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:73d5e4a9258d2f9ebea4d35b049079f43cc26cf7319f230b21b4fc60ca95b793
+-- @bsb-hash sha256:55597af23ce116817c0ebbdee368f5de10051181655b339956772822e85997d1
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1236,6 +1287,23 @@ drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."o
 drop function if exists "better_supabase"."record_organization_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
 
 -- blocks.settings.api: entry points for the Data API.
 create schema if not exists "api";

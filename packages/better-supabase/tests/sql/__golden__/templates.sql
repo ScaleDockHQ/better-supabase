@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d711efabb713a765989cf0dde5074c345f3fceab38baf82eaf0fa743e6d92d47
+-- @bsb-hash sha256:f4e3dc5d2eb2fc9331e1ab5205b54bbf92e6938b0d00d058f3870ae1f86bfc00
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -795,6 +795,27 @@ $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -827,7 +848,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:711f0c1dba828180b1beb8edde4980160f2afac60b9409cdc855c59634034aca
+-- @bsb-hash sha256:cce09c96cbfcd19d6bb3ec84aa854c9e146e8a99c2d8718f41314e4376f3487e
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1818,6 +1839,27 @@ $$;
 revoke execute on function "better_supabase"."template_workflows_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_workflows_list"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1850,7 +1892,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:8e45026eb5224911121c2fe1cda3caf49eae58ca947ad95e59b07f5d79d77c79
+-- @bsb-hash sha256:16e91c9ff9b4bd054d3ca2e3a07fa4167f3992033f549511a4bfd17eb592bff0
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2646,6 +2688,27 @@ $$;
 revoke execute on function "app_private"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "app_private"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."templates";
+create policy bsb_tenant_scope on "app_private"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."template_applications";
+create policy bsb_tenant_scope on "app_private"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2678,7 +2741,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c45e640b6a4d3181064fc557a958ed8f486af325580b95695b90bcc91c5bd212
+-- @bsb-hash sha256:4b7689919582298ef307b206e20eb036a60bfb27cd531cc547070a2363939185
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3471,6 +3534,27 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";

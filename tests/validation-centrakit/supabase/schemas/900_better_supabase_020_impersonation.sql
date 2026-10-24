@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:7caff7d14a3c68127bc21fab034c7d5e5aa1cdeac19bfc2029cb960760c8947b
+-- @bsb-hash sha256:5809c070613d6285b96071ac362b9ad3030efcef0beb3c7fa77bb1db153e0e0c
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -720,6 +720,27 @@ revoke execute on function "better_supabase"."support_target_claims"(uuid) from 
 grant execute on function "better_supabase"."support_target_claims"(uuid) to service_role;
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('platform.users.manage')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('platform.users.manage')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

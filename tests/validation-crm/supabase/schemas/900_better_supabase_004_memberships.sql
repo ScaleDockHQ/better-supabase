@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@2 managed
--- @bsb-hash sha256:a94ca48715a76571bf040217d3e6046bfb2fcd4a65a1bd2cd74556ecb04a7f80
+-- @bsb-hash sha256:dcb8d7ee77311e1bbd94d5af650f8b459792bcc37a5a10b6459dba72297830a5
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,6 +142,18 @@ $$;
 revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;
 reset check_function_bodies;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
+create policy bsb_tenant_scope on "better_supabase"."memberships" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

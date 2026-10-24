@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:4b21884c1a268e5d10c2dd2aaa9dd247feaae43befe56f2386388284bbdc2e33
+-- @bsb-hash sha256:9e650ba6738abe936763227780843d71181465a742ae2894031e47a1438a945c
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -746,6 +746,35 @@ $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -776,7 +805,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:6c1823e9c08f500ffdbb37b2102b75acba5ada8580a866748c07c56a8b8ac4b5
+-- @bsb-hash sha256:5cd199f36e6a9312cd6770fec622fc4a768d68c2b5d8624dff10eb9a3baa6923
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1622,6 +1651,35 @@ $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1652,7 +1710,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:c480a36cbccff1346cafe8fe04b0a8f8cb9e065c425cb8a05cef8e2398be2c3d
+-- @bsb-hash sha256:96231c2783da6a6963e31d93b07d00e58c45aaa748fb1f73ef738aa82dd6a096
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2399,6 +2457,35 @@ $$;
 revoke execute on function "app_private"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "app_private"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."asset_locations";
+create policy bsb_tenant_scope on "app_private"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."assets";
+create policy bsb_tenant_scope on "app_private"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."asset_assignments";
+create policy bsb_tenant_scope on "app_private"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "app_private"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2429,7 +2516,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:bb4e56a5f556fbad5c5aca181fa5bf9cdfbed6fbcb4defed13f9b4f59ece02ce
+-- @bsb-hash sha256:3ef4788331fe9d2fb0bd102d7a31194e439c74a98fe4a5c0e5aa56c3e8b641a6
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3173,6 +3260,35 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";

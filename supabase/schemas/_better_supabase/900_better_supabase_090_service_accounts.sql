@@ -1,6 +1,6 @@
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:a445027bf75ee9411f7f4311eb752eaa80cfafed26c94a4fc9f821212b0e1050
+-- @bsb-hash sha256:2db8e4802b382ed733bc083ae227bdc059c3ca568c630f36cb7d004bdf1bae3d
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -218,6 +218,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
+create policy bsb_tenant_scope on "better_supabase"."service_principals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.service-accounts.api: entry points for the Data API.
 create schema if not exists "api";

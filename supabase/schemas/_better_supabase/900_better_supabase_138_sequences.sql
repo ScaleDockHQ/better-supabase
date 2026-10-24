@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:108d75efa0342b931f76c872133a70868bc7e0a2ab4d05f7dc37f8d41d3e7ddd
+-- @bsb-hash sha256:7d3a998a78df49f3390bf9a0f9884f26b42a11008669b811aec7597ece06a3c9
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -995,6 +995,26 @@ create trigger "bsb_replied"
   after insert on "better_supabase"."mail_messages"
   for each row when (new."direction" = 'inbound')
   execute function "better_supabase"."sequence_mail_replied"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."sequences";
+create policy bsb_tenant_scope on "better_supabase"."sequences" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."sequence_enrollments";
+create policy bsb_tenant_scope on "better_supabase"."sequence_enrollments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.sequences.api: entry points for the Data API.
 create schema if not exists "api";

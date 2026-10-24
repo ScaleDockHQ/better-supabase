@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:efa7f010080d80dd7e4811ab57d63e999de307e25df92ec03c97fd0b5a47ad5d
+-- @bsb-hash sha256:dd8d31ac02fbaca38ddb1b9d7e8af035529b8839ed7a63a80e8bd9496a4bbe07
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2370,6 +2370,35 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
+create policy bsb_tenant_scope on "better_supabase"."ai_projects" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
+create policy bsb_tenant_scope on "better_supabase"."ai_chats" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("owner_id" = (select auth.uid())
+    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
+create policy bsb_tenant_scope on "better_supabase"."ai_sandboxes" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-chat.api: entry points for the Data API.
 create schema if not exists "api";

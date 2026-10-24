@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:4b11fd3ddf9be4c744e147498e252a0c951108772b52af7c80f53cab621875d8
+-- @bsb-hash sha256:b077eda464651af60d0d8681e59f93544cc744bf5f08cf24488735e1d165eaff
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -582,6 +582,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_invoiced_time"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

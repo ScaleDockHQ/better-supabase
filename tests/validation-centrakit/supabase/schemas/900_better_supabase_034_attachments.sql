@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@5 managed
--- @bsb-hash sha256:27f14e55e7c9475376d2229e3e8ff3d1c96637914020d022def1061225d04672
+-- @bsb-hash sha256:84c8535f6fd8c82b6fea5d019223b706680d9815e8760257072e6d2b159af766
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -716,6 +716,32 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("organization_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or (("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce("subject_type" in ('project'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', "organization_id", 'crm.read'), false))) or (not coalesce("subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

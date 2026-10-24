@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:206a1f6a8b1aed368bdcf1f57845c63669df025a76235e6c3ad0ecfea76b59d6
+-- @bsb-hash sha256:63c6ac2b1b3426a45b78c54e93bede04bae328b618fe6132fbc951db4d14eae8
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -541,6 +541,26 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -571,7 +591,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:0e13438d158ba18142bbaf5a7adfbb4ee339b3eb0e98b47646867ed2c9b6c720
+-- @bsb-hash sha256:6ac212d5bf04120fa6e1fff630894c11d01a36a85be07e1f580ea1d8e9fe752a
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1170,6 +1190,26 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1200,7 +1240,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:edcf73365996eba478f1565e43610ac0d9ee94680922c490179664334ae26486
+-- @bsb-hash sha256:25efc72240462d8a27a35a189b66006d00462da63e40c36856ca1b5e2a1b8399
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1742,6 +1782,26 @@ $$;
 revoke execute on function "app_private"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "app_private"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."lease_agreements";
+create policy bsb_tenant_scope on "app_private"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."lease_charges";
+create policy bsb_tenant_scope on "app_private"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1772,7 +1832,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:ce1ccce20b29782b153e5167ec2680dfdcf392710df08f144a5a49250836a27c
+-- @bsb-hash sha256:81783875d68b8732428e5e2a2ca4bfe093671974cba5a781af48741f55f2e79c
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2311,6 +2371,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
+create policy bsb_tenant_scope on "better_supabase"."lease_agreements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
+create policy bsb_tenant_scope on "better_supabase"."lease_charges" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.leases.api: entry points for the Data API.
 create schema if not exists "api";

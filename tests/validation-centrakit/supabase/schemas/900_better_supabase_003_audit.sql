@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 adopt
--- @bsb-hash sha256:2a60ec752276f729fb4f5004026b2bbe3af55f83d2a55064ae2b6069b6fefef6
+-- @bsb-hash sha256:2397e50d536169c7a487b35f18e9d7bea144737c968148e106474a0988725034
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1154,6 +1154,19 @@ end;
 $$;
 revoke execute on function "better_supabase"."reveal_audit_entries"(text[]) from public, anon;
 grant execute on function "better_supabase"."reveal_audit_entries"(text[]) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
+create policy bsb_tenant_scope on "centrakit"."audit_logs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select "better_supabase"."audit_read_tenants"())
+    or (select "better_supabase"."audit_reads_all"()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

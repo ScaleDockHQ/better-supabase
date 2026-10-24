@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:110f2416411f65a91328a5081e7b349812f94a2f0423b0f25c59d3a40d65db2f
+-- @bsb-hash sha256:b88d8508694de3ac77bef0d0fbd391dc87cfe63686e791e3f509866e94a7b8ae
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -385,6 +385,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."assignment_history"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."assignment_history"(uuid, text, text, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queues";
+create policy bsb_tenant_scope on "better_supabase"."assignment_queues" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queue_members";
+create policy bsb_tenant_scope on "better_supabase"."assignment_queue_members" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assignments";
+create policy bsb_tenant_scope on "better_supabase"."assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

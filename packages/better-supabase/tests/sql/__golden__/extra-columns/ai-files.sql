@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:dec82dcf02dc4b1e9d2f718a86d4ae2eec9956a38bcb92156a55c9ecd5663ffe
+-- @bsb-hash sha256:ad641a2922cac6330a2a8548651e8136195300cb0e8dc9dc6775b4dba189a290
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -688,6 +688,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_ai_document"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
+create policy bsb_tenant_scope on "better_supabase"."ai_files" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope on "better_supabase"."ai_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:57ea28cbea137c573eb864cd9f08a8d1870dc791670dd67688cebf5552d62aaa
+-- @bsb-hash sha256:1e3ca43522ea3693dee1ccb9b26823b8579ecafd9545102c95f274bc8b50caaa
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -737,6 +737,27 @@ revoke execute on function "better_supabase"."support_target_claims"(uuid) from 
 grant execute on function "better_supabase"."support_target_claims"(uuid) to service_role;
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

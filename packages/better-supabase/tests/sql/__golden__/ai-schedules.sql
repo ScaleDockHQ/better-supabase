@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:94d9e8d86b8a5be18a39fcd0fb5ca9ed1ad3a063b3eae900f45a30b5c3cbff38
+-- @bsb-hash sha256:002730ac7ef2a80788e429f65580ed0c8cccd8a1f83edf76fb774d0769596611
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -346,6 +346,26 @@ $$;
 revoke execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope on "better_supabase"."ai_task_runs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -376,7 +396,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:6736152aed44384d8d0aa626461e6e2c50dc8451ff9113a9f181377847f1ee86
+-- @bsb-hash sha256:a814ec9eb5e1eec2aefd68ab50c56846e44eae446419c7985647701c02e73d9f
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -722,6 +742,26 @@ $$;
 revoke execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope on "better_supabase"."ai_task_runs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -752,7 +792,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:6e868dd97ed212a954b3ef0a8de836cdd64bf332cbf10cace49865f95f68f935
+-- @bsb-hash sha256:0a3bbcb368c3a0a35bdaf8bda312d65f44a0df4923cc28e73a70faa24ec38168
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1099,6 +1139,26 @@ $$;
 revoke execute on function "app_private"."finish_ai_task_run"(uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."finish_ai_task_run"(uuid, boolean, text, uuid) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."ai_scheduled_tasks";
+create policy bsb_tenant_scope on "app_private"."ai_scheduled_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."ai_task_runs";
+create policy bsb_tenant_scope on "app_private"."ai_task_runs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1129,7 +1189,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ba1b5aadcbeb07321acaf10b60ef05b6864eaecf418a0816162fd0bed7aededf
+-- @bsb-hash sha256:a184ede30e5adfd0c26f817b1d2ab17c03637b2865b219d40289fea14a34780e
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1473,6 +1533,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, text, uuid) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
+create policy bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
+create policy bsb_tenant_scope on "better_supabase"."ai_task_runs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-schedules.api: entry points for the Data API.
 create schema if not exists "api";

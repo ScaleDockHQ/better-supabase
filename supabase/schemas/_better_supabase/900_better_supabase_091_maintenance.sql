@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:b7ae8761d623cb0207f338d4cba4251683d3cb66bb387c8cb5dc8d9540735feb
+-- @bsb-hash sha256:b0a9cc1015f0bf272126b367a2f8cf200f98c76c0e374f7c067487605f35a512
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -793,6 +793,34 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_requests";
+create policy bsb_tenant_scope on "better_supabase"."maintenance_requests" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_checklist_items";
+create policy bsb_tenant_scope on "better_supabase"."maintenance_request_checklist_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_request_assignees";
+create policy bsb_tenant_scope on "better_supabase"."maintenance_request_assignees" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

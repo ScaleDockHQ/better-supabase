@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:4fed872c82ca3341642f7e7c81c57529841404c706bed6a26bbcddb8f70e150d
+-- @bsb-hash sha256:84ba794e4a6c327728c6d0a63ba55066ef58f07430b0bc3ea738ffffd20410ba
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -690,6 +690,18 @@ as $$
 $$;
 revoke all on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."public_content_entries"(uuid, text, text, integer, timestamptz) to anon, authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
+create policy bsb_tenant_scope on "better_supabase"."content_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 drop trigger if exists "bsb_search_content_entry_index" on "better_supabase"."content_entries";
 create trigger "bsb_search_content_entry_index"

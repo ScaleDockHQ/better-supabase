@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:01952961165c05b99e5191b335c2b54cc1448f0e120b2f18ae7b3110c89be9d3
+-- @bsb-hash sha256:4d9ae40f16b11054f61e7da10cc314951e9d474f788d72d9a7ad350f17b1efe5
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,6 +349,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
 grant execute on function "better_supabase"."list_status_stages"(text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
+create policy bsb_tenant_scope on "better_supabase"."status_history" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (case "better_supabase"."status_history"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      else false
+    end)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
+create policy bsb_tenant_scope on "better_supabase"."status_stages" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (case "better_supabase"."status_stages"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      else false
+    end)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
+create policy bsb_tenant_scope on "better_supabase"."subject_lifecycles" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (case "better_supabase"."subject_lifecycles"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      else false
+    end)
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.state-machine.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:bf20b1e828c5a6409ab0eb1f5f0a81312d46d49e10d27d63ec5d7305903c94a8
+-- @bsb-hash sha256:0515d8201cd8d58a152e0121d86a7e5d2956dfb31526b44a5acfd2508be786ae
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -253,6 +253,18 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -283,7 +295,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:a013b49c43d7b940b99de06ee6ffbd0f1a6c2c3c65ac396ccb41e4ab9e8efcde
+-- @bsb-hash sha256:1d9217cbef0388b6e994a960f80bd11df203636ec91c157c22e93c9a391e4506
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,6 +567,18 @@ $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -585,7 +609,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:0c3c840bcd2312a847449348853b0d05cd8d1da08f605dc28dc519af529420b0
+-- @bsb-hash sha256:1b6f56ba029d2fcc611882acf64ca3e7491d5d3a7d6f357d3573c3ab07e0fcea
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -839,6 +863,18 @@ $$;
 revoke execute on function "app_private"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "app_private"."bulk_step"(uuid, integer) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."bulk_runs";
+create policy bsb_tenant_scope on "app_private"."bulk_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -869,7 +905,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:e196f68df64adb13130d5aee43a090293082dde7a30631c3e66de6cf9ae33800
+-- @bsb-hash sha256:67ecbdc55e269bc96832e40ae2d7b6c9eecd69886757a0676fcef957f822e27b
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1120,6 +1156,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
+create policy bsb_tenant_scope on "better_supabase"."bulk_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.bulk.api: entry points for the Data API.
 create schema if not exists "api";

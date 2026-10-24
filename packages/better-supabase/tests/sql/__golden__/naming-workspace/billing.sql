@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:4d5a1bf5091dd7470d6b06cbbf8054278df67b6873668bbf6ad88e99968e1240
+-- @bsb-hash sha256:d9bec4978e7537a0ff121eefd67928051ca9d0ed0c2dfae26d3465ce3dc9bedc
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -632,6 +632,18 @@ grant execute on function "better_supabase"."link_billing_customer"(uuid, text) 
 grant execute on function "better_supabase"."billing_seat_count"(uuid) to service_role;
 grant execute on function "better_supabase"."billing_subscription_item"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_status"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
+create policy bsb_tenant_scope on "better_supabase"."billing_customers" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

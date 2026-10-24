@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:9e3b3f8dc73121f2c196b879d768429ac8583238e75e7b3ce236c3c7493fdf63
+-- @bsb-hash sha256:5de8595f549d963b95c9abda12f45a995a0afe4c04e42b3c58d17002ad35406a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -317,6 +317,20 @@ end;
 $$;
 revoke execute on function "better_supabase"."encrypt_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."encrypt_field_definition"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
+create policy bsb_tenant_scope on "better_supabase"."field_definitions" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
+create policy bsb_tenant_scope on "better_supabase"."field_values" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.custom-fields.api: entry points for the Data API.
 create schema if not exists "api";

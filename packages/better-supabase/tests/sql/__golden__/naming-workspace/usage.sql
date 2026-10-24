@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:428e905848b0b39bd1519b35d175ccc83511e2dbfac3ac2c31f301671d660d80
+-- @bsb-hash sha256:8fed94e56b649fc488de24e9c41abdfb5c0f708c2f123c1562b5f63353e69d49
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -640,6 +640,26 @@ grant execute on function "better_supabase"."record_usage"(uuid, text, numeric, 
 grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" is null or "workspace_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

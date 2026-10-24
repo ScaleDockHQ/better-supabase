@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:c20091c1f97cf847678eda58d00b1b5eb620a91b9f860ec9d321776459ec2ead
+-- @bsb-hash sha256:ca0d0ca948c8f248dd6b16f38ad9d591fe6a7fea2862ea4bfb60acda841dae7a
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -641,6 +641,26 @@ grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric,
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -671,7 +691,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:e7b91b3506052700e65860eaeb49b8fde3856f4b3c4382ef8c3135f4d3f64405
+-- @bsb-hash sha256:10789f4a7b4f518ec379a7b176b4f46ec09168ae04d84a4ebd66bb34f72a1bbd
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1372,6 +1392,34 @@ grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric,
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
+create policy bsb_tenant_scope on "better_supabase"."usage_history" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1402,7 +1450,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:33aa64831f1dccfbd948fec54dd343032267765bbba0dc1776be74dc3679372b
+-- @bsb-hash sha256:32c7c332d1813b1beca3f05268f5745b73d584fd20beeb884e092a4e09b90e83
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2044,6 +2092,26 @@ grant execute on function "app_private"."consume_quota"(uuid, text, numeric, tex
 grant execute on function "app_private"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "app_private"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
+create policy bsb_tenant_scope on "app_private"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
+create policy bsb_tenant_scope on "app_private"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2074,7 +2142,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:3a837acb2b1291961b161458636605c93b8d0ddffd5bf845a5b77c36f7e64ab3
+-- @bsb-hash sha256:8c01768fc411f733e3e7b2074b56a2a16d4622163f8986e11b4f92b478b656bc
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2713,6 +2781,26 @@ grant execute on function "better_supabase"."record_usage"(uuid, text, numeric, 
 grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) to service_role;
 grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
+create policy bsb_tenant_scope on "better_supabase"."usage_counters" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
+create policy bsb_tenant_scope on "better_supabase"."usage_quotas" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.usage.api: entry points for the Data API.
 create schema if not exists "api";

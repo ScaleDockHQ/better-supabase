@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:d6de994cc3c8a5bb276cd27178e24ebcbe088fcf581930ff12ec4bb0278e25a3
+-- @bsb-hash sha256:26f2412d3468985fc1941fcb88e734a1fec01bf23a0a42b91cb02f7ea69742b5
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1100,6 +1100,50 @@ $$;
 revoke execute on function "better_supabase"."verify_course_certificate"(text) from public;
 grant execute on function "better_supabase"."verify_course_certificate"(text) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1130,7 +1174,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:a2a6357cfc9e495bcd12705cd6331d571e011d0cc4970d133b6527435d462543
+-- @bsb-hash sha256:5518188ad941a19f65691f472fbf13a0fc164c18b3c18ca0e26f892ec748971d
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2354,6 +2398,50 @@ $$;
 revoke execute on function "better_supabase"."verify_course_certificate"(text) from public;
 grant execute on function "better_supabase"."verify_course_certificate"(text) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2384,7 +2472,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:bb246127d330e124176bcf4902825ccf0c0eebf3ec5a1727958e9b8e16304151
+-- @bsb-hash sha256:c3a197ac2bd6ae8032401c6e30a42ae9cdb50c8821105804b95e872ae41d584a
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3485,6 +3573,50 @@ $$;
 revoke execute on function "app_private"."verify_course_certificate"(text) from public;
 grant execute on function "app_private"."verify_course_certificate"(text) to anon, authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."courses";
+create policy bsb_tenant_scope on "app_private"."courses" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."course_modules";
+create policy bsb_tenant_scope on "app_private"."course_modules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."courses" x where x."id" = "app_private"."course_modules"."course_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."course_lessons";
+create policy bsb_tenant_scope on "app_private"."course_lessons" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."course_lesson_progress";
+create policy bsb_tenant_scope on "app_private"."course_lesson_progress" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."course_certificates";
+create policy bsb_tenant_scope on "app_private"."course_certificates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3515,7 +3647,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:a17c19dbf9d92273feb695101e48d62efb734dc0f5951ccd9e018a8f87461822
+-- @bsb-hash sha256:5595f723de4da4339cf8246040bf732941b80fd8841cb7db784e01c01bd5f250
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4613,6 +4745,50 @@ as $$
 $$;
 revoke execute on function "better_supabase"."verify_course_certificate"(text) from public;
 grant execute on function "better_supabase"."verify_course_certificate"(text) to anon, authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."courses";
+create policy bsb_tenant_scope on "better_supabase"."courses" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_modules";
+create policy bsb_tenant_scope on "better_supabase"."course_modules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lessons";
+create policy bsb_tenant_scope on "better_supabase"."course_lessons" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_lesson_progress";
+create policy bsb_tenant_scope on "better_supabase"."course_lesson_progress" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."course_certificates";
+create policy bsb_tenant_scope on "better_supabase"."course_certificates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.courses.api: entry points for the Data API.
 create schema if not exists "api";

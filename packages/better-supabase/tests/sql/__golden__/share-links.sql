@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:3a38f1b034931cd157db09ae11c60c8abac66c0fad4eb2cd360716f1f6605c29
+-- @bsb-hash sha256:cbbe60e7188aae7b32996bc91f795cb466e8129893db60fd3cc5f0ed85bc3db4
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -276,6 +276,15 @@ $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -306,7 +315,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:e5c3964cf88aa1ac7b362f8b7ac5cb032a05f3ba8267abdd9006d82b1ff2ba9d
+-- @bsb-hash sha256:4f502de3174bdf442e725ec37955babc0025a7b21cbd539eb98f61e045bf28a5
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,6 +698,15 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -719,7 +737,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c5607c279878dfd0fefbad29a529c5c889a56fbf316cfc9a4742f4d5379a6260
+-- @bsb-hash sha256:cf278ca968be03900db4b006c51a94e91291fd225ea16f080fd07b67d4508cc0
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,6 +1014,15 @@ $$;
 revoke execute on function "app_private"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "app_private"."set_user_state"(text, text, boolean) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."share_links";
+create policy bsb_tenant_scope on "app_private"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1026,7 +1053,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:63e2a29528132a9cccd4f391a3f89beacc15815a085c89bef76314fdc62e8293
+-- @bsb-hash sha256:d3818a129c58ae1696e6508e8853f86d0aa4b8ed346248499180f455adb812a1
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1300,6 +1327,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_user_state"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_user_state"(text, text, boolean) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
+create policy bsb_tenant_scope on "better_supabase"."share_links" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.share-links.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:efdcdca0d4b6085945f4584e971e1f9d626827457389e0d4989c24cfd21621dd
+-- @bsb-hash sha256:c7ddb1668db14833b3c45f4aa8219778583d6d848f5b1226b8ccf00276b7a48d
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1907,6 +1907,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."check_workflow_alerts"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."check_workflow_alerts"(integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_definitions";
+create policy bsb_tenant_scope on "better_supabase"."workflow_definitions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_opt_outs";
+create policy bsb_tenant_scope on "better_supabase"."workflow_opt_outs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_credentials";
+create policy bsb_tenant_scope on "better_supabase"."workflow_credentials" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:1aef25a9bdd3342df4997db6a677e8d511ad50b307cb7f48570fd364ead53793
+-- @bsb-hash sha256:521fd01f022509f6d17cc83ea5b4579b7fa5ff12835b91b0a5bc273619962f35
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -653,6 +653,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."billable_time_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."billable_time_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
+create policy bsb_tenant_scope on "better_supabase"."time_rates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
+create policy bsb_tenant_scope on "better_supabase"."time_invoice_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";

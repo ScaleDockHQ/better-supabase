@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:f0c9218802d29fbdfe4c6b06421aa4fa4116b6c1936c5c33722a3ed15d1dc660
+-- @bsb-hash sha256:51f679109f32cab6be2ca7cfd93e67837e75f3edc8359d10bdf7fc5cefb37226
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,6 +738,27 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -768,7 +789,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:e7eee0776d1371bb4414cf7883a46067aa1b4957e70282b30470760145806aa6
+-- @bsb-hash sha256:b38b0d3bf8022851f839190d5dc17f007fee5d53f3b6da2cc47be5a1a880ea30
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1546,6 +1567,27 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1576,7 +1618,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:e1c258ea27ea848d0646b5d203399aef2b391454700aef9df88028af745ef0be
+-- @bsb-hash sha256:b025b17df6bd5e8b8c8be562c61d08d9f4a4a88cac4ff0c61a4fc381a2e4cd13
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2313,6 +2355,27 @@ grant execute on function "app_private"."support_target_claims"(uuid) to service
 revoke execute on function "app_private"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."support_sessions";
+create policy bsb_tenant_scope on "app_private"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."support_requests";
+create policy bsb_tenant_scope on "app_private"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2343,7 +2406,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:42c52e1bf39af7cacebb69518dd1cd546cb5610538f951f8fe76843b1969aed5
+-- @bsb-hash sha256:36bc70800600ff94db4e8d63b8b7b58c2c84b5ecef5f91ac199ef70acac78515
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3080,6 +3143,27 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 -- blocks.impersonation.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -3222,7 +3306,7 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 adopt
--- @bsb-hash sha256:27f17917c279443b43430412f920c31cc256b8ba05774769fb2e5530fd8915ff
+-- @bsb-hash sha256:70ae55802dd51824a571a64dc008a121513903d128ab84b29657de55dc3c06d1
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3929,6 +4013,19 @@ revoke execute on function "better_supabase"."support_target_claims"(uuid) from 
 grant execute on function "better_supabase"."support_target_claims"(uuid) to service_role;
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

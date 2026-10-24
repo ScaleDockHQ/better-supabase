@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:e7de9f2773f04c426f3f9b0f58329b99c7bd1e1fe4336b06ad73e204df131565
+-- @bsb-hash sha256:9266076795c011d2707fe12566455f43b7ffb450e9ff4bc26009b0a185be621a
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -268,6 +268,23 @@ drop trigger if exists "bsb_record_workspace_setting" on "better_supabase"."work
 drop function if exists "better_supabase"."record_workspace_setting"();
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."workspace_settings";
+create policy bsb_tenant_scope on "better_supabase"."workspace_settings" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false))
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

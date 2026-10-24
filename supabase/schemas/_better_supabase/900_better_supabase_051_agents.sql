@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:2240ffd3033870201b1e51660bc66883cdde8fbe33dd8b3bb9a6d3205a1b1311
+-- @bsb-hash sha256:06db191235b4d0346b3e356285821b42f5e24fbaec969f16faca266d671f6022
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -458,6 +458,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
+create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('ai.moderate')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."agent_installs";
+create policy bsb_tenant_scope on "better_supabase"."agent_installs" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.agents.api: entry points for the Data API.
 create schema if not exists "api";

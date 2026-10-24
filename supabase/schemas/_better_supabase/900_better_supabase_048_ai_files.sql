@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:8033a19329c9ceb3592128c74ed693d1c05fefb8b86b71885c0e0ef4775fd9a5
+-- @bsb-hash sha256:1746684c9c092bdd6cd8fdd08434773cca81d2f8fcc137ae76ba6bba28d4a3df
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -679,6 +679,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_ai_document"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
+create policy bsb_tenant_scope on "better_supabase"."ai_files" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
+create policy bsb_tenant_scope on "better_supabase"."ai_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-files.api: entry points for the Data API.
 create schema if not exists "api";

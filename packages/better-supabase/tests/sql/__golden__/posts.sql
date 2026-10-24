@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:56ae40ca3f634b72f1f534aa548a23e5889a79f46236bad1e61c368da91a18ac
+-- @bsb-hash sha256:756df4cb069df8885624a9f1bb4ee09a5461d5a04138168ad7498ee049b4a91a
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,6 +620,30 @@ create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
+create policy bsb_tenant_scope on "better_supabase"."post_boards" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
+create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
+    "moderation_status" = 'visible'
+    or "author_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -650,7 +674,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:4fe5c76b6c4377411fac429b263be5f26d9fd7d27fc9196ecdc0a2e49aeda9df
+-- @bsb-hash sha256:3844433ff36226e4feee0351d44993a024d3c2d7c317040191fb2158fcc12902
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1319,6 +1343,30 @@ create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
+create policy bsb_tenant_scope on "better_supabase"."post_boards" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
+create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
+    "moderation_status" = 'visible'
+    or "author_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1349,7 +1397,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:3dfa9176e8999f3016f92e4d07d6a28d13078e9d45fd312686fbde417d81de19
+-- @bsb-hash sha256:29177f34ed61fbd8bc28aa95e335dfe37a09162b976f6a6a2dc102d961072590
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1970,6 +2018,30 @@ create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "app_private"."posts_replied"();
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."post_boards";
+create policy bsb_tenant_scope on "app_private"."post_boards" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."posts";
+create policy bsb_tenant_scope on "app_private"."posts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
+    "moderation_status" = 'visible'
+    or "author_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2000,7 +2072,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e91d7735ce4fe42938a990c9178c2a5eafa897a08430b5e738bca126ded75746
+-- @bsb-hash sha256:337762b71369f4ed14af4bd07f7cc4b7290bb8e859f82938246d120c161447a5
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2618,6 +2690,30 @@ drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
 create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
+create policy bsb_tenant_scope on "better_supabase"."post_boards" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
+create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
+    "moderation_status" = 'visible'
+    or "author_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";

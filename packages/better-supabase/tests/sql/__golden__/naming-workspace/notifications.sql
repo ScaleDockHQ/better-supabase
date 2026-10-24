@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@8 managed
--- @bsb-hash sha256:4285e682b88493a2310138da4db38d8247c6c3c596d3f1c0a49207d07d39bd75
+-- @bsb-hash sha256:800f598f113dba6f796f2ca79e78bb86b173cf817d7cceaaa3ecb62a75daffbf
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1251,6 +1251,80 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  );
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

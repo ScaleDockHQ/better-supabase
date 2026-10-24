@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:10f92985add34c9707797f2524669cbdad523dd92fd773aa517be999328db013
+-- @bsb-hash sha256:2c19013d2b282e88e879885b92056611f618df8a335f655346716031e72717ad
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -504,6 +504,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";

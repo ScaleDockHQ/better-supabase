@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@5 managed
--- @bsb-hash sha256:8b8990ca990e588570c1e17260ffa0a00c14e6b5e06a7bab02192c5de47e00f9
+-- @bsb-hash sha256:91aac650e0a090d85185f4f61b851e552c674da903623f1305410f31bb37a29f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -759,6 +759,32 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";

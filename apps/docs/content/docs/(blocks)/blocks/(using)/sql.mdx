@@ -374,6 +374,15 @@ keep them per tenant while the rest of the app runs per user.
 | every scope   | `tags`, `comments`, and the blocks without tenant data (`notifications`, `profiles`, `jobs`, `outbox`, `audit`, ...) |
 | `tenant` only | every other block that requires `memberships` or `access`, and the blocks that require one of them                   |
 
+In `tenant` scope each table a client can reach also gets a restrictive
+`bsb_tenant_scope` policy, and so does each tenant table in `tables`. It
+keeps rows to the caller's organizations and to what the block's own
+policies grant (an invitee's invitation, a guest's granted invoice, a
+user's own rows). Postgres combines permissive policies with `or`, so a
+policy you add to a block table, even `using (true)`, can widen access
+within the caller's organizations but never to another organization's
+rows.
+
 `blocks.memberships.names.organization` renames the tenant concept in the SQL
 the blocks write:
 `workspace` turns the `organizations` table into `workspaces`,

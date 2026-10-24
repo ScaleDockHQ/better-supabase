@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:2e501b524b4ababe585e886263e4b1bd2c89ed70d4f1c14df603b5353e132f45
+-- @bsb-hash sha256:7afe322ef4c4ff7525e061bb47ec2229a79851c70aab9f6868be0a61c0435902
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -433,6 +433,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."channels_for_record"(text, text) from public, anon;
 grant execute on function "better_supabase"."channels_for_record"(text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
+create policy bsb_tenant_scope on "better_supabase"."channels" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels";
 create trigger "bsb_search_channel_index"

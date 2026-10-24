@@ -1,6 +1,6 @@
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:d9bd3148e723d599d4c720358c21c896a377180fcb847f0f34b704bfdae84e01
+-- @bsb-hash sha256:ea9cae680548f019c9970913f824f9dd8e8ba7cd60469fd719a61e83b29a89c2
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -296,6 +296,18 @@ drop trigger if exists "bsb_mail_linked" on "better_supabase"."mail_thread_subje
 create trigger "bsb_mail_linked"
   after insert on "better_supabase"."mail_thread_subjects"
   for each row execute function "better_supabase"."lead_mail_linked"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
+create policy bsb_tenant_scope on "better_supabase"."lead_score_checks" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.lead-scoring.api: entry points for the Data API.
 create schema if not exists "api";

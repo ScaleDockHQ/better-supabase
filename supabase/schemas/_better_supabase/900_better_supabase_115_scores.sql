@@ -1,6 +1,6 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:71a0b247a1d07226b2de643a1b237696c629ba528d373eb72aa77dc17f4ab653
+-- @bsb-hash sha256:86561fc49ccc99191e85886a3440010bc40d243ffd8046a62e6abcfe4b27e775
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -531,6 +531,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."top_scores"(uuid, text, text, numeric, integer) from public, anon;
 grant execute on function "better_supabase"."top_scores"(uuid, text, text, numeric, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."score_models";
+create policy bsb_tenant_scope on "better_supabase"."score_models" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."score_model_versions";
+create policy bsb_tenant_scope on "better_supabase"."score_model_versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."scores";
+create policy bsb_tenant_scope on "better_supabase"."scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.scores.api: entry points for the Data API.
 create schema if not exists "api";

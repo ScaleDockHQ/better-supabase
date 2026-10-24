@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:3f93911fa332dcc405a6057535f7bb3b65f001d11425ba882ef5eeb8a4a17ddc
+-- @bsb-hash sha256:0e1e896af34e949481a7fca560d157fc59e7de51ab7206b05695e60e3d2b4ea4
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -336,6 +336,20 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -366,7 +380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:d4cf1baab452eda1c19851b1c9c18c41e366a24028686d8c6eb938a985c74d9e
+-- @bsb-hash sha256:d73d0ac9a42c4e51d1989c7086dcc2a1c62c4d616aff3e50bd395f1428f07701
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -701,6 +715,20 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -731,7 +759,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:9c4834fb6e33adace5bffd7f4a8fec47c1ffd3774155d2585cff07d48685a28b
+-- @bsb-hash sha256:5ba750789c01a7725ff0a333162c6258431596604c3624b9679c0ecfc873cda4
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1068,6 +1096,20 @@ $$;
 revoke execute on function "app_private"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."tags";
+create policy bsb_tenant_scope on "app_private"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."taggings";
+create policy bsb_tenant_scope on "app_private"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1098,7 +1140,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:2291f9a31584ad91396c43623026f595ffa5364579099ec19db0df663c15d070
+-- @bsb-hash sha256:dcaaf1f7dba1a626e48ffbee9639c2ef2fd7c349320d45423986c6c918a16a58
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1432,6 +1474,20 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";

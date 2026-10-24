@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:b75a786ae5640c4693adae85469c3872655f794d484a7bffc404b21b2e4d20c6
+-- @bsb-hash sha256:c622041f406a62fa20449b2f331008b6daf4a1770cddca9f30105fc2b498bccc
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -250,6 +250,20 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_reminder_schedule"() from public, anon, authenticated;
 grant execute on function "better_supabase"."list_reminder_schedule"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
+create policy bsb_tenant_scope on "better_supabase"."recurrence_rules" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
+create policy bsb_tenant_scope on "better_supabase"."reminders" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";

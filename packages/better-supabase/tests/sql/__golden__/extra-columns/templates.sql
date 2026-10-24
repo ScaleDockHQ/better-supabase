@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c759e4a29afb87bac455043d13675514307ef66e6563b341eb71b672d7a39b2f
+-- @bsb-hash sha256:99122e7ca64dd2ff86ca46b6a443961dc69b4c7cc6b0f114a3d58acd2f69afbf
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -799,6 +799,27 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

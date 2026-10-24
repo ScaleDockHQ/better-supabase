@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:bdfd5ac99d8cc0193e3a2490a433553048de0e278554b3361b7113e0d02f257d
+-- @bsb-hash sha256:524a92055764324f1d23ad63cd949be90c0292d7928f2270a4f8827a5f8370cc
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -503,6 +503,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_connector_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
+create policy bsb_tenant_scope on "better_supabase"."connector_servers" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
+create policy bsb_tenant_scope on "better_supabase"."connector_grants" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:555349b695215151d76dea88cc8113ade5f01b3416d4ee942263e3f3c56f5752
+-- @bsb-hash sha256:a9a35af45eb129793833d86612ef6b9dd2724083c4a61d46b556a5bbaeb61e0a
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -293,6 +293,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."enrichment_due"(text, integer, interval, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
+create policy bsb_tenant_scope on "better_supabase"."enrichments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.enrichment.api: entry points for the Data API.
 create schema if not exists "api";

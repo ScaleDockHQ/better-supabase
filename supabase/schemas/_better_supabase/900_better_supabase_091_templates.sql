@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c500749c51b08028c25ace7add5d4b67c49f9a167f03d901682ff99e98e93067
+-- @bsb-hash sha256:53ce80f86859de25df6a0cecf823cf5e85f95a7e2cb978a4e915e77a85cfc1e1
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -990,6 +990,27 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_workflows_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_workflows_list"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
+create policy bsb_tenant_scope on "better_supabase"."templates" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
+    or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
+create policy bsb_tenant_scope on "better_supabase"."template_applications" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";

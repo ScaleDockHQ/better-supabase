@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:bbf640783917d952951953bed45b327aee45ca695c3e5a45034d44489b270468
+-- @bsb-hash sha256:b63f6ab271ea089a0a7cbdc16ed60c992ce4e56eb523358c3b054e3325284142
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -461,6 +461,18 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -491,7 +503,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:3924789cc3ad6fbbaa8c36de1c6802072f0ecef644e6246934121bdc022400d8
+-- @bsb-hash sha256:d00f2c15fe5fc20b859dc18774d6523347a059fd00e0929e72c130818fa4de61
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,6 +1008,18 @@ $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1026,7 +1050,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:f3fc8008e9fa25de7ab7d4ec7f96b1f36a9883b88be7920f45167431f72b64c4
+-- @bsb-hash sha256:a57710d0fb58821c1cbc7280c1572b0eb4b09b5cc0159305da7950f0bed4c6a3
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1488,6 +1512,18 @@ $$;
 revoke execute on function "app_private"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."reembed_knowledge"(uuid, text) to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."knowledge_documents";
+create policy bsb_tenant_scope on "app_private"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1518,7 +1554,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:3433673d1fa1949afe5ef7bbd3875e4f6c67e5957d518e386e0a48d51eaf67a3
+-- @bsb-hash sha256:5f47f2fd9e1a2fa7669035580639026b29170779a9c58622135e500e49496e5e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1977,6 +2013,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
+create policy bsb_tenant_scope on "better_supabase"."knowledge_documents" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and false)))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";

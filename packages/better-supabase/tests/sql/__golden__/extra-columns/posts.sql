@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:ad3f900aafab9e2d113c05672f362cb9e73643696f79aeaf6480e62c194c94eb
+-- @bsb-hash sha256:913acfb92e20a8192e8d907a3fbd2eedd6b7a5f10fa40795cfcdb70df1cf7066
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -628,6 +628,30 @@ drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
 create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."post_boards";
+create policy bsb_tenant_scope on "better_supabase"."post_boards" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."posts";
+create policy bsb_tenant_scope on "better_supabase"."posts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
+    "moderation_status" = 'visible'
+    or "author_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('posts.moderate'))
+  ))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

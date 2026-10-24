@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:6c457393f07974b8ef51a5b70365c33feef93eddb575e5c37c7850bc0ada9102
+-- @bsb-hash sha256:f32f94ecff1f8741736e4d1a83ca93808e89e6768a5e1698409ec0a8c8e52dfd
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -626,6 +626,42 @@ as $$
 $$;
 revoke execute on function "better_supabase"."moderation_hidden"(text, text) from public, anon;
 grant execute on function "better_supabase"."moderation_hidden"(text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_items";
+create policy bsb_tenant_scope on "better_supabase"."moderation_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_reports";
+create policy bsb_tenant_scope on "better_supabase"."moderation_reports" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_actions";
+create policy bsb_tenant_scope on "better_supabase"."moderation_actions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_bans";
+create policy bsb_tenant_scope on "better_supabase"."moderation_bans" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.moderation.api: entry points for the Data API.
 create schema if not exists "api";

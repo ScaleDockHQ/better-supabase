@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:2f7a324ad1763801bbe08417acd3b693c3e8448c9ecc6319a005d1d78cfca9b9
+-- @bsb-hash sha256:afab261ea372c4d6c78e3cf0e9a0e1a7172b3c1f88aad9dea6abb64ef95f77be
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,6 +347,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
+create policy bsb_tenant_scope on "better_supabase"."comment_tasks" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "workspace_id"))
+  )
+  with check (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "workspace_id"))
+  );
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

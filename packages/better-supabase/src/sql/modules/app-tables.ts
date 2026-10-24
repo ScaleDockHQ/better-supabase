@@ -21,6 +21,7 @@ import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import { TENANT_SCOPE_POLICY, tenantScopePolicy } from "../tenant-scope.ts";
 import {
   columnAccessChecks,
   columnAccessRefusals,
@@ -519,7 +520,23 @@ create policy ${name} on ${target} for ${command} to authenticated ${body};`;
     policy("insert", `with check (${own})`),
     policy("update", `using (${own}) with check (${own})`),
     policy("delete", `using (${own})`),
+    ...(tenantScoped(table)
+      ? [
+          tenantScopePolicy({
+            target,
+            column: sqlIdent(table.scope.name),
+            members: table.ctx.scope.members(),
+          }),
+        ]
+      : []),
   ].join("\n");
+}
+
+/** A table whose rows belong to a tenant, kept apart by `bsb_tenant_scope`. */
+function tenantScoped(
+  table: AppTable,
+): table is AppTable & { readonly scope: ScopeColumn } {
+  return table.ctx.scope.kind === "tenant" && table.scope !== undefined;
 }
 
 function grantsSql(table: AppTable): string {
@@ -973,6 +990,7 @@ function testSql(table: AppTable): string {
       (command) => `${table.name}_${command}`,
     ),
     ...(table.sessionPolicy ? ["bsb_session_active"] : []),
+    ...(tenantScoped(table) ? [TENANT_SCOPE_POLICY] : []),
   ];
 
   const checks = [
@@ -1046,15 +1064,19 @@ function testSql(table: AppTable): string {
 
   checks.push(...sealed.static);
 
+  const widened = tenantScoped(table)
+    ? " even through an app policy using (true)"
+    : "";
+
   const readCheck =
     seeded === undefined
       ? `select extensions.skip(${sqlString(`${label} has a required reference, so the read test can't insert a row of another ${table.ctx.scope.kind}`)}, 1);`
-      : `select extensions.is((select count(*)::integer from ${qualified(table.name)}), 0, ${sqlString(`a signed-in user does not read a row of ${label} outside their scope`)});`;
+      : `select extensions.is((select count(*)::integer from ${qualified(table.name)}), 0, ${sqlString(`a signed-in user does not read a row of ${label} outside their scope${widened}`)});`;
 
   const behaviour = table.scope
     ? [
         readCheck,
-        `select extensions.throws_ok($$insert into ${qualified(table.name)} (${sqlIdent(table.scope.name)}) values (${FOREIGN_ID[table.scope.idType]})$$, '42501', null, ${sqlString(`a signed-in user cannot insert a row of ${label} outside their scope`)});`,
+        `select extensions.throws_ok($$insert into ${qualified(table.name)} (${sqlIdent(table.scope.name)}) values (${FOREIGN_ID[table.scope.idType]})$$, '42501', null, ${sqlString(`a signed-in user cannot insert a row of ${label} outside their scope${widened}`)});`,
       ]
     : [
         `select extensions.throws_ok($$insert into ${qualified(table.name)} default values$$, '42501', null, ${sqlString(`a signed-in user cannot write ${label}; only the service role does`)});`,
@@ -1069,7 +1091,7 @@ function testSql(table: AppTable): string {
   ];
 
   return `${[...checks, ...(seededSql === undefined ? emitted : [])].join("\n")}
-${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}
+${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}${tenantScoped(table) ? `\n-- An app's own permissive policy can't widen the tenant scope.\ncreate policy bsb_test_app_widens on ${qualified(table.name)} for all to authenticated using (true) with check (true);\n` : ""}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 ${[...behaviour, ...sealed.behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined), ...(table.exposed ? [] : columnAccessRefusals(access))].join("\n")}

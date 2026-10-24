@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:e51c7c48b2949e2895fdb1a01f54745c9fda3fcf9bcae6aa23d71d19d703c3eb
+-- @bsb-hash sha256:0c9ede03d84eaf711888112aa75a2f117b30965aac5801d31c071135f5e343a6
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -368,6 +368,23 @@ alter table "better_supabase"."organization_settings" validate constraint "bsb_j
 drop trigger if exists "bsb_json_value_default_currency" on "better_supabase"."organization_settings";
 create trigger "bsb_json_value_default_currency" before insert or update of "value", "key" on "better_supabase"."organization_settings"
   for each row execute function better_supabase.check_json_schema('value', '{"type":"string","pattern":"^[A-Z]{3}$"}', 'key', 'default_currency');
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

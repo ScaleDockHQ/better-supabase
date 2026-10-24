@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:73d443d7b7903bb97b3548aa3aba2f4ead9cb650191f190c8f48e608dab927fa
+-- @bsb-hash sha256:fb49045cf86acaa50c1630cb925259217e2cae38190e7bbe7dbde2a2bb885b4b
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -260,6 +260,26 @@ $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -290,7 +310,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:5952f948accba8730de7df7ee8a3832c25d187ca02902f50d403777845947fe1
+-- @bsb-hash sha256:49a376e3870648f3d2d719323d1043ce9a1c86d727d0f1bd462eebddff11743f
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -549,6 +569,26 @@ $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -579,7 +619,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:90e9162a5087ade5b2ab722d7f42c96a9c0d07d7ae587ba44a71df875fd12723
+-- @bsb-hash sha256:c8bac1e82a886e2ef08559fb09558eae6d721053d272a385852fb56cfbfea89e
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -840,6 +880,26 @@ $$;
 revoke execute on function "app_private"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshots";
+create policy bsb_tenant_scope on "app_private"."forecast_snapshots" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshot_deals";
+create policy bsb_tenant_scope on "app_private"."forecast_snapshot_deals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -870,7 +930,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:31cb870121abb89d276d93c13b0bff7d0c9f1aaee679f684d569b76d70d0eed9
+-- @bsb-hash sha256:2154000fb65cd29a26eae5f8fe2e5e5a49c9edd2954a4aafdaf246312226648a
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1128,6 +1188,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshots" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
+create policy bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.forecasts.api: entry points for the Data API.
 create schema if not exists "api";

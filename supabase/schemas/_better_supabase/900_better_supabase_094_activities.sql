@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:072ef3f353b272d6f14efe02ae14bfe767a12f4083acaec35a60ad4dd7a20665
+-- @bsb-hash sha256:087bb5139e8ececa131526db213ef057f4143939396668001e5106c3e8b139bf
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -943,6 +943,29 @@ drop trigger if exists bookings_engagement on "better_supabase"."bookings";
 create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."bsb_booking_engagement"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
+create policy bsb_tenant_scope on "better_supabase"."engagements" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
+  or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
+create policy bsb_tenant_scope on "better_supabase"."engagement_subjects" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 drop trigger if exists "bsb_search_engagement_index" on "better_supabase"."engagements";
 create trigger "bsb_search_engagement_index"

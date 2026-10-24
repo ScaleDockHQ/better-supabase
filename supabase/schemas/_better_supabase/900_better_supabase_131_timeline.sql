@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:fae12cfb2718b68613b80ff50355db0f6a4ef8fee69937bebbdeab4f451e6935
+-- @bsb-hash sha256:54121f7625650be4986168b4719803384f6a7521b5eb24b390c17355fc6c8f64
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -236,6 +236,21 @@ revoke execute on function "better_supabase"."list_activity"(uuid, text, text, t
 revoke execute on function "better_supabase"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."activity_entries";
+create policy bsb_tenant_scope on "better_supabase"."activity_entries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
+    and ("subject_type" is null or "subject_id" is null
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,customer,drive_node,application,project,task}'::text[]))
+      or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.timeline.api: entry points for the Data API.
 create schema if not exists "api";

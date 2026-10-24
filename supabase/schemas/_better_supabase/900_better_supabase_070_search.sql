@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:3198926a69c6384e986604689255f72d6ceb78c8ec5a08faeb0db53a506ef789
+-- @bsb-hash sha256:a07be108980894a1268e3219b57ed24c8af5c245b83332364fb37a6e30da95a9
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,6 +646,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."search_star"(text, text, boolean) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
+create policy bsb_tenant_scope on "better_supabase"."search_documents" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.search.api: entry points for the Data API.
 create schema if not exists "api";

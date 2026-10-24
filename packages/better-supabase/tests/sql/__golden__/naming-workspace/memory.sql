@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:5f51e2f106de3b1a5f99ab6b942a0f412f962b280c440cd3c32040ccdd85f9a8
+-- @bsb-hash sha256:531c7e814bcbb49326afc2c96a4e4c8bef7ae93abb2463a3008eee2a77be98df
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -915,6 +915,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memories";
+create policy bsb_tenant_scope on "better_supabase"."memories" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "workspace_id" in (select better_supabase.tenant_ids_with('ai.read'))))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
+create policy bsb_tenant_scope on "better_supabase"."ai_message_embeddings" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

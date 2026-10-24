@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:9ab7a085c7e4c72a7593d88c5a08baed0731c839c4cfe52683bc47aa27b6829f
+-- @bsb-hash sha256:f87e6bae4057597a4dd97d82c7067a4170a15a015b2bf833f015e184a7eeceb6
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -422,6 +422,34 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_provider_keys";
+create policy bsb_tenant_scope on "better_supabase"."ai_provider_keys" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batches";
+create policy bsb_tenant_scope on "better_supabase"."ai_batches" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ai_batch_items";
+create policy bsb_tenant_scope on "better_supabase"."ai_batch_items" as restrictive
+  for all to authenticated
+  using (
+    "workspace_id" in (select better_supabase.member_workspace_ids())
+    or (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"))
+  )
+  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

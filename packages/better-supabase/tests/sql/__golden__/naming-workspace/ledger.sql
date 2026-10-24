@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:f6d6f794ff890b4336fa966800fa1cc514cc22d8abd44d667a73f2e2363aff19
+-- @bsb-hash sha256:b6178a38a87172f9becf81c6c64a216fbbbc785f5076cec13c1212f044b99bed
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -852,6 +852,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_ledger_transaction"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ledger_transaction"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_accounts";
+create policy bsb_tenant_scope on "better_supabase"."ledger_accounts" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
+    or "owner_id" = (select auth.uid())
+    or ("tenant_id", "read_permission") in (select g.tenant, g.permission from "better_supabase"."ledger_read_grants"() g))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_transactions";
+create policy bsb_tenant_scope on "better_supabase"."ledger_transactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_entries";
+create policy bsb_tenant_scope on "better_supabase"."ledger_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_balances";
+create policy bsb_tenant_scope on "better_supabase"."ledger_balances" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_holds";
+create policy bsb_tenant_scope on "better_supabase"."ledger_holds" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

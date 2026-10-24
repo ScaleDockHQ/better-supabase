@@ -1,6 +1,6 @@
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:22d88f6f2b05f8715510230b72aaf7a3e7f3869c06816ef7361c3bd60d96f7b1
+-- @bsb-hash sha256:c30ba8ea17ad814df12a134e88593b780509dc76ac6701b44458c4ac34c48fc8
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -865,6 +865,27 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
+create policy bsb_tenant_scope on "better_supabase"."workflow_runs" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("actor_id" = (select auth.uid())
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
+create policy bsb_tenant_scope on "better_supabase"."workflow_schedules" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.workflows.api: entry points for the Data API.
 create schema if not exists "api";

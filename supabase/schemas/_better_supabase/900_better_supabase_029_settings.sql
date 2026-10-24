@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:6ec5e67bad5f778c221f7200c860e18323fc1574d5d6ee0cb959356e90c8d6fe
+-- @bsb-hash sha256:344a1c5247404310c648ce5c1a1dd54392c5cbea1bd8a5efcf1c5fbc5e156ef6
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -339,6 +339,23 @@ revoke execute on function "better_supabase"."record_platform_setting"() from pu
 drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
+create policy bsb_tenant_scope on "better_supabase"."organization_settings" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  );
 
 -- blocks.settings.api: entry points for the Data API.
 create schema if not exists "api";

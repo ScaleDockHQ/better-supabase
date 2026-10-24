@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:3dd7ff33e2460d48cdb0c00439ef02bbfbf709d9afb759b00c143b5ba185f4e1
+-- @bsb-hash sha256:973a23e812dbc064d7f5049b1161cd715a9ab7c8b1aba8e31938997959047feb
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -926,6 +926,52 @@ end;
 $$;
 revoke execute on function "better_supabase"."remind_due_saved_items"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."remind_due_saved_items"(integer) to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_collections";
+create policy bsb_tenant_scope on "better_supabase"."subject_collections" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
+  ("scope" = 'user' and "owner_id" = (select auth.uid()))
+  or ("scope" = 'team' and false)
+  or "scope" = 'tenant'
+))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."subject_collection_entries";
+create policy bsb_tenant_scope on "better_supabase"."subject_collection_entries" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+  and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
+  and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
+create policy bsb_tenant_scope on "better_supabase"."favorites" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+  and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
+create policy bsb_tenant_scope on "better_supabase"."saved_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+  and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+  and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

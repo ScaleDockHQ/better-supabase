@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:a86874110d92549301de0d642176a458360f899f30c24ab3bcda456045ec738e
+-- @bsb-hash sha256:1d84b9dcd8b85c1f537266145326b5fbaf250946bf26dd53521a6545fff553f5
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -326,6 +326,18 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -356,7 +368,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:6e664b11b18840a7b5f6829e0495d90242fd3bd58cf76991740340f53dc9b0eb
+-- @bsb-hash sha256:f64a36af1507c720706e55eb25871f547935cb87958728a59c2b7d3b3faa8e17
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -708,6 +720,18 @@ $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -738,7 +762,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:e9050b5a0e82404c29874b0a97de6c48e89dda7a1e171687238bb281b9eb6aee
+-- @bsb-hash sha256:e20e9c013e939c33ef182a6ba2484610f9060516262cb213cfacebeb38aff58b
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1065,6 +1089,18 @@ $$;
 revoke execute on function "app_private"."is_trashed"(text, text) from public, anon;
 grant execute on function "app_private"."is_trashed"(text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."trash_items";
+create policy bsb_tenant_scope on "app_private"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1095,7 +1131,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:67b89f308656cca16b961534f06abd6c0420bd85004627f3ec3816fd465798ae
+-- @bsb-hash sha256:bf91b90c804045ac8cade8976ade74eae23483b730db352f1699feb989617d69
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1419,6 +1455,18 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_trashed"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_trashed"(text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
+create policy bsb_tenant_scope on "better_supabase"."trash_items" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.trash.api: entry points for the Data API.
 create schema if not exists "api";

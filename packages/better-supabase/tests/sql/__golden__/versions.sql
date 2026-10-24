@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:0516733bb4404fa5adb93cdfce5f04a823568abbe0e967b479e0c5c88f003361
+-- @bsb-hash sha256:1732bc88ee69ec91119db0c754e371a2e01c01118502cc202430f5436c5fa839
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -408,6 +408,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -438,7 +450,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:b602c43171f8cc54d34ca554415af768e47f4ecc93bc9b4bc408aa6131d6a336
+-- @bsb-hash sha256:fa5e4440a1709977168ded5801c11a24ed1a3556e9e1a72a10080359e63624c7
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -897,6 +909,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -927,7 +951,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:28c9ff997c0f08e17883fae6d6f8f8a3c11d6605e5f04d1a041bd2a4086aa6bb
+-- @bsb-hash sha256:ba8cfb98cd78932472bb2c470de6f4e575009156563d98763af8db13d3aaf044
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1336,6 +1360,18 @@ end;
 $$;
 revoke execute on function "app_private"."versions_capture"() from public, anon, authenticated;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."versions";
+create policy bsb_tenant_scope on "app_private"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1366,7 +1402,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:1ba94cdb6e058a13096c7705201b8d5c214fa36fd807a22bde0389b3fa581d9a
+-- @bsb-hash sha256:3c52e9cd69511b0197d85c37636006c3e3da837a1ed7e2a096dd121b8e14de48
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1772,6 +1808,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
+create policy bsb_tenant_scope on "better_supabase"."versions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";

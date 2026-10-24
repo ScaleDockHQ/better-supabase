@@ -100,3 +100,4 @@ add one, and link it from the code or config it explains.
 | [0094](0094-supported-and-community-adapters.md)          | Supported adapters get the full test matrix; community adapters keep shipping with a smoke test and a docs note                           |
 | [0095](0095-session-snapshot-memo.md)                     | One token verification per request across cache scopes, through a session memo keyed by the token hash                                    |
 | [0096](0096-authorization-version-cache.md)               | Authorization libraries pass a version cache to `createServer`; a Realtime subscriber evicts users on a broadcast                         |
+| [0098](0098-restrictive-tenant-scope.md)                  | Tenant isolation is one restrictive policy per tenant table, so an app's permissive policy can't widen it                                 |

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:9bbc6520bc7a4808f066501d2f8a34ced7efea13c1aa1a483c321f0b9bc72630
+-- @bsb-hash sha256:6e21046def4728ece675ce3ba40ff44df10f3700f2c0b4223d8e9ba86222cbf3
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -845,6 +845,18 @@ $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -875,7 +887,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:3942787e43382edf34bd932cb5c16d67a05bb9e75e155b1acac3a4d1a8a50d64
+-- @bsb-hash sha256:45ca2f4d6b1d8ba84121f9f93cf74a8e71696c4ce3bc4ad19fde04e00b469b0f
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1769,6 +1781,18 @@ $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1799,7 +1823,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:94cb3861efcfc8af96ae0f02d6f27c05353f921a370da2cc6697a9b342559182
+-- @bsb-hash sha256:f5b15cd9d0e536823530d3996d1211081f225be95d1b1f6d897d1f059552c102
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2645,6 +2669,18 @@ $$;
 revoke execute on function "app_private"."drive_grants"(uuid) from public, anon;
 grant execute on function "app_private"."drive_grants"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."drive_nodes";
+create policy bsb_tenant_scope on "app_private"."drive_nodes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("deleted_at" is null and "app_private"."drive_can"("id", 'viewer'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2675,7 +2711,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:847ac8dcbfb81aaf43fbd5b417ab319d4dabfc385db12dcd5e378da508311cc5
+-- @bsb-hash sha256:19b24b292d52d44cb7e1f5f17c456d12cb817efddc77afc94e634091dc100951
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3518,6 +3554,18 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
+create policy bsb_tenant_scope on "better_supabase"."drive_nodes" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.drive.api: entry points for the Data API.
 create schema if not exists "api";
