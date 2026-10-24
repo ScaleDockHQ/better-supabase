@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LoadedProject } from "../../src/mapper/project.ts";
 
+import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { mapperHandlers } from "../../src/mapper/server.ts";
 
 const PROJECT: LoadedProject = {
@@ -31,6 +32,10 @@ const handlersFor = (project: LoadedProject = PROJECT) => {
 const open = { configFileName: "/app/tsconfig.json", projectHandle: "h" };
 
 describe("mapperHandlers", () => {
+  it("pins the content mapper protocol version", () => {
+    expect(SPEC_PINS.typescriptContentMapper).toBe("1");
+  });
+
   it("answers initialize with the offered protocol version and utf-16", () => {
     const { handlers } = handlersFor();
 

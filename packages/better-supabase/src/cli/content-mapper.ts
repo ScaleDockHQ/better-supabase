@@ -8,10 +8,10 @@ import { readIfExists } from "./core/io.ts";
 import { CACHE_DIR } from "./introspect/cache.ts";
 
 /** The file extension the content mapper handles. */
-export const MAPPER_EXTENSION = ".bsb";
+const MAPPER_EXTENSION = ".bsb";
 
 /** The `contentMappers` entry `init --content-mapper` adds to `tsconfig.json`. */
-export const CONTENT_MAPPER_ENTRY: {
+const CONTENT_MAPPER_ENTRY: {
   readonly package: "better-supabase";
   readonly extensions: readonly [".bsb"];
 } = { package: "better-supabase", extensions: [MAPPER_EXTENSION] };

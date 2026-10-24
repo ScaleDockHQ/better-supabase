@@ -57,7 +57,7 @@ export interface RenderOptions {
 }
 
 /** The file the content mapper serves the schema types for. */
-export const MAPPER_FILE = "schema.bsb";
+const MAPPER_FILE = "schema.bsb";
 
 /** Where `schema.bsb` sits: next to the generated module. */
 export function mapperFilePath(config: ResolvedConfig): string {

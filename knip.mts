@@ -140,6 +140,11 @@ const config: KnipConfig = {
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
     },
+    // gen writes mapper/, and equal.ts compares it with the shared output.
+    "tests/types/ts-7.1": {
+      entry: ["*.ts", "mapper/*.{ts,js}"],
+      ignoreDependencies: ["@better-supabase/types-shared"],
+    },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": { entry: ["src/**/*.ts"] },
   },

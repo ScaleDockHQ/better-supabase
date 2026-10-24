@@ -1,6 +1,7 @@
 import type { FileDiagnostic, LoadedProject } from "./project.ts";
 import type { Handlers } from "./rpc.ts";
 
+import { SPEC_PINS } from "../core/spec-pins.ts";
 import {
   EMPTY_MODULE,
   loadProject,
@@ -9,7 +10,7 @@ import {
 } from "./project.ts";
 
 /** The protocol version this mapper speaks, as `initialize` answers it. */
-export const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION: number = Number(SPEC_PINS.typescriptContentMapper);
 
 type Encoding = "utf-8" | "utf-16";
 

@@ -114,6 +114,11 @@ export const SPEC_PINS: {
    * follow.
    */
   readonly shadcnRegistry: "4.21.4";
+  /**
+   * The TypeScript 7.1 content mapper protocol version (7.1.0-beta) that
+   * `better-supabase/mapper` speaks.
+   */
+  readonly typescriptContentMapper: "1";
 } = {
   otelSemconv: "1.37.0",
   otlp: "1.7.0",
@@ -166,4 +171,5 @@ export const SPEC_PINS: {
   rfc9700: "2025-01",
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
+  typescriptContentMapper: "1",
 };
