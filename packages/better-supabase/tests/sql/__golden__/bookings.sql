@@ -3625,10 +3625,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 adopt
--- @bsb-hash sha256:2231d04f1b091350b5668b3f17ca8358b7a23a69fd8d7b2541708151091036a8
+-- @bsb-hash sha256:a098cb2faf3db349f7704eebb49c442f51b97db353ff5eb961878dc4339cc929
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -4049,7 +4065,7 @@ begin
   for v_seat in 1..v_capacity loop
     begin
       insert into "better_supabase"."bookings" ("tenant_id", "resource_id", "service_id", "seat", "during", "blocked", "status", "hold_expires_at", "customer_name", "customer_email", "customer_user_id", "notes", "access_hash", "created_by")
-      values (v_service."tenant_id", place_booking.resource, place_booking.service, v_seat, v_during, v_blocked, v_status, v_expires, v_customer ->> 'name', lower(v_customer ->> 'email'), place_booking.customer_user, v_customer ->> 'notes', encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), auth.uid())
+      values (v_service."tenant_id", place_booking.resource, place_booking.service, v_seat, v_during, v_blocked, better_supabase.as_column_type(v_status, (null::"better_supabase"."bookings")."status"), v_expires, v_customer ->> 'name', lower(v_customer ->> 'email'), place_booking.customer_user, v_customer ->> 'notes', encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), auth.uid())
       returning * into v_booking;
       v_id := v_booking."id";
       exit;

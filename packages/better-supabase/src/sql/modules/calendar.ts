@@ -130,6 +130,7 @@ const NAMES: BlockSqlNames = {
         "autoDecline",
         "createdBy",
       ],
+      typed: ["status"],
     },
     attendees: {
       name: "calendar_attendees",
@@ -170,7 +171,14 @@ function eventFields(
     [e("endsAt"), "(v_item ->> 'endsAt')::timestamptz"],
     [e("allDay"), "coalesce((v_item ->> 'allDay')::boolean, false)"],
     [e("tz"), "coalesce(v_item ->> 'tz', v_tz)"],
-    [e("status"), "coalesce(v_item ->> 'status', 'confirmed')"],
+    [
+      e("status"),
+      ctx.cast(
+        "events",
+        "status",
+        "coalesce(v_item ->> 'status', 'confirmed')",
+      ),
+    ],
     [e("rrule"), "nullif(v_item ->> 'rrule', '')"],
     [e("exdates"), "v_exdates"],
   ];

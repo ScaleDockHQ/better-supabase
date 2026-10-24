@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:8a071232d9e34fb5b3c2f3e3e8507b15f56b713d4575f2867e89caf9591782dc
+-- @bsb-hash sha256:31168c7840a110a661dc57e03999464012f8f0c739360fc9ab4a8e56864bd09e
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,7 +689,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -862,7 +862,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -1067,7 +1067,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:ca3721bb6b43aa16afc3c123271af191508027808e9b19f886a68f19b61585b9
+-- @bsb-hash sha256:3cbf3fa58713cab6be5adf2ebbfe03b85d2149b0903d680368351aa0576de255
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1787,7 +1787,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -2060,7 +2060,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -2281,7 +2281,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:6a69cd95701632db8c5a22e6212b2e74d5c150279a49208f13fbbf98ff5fae52
+-- @bsb-hash sha256:be32251dfa6009bded04e5c1f5dfa977b4b78b300fa8e50563a5b2adf5224302
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2971,7 +2971,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "app_private"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -3144,7 +3144,7 @@ begin
     select * from "app_private"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -3349,7 +3349,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:7166ff12a297d8ab5208ae4f061e5543de7c83994b36fea0495d3363f3e88419
+-- @bsb-hash sha256:ae3f85b710aa59a0770f3c747c31d71733e1372bd3b0afe8210a72a164128180
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4037,7 +4037,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -4210,7 +4210,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -4548,10 +4548,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 adopt
--- @bsb-hash sha256:45cc63479d98cc81f3c8e10269223491a96d84fc1ed193a6d21264ab7c24d2a7
+-- @bsb-hash sha256:b5ab0871ddf8214ab5b9ea21cf287060607e00325c0f1736afb903a337f25345
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -5007,7 +5023,7 @@ begin
   update "better_supabase"."forms" x set
     "title" = coalesce(update_form.title, x."title"),
     "description" = coalesce(update_form.description, x."description"),
-    "status" = coalesce(update_form.status, x."status"),
+    "status" = coalesce(better_supabase.as_column_type(update_form.status, (null::"better_supabase"."forms")."status"), x."status"),
     "updated_at" = now()
   where x."id" = update_form.form_id
   returning * into v_row;
@@ -5143,7 +5159,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -5202,7 +5218,7 @@ begin
     update "better_supabase"."form_submissions" x set
       "version_id" = v_form."current_version_id",
       "answers" = form_submission_save.answers,
-      "status" = case when form_submission_save.draft then 'draft' else 'submitted' end,
+      "status" = better_supabase.as_column_type(case when form_submission_save.draft then 'draft' else 'submitted' end, (null::"better_supabase"."form_submissions")."status"),
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
@@ -5310,7 +5326,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
@@ -5415,7 +5431,7 @@ begin
     raise exception 'a draft isn''t submitted yet' using errcode = '55000', hint = 'FORM_SUBMISSION_DRAFT';
   end if;
   update "better_supabase"."form_submissions" x set
-    "status" = review_form_submission.status,
+    "status" = better_supabase.as_column_type(review_form_submission.status, (null::"better_supabase"."form_submissions")."status"),
     "reviewed_by" = auth.uid(),
     "reviewed_at" = now(),
     "updated_at" = now()

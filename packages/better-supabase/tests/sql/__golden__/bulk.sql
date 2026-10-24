@@ -1266,10 +1266,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 adopt
--- @bsb-hash sha256:8d260383a45993c1e40476cec24ac96663e8807b0f744ecd372adc238bf74405
+-- @bsb-hash sha256:ad106997536569caf33c3ea3c599f1d60c89c6b1bb6a216f9d375c11f4833d92
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -1477,7 +1493,7 @@ begin
     "succeeded" = "succeeded" + v_ok,
     "failed" = "failed" + v_failed,
     "results" = "results" || v_results,
-    "status" = v_status,
+    "status" = better_supabase.as_column_type(v_status, (null::"better_supabase"."bulk_runs")."status"),
     "finished_at" = case when v_done then now() else null end
   where "id" = v_run."id"
   returning * into v_run;

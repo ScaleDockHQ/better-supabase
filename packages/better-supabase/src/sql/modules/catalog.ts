@@ -139,6 +139,7 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
       optional: ["description", "kind"],
+      typed: ["status"],
     },
     options: {
       name: "product_options",

@@ -358,7 +358,7 @@ begin
   select coalesce(sum(y.${pl("quantity")} - y.${pl("received")}), 0) into v_backordered
   from ${lines} y where y.${pl("order")} = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
-  update ${orders} x set ${po("status")} = v_status, ${po("updatedAt")} = now()
+  update ${orders} x set ${po("status")} = ${ctx.cast("purchaseOrders", "status", "v_status")}, ${po("updatedAt")} = now()
   where x.${po("id")} = receive_purchase_order.purchase_order;
   ${event("purchase_order.received", "receive_purchase_order", "v_status")}
   return jsonb_build_object('status', v_status, 'backordered', v_backordered);

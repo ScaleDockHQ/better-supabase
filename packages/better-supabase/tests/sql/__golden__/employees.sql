@@ -3165,10 +3165,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 adopt
--- @bsb-hash sha256:789a9c047d5919b70e79fb975fa7ded0ed2ef00b483d4c3d0684ae364202cc15
+-- @bsb-hash sha256:3397bd25f93dfbd81e6006a8504f9ea1046de2fe81718d4663c4022f7d3c414a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -3312,7 +3328,7 @@ begin
       raise exception 'create the employee, then offboard them' using errcode = '22023', hint = 'EMPLOYEE_STATUS_INVALID';
     end if;
     insert into "better_supabase"."employees" ("tenant_id", "name", "email", "user_id", "job_title", "team_id", "manager_id", "employment_type", "start_date", "end_date", "status", "origin_type", "origin_id", "created_by")
-    values (create_employee.tenant, trim(create_employee.attrs -> 'name' #>> '{}'), nullif(trim(create_employee.attrs -> 'email' #>> '{}'), ''), (create_employee.attrs -> 'userId' #>> '{}')::uuid, nullif(trim(create_employee.attrs -> 'jobTitle' #>> '{}'), ''), (create_employee.attrs -> 'teamId' #>> '{}')::uuid, (create_employee.attrs -> 'managerId' #>> '{}')::uuid, coalesce(nullif(trim(create_employee.attrs -> 'employmentType' #>> '{}'), ''), (array['employee', 'contractor', 'intern', 'temporary']::text[])[1]), (create_employee.attrs -> 'startDate' #>> '{}')::date, (create_employee.attrs -> 'endDate' #>> '{}')::date, v_status, create_employee.attrs -> 'origin' ->> 'type', create_employee.attrs -> 'origin' ->> 'id', auth.uid())
+    values (create_employee.tenant, trim(create_employee.attrs -> 'name' #>> '{}'), nullif(trim(create_employee.attrs -> 'email' #>> '{}'), ''), (create_employee.attrs -> 'userId' #>> '{}')::uuid, nullif(trim(create_employee.attrs -> 'jobTitle' #>> '{}'), ''), (create_employee.attrs -> 'teamId' #>> '{}')::uuid, (create_employee.attrs -> 'managerId' #>> '{}')::uuid, coalesce(nullif(trim(create_employee.attrs -> 'employmentType' #>> '{}'), ''), (array['employee', 'contractor', 'intern', 'temporary']::text[])[1]), (create_employee.attrs -> 'startDate' #>> '{}')::date, (create_employee.attrs -> 'endDate' #>> '{}')::date, better_supabase.as_column_type(v_status, (null::"better_supabase"."employees")."status"), create_employee.attrs -> 'origin' ->> 'type', create_employee.attrs -> 'origin' ->> 'id', auth.uid())
     returning * into v_row;
   exception
     when unique_violation then
@@ -3416,7 +3432,7 @@ begin
         if (v_change ->> 'value') not in ('preboarding', 'active', 'on_leave') then
           raise exception 'status is preboarding, active or on_leave; offboard to end employment' using errcode = '22023', hint = 'EMPLOYEE_STATUS_INVALID';
         end if;
-        update "better_supabase"."employees" x set "status" = v_change ->> 'value', "updated_at" = now() where x."id" = v_id returning * into v_row;
+        update "better_supabase"."employees" x set "status" = better_supabase.as_column_type(v_change ->> 'value', (null::"better_supabase"."employees")."status"), "updated_at" = now() where x."id" = v_id returning * into v_row;
         if v_was."status" = 'offboarded' then
           update "better_supabase"."employees" x set "end_date" = null, "offboard_reason" = null where x."id" = v_id returning * into v_row;
   update "better_supabase"."employee_private_details" x set "offboarded_at" = null

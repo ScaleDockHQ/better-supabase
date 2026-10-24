@@ -736,10 +736,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@1 adopt
--- @bsb-hash sha256:9f28a32ad446cd8bd935cc947557671b8201742ba4b0e82359ef34e22fba98b4
+-- @bsb-hash sha256:94c8bbee3661d0de0f271baaef045964a04c8804918976571e3cdf42a8fadf47
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -833,7 +849,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  update "better_supabase"."import_runs" set "status" = finish_import.status,
+  update "better_supabase"."import_runs" set "status" = better_supabase.as_column_type(finish_import.status, (null::"better_supabase"."import_runs")."status"),
     "counts" = jsonb_build_object('imported', finish_import.count),
     "errors" = case when finish_import.error is null then '[]'::jsonb else jsonb_build_array(finish_import.error) end
   where "id" = finish_import.id

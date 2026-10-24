@@ -120,6 +120,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["status"],
     },
     privateDetails: {
       name: "employee_private_details",

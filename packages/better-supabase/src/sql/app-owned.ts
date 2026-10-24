@@ -7,6 +7,7 @@ import type {
 } from "./context.ts";
 
 import { sqlIdent } from "../core/template.ts";
+import { asColumnType } from "./column-type.ts";
 
 interface Ownership {
   readonly module: string;
@@ -93,7 +94,11 @@ export function tableOwnership(
 
       const parts = input.tableName(table);
 
-      return `better_supabase.as_column_type(${value}, (null::${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}).${sqlIdent(column(table, logical))})`;
+      return asColumnType(
+        `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`,
+        column(table, logical),
+        value,
+      );
     },
   };
 }

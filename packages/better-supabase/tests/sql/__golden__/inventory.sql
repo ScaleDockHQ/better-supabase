@@ -4845,10 +4845,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@2 adopt
--- @bsb-hash sha256:2869d4162baf5d6773bf050d83d161fb13d80bfa39831d6675cb66189a244408
+-- @bsb-hash sha256:2cacc91ea403b62e66db43234cb0c182e9fe15bee2f28243c6840257de70d909
 -- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -5723,7 +5739,7 @@ begin
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
-  update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
+  update "better_supabase"."purchase_orders" x set "status" = better_supabase.as_column_type(v_status, (null::"better_supabase"."purchase_orders")."status"), "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
   null;
   return jsonb_build_object('status', v_status, 'backordered', v_backordered);

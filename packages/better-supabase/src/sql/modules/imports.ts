@@ -40,6 +40,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      typed: ["status"],
     },
   },
 };
@@ -122,7 +123,7 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  update ${runs} set ${ctx.col("runs", "status")} = finish_import.status,
+  update ${runs} set ${ctx.col("runs", "status")} = ${ctx.cast("runs", "status", "finish_import.status")},
     ${ctx.col("runs", "counts")} = jsonb_build_object('imported', finish_import.count),
     ${ctx.col("runs", "errors")} = case when finish_import.error is null then '[]'::jsonb else jsonb_build_array(finish_import.error) end
   where ${ctx.col("runs", "id")} = finish_import.id

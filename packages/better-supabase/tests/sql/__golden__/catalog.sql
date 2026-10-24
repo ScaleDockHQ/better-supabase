@@ -7871,10 +7871,26 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 adopt
--- @bsb-hash sha256:fdc13bb57c19806edb0d5b5cb0b86d3897088361bcc4f229a04ff730a47f6f26
+-- @bsb-hash sha256:ce58e31944f823f7339a225a6b950ad8a5db5cacfb0baf86e383fc0467efc771
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -8027,7 +8043,7 @@ begin
   end) then
     raise exception 'the product can''t move to this status' using errcode = '22023', hint = 'CATALOG_TRANSITION_INVALID';
   end if;
-  update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
+  update "better_supabase"."products" x set "status" = better_supabase.as_column_type(set_product_status.status, (null::"better_supabase"."products")."status"), "updated_at" = now()
   where x."id" = set_product_status.product;
   null;
   return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:834c32426450d2deccaaff9957a2a0c0d89825fc1dfcf618e488830a9752cac1
+-- @bsb-hash sha256:165a64992757138ea067d5c3cc307fc00b311ce0a2cdc098c27a01f531f53e5d
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,7 +689,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
   from "better_supabase"."forms" x
   where x."tenant_id" = list_forms.tenant
-    and (list_forms.status is null or x."status" = list_forms.status);
+    and (list_forms.status is null or x."status"::text = list_forms.status);
   return v_rows;
 end;
 $$;
@@ -862,7 +862,7 @@ begin
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
-      and (list_form_submissions.status is null or x."status" = list_form_submissions.status)
+      and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)

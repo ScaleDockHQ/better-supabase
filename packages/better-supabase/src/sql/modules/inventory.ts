@@ -213,6 +213,7 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         placedAt: "placed_at",
       },
+      typed: ["status"],
     },
     purchaseOrderLines: {
       name: "purchase_order_lines",
