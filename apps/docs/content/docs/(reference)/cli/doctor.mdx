@@ -345,7 +345,10 @@ lists each command and role with its policies; a policy for `public` counts
 for every role. Merge each group into one policy with `or`. When
 [BS200](#bs200) runs, splinter's `multiple_permissive_policies` reports the
 tables it covers and this check skips them; on a saved snapshot, or when the
-advisor can't run, this check reports every table.
+advisor can't run, this check reports every table. On one of your tables that a
+block runs over, one of your policies next to the block's `bsb_` policy for the
+same command is left to [BS347](#bs347): it reports the pair when the block's
+condition is wider, and otherwise your policy already repeats it.
 
 ### BS208
 
@@ -1341,7 +1344,9 @@ block's policy can let a user reach rows yours keep closed. Doctor compares
 the conditions as text, so it also reports a condition that means the same
 thing written differently. If the block's condition is what you mean, repeat
 it in your policy. Otherwise narrow the permission key the block checks, or
-drop the `bsb_` policy in a schema file that runs after the block's.
+drop the `bsb_` policy in a schema file that runs after the block's. Your
+policy and the block's for the same command don't also count as an overlap
+under [BS207](#bs207).
 
 ### BS348
 

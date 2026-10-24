@@ -8,11 +8,9 @@ import {
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
+import { BLOCK_PREFIX } from "./block-policies.ts";
 import { moduleFiles } from "./module-files.ts";
 import { catalogOf, qualified } from "./shared.ts";
-
-/** The prefix the render pass gives block policies on the app's tables. */
-const BLOCK_PREFIX = "bsb_";
 
 type Command = "select" | "insert" | "update" | "delete";
 

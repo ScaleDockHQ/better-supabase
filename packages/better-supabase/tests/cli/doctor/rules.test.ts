@@ -2000,6 +2000,54 @@ describe("block policy widens an app table's access (BS347)", () => {
 
     expect(findings).toHaveLength(1);
   });
+
+  it("leaves one app policy next to the block's to BS347, not BS207", async () => {
+    for (const app of [
+      policy("notes_owner", "select", "(owner_id = auth.uid())"),
+      policy("notes_read", "select", tenantRead),
+    ]) {
+      const findings = await runRules(
+        context(
+          withPolicies(app, policy("bsb_notes_select", "select", tenantRead)),
+          {},
+          config,
+        ),
+        RULES.filter((rule) => ["BS207", "BS347"].includes(rule.code)),
+      );
+
+      expect(
+        findings
+          .filter((finding) => finding.target?.startsWith("public.notes"))
+          .map((finding) => finding.code),
+      ).toEqual(app.name === "notes_owner" ? ["BS347"] : []);
+    }
+  });
+
+  it("still reports BS207 for two app policies or a table no block runs over", async () => {
+    const onNotes = (findings: readonly { target?: string }[]) =>
+      findings.filter((finding) => finding.target === "public.notes");
+
+    const policies = [
+      policy("notes_owner", "select", "(owner_id = auth.uid())"),
+      policy("notes_read", "select", tenantRead),
+      policy("bsb_notes_select", "select", tenantRead),
+    ];
+
+    expect(
+      onNotes(
+        await run("BS207", context(withPolicies(...policies), {}, config)),
+      ),
+    ).toHaveLength(1);
+
+    expect(
+      onNotes(
+        await run(
+          "BS207",
+          context(withPolicies(policies[0]!, policies[2]!), {}, {}),
+        ),
+      ),
+    ).toHaveLength(1);
+  });
 });
 
 describe("app table keeps its own updated_at trigger (BS348)", () => {

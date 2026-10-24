@@ -7,6 +7,7 @@ import type { DoctorContext, FindingInput, Rule, SqlObject } from "./rules.ts";
 
 import { moduleHidingColumns, moduleLayout } from "../../sql/index.ts";
 import { splinterTables } from "./advisor-rules.ts";
+import { appAndBlockPolicy } from "./block-policies.ts";
 import {
   catalogOf,
   exposed,
@@ -737,19 +738,23 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Several permissive policies for one command and role",
     description:
-      "Postgres evaluates every permissive policy that applies and ORs them, so each extra policy adds its cost to every row. Merge them into one policy per command and role. When the performance advisor (BS200) runs, splinter's `multiple_permissive_policies` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
+      "Postgres evaluates every permissive policy that applies and ORs them, so each extra policy adds its cost to every row. Merge them into one policy per command and role. On an app table a block runs over, one app policy next to the block's `bsb_<table>_<command>` policy is left to BS347. When the performance advisor (BS200) runs, splinter's `multiple_permissive_policies` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
     check: async (context) => {
       const splinter = await splinterTables(
         context,
         "multiple_permissive_policies",
       );
 
+      const paired = appAndBlockPolicy(context);
+
       return rlsTables(context).flatMap((table): FindingInput[] => {
         if (splinter?.has(qualified(table))) {
           return [];
         }
 
-        const overlaps = permissiveOverlaps(table);
+        const overlaps = permissiveOverlaps(table).filter(
+          (overlap) => !paired(qualified(table), overlap.policies),
+        );
 
         if (overlaps.length === 0) {
           return [];
