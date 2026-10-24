@@ -36,7 +36,7 @@ const SETS_UPDATED_AT =
   /\bexecute\s+(?:function|procedure)\s+better_supabase\.set_updated_at\s*\(/i;
 
 /** The prefix of every policy and trigger a block names on the app's table. */
-export const BLOCK_PREFIX = "bsb_";
+const BLOCK_PREFIX = "bsb_";
 
 const MAX_NAME = 63;
 

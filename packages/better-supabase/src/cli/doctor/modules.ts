@@ -18,6 +18,10 @@ import {
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
+import {
+  keptUpdatedAtTriggers,
+  widenedAppTablePolicies,
+} from "./app-table-policies.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
@@ -965,6 +969,22 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "A block entry's `on` lists a type, or has a key, that `config.records` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.records` or remove it from `on`.",
     check: onUnknownRecordTypes,
+  },
+  {
+    code: "BS347",
+    severity: "warning",
+    title: "Block policy widens an app table's access",
+    description:
+      "A block runs over a table of the app's and adds its own permissive policy there, named `bsb_<table>_<command>` so it never replaces one of the app's. Postgres ORs permissive policies, so when none of the app's own policies for that command has the same condition (or `true`) for the same roles, the block's policy can let a user reach rows the app's policies keep closed. Doctor compares the conditions as text. Repeat the block's condition in the app's policy when it is what the app means; otherwise narrow the permission key the block checks, or drop the `bsb_` policy in a schema file that runs after the block's.",
+    check: widenedAppTablePolicies,
+  },
+  {
+    code: "BS348",
+    severity: "info",
+    title: "App table keeps its own updated_at trigger",
+    description:
+      "A block runs over a table of the app's that already has a trigger keeping `updated_at` current (one that calls `set_updated_at`, `moddatetime` or a function that sets `new.updated_at`), so the block adds no `bsb_updated_at` trigger there. Keep that trigger firing on update; if you drop it, run `better-supabase upgrade` to add the block's.",
+    check: keptUpdatedAtTriggers,
   },
   {
     code: "BS335",

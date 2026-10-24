@@ -1861,6 +1861,189 @@ describe("block on names an unknown record type (BS346)", () => {
   });
 });
 
+describe("block policy widens an app table's access (BS347)", () => {
+  const tenantRead =
+    "(tenant_id IN ( SELECT better_supabase.tenant_ids_with('teams.read'::text) AS tenant_ids_with))";
+
+  const policy = (
+    name: string,
+    command: "all" | "select" | "insert",
+    using: string | null,
+    roles: readonly string[] = ["authenticated"],
+  ) => ({
+    name,
+    command,
+    roles: [...roles],
+    permissive: true,
+    using,
+    check: command === "insert" ? using : null,
+  });
+
+  const withPolicies = (...policies: ReturnType<typeof policy>[]) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        ...policies,
+        {
+          name: "bsb_tenant_scope",
+          command: "all",
+          roles: ["public"],
+          permissive: false,
+          using: tenantRead,
+          check: null,
+        },
+      ];
+    });
+
+  const config: BetterSupabaseConfig = {
+    blocks: { teams: { tables: { teams: "public.notes" } } },
+  };
+
+  it("reports a block policy whose condition no app policy repeats", async () => {
+    const findings = await run(
+      "BS347",
+      context(
+        withPolicies(
+          policy("notes_owner", "select", "(owner_id = auth.uid())"),
+          policy("bsb_notes_select", "select", tenantRead),
+        ),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.notes.bsb_notes_select",
+        message: expect.stringContaining("no policy of the app's for select"),
+      }),
+    ]);
+  });
+
+  it("reports a command the app grants no policy for", async () => {
+    const findings = await run(
+      "BS347",
+      context(
+        withPolicies(
+          policy("notes_read", "select", tenantRead),
+          policy("bsb_notes_insert", "insert", tenantRead),
+        ),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining("the app has no policy of its own for insert"),
+    ]);
+  });
+
+  it("passes the same condition, an unconditional app policy and app-only tables", async () => {
+    for (const app of [
+      policy("notes_read", "select", tenantRead),
+      policy("notes_all", "all", "true", ["public"]),
+    ]) {
+      expect(
+        await run(
+          "BS347",
+          context(
+            withPolicies(app, policy("bsb_notes_select", "select", tenantRead)),
+            {},
+            config,
+          ),
+        ),
+      ).toEqual([]);
+    }
+
+    expect(
+      await run(
+        "BS347",
+        context(
+          withPolicies(policy("bsb_notes_select", "select", tenantRead)),
+          {},
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("counts the roles: an app policy for fewer roles doesn't cover the block's", async () => {
+    const findings = await run(
+      "BS347",
+      context(
+        withPolicies(
+          policy("notes_read", "select", tenantRead, ["service_role"]),
+          policy("bsb_notes_select", "select", tenantRead),
+        ),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+});
+
+describe("app table keeps its own updated_at trigger (BS348)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-bs348-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const appOrgs = (trigger: string) => `create table public.orgs (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+${trigger}`;
+
+  const rooted = (): DoctorContext => ({
+    ...context(),
+    config: resolveConfig(
+      {
+        blocks: { organizations: { tables: { organizations: "public.orgs" } } },
+      },
+      root,
+    ),
+  });
+
+  it("reports the app's trigger the block keeps", async () => {
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20260101000000_app.sql"),
+      appOrgs(
+        "create trigger orgs_touch before update on public.orgs for each row execute function extensions.moddatetime(updated_at);",
+      ),
+    );
+
+    expect(await run("BS348", rooted())).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        target: "public.orgs",
+        message: expect.stringContaining("its own trigger orgs_touch"),
+      }),
+    ]);
+  });
+
+  it("passes an app table without such a trigger", async () => {
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20260101000000_app.sql"),
+      appOrgs(""),
+    );
+
+    expect(await run("BS348", rooted())).toEqual([]);
+  });
+});
+
 describe("partition without RLS (BS343)", () => {
   const withPartition = (rls: boolean) =>
     snapshot((tables) => {
