@@ -13,10 +13,10 @@ import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   fail,
-  lockTable,
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
@@ -80,6 +80,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     items: {
       name: "work_items",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -112,9 +113,22 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "body",
+        "project",
+        "iteration",
+        "estimate",
+        "progress",
+        "startAt",
+        "endAt",
+        "recursFrom",
+        "createdBy",
+      ],
+      typed: ["state", "closeReason"],
     },
     checklist: {
       name: "work_item_checklist_items",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -128,9 +142,11 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["doneAt", "doneBy", "createdBy"],
     },
     assignees: {
       name: "work_item_assignees",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         tenant: "tenant_id",
@@ -138,10 +154,12 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
     projects: {
       name: "projects",
       optionalTable: true,
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -156,10 +174,13 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["owner", "startOn", "targetOn"],
+      typed: ["status"],
     },
     iterations: {
       name: "iterations",
       optionalTable: true,
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -170,6 +191,7 @@ const NAMES: BlockSqlNames = {
         endsOn: "ends_on",
         createdAt: "created_at",
       },
+      optional: ["team"],
     },
   },
 };
@@ -192,24 +214,31 @@ using (${ctx.scope.check(c(table, "tenant"), n.read)});`;
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical) ? `\n  ${definition(c(table, logical))},` : "";
+
+  const both = (table: string, first: string, second: string): boolean =>
+    ctx.has(table, first) && ctx.has(table, second);
+
   const projects = ctx.hasTable("projects")
     ? `
 create table if not exists ${t("projects")} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
   ${p("key")} text not null check (${p("key")} ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),
-  ${p("owner")} uuid,
-  ${p("status")} text not null default 'planned' check (${p("status")} in ('planned', 'active', 'paused', 'completed', 'canceled')),
-  ${p("startOn")} date,
-  ${p("targetOn")} date,
+  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),${column("projects", "owner", (name) => `${name} uuid`)}
+  ${p("status")} text not null default 'planned' check (${p("status")} in ('planned', 'active', 'paused', 'completed', 'canceled')),${column("projects", "startOn", (name) => `${name} date`)}${column("projects", "targetOn", (name) => `${name} date`)}
   ${p("archivedAt")} timestamptz,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
-  unique (${p("tenant")}, ${p("key")}),
-  check (${p("targetOn")} is null or ${p("startOn")} is null or ${p("targetOn")} >= ${p("startOn")})
-);
-${lockTable(t("projects"), { read: true })}
+  unique (${p("tenant")}, ${p("key")})${both("projects", "startOn", "targetOn") ? `,\n  check (${p("targetOn")} is null or ${p("startOn")} is null or ${p("targetOn")} >= ${p("startOn")})` : ""}
+);${appUniqueIndex(ctx, "projects", ["tenant", "key"])}
+${lockModuleTable(ctx, "projects", { read: true })}
 ${read("projects")}
 `
     : "";
@@ -218,16 +247,15 @@ ${read("projects")}
     ? `
 create table if not exists ${t("iterations")} (
   ${i("id")} uuid primary key default gen_random_uuid(),
-  ${i("tenant")} ${ctx.idType} not null,
-  ${i("team")} uuid,
+  ${i("tenant")} ${ctx.idType} not null,${column("iterations", "team", (name) => `${name} uuid`)}
   ${i("name")} text not null check (length(${i("name")}) between 1 and 200),
   ${i("startsOn")} date not null,
   ${i("endsOn")} date not null,
   ${i("createdAt")} timestamptz not null default now(),
   check (${i("endsOn")} >= ${i("startsOn")})
 );
-create index if not exists ${ctx.naming.rename("iterations_tenant_idx")} on ${t("iterations")} (${i("tenant")}, ${i("team")}, ${i("startsOn")});
-${lockTable(t("iterations"), { read: true })}
+create index if not exists ${ctx.naming.rename("iterations_tenant_idx")} on ${t("iterations")} (${[i("tenant"), ...(ctx.has("iterations", "team") ? [i("team")] : []), i("startsOn")].join(", ")});
+${lockModuleTable(ctx, "iterations", { read: true })}
 ${read("iterations")}
 `
     : "";
@@ -238,17 +266,10 @@ create table if not exists ${t("items")} (
   ${w("tenant")} ${ctx.idType} not null,
   ${w("number")} bigint not null,
   ${w("identifier")} text not null,
-  ${w("title")} text not null check (length(${w("title")}) between 1 and 500),
-  ${w("body")} text,
+  ${w("title")} text not null check (length(${w("title")}) between 1 and 500),${column("items", "body", (name) => `${name} text`)}
   ${w("parent")} uuid references ${t("items")} (${w("id")}) on delete cascade,
-  ${w("team")} uuid,
-  ${w("project")} uuid${ctx.hasTable("projects") ? ` references ${t("projects")} (${p("id")}) on delete set null` : ""},
-  ${w("iteration")} uuid${ctx.hasTable("iterations") ? ` references ${t("iterations")} (${i("id")}) on delete set null` : ""},
-  ${w("priority")} smallint not null default 0 check (${w("priority")} between 0 and 4),
-  ${w("estimate")} numeric(10, 2) check (${w("estimate")} >= 0),
-  ${w("progress")} smallint check (${w("progress")} between 0 and 100),
-  ${w("startAt")} timestamptz,
-  ${w("endAt")} timestamptz,
+  ${w("team")} uuid,${column("items", "project", (name) => `${name} uuid${ctx.hasTable("projects") ? ` references ${t("projects")} (${p("id")}) on delete set null` : ""}`)}${column("items", "iteration", (name) => `${name} uuid${ctx.hasTable("iterations") ? ` references ${t("iterations")} (${i("id")}) on delete set null` : ""}`)}
+  ${w("priority")} smallint not null default 0 check (${w("priority")} between 0 and 4),${column("items", "estimate", (name) => `${name} numeric(10, 2) check (${name} >= 0)`)}${column("items", "progress", (name) => `${name} smallint check (${name} between 0 and 100)`)}${column("items", "startAt", (name) => `${name} timestamptz`)}${column("items", "endAt", (name) => `${name} timestamptz`)}
   ${w("dueAt")} timestamptz,
   ${w("pipeline")} uuid,
   ${w("stage")} uuid,
@@ -258,30 +279,25 @@ create table if not exists ${t("items")} (
   ${w("closedAt")} timestamptz,
   ${w("locked")} boolean not null default false,
   ${w("rank")} text collate "C" not null default 'V',
-  ${w("archivedAt")} timestamptz,
-  ${w("createdBy")} uuid,
+  ${w("archivedAt")} timestamptz,${column("items", "createdBy", (name) => `${name} uuid`)}
   ${w("createdAt")} timestamptz not null default now(),
   ${w("updatedAt")} timestamptz not null default now(),
-  unique (${w("tenant")}, ${w("number")}),
-  check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})
-);
+  unique (${w("tenant")}, ${w("number")})${both("items", "startAt", "endAt") ? `,\n  check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})` : ""}
+);${appUniqueIndex(ctx, "items", ["tenant", "number"])}
 create index if not exists ${ctx.naming.rename("work_items_board_idx")} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
-create index if not exists ${ctx.naming.rename("work_items_parent_idx")} on ${t("items")} (${w("parent")});
-create index if not exists ${ctx.naming.rename("work_items_project_idx")} on ${t("items")} (${w("project")});
-create index if not exists ${ctx.naming.rename("work_items_iteration_idx")} on ${t("items")} (${w("iteration")});
+create index if not exists ${ctx.naming.rename("work_items_parent_idx")} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${ctx.naming.rename("work_items_project_idx")} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${ctx.naming.rename("work_items_iteration_idx")} on ${t("items")} (${w("iteration")});` : ""}
 create index if not exists ${ctx.naming.rename("work_items_due_idx")} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
-${lockTable(t("items"), { read: true })}
+${lockModuleTable(ctx, "items", { read: true })}
 ${read("items")}
 
 create table if not exists ${t("assignees")} (
   ${a("tenant")} ${ctx.idType} not null,
   ${a("item")} uuid not null references ${t("items")} (${w("id")}) on delete cascade,
-  ${a("user")} uuid not null,
-  ${a("createdAt")} timestamptz not null default now(),
+  ${a("user")} uuid not null,${column("assignees", "createdAt", (name) => `${name} timestamptz not null default now()`)}
   primary key (${a("item")}, ${a("user")})
-);
+);${appUniqueIndex(ctx, "assignees", ["item", "user"])}
 create index if not exists ${ctx.naming.rename("work_item_assignees_user_idx")} on ${t("assignees")} (${a("user")});
-${lockTable(t("assignees"), { read: true })}
+${lockModuleTable(ctx, "assignees", { read: true })}
 ${read("assignees")}
 ${checklistTable(ctx, n)}`;
 }
@@ -303,7 +319,15 @@ function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
   const tenant = `new.${w("tenant")}::text`;
   const closed = `new.${w("state")} in ('completed', 'canceled')`;
 
-  const dates = [w("startAt"), w("endAt"), w("dueAt")]
+  const reason = ctx.cast(
+    "items",
+    "closeReason",
+    `case new.${w("state")} when 'completed' then 'completed' else 'not_planned' end`,
+  );
+
+  const dates = ["startAt", "endAt", "dueAt"]
+    .filter((logical) => ctx.has("items", logical))
+    .map((logical) => w(logical))
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join(" or ");
 
@@ -337,18 +361,22 @@ begin
   if tg_op = 'INSERT' then
     if ${closed} then
       new.${w("closedAt")} := now();
-      new.${w("closeReason")} := coalesce(new.${w("closeReason")}, case new.${w("state")} when 'completed' then 'completed' else 'not_planned' end);
+      new.${w("closeReason")} := coalesce(new.${w("closeReason")}, ${reason});
     end if;
     return new;
   end if;
   if new.${w("state")} is distinct from old.${w("state")} then
     if ${closed} and old.${w("state")} not in ('completed', 'canceled') then
       new.${w("closedAt")} := now();
-      new.${w("closeReason")} := coalesce(new.${w("closeReason")}, case new.${w("state")} when 'completed' then 'completed' else 'not_planned' end);
-      if new.${w("state")} = 'completed' and new.${w("progress")} is not null then
+      new.${w("closeReason")} := coalesce(new.${w("closeReason")}, ${reason});
+${
+  ctx.has("items", "progress")
+    ? `      if new.${w("state")} = 'completed' and new.${w("progress")} is not null then
         new.${w("progress")} := 100;
       end if;
-      ${ctx.record({ type: "work_item.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
+`
+    : ""
+}      ${ctx.record({ type: "work_item.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
     elsif not (${closed}) and old.${w("state")} in ('completed', 'canceled') then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
@@ -447,10 +475,14 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
-/** How work items run on pipelines. */
-const WORK_ITEM_PIPELINE: Readonly<Record<string, unknown>> = {
-  enteredAt: "stage_entered_at",
-  scope: "team_id",
+/** How work items run on pipelines, with the items table's column names. */
+const workItemPipeline = (
+  own: BlockSqlContext,
+): Readonly<Record<string, unknown>> => ({
+  stage: own.colName("items", "stage"),
+  pipeline: own.colName("items", "pipeline"),
+  enteredAt: own.colName("items", "stageEnteredAt"),
+  scope: own.colName("items", "team"),
   categories: {
     triage: "open",
     backlog: "open",
@@ -460,7 +492,7 @@ const WORK_ITEM_PIPELINE: Readonly<Record<string, unknown>> = {
     canceled: "failure",
   },
   status: {
-    column: "state",
+    column: own.colName("items", "state"),
     values: {
       triage: "triage",
       backlog: "backlog",
@@ -479,7 +511,7 @@ const WORK_ITEM_PIPELINE: Readonly<Record<string, unknown>> = {
     { key: "done", name: "Done", category: "completed" },
     { key: "canceled", name: "Canceled", category: "canceled" },
   ],
-};
+});
 
 const CONTRIBUTES: BlockContributes = {
   pipelines: (own) => {
@@ -489,7 +521,7 @@ const CONTRIBUTES: BlockContributes = {
       {
         type: own.resolved.entityNaming.rename("work_item"),
         table: `${schema}.${name}`,
-        entry: WORK_ITEM_PIPELINE,
+        entry: workItemPipeline(own),
       },
     ];
   },
@@ -499,7 +531,7 @@ const CONTRIBUTES: BlockContributes = {
     return [
       {
         work: `select 'assigned'::text, ${sqlString(workItemType(own))}::text, ${w("id")}::text, ${w("id")}::text, ${w("title")}::text,
-      coalesce(${w("dueAt")}, a.${own.col("assignees", "createdAt")})
+      coalesce(${w("dueAt")}, ${own.has("assignees", "createdAt") ? `a.${own.col("assignees", "createdAt")}` : w("createdAt")})
     from ${own.table("assignees")} a
     join ${own.table("items")} i on ${w("id")} = a.${own.col("assignees", "item")}
     where a.${own.col("assignees", "user")} = v_me

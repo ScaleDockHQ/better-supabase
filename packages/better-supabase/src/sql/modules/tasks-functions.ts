@@ -5,6 +5,7 @@ import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, pageSize, userGrant, writeExtraColumns } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
+import { asText } from "./over-app.ts";
 import {
   itemExtrasJson,
   linkAttachmentsSql,
@@ -35,11 +36,19 @@ export interface WorkItemNames {
   readonly e: (name: string) => string;
 }
 
-/** The fields `update_work_items` writes, by camelCase name. */
+/**
+ * The fields `update_work_items` writes, by camelCase name, with the logical
+ * column each one writes.
+ */
 function fields(
+  ctx: BlockSqlContext,
   w: (column: string) => string,
   e: (name: string) => string,
-): readonly { readonly field: string; readonly set: (v: string) => string }[] {
+): readonly {
+  readonly field: string;
+  readonly column: string;
+  readonly set: (v: string) => string;
+}[] {
   const text = (column: string) => (v: string) =>
     `${w(column)} = nullif(trim(${v} #>> '{}'), '')`;
 
@@ -47,20 +56,45 @@ function fields(
     `${w(column)} = (${v} #>> '{}')::${type}`;
 
   return [
-    { field: "title", set: (v) => `${w("title")} = trim(${v} #>> '{}')` },
-    { field: "body", set: text("body") },
-    { field: "parentId", set: cast("parent", "uuid") },
-    { field: "teamId", set: cast("team", "uuid") },
-    { field: e("projectId"), set: cast("project", "uuid") },
-    { field: e("iterationId"), set: cast("iteration", "uuid") },
-    { field: "priority", set: cast("priority", "smallint") },
-    { field: "estimate", set: cast("estimate", "numeric") },
-    { field: "progress", set: cast("progress", "smallint") },
-    { field: "startAt", set: cast("startAt", "timestamptz") },
-    { field: "endAt", set: cast("endAt", "timestamptz") },
-    { field: "dueAt", set: cast("dueAt", "timestamptz") },
-    { field: "stageId", set: cast("stage", "uuid") },
-    { field: "closeReason", set: text("closeReason") },
+    {
+      field: "title",
+      column: "title",
+      set: (v) => `${w("title")} = trim(${v} #>> '{}')`,
+    },
+    { field: "body", column: "body", set: text("body") },
+    { field: "parentId", column: "parent", set: cast("parent", "uuid") },
+    { field: "teamId", column: "team", set: cast("team", "uuid") },
+    { field: e("projectId"), column: "project", set: cast("project", "uuid") },
+    {
+      field: e("iterationId"),
+      column: "iteration",
+      set: cast("iteration", "uuid"),
+    },
+    {
+      field: "priority",
+      column: "priority",
+      set: cast("priority", "smallint"),
+    },
+    { field: "estimate", column: "estimate", set: cast("estimate", "numeric") },
+    {
+      field: "progress",
+      column: "progress",
+      set: cast("progress", "smallint"),
+    },
+    {
+      field: "startAt",
+      column: "startAt",
+      set: cast("startAt", "timestamptz"),
+    },
+    { field: "endAt", column: "endAt", set: cast("endAt", "timestamptz") },
+    { field: "dueAt", column: "dueAt", set: cast("dueAt", "timestamptz") },
+    { field: "stageId", column: "stage", set: cast("stage", "uuid") },
+    {
+      field: "closeReason",
+      column: "closeReason",
+      set: (v) =>
+        `${w("closeReason")} = ${ctx.cast("items", "closeReason", `nullif(trim(${v} #>> '{}'), '')`)}`,
+    },
   ];
 }
 
@@ -73,12 +107,58 @@ export function workItemFunctions(
   const a = (column: string): string => c("assignees", column);
   const item = sqlString(e("work_item"));
   const itemId = sqlString(e("workItemId"));
+  const has = (logical: string): boolean => ctx.has("items", logical);
+
+  // A column of row, or null when the app maps it to null.
+  const or = (row: string, logical: string): string =>
+    has(logical) ? `${row}.${w(logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${c(table, logical)}` : "";
+
+  // An items column for an insert's column list, when it exists.
+  const column = (logical: string): string | undefined =>
+    has(logical) ? w(logical) : undefined;
+
+  // value when the column exists, for lines().
+  const present = (
+    table: string,
+    logical: string,
+    value: string,
+  ): string | undefined => (ctx.has(table, logical) ? value : undefined);
+
+  // The values of an insert, the present ones of each group on a line.
+  const lines = (
+    indent: string,
+    ...groups: readonly (string | undefined)[][]
+  ): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(`,\n${indent}`);
+
+  // Refuses attrs keys of columns the app maps to null.
+  const unsupported = (
+    table: string,
+    attrs: string,
+    keys: readonly (readonly [key: string, logical: string])[],
+  ): string =>
+    keys
+      .filter(([, logical]) => !ctx.has(table, logical))
+      .map(
+        ([key, logical]) => `
+  if ${attrs} ->> ${sqlString(key)} is not null then
+    ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName(table).name} table has no ${logical} column`, "22023")}
+  end if;`,
+      )
+      .join("");
 
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
+    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -90,9 +170,12 @@ export function workItemFunctions(
     });
 
   const writes = [
-    ...fields(w, e).map(
-      (field) => `      when ${sqlString(field.field)} then
-        update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`,
+    ...fields(ctx, w, e).map((field) =>
+      has(field.column)
+        ? `      when ${sqlString(field.field)} then
+        update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`
+        : `      when ${sqlString(field.field)} then
+        ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`,
     ),
     `      when 'attachments' then
         select * into v_row from ${t("items")} x where x.${w("id")} = v_item;
@@ -161,22 +244,55 @@ as $$
 declare
   v_id uuid := save_project.project;
 begin
-  ${manageGuard("save_project.tenant")}
+  ${manageGuard("save_project.tenant")}${unsupported(
+    "projects",
+    "save_project.attrs",
+    [
+      ["ownerId", "owner"],
+      ["startOn", "startOn"],
+      ["targetOn", "targetOn"],
+    ],
+  )}
   begin
     if v_id is null then
-      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}, ${p("owner")}, ${p("status")}, ${p("startOn")}, ${p("targetOn")})
-      values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}${also("projects", "owner")}, ${p("status")}${also("projects", "startOn")}${also("projects", "targetOn")})
+      values (${lines(
+        "        ",
+        [
+          "save_project.tenant",
+          "upper(save_project.attrs ->> 'key')",
+          "save_project.attrs ->> 'name'",
+          present(
+            "projects",
+            "owner",
+            "(save_project.attrs ->> 'ownerId')::uuid",
+          ),
+        ],
+        [
+          ctx.cast(
+            "projects",
+            "status",
+            "coalesce(save_project.attrs ->> 'status', 'planned')",
+          ),
+          present(
+            "projects",
+            "startOn",
+            "(save_project.attrs ->> 'startOn')::date",
+          ),
+          present(
+            "projects",
+            "targetOn",
+            "(save_project.attrs ->> 'targetOn')::date",
+          ),
+        ],
+      )})
       returning ${p("id")} into v_id;
     else
       update ${t("projects")} x set
         ${p("key")} = coalesce(upper(save_project.attrs ->> 'key'), x.${p("key")}),
         ${p("name")} = coalesce(save_project.attrs ->> 'name', x.${p("name")}),
-        ${p("owner")} = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,
-        ${p("status")} = coalesce(save_project.attrs ->> 'status', x.${p("status")}),
-        ${p("startOn")} = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x.${p("startOn")} end,
-        ${p("targetOn")} = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x.${p("targetOn")} end,
-        ${p("archivedAt")} = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
+${ctx.has("projects", "owner") ? `        ${p("owner")} = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,\n` : ""}        ${p("status")} = coalesce(${ctx.cast("projects", "status", "save_project.attrs ->> 'status'")}, x.${p("status")}),
+${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when save_project.attrs ? '${key}' then (save_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}        ${p("archivedAt")} = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
         ${p("updatedAt")} = now()
       where x.${p("id")} = v_id and x.${p("tenant")} = save_project.tenant;
       if not found then
@@ -188,10 +304,14 @@ begin
   when check_violation or not_null_violation then
     ${fail("WORK_ITEM_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+  return (select to_jsonb(x) || jsonb_build_object('progress', ${
+    has("project")
+      ? `(
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y.${w("state")} = 'completed') / count(*) filter (where y.${w("state")} <> 'canceled')) end
       from ${t("items")} y where y.${w("project")} = x.${p("id")} and y.${w("archivedAt")} is null
-    )) from ${t("projects")} x where x.${p("id")} = v_id);
+    )`
+      : "null"
+  }) from ${t("projects")} x where x.${p("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_project")}(${ctx.idType}, uuid, jsonb)`)}
@@ -211,11 +331,11 @@ as $$
 declare
   v_id uuid := save_iteration.iteration;
 begin
-  ${manageGuard("save_iteration.tenant")}
+  ${manageGuard("save_iteration.tenant")}${unsupported("iterations", "save_iteration.attrs", [["teamId", "team"]])}
   begin
     if v_id is null then
-      insert into ${t("iterations")} (${i("tenant")}, ${i("team")}, ${i("name")}, ${i("startsOn")}, ${i("endsOn")})
-      values (save_iteration.tenant, (save_iteration.attrs ->> 'teamId')::uuid, save_iteration.attrs ->> 'name',
+      insert into ${t("iterations")} (${i("tenant")}${also("iterations", "team")}, ${i("name")}, ${i("startsOn")}, ${i("endsOn")})
+      values (save_iteration.tenant, ${ctx.has("iterations", "team") ? "(save_iteration.attrs ->> 'teamId')::uuid, " : ""}save_iteration.attrs ->> 'name',
         (save_iteration.attrs ->> 'startsOn')::date, (save_iteration.attrs ->> 'endsOn')::date)
       returning ${i("id")} into v_id;
     else
@@ -261,7 +381,15 @@ begin
   end if;
   if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
     ${fail("WORK_ITEM_TITLE_REQUIRED", "a title is required", "23502")}
-  end if;
+  end if;${unsupported("items", "create_work_item.attrs", [
+    ["body", "body"],
+    [e("projectId"), "project"],
+    [e("iterationId"), "iteration"],
+    ["estimate", "estimate"],
+    ["progress", "progress"],
+    ["startAt", "startAt"],
+    ["endAt", "endAt"],
+  ])}
   ${ctx.hook("before_work_item_create", [
     [ctx.idType, "create_work_item.tenant"],
     ["jsonb", "create_work_item.attrs"],
@@ -279,14 +407,88 @@ begin
     },
   )}
   begin
-    insert into ${t("items")} (${w("tenant")}, ${w("number")}, ${w("identifier")}, ${w("title")}, ${w("body")}, ${w("parent")}, ${w("team")}, ${w("project")}, ${w("iteration")},
-      ${w("priority")}, ${w("estimate")}, ${w("progress")}, ${w("startAt")}, ${w("endAt")}, ${w("dueAt")}, ${w("pipeline")}, ${w("stage")}, ${w("createdBy")})
-    values (create_work_item.tenant, v_seq, v_identifier, trim(create_work_item.attrs ->> 'title'), create_work_item.attrs ->> 'body',
-      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> ${sqlString(e("projectId"))})::uuid,
-      (create_work_item.attrs ->> ${sqlString(e("iterationId"))})::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
-      (create_work_item.attrs ->> 'estimate')::numeric, (create_work_item.attrs ->> 'progress')::smallint,
-      (create_work_item.attrs ->> 'startAt')::timestamptz, (create_work_item.attrs ->> 'endAt')::timestamptz, (create_work_item.attrs ->> 'dueAt')::timestamptz,
-      (create_work_item.attrs ->> 'pipelineId')::uuid, (create_work_item.attrs ->> 'stageId')::uuid, auth.uid())
+    insert into ${t("items")} (${lines(
+      "      ",
+      [
+        w("tenant"),
+        w("number"),
+        w("identifier"),
+        w("title"),
+        column("body"),
+        w("parent"),
+        w("team"),
+        column("project"),
+        column("iteration"),
+      ],
+      [
+        w("priority"),
+        column("estimate"),
+        column("progress"),
+        column("startAt"),
+        column("endAt"),
+        w("dueAt"),
+        w("pipeline"),
+        w("stage"),
+        column("createdBy"),
+      ],
+    )})
+    values (${lines(
+      "      ",
+      [
+        "create_work_item.tenant",
+        "v_seq",
+        "v_identifier",
+        "trim(create_work_item.attrs ->> 'title')",
+        present("items", "body", "create_work_item.attrs ->> 'body'"),
+      ],
+      [
+        "(create_work_item.attrs ->> 'parentId')::uuid",
+        "(create_work_item.attrs ->> 'teamId')::uuid",
+        present(
+          "items",
+          "project",
+          `(create_work_item.attrs ->> ${sqlString(e("projectId"))})::uuid`,
+        ),
+      ],
+      [
+        present(
+          "items",
+          "iteration",
+          `(create_work_item.attrs ->> ${sqlString(e("iterationId"))})::uuid`,
+        ),
+        "coalesce((create_work_item.attrs ->> 'priority')::smallint, 0)",
+      ],
+      [
+        present(
+          "items",
+          "estimate",
+          "(create_work_item.attrs ->> 'estimate')::numeric",
+        ),
+        present(
+          "items",
+          "progress",
+          "(create_work_item.attrs ->> 'progress')::smallint",
+        ),
+      ],
+      [
+        present(
+          "items",
+          "startAt",
+          "(create_work_item.attrs ->> 'startAt')::timestamptz",
+        ),
+        present(
+          "items",
+          "endAt",
+          "(create_work_item.attrs ->> 'endAt')::timestamptz",
+        ),
+        "(create_work_item.attrs ->> 'dueAt')::timestamptz",
+      ],
+      [
+        "(create_work_item.attrs ->> 'pipelineId')::uuid",
+        "(create_work_item.attrs ->> 'stageId')::uuid",
+        present("items", "createdBy", "auth.uid()"),
+      ],
+    )})
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     ${fail("WORK_ITEM_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
@@ -436,7 +638,7 @@ declare
 begin
   delete from ${t("items")} x
   where x.${w("id")} = delete_work_item.work_item
-    and (${n.service} or x.${w("createdBy")} = auth.uid() or ${ctx.scope.can(`x.${w("tenant")}`, n.manage)})
+    and (${n.service} or ${has("createdBy") ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.manage)})
   returning * into v_row;
   if v_row.${w("id")} is null then
     return false;
@@ -465,9 +667,9 @@ as $$
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', tree.${w("id")}, 'parentId', tree.${w("parent")}, 'identifier', tree.${w("identifier")}, 'title', tree.${w("title")},
-    'state', tree.${w("state")}, 'startAt', tree.${w("startAt")}, 'endAt', tree.${w("endAt")}, 'dueAt', tree.${w("dueAt")},
+    'state', tree.${w("state")}, 'startAt', ${or("tree", "startAt")}, 'endAt', ${or("tree", "endAt")}, 'dueAt', tree.${w("dueAt")},
     'locked', tree.${w("locked")}, 'depth', tree.depth,
-    'progress', coalesce(tree.${w("progress")}, (
+    'progress', coalesce(${or("tree", "progress")}, (
       select case when count(*) filter (where ch.${w("state")} <> 'canceled') = 0 then
           case tree.${w("state")} when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch.${w("state")} = 'completed') / count(*) filter (where ch.${w("state")} <> 'canceled'))::integer end
@@ -494,11 +696,11 @@ as $$
     from ${t("items")} x
     where x.${w("tenant")} = list_work_items.tenant and x.${w("archivedAt")} is null
       and (list_work_items.filter ->> 'teamId' is null or x.${w("team")} = (list_work_items.filter ->> 'teamId')::uuid)
-      and (list_work_items.filter ->> ${sqlString(e("projectId"))} is null or x.${w("project")} = (list_work_items.filter ->> ${sqlString(e("projectId"))})::uuid)
-      and (list_work_items.filter ->> ${sqlString(e("iterationId"))} is null or x.${w("iteration")} = (list_work_items.filter ->> ${sqlString(e("iterationId"))})::uuid)
+      and (list_work_items.filter ->> ${sqlString(e("projectId"))} is null or ${has("project") ? `x.${w("project")} = (list_work_items.filter ->> ${sqlString(e("projectId"))})::uuid` : "false"})
+      and (list_work_items.filter ->> ${sqlString(e("iterationId"))} is null or ${has("iteration") ? `x.${w("iteration")} = (list_work_items.filter ->> ${sqlString(e("iterationId"))})::uuid` : "false"})
       and (list_work_items.filter ->> 'parentId' is null or x.${w("parent")} = (list_work_items.filter ->> 'parentId')::uuid)
       and (list_work_items.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_work_items.filter ->> 'assigneeId')::uuid))
-      and (list_work_items.filter -> 'states' is null or x.${w("state")} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
+      and (list_work_items.filter -> 'states' is null or ${asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
       and (coalesce((list_work_items.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)
       and (list_work_items.search is null or x.${w("title")} ilike '%' || list_work_items.search || '%' or x.${w("identifier")} ilike list_work_items.search || '%')
       and (list_work_items.after is null or x.${w("number")} < (select z.${w("number")} from ${t("items")} z where z.${w("id")} = list_work_items.after))

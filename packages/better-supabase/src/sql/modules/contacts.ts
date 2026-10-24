@@ -9,9 +9,10 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { partyFunctions } from "./contacts-functions.ts";
 import { partiesInboxSql } from "./contacts-inbox.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The lifecycle stages `options.companyLifecycles` falls back to. */
@@ -77,6 +78,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     companies: {
       name: "companies",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -94,9 +96,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["vatId", "owner", "address", "createdBy"],
+      typed: ["lifecycle"],
     },
     people: {
       name: "people",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -114,9 +119,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["createdBy"],
+      typed: ["lifecycle"],
     },
     links: {
       name: "company_people",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -126,6 +134,7 @@ const NAMES: BlockSqlNames = {
         isPrimary: "is_primary",
         createdAt: "created_at",
       },
+      optional: ["role"],
     },
     personContacts: {
       name: "person_inbox_contacts",
@@ -179,29 +188,32 @@ using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
   const pe = (column: string): string => c("people", column);
   const li = (column: string): string => c("links", column);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical) ? `\n  ${definition(c(table, logical))},` : "";
+
   return `
 create table if not exists ${t("companies")} (
   ${co("id")} uuid primary key default gen_random_uuid(),
   ${co("tenant")} ${ctx.idType} not null,
   ${co("name")} text not null check (length(${co("name")}) between 1 and 300),
   ${co("domain")} text check (${co("domain")} = lower(${co("domain")}) and ${co("domain")} ~ '^[a-z0-9.-]+\\.[a-z]{2,}$'),
-  ${co("website")} text,
-  ${co("vatId")} text,
-  ${co("lifecycle")} text not null,
-  ${co("owner")} uuid,
-  ${co("address")} jsonb check (${co("address")} is null or jsonb_typeof(${co("address")}) = 'object'),
+  ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}
+  ${co("lifecycle")} text not null,${column("companies", "owner", (name) => `${name} uuid`)}${column("companies", "address", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
   ${co("mergedInto")} uuid references ${t("companies")} (${co("id")}),
-  ${co("archivedAt")} timestamptz,
-  ${co("createdBy")} uuid,
+  ${co("archivedAt")} timestamptz,${column("companies", "createdBy", (name) => `${name} uuid`)}
   ${co("createdAt")} timestamptz not null default now(),
   ${co("updatedAt")} timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("companies_tenant_name_idx")} on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
 create unique index if not exists ${ctx.naming.rename("companies_domain_idx")} on ${t("companies")} (${co("tenant")}, ${co("domain")})
-  where ${co("domain")} is not null and ${co("archivedAt")} is null;
-create index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});
+  where ${co("domain")} is not null and ${co("archivedAt")} is null;${ctx.has("companies", "owner") ? `\ncreate index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});` : ""}
 create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}
-${lockTable(t("companies"), { read: true })}
+${lockModuleTable(ctx, "companies", { read: true })}
 ${read("companies")}
 
 create table if not exists ${t("people")} (
@@ -215,8 +227,7 @@ create table if not exists ${t("people")} (
   ${pe("owner")} uuid,
   ${pe("user")} uuid,
   ${pe("mergedInto")} uuid references ${t("people")} (${pe("id")}),
-  ${pe("archivedAt")} timestamptz,
-  ${pe("createdBy")} uuid,
+  ${pe("archivedAt")} timestamptz,${column("people", "createdBy", (name) => `${name} uuid`)}
   ${pe("createdAt")} timestamptz not null default now(),
   ${pe("updatedAt")} timestamptz not null default now()
 );
@@ -226,21 +237,20 @@ create unique index if not exists ${ctx.naming.rename("people_email_idx")} on ${
 create index if not exists ${ctx.naming.rename("people_owner_idx")} on ${t("people")} (${pe("owner")});
 create index if not exists ${ctx.naming.rename("people_user_idx")} on ${t("people")} (${pe("user")});
 create index if not exists ${ctx.naming.rename("people_merged_into_idx")} on ${t("people")} (${pe("mergedInto")});
-${lockTable(t("people"), { read: true })}
+${lockModuleTable(ctx, "people", { read: true })}
 ${read("people")}
 
 create table if not exists ${t("links")} (
   ${li("tenant")} ${ctx.idType} not null,
   ${li("company")} uuid not null references ${t("companies")} (${co("id")}) on delete cascade,
-  ${li("person")} uuid not null references ${t("people")} (${pe("id")}) on delete cascade,
-  ${li("role")} text,
+  ${li("person")} uuid not null references ${t("people")} (${pe("id")}) on delete cascade,${column("links", "role", (name) => `${name} text`)}
   ${li("isPrimary")} boolean not null default false,
   ${li("createdAt")} timestamptz not null default now(),
   primary key (${li("company")}, ${li("person")})
-);
+);${appUniqueIndex(ctx, "links", ["company", "person"])}
 create index if not exists ${ctx.naming.rename("company_people_person_idx")} on ${t("links")} (${li("person")});
 create unique index if not exists ${ctx.naming.rename("company_people_primary_idx")} on ${t("links")} (${li("company")}) where ${li("isPrimary")};
-${lockTable(t("links"), { read: true })}
+${lockModuleTable(ctx, "links", { read: true })}
 ${read("links")}
 `;
 }
