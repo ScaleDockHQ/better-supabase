@@ -1,10 +1,16 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   addContentMapper,
   addRunExternalCode,
+  contentMapperSetup,
   hasContentMapper,
+  needsRunExternalCode,
   schemaStampPath,
+  supportsContentMappers,
 } from "../../src/cli/content-mapper.ts";
 
 const ENTRY = { package: "better-supabase", extensions: [".bsb"] };
@@ -85,5 +91,51 @@ describe("content mapper helpers", () => {
     expect(schemaStampPath("/app", "src/a.ts")).not.toBe(
       schemaStampPath("/app", "src/b.ts"),
     );
+  });
+});
+
+describe("supportsContentMappers", () => {
+  it("accepts 7.1 and later, betas included", () => {
+    expect(
+      ["7.1.0-beta", "7.1.0", "7.2.3", "8.0.0"].map(supportsContentMappers),
+    ).toEqual([true, true, true, true]);
+    expect(["7.0.2", "6.0.3", "next"].map(supportsContentMappers)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+});
+
+describe("needsRunExternalCode", () => {
+  it("flags only a tsc run without the flag", () => {
+    expect(needsRunExternalCode("tsc --noEmit")).toBe(true);
+    expect(needsRunExternalCode("tsc --runExternalCode --noEmit")).toBe(false);
+    expect(needsRunExternalCode("turbo run typecheck")).toBe(false);
+  });
+});
+
+describe("contentMapperSetup", () => {
+  it("reads tsconfig.json with comments, the typecheck script and TypeScript", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-mapper-"));
+    await writeFile(
+      join(root, "tsconfig.json"),
+      `{\n  // types\n  "contentMappers": [${JSON.stringify(ENTRY)}],\n}\n`,
+    );
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { typecheck: "tsc --noEmit" } }),
+    );
+    await mkdir(join(root, "node_modules/typescript"), { recursive: true });
+    await writeFile(
+      join(root, "node_modules/typescript/package.json"),
+      JSON.stringify({ version: "7.1.0-beta" }),
+    );
+
+    expect(await contentMapperSetup(root)).toEqual({
+      tsconfig: { contentMappers: [ENTRY] },
+      typescript: "7.1.0-beta",
+      typecheck: "tsc --noEmit",
+    });
   });
 });

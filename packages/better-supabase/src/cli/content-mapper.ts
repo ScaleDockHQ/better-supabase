@@ -6,6 +6,7 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { readIfExists } from "./core/io.ts";
 import { CACHE_DIR } from "./introspect/cache.ts";
+import { installedVersion } from "./peers.ts";
 
 /** The file extension the content mapper handles. */
 const MAPPER_EXTENSION = ".bsb";
@@ -59,6 +60,73 @@ function parseJson(text: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether a TypeScript version reads `contentMappers`: 7.1 and later, betas
+ * included.
+ */
+export function supportsContentMappers(version: string): boolean {
+  const match = /^(\d+)\.(\d+)/.exec(version);
+
+  if (!match) {
+    return false;
+  }
+
+  const major = Number(match[1]);
+
+  return major > 7 || (major === 7 && Number(match[2]) >= 1);
+}
+
+const TSC = /\btsc\b/;
+
+/** Whether a script runs `tsc` without the flag a content mapper needs. */
+export function needsRunExternalCode(script: string): boolean {
+  return TSC.test(script) && !script.includes(RUN_EXTERNAL_CODE);
+}
+
+/** What a project needs for `tsc` to load the content mapper. */
+export interface ContentMapperSetup {
+  /** `tsconfig.json`, parsed; `undefined` when it is missing or doesn't parse. */
+  readonly tsconfig: unknown;
+  /** The `typescript` version the project resolves. */
+  readonly typescript: string | undefined;
+  /** The `typecheck` script in `package.json`. */
+  readonly typecheck: string | undefined;
+}
+
+export async function contentMapperSetup(
+  root: string,
+): Promise<ContentMapperSetup> {
+  const [tsconfig, manifest, typescript] = await Promise.all([
+    readIfExists(resolve(root, "tsconfig.json")),
+    readIfExists(resolve(root, "package.json")),
+    installedVersion("typescript", root),
+  ]);
+
+  let parsed: unknown;
+
+  try {
+    parsed =
+      tsconfig === undefined
+        ? undefined
+        : parseJSONC(tsconfig, { allowTrailingComma: true });
+  } catch {
+    parsed = undefined;
+  }
+
+  const json = manifest === undefined ? undefined : parseJson(manifest);
+
+  const scripts =
+    isObject(json) && isObject(json["scripts"]) ? json["scripts"] : {};
+
+  const typecheck = scripts["typecheck"];
+
+  return {
+    tsconfig: parsed,
+    typescript,
+    typecheck: typeof typecheck === "string" ? typecheck : undefined,
+  };
 }
 
 export type JsonEdit =
@@ -118,7 +186,7 @@ export function addRunExternalCode(text: string): JsonEdit {
   const scripts = isObject(json["scripts"]) ? json["scripts"] : {};
   const script = scripts["typecheck"];
 
-  if (typeof script !== "string" || !/\btsc\b/.test(script)) {
+  if (typeof script !== "string" || !TSC.test(script)) {
     return {
       kind: "manual",
       reason: "it has no typecheck script that runs tsc",
@@ -136,7 +204,7 @@ export function addRunExternalCode(text: string): JsonEdit {
         ...json,
         scripts: {
           ...scripts,
-          typecheck: script.replace(/\btsc\b/, `tsc ${RUN_EXTERNAL_CODE}`),
+          typecheck: script.replace(TSC, `tsc ${RUN_EXTERNAL_CODE}`),
         },
       },
       null,
@@ -148,7 +216,7 @@ export function addRunExternalCode(text: string): JsonEdit {
 const MISSING: JsonEdit = { kind: "manual", reason: "it does not exist" };
 
 /** The snippet a note prints when `init` can't edit `tsconfig.json` itself. */
-const TSCONFIG_SNIPPET = `"contentMappers": [${JSON.stringify(CONTENT_MAPPER_ENTRY)}]`;
+export const TSCONFIG_SNIPPET: string = `"contentMappers": [${JSON.stringify(CONTENT_MAPPER_ENTRY)}]`;
 
 const EDITS = [
   {
