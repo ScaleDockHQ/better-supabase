@@ -45,6 +45,24 @@ export interface Team<F extends object = Record<never, never>> {
   readonly fields: ExtraFields<F>;
 }
 
+/** What `teams.create` takes besides the name and description. */
+export interface CreateTeamOptions {
+  /**
+   * The slug, lowercase letters and digits joined by single hyphens. Derived
+   * from the name when left out.
+   */
+  readonly slug?: string;
+}
+
+/**
+ * What `teams.update` changes besides the name. A key that is left out keeps
+ * its value; `description: null` clears it.
+ */
+export interface UpdateTeamOptions {
+  readonly slug?: string;
+  readonly description?: string | null;
+}
+
 export interface Teams<F extends object = Record<never, never>> {
   /** Creates a team; `fields` sets its extra columns. */
   create(
@@ -52,15 +70,22 @@ export interface Teams<F extends object = Record<never, never>> {
     name: string,
     description?: string,
     fields?: Partial<F>,
+    options?: CreateTeamOptions,
   ): AsyncResult<Team<F>>;
-  /** Renames a team and sets the extra columns `fields` names. */
+  /**
+   * Renames a team, sets the extra columns `fields` names, and changes the slug
+   * or description `options` names.
+   */
   update(
     id: string,
     name: string,
     description?: string,
     fields?: Partial<F>,
+    options?: UpdateTeamOptions,
   ): AsyncResult<Team<F>>;
   archive(id: string): AsyncResult<boolean>;
+  /** Makes an archived team active again. */
+  restore(id: string): AsyncResult<boolean>;
   delete(id: string): AsyncResult<boolean>;
   addMember(teamId: string, userId: string): AsyncResult<boolean>;
   removeMember(teamId: string, userId: string): AsyncResult<boolean>;
@@ -89,7 +114,7 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
   const fields: BlockFields<F> = blockFields(options.fields, "team fields");
 
   const client: Teams<F> = {
-    create: (organizationId, name, description, extra) =>
+    create: (organizationId, name, description, extra, settings) =>
       fields
         .args(extra)
         .andThen((checked) =>
@@ -99,12 +124,13 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
               tenant: organizationId,
               name,
               description: description ?? null,
+              ...(settings?.slug === undefined ? {} : { slug: settings.slug }),
               fields: checked,
             },
             (value) => ({ ...teamOf(value), name }),
           ).andThen(fields.row),
         ),
-    update: (id, name, description, extra) =>
+    update: (id, name, description, extra, settings) =>
       fields
         .args(extra)
         .andThen((checked) =>
@@ -114,6 +140,20 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
               team: id,
               name,
               description: description ?? null,
+              ...(settings === undefined ||
+              (settings.slug === undefined &&
+                settings.description === undefined)
+                ? {}
+                : {
+                    patch: {
+                      ...(settings.slug === undefined
+                        ? {}
+                        : { slug: settings.slug }),
+                      ...(settings.description === undefined
+                        ? {}
+                        : { description: settings.description }),
+                    },
+                  }),
               fields: checked,
             },
             (value) => ({
@@ -125,6 +165,8 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
         ),
     archive: (id) =>
       call("archive_team", { team: id }, (value) => value === true),
+    restore: (id) =>
+      call("restore_team", { team: id }, (value) => value === true),
     delete: (id) =>
       call("delete_team", { team: id }, (value) => value === true),
     addMember: (teamId, userId) =>

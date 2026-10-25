@@ -4,6 +4,8 @@ export {
   type CustomFieldsOptions,
   type FieldDefinition,
   type FieldDefinitionDetail,
+  type FieldValue,
+  type SetFieldInput,
 } from "./custom-fields.ts";
 
 export {

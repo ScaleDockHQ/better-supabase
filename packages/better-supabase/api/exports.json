@@ -5143,10 +5143,12 @@
       "teamsEvents"
     ],
     "types": [
+      "CreateTeamOptions",
       "Team",
       "Teams",
       "TeamsEvents",
-      "TeamsOptions"
+      "TeamsOptions",
+      "UpdateTeamOptions"
     ]
   },
   "./blocks/undo": {
@@ -5230,7 +5232,9 @@
       "CustomFieldsOptions",
       "CustomFieldType",
       "FieldDefinition",
-      "FieldDefinitionDetail"
+      "FieldDefinitionDetail",
+      "FieldValue",
+      "SetFieldInput"
     ]
   },
   "./blocks/share-links": {

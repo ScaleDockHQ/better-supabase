@@ -8364,6 +8364,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "FieldDefinitionDetail"
+        },
+        {
+          "name": "FieldValue"
+        },
+        {
+          "name": "SetFieldInput"
         }
       ],
       "events": {
@@ -17485,6 +17491,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "CreateTeamOptions"
+        },
+        {
           "name": "Team",
           "fields": true
         },
@@ -17497,6 +17506,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TeamsOptions"
+        },
+        {
+          "name": "UpdateTeamOptions"
         }
       ],
       "events": {
@@ -17505,6 +17517,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team.created",
           "team.updated",
           "team.archived",
+          "team.restored",
           "team.deleted",
           "team_member.added",
           "team_member.removed"

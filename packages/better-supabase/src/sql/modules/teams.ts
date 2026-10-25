@@ -13,6 +13,7 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -31,6 +32,7 @@ const EVENTS: BlockSqlEvents<TeamsEvents> = {
     payload: ["organizationId", "id", "name"],
   },
   "team.archived": { subject: "teams", payload: ["organizationId", "id"] },
+  "team.restored": { subject: "teams", payload: ["organizationId", "id"] },
   "team.deleted": { subject: "teams", payload: ["organizationId", "id"] },
   "team_member.added": {
     subject: "teams",
@@ -78,6 +80,8 @@ const NAMES: BlockSqlNames = {
   },
 };
 
+const SLUG = "'^[a-z0-9]+(-[a-z0-9]+)*$'";
+
 /** The keys the team reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
@@ -120,10 +124,24 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
   const memberCreated = ctx.col("members", "createdAt");
-  const manage = ctx.permission("manage", OPERATIONS["teams.manage"]);
+  const manage = ctx.permissionKey("manage", OPERATIONS["teams.manage"]);
+
+  const key = (action: string): string =>
+    sqlString(ctx.config.permissions[action] ?? manage);
+
+  const create = key("create");
+  const update = key("update");
+  const remove = key("delete");
+  const membersKey = key("members");
   const read = ctx.permission("read", OPERATIONS["teams.read"]);
   const extras = ctx.extraColumns("teams", RESERVED);
   const extra = extraFieldsArg(extras);
+  const required = insertExtraColumns(teams, extras, "create_team.fields");
+
+  const drops = (fn: string, head: string, tails: readonly string[]) =>
+    tails
+      .map((tail) => `drop function if exists ${fn}(${head}${tail});`)
+      .join("\n");
 
   const teamJson = (alias: string): string =>
     `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug}${extraFieldsJson(alias, extras)})`;
@@ -200,8 +218,8 @@ $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
-${extra.drop(fn("create_team"), `${ctx.idType}, text, text`)}
-create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text${extra.param})
+${drops(fn("create_team"), `${ctx.idType}, text, text`, ["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"])}
+create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text, slug text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -209,20 +227,20 @@ set search_path = ''
 as $$
 declare
   v_id ${idType};
-  v_slug text := trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g'));
+  v_slug text := coalesce(create_team.slug, trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g')));
 begin
-  if not (${service(ctx)} or ${ctx.scope.can("create_team.tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("create_team.tenant", create)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  if v_slug is null or v_slug = '' then
+  if v_slug is null or v_slug = '' or (create_team.slug is not null and create_team.slug !~ ${SLUG}) then
     ${fail("TEAM_SLUG_INVALID", "team name needs a slug", "22023")}
   end if;
   ${ctx.hook("before_team_create", [
     [ctx.idType, "create_team.tenant"],
     ["text", "v_slug"],
   ])}
-  insert into ${teams} (${tenant}, ${name}, ${slug}, ${description}, ${createdBy})
-  values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid())
+  insert into ${teams} (${tenant}, ${name}, ${slug}, ${description}, ${createdBy}${required.columns})
+  values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid()${required.values})
   returning ${id} into v_id;${writeExtraColumns(teams, extras, "create_team.fields", `x.${id} = v_id`)}
   ${record(ctx, "team.created", "v_id", "create_team.tenant", "create_team.name")}
   ${ctx.hook("after_team_create", [
@@ -232,10 +250,12 @@ begin
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_team")}(${ctx.idType}, text, text${extra.type})`)}
+${userGrant(`${fn("create_team")}(${ctx.idType}, text, text, text${extra.type})`)}
 
-${extra.drop(fn("update_team"), `${idType}, text, text`)}
-create or replace function ${fn("update_team")}(team ${idType}, name text, description text${extra.param})
+${drops(fn("update_team"), `${idType}, text, text`, ["", ", jsonb", ...(extras.length === 0 ? [", jsonb, jsonb"] : [])])}
+-- patch: name, slug and description to set; a key that is present sets its
+-- column, so null clears the description.
+create or replace function ${fn("update_team")}(team ${idType}, name text, description text, patch jsonb default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -248,19 +268,25 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", update)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
+  if update_team.patch is not null and (jsonb_typeof(update_team.patch) <> 'object'
+    or update_team.patch ? 'slug' and coalesce(update_team.patch ->> 'slug', '') !~ ${SLUG}
+    or update_team.patch ? 'name' and nullif(trim(update_team.patch ->> 'name'), '') is null) then
+    ${fail("TEAM_INVALID", "patch sets name, slug or description; name and slug can't be empty", "22023")}
+  end if;
   update ${teams} as t
-  set ${name} = coalesce(update_team.name, t.${name}),
-      ${description} = coalesce(update_team.description, t.${description}),
+  set ${name} = coalesce(update_team.patch ->> 'name', update_team.name, t.${name}),
+      ${slug} = case when update_team.patch ? 'slug' then update_team.patch ->> 'slug' else t.${slug} end,
+      ${description} = case when update_team.patch ? 'description' then update_team.patch ->> 'description' else coalesce(update_team.description, t.${description}) end,
       ${updatedAt} = now()
   where t.${id} = update_team.team;${writeExtraColumns(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
   return ${extras.length === 0 ? "jsonb_build_object('id', update_team.team)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team)`};
 end;
 $$;
-${userGrant(`${fn("update_team")}(${idType}, text, text${extra.type})`)}
+${userGrant(`${fn("update_team")}(${idType}, text, text, jsonb${extra.type})`)}
 
 create or replace function ${fn("archive_team")}(team ${idType})
 returns boolean
@@ -275,7 +301,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", update)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   update ${teams} set ${status} = 'archived', ${updatedAt} = now() where ${id} = archive_team.team;
@@ -284,6 +310,29 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_team")}(${idType})`)}
+
+create or replace function ${fn("restore_team")}(team ${idType})
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  select ${tenant} into v_tenant from ${teams} where ${id} = restore_team.team;
+  if not found then
+    ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
+  end if;
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", update)}) then
+    ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
+  end if;
+  update ${teams} set ${status} = 'active', ${updatedAt} = now() where ${id} = restore_team.team;
+  ${record(ctx, "team.restored", "restore_team.team", "v_tenant")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("restore_team")}(${idType})`)}
 
 create or replace function ${fn("delete_team")}(team ${idType})
 returns boolean
@@ -298,7 +347,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", remove)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   delete from ${teams} where ${id} = delete_team.team;
@@ -321,7 +370,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", membersKey)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   ${membershipCheck(ctx, "v_tenant", "add_team_member.member")}
@@ -347,7 +396,7 @@ begin
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
-  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${service(ctx)} or ${ctx.scope.can("v_tenant", membersKey)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   delete from ${members}
@@ -524,15 +573,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_team",
-      args: ["{id}", "text", "text", ...extra],
+      args: ["{id}", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
     {
       name: "update_team",
-      args: [id, "text", "text", ...extra],
+      args: [id, "text", "text", "jsonb", ...extra],
       returns: "jsonb",
     },
     { name: "archive_team", args: [id], returns: "boolean" },
+    { name: "restore_team", args: [id], returns: "boolean" },
     { name: "delete_team", args: [id], returns: "boolean" },
     { name: "add_team_member", args: [id, "uuid"], returns: "boolean" },
     { name: "remove_team_member", args: [id, "uuid"], returns: "boolean" },
