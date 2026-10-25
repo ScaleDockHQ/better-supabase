@@ -4097,10 +4097,10 @@ values ('deals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c4322d16fc75a8219f5456b64c306d0da15258b7a0e239e5a66b657fd7080102
+-- @bsb-hash sha256:ccfd50a7f107f68fe6c4adc32b0d70a35160b41709b3b86796c9fbae5c218952
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4168,7 +4168,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists "better_supabase"."deals" (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
+  "org_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "name" text not null check (length("name") between 1 and 300),
@@ -4213,11 +4213,11 @@ create table if not exists "better_supabase"."deals" (
   "subtotal" bigint not null default 0,
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
-  unique ("tenant_id", "number"),
+  unique ("org_id", "number"),
   check (("company_type" is null) = ("company_id" is null))
 );
 create index if not exists deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
-create index if not exists deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
+create index if not exists deals_tenant_close_idx on "better_supabase"."deals" ("org_id", "expected_close_on") where "outcome" = 'open';
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
@@ -4226,7 +4226,7 @@ grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
 create table if not exists "better_supabase"."deal_contacts" (
-  "tenant_id" uuid not null,
+  "org_id" uuid not null,
   "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "contact_type" text not null,
   "contact_id" text not null,
@@ -4242,7 +4242,7 @@ grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
 create table if not exists "better_supabase"."deal_members" (
-  "tenant_id" uuid not null,
+  "org_id" uuid not null,
   "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "user_id" uuid not null,
   "role" text,
@@ -4259,13 +4259,13 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
 create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+using ("org_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
 create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
 using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger
@@ -4376,10 +4376,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_deal.tenant::text || ':deal', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."org_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
+    insert into "better_supabase"."deals" ("org_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
       "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
       "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
       "flags", "source", "note", "created_by")
@@ -4455,8 +4455,8 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
         raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4575,8 +4575,8 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4617,8 +4617,8 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4653,8 +4653,8 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4671,7 +4671,7 @@ begin
     raise exception 'a deal has one primary contact' using errcode = '22023', hint = 'DEAL_CONTACTS_INVALID';
   end if;
   delete from "better_supabase"."deal_contacts" x where x."deal_id" = v_deal;
-  insert into "better_supabase"."deal_contacts" ("tenant_id", "deal_id", "contact_type", "contact_id", "role", "is_primary")
+  insert into "better_supabase"."deal_contacts" ("org_id", "deal_id", "contact_type", "contact_id", "role", "is_primary")
   select v_tenant, v_deal, coalesce(x.value ->> 'type', 'person'), x.value ->> 'id', x.value ->> 'role', coalesce((x.value ->> 'primary')::boolean, false)
   from jsonb_array_elements(set_deal_contacts.contacts) x
   on conflict do nothing;
@@ -4699,8 +4699,8 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  select x."org_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -4709,7 +4709,7 @@ begin
     raise exception 'members must be a list of { userId, role }' using errcode = '22023', hint = 'DEAL_MEMBERS_INVALID';
   end if;
   delete from "better_supabase"."deal_members" x where x."deal_id" = v_deal;
-  insert into "better_supabase"."deal_members" ("tenant_id", "deal_id", "user_id", "role")
+  insert into "better_supabase"."deal_members" ("org_id", "deal_id", "user_id", "role")
   select v_tenant, v_deal, (x.value ->> 'userId')::uuid, x.value ->> 'role'
   from jsonb_array_elements(set_deal_members.members) x
   on conflict do nothing;
@@ -4719,26 +4719,29 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_deal_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_deal_members"(uuid, jsonb) to authenticated, service_role;
--- better_supabase.deal_lines is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."deal_lines" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."deal_lines" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."deal_lines" add column if not exists "parent_id" uuid references "better_supabase"."deals" ("id") on delete cascade;
-alter table "better_supabase"."deal_lines" add column if not exists "product_type" text;
-alter table "better_supabase"."deal_lines" add column if not exists "product_id" text;
-alter table "better_supabase"."deal_lines" add column if not exists "description" text check (length("description") between 1 and 2000);
-alter table "better_supabase"."deal_lines" add column if not exists "quantity" numeric(18, 4) check ("quantity" > 0);
-alter table "better_supabase"."deal_lines" add column if not exists "unit_amount" bigint;
-alter table "better_supabase"."deal_lines" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
-alter table "better_supabase"."deal_lines" add column if not exists "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000);
-alter table "better_supabase"."deal_lines" add column if not exists "tax_code" text;
-alter table "better_supabase"."deal_lines" add column if not exists "position" integer;
-alter table "better_supabase"."deal_lines" add column if not exists "created_at" timestamptz not null default now();
+create table if not exists "better_supabase"."deal_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
+  "product_type" text,
+  "product_id" text,
+  "description" text not null check (length("description") between 1 and 2000),
+  "quantity" numeric(18, 4) not null check ("quantity" > 0),
+  "unit_amount" bigint not null,
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "tax_code" text,
+  "position" integer not null,
+  "created_at" timestamptz not null default now(),
+  check (("product_type" is null) = ("product_id" is null))
+);
 create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
+revoke all on "better_supabase"."deal_lines" from anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
-drop policy if exists bsb_deal_lines_select on "better_supabase"."deal_lines";
-create policy bsb_deal_lines_select on "better_supabase"."deal_lines" for select to authenticated
+drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
+create policy "deal_lines_read" on "better_supabase"."deal_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."deals" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its lines. A record without lines keeps
@@ -4826,12 +4829,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."deals" x where x."id" = v_parent and not (x."locked");
+  select x."org_id", x."currency" into v_tenant, v_currency from "better_supabase"."deals" x where x."id" = v_parent and not (x."locked");
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
   end if;
@@ -4843,7 +4846,7 @@ begin
   end if;
   delete from "better_supabase"."deal_lines" l where l."parent_id" = v_parent;
   begin
-    insert into "better_supabase"."deal_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
+    insert into "better_supabase"."deal_lines" ("org_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
     select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
       coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
       coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
@@ -4876,8 +4879,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
-      or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or x."owner_user_id" = auth.uid()
+      or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
   if v_row."id" is null then
@@ -4907,7 +4910,7 @@ begin
   end if;
   delete from "better_supabase"."deals" x
   where x."id" = delete_deal.deal
-    and ((auth.role() = 'service_role') or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false))
+    and ((auth.role() = 'service_role') or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -4933,7 +4936,7 @@ set search_path = ''
 as $$
   with scoped as (
     select * from "better_supabase"."deals" x
-    where x."tenant_id" = deal_forecast.tenant
+    where x."org_id" = deal_forecast.tenant
       and x."currency" = upper(deal_forecast.currency)
       and x."archived_at" is null
       and (deal_forecast.pipeline is null or x."pipeline_id" = deal_forecast.pipeline)
@@ -5025,34 +5028,34 @@ drop policy if exists bsb_tenant_scope on "better_supabase"."deals";
 create policy bsb_tenant_scope on "better_supabase"."deals" as restrictive
   for all to authenticated
   using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')))
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('deals.read')))
   )
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."deal_contacts";
 create policy bsb_tenant_scope on "better_supabase"."deal_contacts" as restrictive
   for all to authenticated
   using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
+    "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
   )
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."deal_members";
 create policy bsb_tenant_scope on "better_supabase"."deal_members" as restrictive
   for all to authenticated
   using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')))
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('deals.read')))
   )
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."deal_lines";
 create policy bsb_tenant_scope on "better_supabase"."deal_lines" as restrictive
   for all to authenticated
   using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
+    "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."deals" x where x."id" = "parent_id"))
   )
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -5067,7 +5070,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block-data deals
 -- @bsb-hash sha256:bc42cb9cecbcea4c32998adc94b1f530ec22c47381cf471722c5a14acedbe624

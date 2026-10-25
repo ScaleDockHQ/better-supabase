@@ -6,6 +6,13 @@ import { defineMetric } from "../../core/metric-definition.ts";
 export interface OrderMetricsOptions {
   /** The orders module's schema. Default `better_supabase`. */
   readonly schema?: string;
+  /** The orders table, `blocks.orders.tables.orders`. Default `orders`. */
+  readonly table?: string;
+  /**
+   * Its tenant column, `blocks.orders.columns.orders.tenant`. Default
+   * `tenant_id`.
+   */
+  readonly tenant?: string;
   /** The currency revenue and order value add up in; other orders are left out. */
   readonly currency: string;
   /** The IANA time zone buckets start in. Default `UTC`. */
@@ -25,8 +32,8 @@ export type OrderMetrics = readonly [
  */
 export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   const shared = {
-    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.orders`,
-    tenant: "tenant_id",
+    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.${options.table ?? "orders"}`,
+    tenant: options.tenant ?? "tenant_id",
     ...(options.tz === undefined ? {} : { tz: options.tz }),
   };
 

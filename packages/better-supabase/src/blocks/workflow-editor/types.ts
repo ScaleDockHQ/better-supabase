@@ -299,6 +299,11 @@ export interface BuilderOptions<
    */
   readonly authorization?: Pick<AuthorizationHooks, "automation">;
   /**
+   * The claim the default `runAs` claims carry the tenant in, the app's
+   * `claims.tenant`. Default `tenant_id`.
+   */
+  readonly tenantClaim?: string;
+  /**
    * The `workflows` port: the workflows block, which `schedules.sync` writes a
    * schedule trigger's schedule to. Build it with a transport that may create
    * schedules, usually the service role. `createBlocks` passes it.

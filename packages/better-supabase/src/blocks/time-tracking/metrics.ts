@@ -8,6 +8,13 @@ import { defineMetric } from "../../core/metric-definition.ts";
 export interface TimeTrackingMetricsOptions {
   /** The time-tracking module's schema. Default `better_supabase`. */
   readonly schema?: string;
+  /**
+   * The entries table, `blocks.time-tracking.tables.entries`. Default
+   * `time_entries`.
+   */
+  readonly table?: string;
+  /** Its tenant column. Default `tenant_id`. */
+  readonly tenant?: string;
   /** The IANA time zone buckets start in. Default `UTC`. */
   readonly tz?: string;
 }
@@ -28,8 +35,8 @@ export function timeTrackingMetrics(
     defineMetric({
       key: "time_tracked",
       label: "Time tracked",
-      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.time_entries`,
-      tenant: "tenant_id",
+      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.${options.table ?? "time_entries"}`,
+      tenant: options.tenant ?? "tenant_id",
       measure: { sum: "seconds" },
       timeColumn: "started_at",
       dimensions: ["billable", "user_id", "subject_type"],

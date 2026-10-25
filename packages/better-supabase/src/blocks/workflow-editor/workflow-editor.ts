@@ -389,6 +389,7 @@ export function createWorkflowEditor<
           options.authorization?.automation?.runAs,
           version,
           tenant,
+          options.tenantClaim,
         ),
       diff: (from, to) =>
         getVersion(from).andThen(async (before) => {

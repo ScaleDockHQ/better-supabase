@@ -81,41 +81,36 @@ describe("blocks.generated.ts", () => {
     expect(plain["tags"]).not.toHaveProperty("names");
   });
 
-  it("writes the tenant column sql.tenantColumn gives a block's tables", () => {
-    const entries = blockConfigEntries(
-      resolveConfig(
-        {
-          blocks: ["quotes"],
-          database: { sql: { tenantColumn: "organization_id" } },
+  it("writes the tenant columns blocks.<name>.columns renames", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          permissions: {},
+          tasks: { columns: { items: { tenant: "org_id" } } },
         },
-        "/project",
-      ),
+      },
+      "/project",
     );
 
-    expect(entries["quotes"]?.names).toEqual({
-      tenantColumn: "organization_id",
+    expect(blockConfigEntries(config)["tasks"]?.names).toEqual({
+      columns: { org_id: "tenant_id" },
     });
-    expect(entries["memberships"]).not.toHaveProperty("names");
   });
 
-  it("writes the tenant column a block maps on all of its tables", () => {
-    const entries = blockConfigEntries(
-      resolveConfig(
-        {
-          blocks: {
-            quotes: {
-              columns: {
-                quotes: { tenant: "org_id" },
-                lines: { tenant: "org_id" },
-              },
-            },
-          },
+  it("leaves out a tenant column renamed to another column's default name", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          permissions: {},
+          tasks: { columns: { items: { tenant: "project_id" } } },
         },
-        "/project",
-      ),
+      },
+      "/project",
     );
 
-    expect(entries["quotes"]?.names).toEqual({ tenantColumn: "org_id" });
+    expect(blockConfigEntries(config)["tasks"]?.names).toBeUndefined();
   });
 
   it("writes the entities blocks.<name>.entities renames", () => {

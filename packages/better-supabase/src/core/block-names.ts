@@ -32,7 +32,12 @@ export interface BlockNaming {
   readonly functions?: Readonly<Record<string, string>>;
   /** The block's own entities the config renames, such as `work_item` to `task`. */
   readonly entities?: readonly EntityRename[];
-  readonly tenantColumn?: string;
+  /**
+   * The tenant columns `blocks.<name>.columns.<table>.tenant` renames: the
+   * column's name in the database to its default name, such as `org_id` to
+   * `tenant_id`, so the block's client reads rows by the default name.
+   */
+  readonly columns?: Readonly<Record<string, string>>;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -122,9 +127,12 @@ export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
     return functions[fn] ?? functions[renamed] ?? renamed;
   };
 
-  const columns = new Map(
-    TENANT_COLUMNS.map((column) => [tenant.rename(column), column]),
-  );
+  const columns = new Map([
+    ...TENANT_COLUMNS.map((column) => [tenant.rename(column), column] as const),
+    ...Object.entries(naming.columns ?? {}),
+  ]);
+
+  const restores = names.renamed || columns.size > TENANT_COLUMNS.length;
 
   // A row a function returns whole (`to_jsonb(row)`) carries the renamed
   // tenant columns and entity keys; the clients read them by their default

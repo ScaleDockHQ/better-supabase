@@ -1242,3 +1242,217 @@ insert into better_supabase.blocks (name, version, mode)
 values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_004_memberships.sql
+-- better-supabase module: memberships
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:ba067595dabb42309e1c2698a38cbc396fc32d477ce0f6ddbae360ef02618c66
+-- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+grant usage on schema better_supabase to supabase_auth_admin;
+set check_function_bodies = off;
+
+create table if not exists "better_supabase"."memberships" (
+  "org_id" uuid not null,
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "role" text not null default 'member',
+  "created_at" timestamptz not null default now(),
+  primary key ("org_id", "user_id")
+);
+create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
+alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+alter table "better_supabase"."memberships"
+  add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+
+alter table "better_supabase"."memberships" enable row level security;
+grant select on "better_supabase"."memberships" to authenticated;
+grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
+
+
+-- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
+-- the x-bsb-tenant header over the Data API), then the `tenant_id` claim.
+-- A tenant the caller isn't a member of counts as none.
+create or replace function better_supabase.current_tenant_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select m."org_id"::text from "better_supabase"."memberships" m where m."org_id"::text = nullif(current_setting('better_supabase.tenant', true), '') and m."user_id" = auth.uid() limit 1),
+    (select m."org_id"::text from "better_supabase"."memberships" m where m."org_id"::text = nullif(current_setting('request.headers', true)::jsonb ->> 'x-bsb-tenant', '') and m."user_id" = auth.uid() limit 1),
+    (select m."org_id"::text from "better_supabase"."memberships" m where m."org_id"::text = nullif(coalesce(auth.jwt() ->> 'tenant_id', auth.jwt() -> 'app_metadata' ->> 'tenant_id'), '') and m."user_id" = auth.uid() limit 1)
+  )::uuid
+$$;
+revoke execute on function better_supabase.current_tenant_id() from public;
+grant execute on function better_supabase.current_tenant_id() to anon, authenticated, service_role, supabase_auth_admin;
+
+-- Policies compare against the set once per statement:
+--   using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')))
+-- has_organization_role(organization) answers for one organization, in functions and checks.
+-- Prefer the access contract (better_supabase.can, tenant_ids_with) for
+-- permission checks; these answer by role name.
+create or replace function better_supabase.member_organization_ids(roles text[] default null)
+returns setof uuid
+language sql
+rows 1
+stable
+security definer
+set search_path = ''
+as $$
+  select m."org_id"
+  from "better_supabase"."memberships" m
+  where m."user_id" = (select auth.uid())
+    and (member_organization_ids.roles is null or m."role" = any (member_organization_ids.roles))
+    and not better_supabase.user_disabled(m."user_id")
+    and not better_supabase.tenant_disabled(m."org_id") and m."disabled_at" is null
+$$;
+
+create or replace function better_supabase.has_organization_role(organization uuid, roles text[] default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from "better_supabase"."memberships" m
+    where m."org_id" = has_organization_role.organization
+      and m."user_id" = auth.uid()
+      and (has_organization_role.roles is null or m."role" = any (has_organization_role.roles))
+      and not better_supabase.user_disabled(m."user_id")
+      and not better_supabase.tenant_disabled(m."org_id") and m."disabled_at" is null
+  )
+$$;
+
+-- The role of a user in a tenant, or null when they aren't a member.
+create or replace function better_supabase.organization_member_role(organization uuid, member uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m."role" from "better_supabase"."memberships" m where m."org_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
+$$;
+
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."org_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.member_organization_ids()));
+
+revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.organization_member_role(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
+
+-- The memberships claim. `claimFormat: 'array'` (the default) is
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- authorization provider's hook writes this claim, use its hook instead.
+-- Otherwise call it from your custom access token hook:
+--   return jsonb_set(event, '{claims,memberships}',
+--     better_supabase.membership_claims((event ->> 'user_id')::uuid));
+-- Disabled users and tenants (blocks.permissions.disabled) are left out.
+create or replace function better_supabase.membership_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'scope', 'tenant',
+      'id', m."org_id",
+      'roles', jsonb_build_array(m."role")
+    ) order by m."created_at", m."org_id"), '[]'::jsonb)
+  from "better_supabase"."memberships" m
+  where m."user_id" = membership_claims.user_id
+    and not better_supabase.user_disabled(membership_claims.user_id)
+    and not better_supabase.tenant_disabled(m."org_id") and m."disabled_at" is null
+$$;
+
+revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;
+reset check_function_bodies;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
+create policy bsb_tenant_scope on "better_supabase"."memberships" as restrictive
+  for all to authenticated
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.member_organization_ids()))
+  )
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
+-- better-supabase module: memberships
+-- @bsb-block-data memberships
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('memberships', 3, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

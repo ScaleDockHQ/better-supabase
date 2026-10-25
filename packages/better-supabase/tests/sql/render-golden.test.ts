@@ -60,7 +60,41 @@ const VARIANTS: readonly Variant[] = [
       return { modules, ownTables: ownTablesOf(modules, [module]) };
     },
   },
+  {
+    name: "tenant column renamed",
+    applies: (module) =>
+      !KEEPS_TENANT.has(module) &&
+      Object.keys(tenantColumns(module)).length > 0,
+    modules: (module) => [module],
+    layout: () => ({
+      modules: Object.fromEntries(
+        NAMES.filter((name) => !KEEPS_TENANT.has(name)).map((name) => [
+          name,
+          { columns: tenantColumns(name) },
+        ]),
+      ),
+    }),
+  },
 ];
+
+/** Modules that refuse a renamed column on a table they create or keep in Vault. */
+const KEEPS_TENANT: ReadonlySet<string> = new Set([
+  "credentials",
+  "webhook-inbox",
+  "webhooks-in",
+]);
+
+/**
+ * `columns` renaming the tenant column of each of the module's tables to
+ * `org_id`.
+ */
+function tenantColumns(module: string): Record<string, { tenant: string }> {
+  return Object.fromEntries(
+    Object.entries(SQL_MODULES[module]?.names?.tables ?? {})
+      .filter(([, table]) => "tenant" in table.columns)
+      .map(([name]) => [name, { tenant: "org_id" }]),
+  );
+}
 
 /** Options a module refuses to render over the app's tables without. */
 const OVER_APP_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
@@ -163,6 +197,34 @@ describe("SQL module output", () => {
     ).toEqual([]);
   });
 
+  it("names no tenant_id column once every tenant column is renamed", () => {
+    const variant = VARIANTS.find(
+      (each) => each.name === "tenant column renamed",
+    );
+
+    const left = NAMES.filter((module) => variant?.applies(module)).flatMap(
+      (module) => {
+        const files = variant === undefined ? [] : filesOf(variant, module);
+
+        return "error" in files
+          ? [`${module}: ${String(files.error)}`]
+          : files
+              .filter((file) => file.module === module)
+              .flatMap((file) =>
+                file.contents
+                  .split("\n")
+                  .map((line) =>
+                    line.replace(COMMENT, "").replaceAll(LITERAL, "''"),
+                  )
+                  .filter((line) => TENANT_ID.test(line))
+                  .map((line) => `${module}: ${line.trim()}`),
+              );
+      },
+    );
+
+    expect(left).toEqual([]);
+  });
+
   it("gives every table one owning module", () => {
     const owners = new Map<string, Set<string>>();
 
@@ -182,6 +244,10 @@ describe("SQL module output", () => {
     expect(shared).toEqual([]);
   });
 });
+
+const COMMENT = /--.*$/u;
+const LITERAL = /'(?:[^']|'')*'/gu;
+const TENANT_ID = /\btenant_id\b/u;
 
 const CREATE_TABLE = /create table (?:if not exists )?("?\w+"?\."?\w+"?)/giu;
 
