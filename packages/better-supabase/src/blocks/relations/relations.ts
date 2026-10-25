@@ -25,8 +25,8 @@ import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   blockCall,
+  instantOf,
   isRecord,
-  optionalText,
   recordOf,
   recordsOf,
   textOf,
@@ -87,7 +87,7 @@ export interface Relation<F extends object = Record<never, never>> {
   readonly direction: "out" | "in";
   readonly subject: RecordRef;
   readonly data: Readonly<Record<string, unknown>>;
-  readonly createdAt: string;
+  readonly createdAt: Temporal.Instant;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: RowFields<F>;
 }
@@ -354,7 +354,7 @@ export function createRelations<
               direction: row["direction"] === "in" ? "in" : "out",
               subject: subjectRefOf(row["type"], row["subjectId"]),
               data: objectOf(row["data"]),
-              createdAt: optionalText(row["createdAt"]) ?? "",
+              createdAt: instantOf(row["createdAt"]),
               fields: rowFields(row["fields"]),
             })),
         ).andThen((relations) => readAllFields(fields, relations)),

@@ -30,7 +30,11 @@ import {
 recorded it, calls `notifyDelivery`, which defaults to sending the
 `notification` type through the `notifier` port. It returns `ok(true)` for the first
 delivery and `ok(false)` for a replay, which records no second
-`reminder.sent` and sends nothing. `reminders.job` is the same call as a job
+`reminder.sent` and sends nothing. The payload's `occurrenceAt` is a
+`Temporal.Instant`, as are the ones `planReminderDeliveries` returns and the
+one `reminders.markSent(id, occurrenceAt)` takes. In a queued job it travels as
+ISO text, and the handler reads it back into an `Instant`; the notification's
+`data.occurrenceAt` stays ISO text. `reminders.job` is the same call as a job
 handler, for the `reminders.deliver` queue (`REMINDER_DELIVERY_QUEUE`):
 
 Server code calls the `reminders` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:

@@ -32,7 +32,7 @@ import type { StandardSchemaV1 } from "./standard.ts";
 import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
-import { isStorageApi } from "../storage/storage-api.ts";
+import { encodeArguments } from "../ir/wire.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";
@@ -1127,12 +1127,7 @@ function rpc(
 
   // An optional argument left `undefined` is omitted, so a GET call never
   // sends the string "undefined" and the function default applies.
-  const args =
-    given === undefined
-      ? undefined
-      : Object.fromEntries(
-          Object.entries(given).filter(([, value]) => value !== undefined),
-        );
+  const args = given === undefined ? undefined : encodeArguments(given);
 
   return AsyncResult.from(async () => {
     if (!executor.rpc) {

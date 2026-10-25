@@ -2,6 +2,7 @@ import type { ValidationIssue } from "./errors.ts";
 import type { Result } from "./result.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 
+import { encodeArguments } from "../ir/wire.ts";
 import { dbError } from "./errors.ts";
 import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok } from "./result.ts";
@@ -124,7 +125,9 @@ export function writeFields<F extends object, T>(
     return then(undefined);
   }
 
-  return AsyncResult.from(() => fields.write({ ...values })).andThen(then);
+  return AsyncResult.from(() => fields.write({ ...values }))
+    .map(encodeArguments)
+    .andThen(then);
 }
 
 /** The `fields` object of a row a block function returned, or none. */
@@ -241,7 +244,7 @@ export function blockFields<T extends object = Record<never, never>>(
 
         const checked = await fields.write({ ...extra });
 
-        return checked.ok ? ok(checked.data) : checked;
+        return checked.ok ? ok(encodeArguments(checked.data)) : checked;
       }),
   };
 
@@ -313,5 +316,5 @@ export async function extraFieldsArg(
 
   const valid = await fields.write(extra);
 
-  return valid.ok ? ok({ fields: valid.data }) : valid;
+  return valid.ok ? ok({ fields: encodeArguments(valid.data) }) : valid;
 }

@@ -23,7 +23,7 @@ describe("reminder deliveries", () => {
       { from: start.subtract({ minutes: 15 }), until: start.add({ days: 2 }) },
     );
 
-    expect(planned.map((item) => item.occurrenceAt)).toEqual([
+    expect(planned.map((item) => item.occurrenceAt.toString())).toEqual([
       "1997-09-02T09:00:00Z",
       "1997-09-03T09:00:00Z",
       "1997-09-04T09:00:00Z",
@@ -37,12 +37,12 @@ describe("reminder deliveries", () => {
     await deliverReminder(
       {
         reminderId: "rem-1",
-        occurrenceAt: "1997-09-02T09:00:00Z",
+        occurrenceAt: Temporal.Instant.from("1997-09-02T09:00:00Z"),
         organizationId: "org-1",
       },
       {
         markSent: async (id, at) => {
-          seen.push(`sent:${id}:${at}`);
+          seen.push(`sent:${id}:${at.toString()}`);
         },
         notify: async (payload) => {
           seen.push(`notify:${payload.organizationId}`);

@@ -14,7 +14,7 @@ export interface ReminderPlanInput {
 
 export interface PlannedDelivery {
   readonly reminderId: string;
-  readonly occurrenceAt: string;
+  readonly occurrenceAt: Temporal.Instant;
   readonly runAt: Temporal.Instant;
   /** One job per reminder and occurrence. Pass this to `enqueueOnce`. */
   readonly dedupeKey: string;
@@ -22,7 +22,11 @@ export interface PlannedDelivery {
 
 export interface DeliveryPayload {
   readonly reminderId: string;
-  readonly occurrenceAt: string;
+  /**
+   * Sent through a queue it travels as ISO text, which `reminders.job` reads
+   * back.
+   */
+  readonly occurrenceAt: Temporal.Instant;
   readonly organizationId: string;
   /** Who set the reminder; `createBlocks` notifies them. */
   readonly userId?: string;
@@ -67,12 +71,12 @@ export function planReminderDeliveries(
         continue;
       }
 
-      const occurrenceAt = occurrence.toInstant().toString();
+      const occurrenceAt = occurrence.toInstant();
       planned.push({
         reminderId: item.id,
         occurrenceAt,
         runAt: runAt.toInstant(),
-        dedupeKey: `${item.id}:${occurrenceAt}`,
+        dedupeKey: `${item.id}:${occurrenceAt.toString()}`,
       });
     }
   }
@@ -89,7 +93,7 @@ export async function deliverReminder(
   effects: {
     readonly markSent: (
       reminderId: string,
-      occurrenceAt: string,
+      occurrenceAt: Temporal.Instant,
     ) => Promise<void>;
     readonly notify: (payload: DeliveryPayload) => Promise<void>;
   },

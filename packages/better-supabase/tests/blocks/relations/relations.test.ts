@@ -182,7 +182,7 @@ describe("relations client", () => {
         direction: "in",
         subject: b,
         data: {},
-        createdAt: "2026-10-13T00:00:00Z",
+        createdAt: Temporal.Instant.from("2026-10-13T00:00:00Z"),
         fields: {},
       },
     ]);

@@ -334,7 +334,7 @@ describe("createBlocks", () => {
     await blocks.reminders
       .deliver({
         reminderId: "r1",
-        occurrenceAt: "2026-10-14T09:00:00Z",
+        occurrenceAt: Temporal.Instant.from("2026-10-14T09:00:00Z"),
         organizationId: "o1",
         userId: "u1",
         subject: { type: "task", id: "42" },

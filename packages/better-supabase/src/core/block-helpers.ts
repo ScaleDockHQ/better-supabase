@@ -468,6 +468,136 @@ export const toInstant = (value: Date | string): Temporal.Instant =>
     ? temporal().Instant.fromEpochMilliseconds(value.getTime())
     : temporal().Instant.from(value);
 
+const INTERVAL_UNITS: Readonly<Record<string, "years" | "months" | "days">> = {
+  year: "years",
+  years: "years",
+  mon: "months",
+  mons: "months",
+  day: "days",
+  days: "days",
+};
+
+const INTERVAL_TIME = /^([+-])?(\d+):(\d{2}):(\d{2})(?:\.(\d{1,9}))?$/;
+
+const ISO_FIELD = /(-?\d+(?:\.\d+)?)([YMWDHS])/g;
+
+const ISO_DATE_UNITS: Readonly<Record<string, string>> = {
+  Y: "years",
+  M: "months",
+  W: "weeks",
+  D: "days",
+};
+
+const ISO_TIME_UNITS: Readonly<Record<string, string>> = {
+  H: "hours",
+  M: "minutes",
+  S: "seconds",
+};
+
+/** `P-1DT-2H`, the form Postgres prints a negative ISO interval in. */
+function signedIsoDuration(text: string): Temporal.Duration {
+  const [date = "", time = ""] = text.slice(1).split("T");
+  const fields: Record<string, number> = {};
+
+  for (const [part, names] of [
+    [date, ISO_DATE_UNITS],
+    [time, ISO_TIME_UNITS],
+  ] as const) {
+    for (const [, amount = "0", unit = ""] of part.matchAll(ISO_FIELD)) {
+      const name = names[unit];
+
+      if (name === undefined) {
+        throw new TypeError(`${text} is not an interval`);
+      }
+
+      fields[name] = Number(amount);
+    }
+  }
+
+  return durationOfFields(fields, text);
+}
+
+/**
+ * `fields` as a Duration. Postgres lets an interval mix signs (`1 day
+ * -01:00:00`), which Temporal refuses, so days then fold into hours; months
+ * can't fold and stay an error.
+ */
+function durationOfFields(
+  fields: Readonly<Record<string, number>>,
+  text: string,
+): Temporal.Duration {
+  const { seconds = 0, ...rest } = fields;
+  const whole = Math.trunc(seconds);
+  const nanos = Math.round((seconds - whole) * 1e9);
+
+  const exact: Record<string, number> = {
+    ...rest,
+    seconds: whole,
+    milliseconds: Math.trunc(nanos / 1e6),
+    microseconds: Math.trunc((nanos % 1e6) / 1e3),
+    nanoseconds: nanos % 1e3,
+  };
+
+  const signs = new Set(
+    Object.values(exact)
+      .filter((value) => value !== 0)
+      .map(Math.sign),
+  );
+
+  if (signs.size > 1 && !exact["months"] && !exact["years"]) {
+    exact["hours"] = (exact["hours"] ?? 0) + (exact["days"] ?? 0) * 24;
+    exact["days"] = 0;
+  }
+
+  try {
+    return temporal().Duration.from(exact);
+  } catch {
+    throw new TypeError(`${text} can't be held by a Temporal.Duration`);
+  }
+}
+
+/**
+ * An `interval` from jsonb or `pg` as a `Temporal.Duration`: Postgres's own
+ * output (`1 day 02:30:00`, `-00:30:00`) or ISO 8601 (`P1DT2H30M`, `P-1D`).
+ * Throws for anything else.
+ */
+export function intervalOf(value: unknown): Temporal.Duration {
+  const text = textOf(value).trim();
+
+  if (/^-?P/.test(text)) {
+    return text.slice(text.startsWith("-") ? 1 : 0).includes("-")
+      ? signedIsoDuration(text)
+      : temporal().Duration.from(text);
+  }
+
+  const fields: Record<string, number> = {};
+  const tokens = text.split(/\s+/).filter((token) => token !== "");
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index] ?? "";
+    const time = INTERVAL_TIME.exec(token);
+
+    if (time) {
+      const sign = time[1] === "-" ? -1 : 1;
+      fields["hours"] = sign * Number(time[2]);
+      fields["minutes"] = sign * Number(time[3]);
+      fields["seconds"] = sign * Number(`${time[4] ?? "0"}.${time[5] ?? "0"}`);
+      continue;
+    }
+
+    const unit = INTERVAL_UNITS[tokens[index + 1] ?? ""];
+
+    if (unit === undefined || !/^[+-]?\d+$/.test(token)) {
+      throw new TypeError(`${text} is not an interval`);
+    }
+
+    fields[unit] = Number(token);
+    index += 1;
+  }
+
+  return durationOfFields(fields, text);
+}
+
 export function errorText(error: unknown): string {
   if (error instanceof Error) {
     return error.message;

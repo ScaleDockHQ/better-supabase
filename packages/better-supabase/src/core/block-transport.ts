@@ -2,6 +2,7 @@ import type { SqlClient } from "../postgres/executor.ts";
 import type { ErrorMapper, RawDbError } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 
+import { encodeArguments } from "../ir/wire.ts";
 import { DbException } from "./db-exception.ts";
 import { isRecord } from "./guards.ts";
 import { sqlIdent } from "./template.ts";
@@ -26,9 +27,7 @@ export interface BlockTransport {
 export function sqlTransport(client: SqlClient): BlockTransport {
   return {
     async call(schema, fn, args) {
-      const entries = Object.entries(args).filter(
-        ([, value]) => value !== undefined,
-      );
+      const entries = Object.entries(encodeArguments(args));
 
       // pg sends an array as a Postgres array literal; an array of objects
       // is a jsonb argument, so it goes as JSON.
@@ -103,13 +102,9 @@ export function rpcTransport(
 
   return {
     async call(schema, fn, args) {
-      const defined = Object.fromEntries(
-        Object.entries(args).filter(([, value]) => value !== undefined),
-      );
-
       const { data, error } = await untyped
         .schema(options.schema ?? schema)
-        .rpc(fn, defined);
+        .rpc(fn, encodeArguments(args));
 
       if (error) {
         const message =
@@ -169,11 +164,7 @@ export function dbTransport(
         return;
       };
 
-      const defined = Object.fromEntries(
-        Object.entries(args).filter(([, value]) => value !== undefined),
-      );
-
-      const result = await executor.rpc(fn, defined, {
+      const result = await executor.rpc(fn, encodeArguments(args), {
         schema: options.schema ?? schema,
         errorMappers: [capture],
       });

@@ -30,9 +30,11 @@ import { requireOrganization } from "../../core/block-tenant.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
+import { isInstant } from "../../core/temporal.ts";
 import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
   blockCall,
+  instantOf,
   isRecord,
   optionalText,
   recordOf,
@@ -54,11 +56,11 @@ function notifyThrough(
     notifier.send(notification, {
       recipients: delivery.userId === undefined ? [] : [delivery.userId],
       tenant: delivery.organizationId,
-      key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt}`,
+      key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt.toString()}`,
       ...(delivery.subject === undefined ? {} : { subject: delivery.subject }),
       data: {
         reminderId: delivery.reminderId,
-        occurrenceAt: delivery.occurrenceAt,
+        occurrenceAt: delivery.occurrenceAt.toString(),
       },
     });
 }
@@ -82,7 +84,7 @@ export interface RemindersOptions<
   /**
    * The notification type `notifier` sends for a delivered reminder, to the
    * user who set it and the reminded subject's watchers. Its data is `{
-   * reminderId, occurrenceAt }`.
+   * reminderId, occurrenceAt }`, with `occurrenceAt` as ISO text.
    */
   readonly notification?: string;
   /**
@@ -144,7 +146,10 @@ export interface Reminders<F extends object = Record<never, never>> {
    * Service role. Records one delivery and the reminder.sent event. Resolves to
    * `false` when the occurrence was already delivered.
    */
-  markSent(reminderId: string, occurrenceAt: string): AsyncResult<boolean>;
+  markSent(
+    reminderId: string,
+    occurrenceAt: Temporal.Instant,
+  ): AsyncResult<boolean>;
   /**
    * Checks `audience`, then `markSent`, then `notifyDelivery` when this run
    * recorded the occurrence and the audience kept the user.
@@ -169,7 +174,9 @@ function deliveryOf(value: unknown): DeliveryPayload {
 
   return {
     reminderId: textOf(value["reminderId"]),
-    occurrenceAt: textOf(value["occurrenceAt"]),
+    occurrenceAt: isInstant(value["occurrenceAt"])
+      ? value["occurrenceAt"]
+      : instantOf(value["occurrenceAt"]),
     organizationId: textOf(value["organizationId"]),
     ...(userId === undefined ? {} : { userId }),
     ...(subject === undefined ? {} : { subject }),

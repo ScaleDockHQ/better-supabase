@@ -112,7 +112,19 @@ describe("temporalText", () => {
     ],
     ["a PlainDate", Temporal.PlainDate.from("2026-01-02"), "2026-01-02"],
     ["a PlainTime", Temporal.PlainTime.from("10:30"), "10:30:00"],
-    ["a Duration", Temporal.Duration.from({ hours: 1 }), undefined],
+    ["a Duration", Temporal.Duration.from({ hours: 1 }), "PT1H"],
+    [
+      "a negative Duration, signed per field",
+      Temporal.Duration.from({
+        days: -1,
+        hours: -2,
+        seconds: -1,
+        milliseconds: -500,
+      }),
+      "P-1DT-2H-1.5S",
+    ],
+    ["a PlainYearMonth", Temporal.PlainYearMonth.from("2026-01"), "2026-01"],
+    ["a PlainMonthDay", Temporal.PlainMonthDay.from("01-02"), "01-02"],
     ["a string", "2026-01-02", undefined],
   ])("formats %s", (_name, value, expected) => {
     expect(temporalText(value)).toBe(expected);

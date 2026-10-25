@@ -141,7 +141,9 @@ describe("saas block clients", () => {
       (await reminders.upsert({ type: "invoices", id: "i1" }).orThrow()).id,
     ).toBe("r1");
     expect(
-      await reminders.markSent("r1", "2026-01-01T00:00:00Z").orThrow(),
+      await reminders
+        .markSent("r1", Temporal.Instant.from("2026-01-01T00:00:00Z"))
+        .orThrow(),
     ).toBe(true);
   });
 
@@ -163,13 +165,14 @@ describe("saas block clients", () => {
 
     const payload = {
       reminderId: "r1",
-      occurrenceAt: "2026-01-01T00:00:00Z",
+      occurrenceAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       organizationId: "org",
       subject: { type: "task", id: "42" },
     };
 
+    // A queued payload went through JSON, so its occurrence is ISO text.
     await reminders.job(
-      payload,
+      JSON.parse(JSON.stringify(payload)),
       undefined as never,
       new AbortController().signal,
     );
@@ -193,7 +196,7 @@ describe("saas block clients", () => {
 
     const result = await reminders.deliver({
       reminderId: "r1",
-      occurrenceAt: "2026-01-01T00:00:00Z",
+      occurrenceAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       organizationId: "org",
     });
 

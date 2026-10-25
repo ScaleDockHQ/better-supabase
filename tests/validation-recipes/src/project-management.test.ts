@@ -101,7 +101,7 @@ describe.skipIf(!live)("project management recipe", () => {
 
       const delivery = {
         reminderId: reminder.id,
-        occurrenceAt: "2026-10-20T09:00:00Z",
+        occurrenceAt: Temporal.Instant.from("2026-10-20T09:00:00Z"),
         organizationId,
         userId: owner.id,
         subject: { type: "task", id: subjectId },

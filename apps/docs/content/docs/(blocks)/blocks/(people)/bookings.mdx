@@ -295,7 +295,7 @@ const link = await shareLinks
   .create(organizationId, "booking_service", serviceId, "view")
   .orThrow();
 
-// On the public page, signed out:
+// On the public page, signed out. service.duration is a Temporal.Duration.
 const service = await bookings.public.service(token).orThrow();
 const slots = await bookings.public.slots(token, range).orThrow();
 const held = await bookings.public

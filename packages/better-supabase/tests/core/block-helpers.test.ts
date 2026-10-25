@@ -11,6 +11,7 @@ import {
   eachLimit,
   enumOrThrow,
   instantArg,
+  intervalOf,
   leaseHeartbeat,
   notFoundError,
   nullableInstant,
@@ -281,5 +282,26 @@ describe("nullable readers", () => {
     expect(nullableInstant("2026-01-01T00:00:00Z")).toBeInstanceOf(
       Temporal.Instant,
     );
+  });
+});
+
+describe("intervalOf", () => {
+  it.each<[string, string]>([
+    ["00:30:00", "PT30M"],
+    ["1 day 02:30:00", "P1DT2H30M"],
+    ["1 year 2 mons 3 days", "P1Y2M3D"],
+    ["-00:30:00", "-PT30M"],
+    ["-1 days -00:30:00", "-P1DT30M"],
+    ["1 day -01:00:00", "PT23H"],
+    ["00:00:01.5", "PT1.5S"],
+    ["PT1H", "PT1H"],
+    ["-PT1H", "-PT1H"],
+    ["P-1DT-2H", "-P1DT2H"],
+  ])("reads %s", (text, expected) => {
+    expect(intervalOf(text).toString()).toBe(expected);
+  });
+
+  it.each(["soon", "1 fortnight", "1 mon -1 days"])("refuses %s", (text) => {
+    expect(() => intervalOf(text)).toThrow(TypeError);
   });
 });
