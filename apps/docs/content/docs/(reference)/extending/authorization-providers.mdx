@@ -543,6 +543,24 @@ user; a malformed message goes to `onError`. A second call with the same
 the channel joined, and `close()` leaves it. Start it from that module, not from `instrumentation.ts`, so the
 cache and its subscription live and die together.
 
+The subscriber keeps a Realtime channel open for as long as the process
+runs, so it only evicts reliably in a long-lived process, such as a Node
+server or a container. Serverless instances (Vercel Functions, AWS Lambda,
+Cloudflare Workers) freeze between requests and miss the broadcasts sent
+in the meantime. There, don't call `subscribeAuthzVersions`. Give the
+provider's cache a short maximum age instead, so each instance reads a
+user's version again once it is older than that, and keep calling
+`bsb.invalidateSession(userId)` where the change happens, which evicts the
+user on that instance right away:
+
+```ts title="src/lib/supabase/authz.ts"
+export const versions = createVersionCache({ maxStaleMs: 30_000 });
+```
+
+`maxStaleMs` is the provider cache's option, not a better-supabase one; check
+your library for its name. It bounds how long another instance can decide
+with an old version.
+
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,

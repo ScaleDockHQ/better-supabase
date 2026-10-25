@@ -157,6 +157,19 @@ same way. `onChange(event)` replaces the default, with `event.reason`
 (`check` or `tab`). `watchSession(onChange, options)` is the same watcher
 without React.
 
+Use either the hook or a browser client, not both. An app that keeps a
+browser Supabase client already hears sign-outs and token changes through
+`onAuthStateChange`, so it doesn't need `useSessionWatch`. Running both
+reacts twice to the same change.
+
+The hook compares claims from the session cookie, so `claims_changed` only
+fires after something else refreshed the token: a navigation through the
+proxy, or a route created with `refresh: true`, which refreshes a cookie
+that is about to expire. `sessionStatusRoute` doesn't refresh by default, so
+a role or tenant change reaches an open page when the current access token
+rotates, not when the database changes. An ended session or a ban shows up
+on the next check, because the route asks Auth about those directly.
+
 ### Auth outages
 
 When a refresh fails because Auth is unreachable, times out or answers 5xx
