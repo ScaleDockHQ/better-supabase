@@ -12,7 +12,7 @@ Applies to product repos with Database or Roles and permissions set to yes. Offl
   - Code written against 0.x follows its `MIGRATION.md` (`allow` became `auth`, `"public"` became `"publishable"`, `claims` became `jwtClaims`).
 - **`@supabase/ssr`** owns web session cookies, and only the proxy refreshes them. Server code hands the refreshed access token to `verifyCredentials` from `@supabase/server/core`; never trust `getSession()` on the server.
 - **better-supabase** wraps those contexts with the generated types and `Result` repositories through its framework subpaths. Apps import the subpath, not `@supabase/server` directly.
-  - The definition is named `betterSupabase`, and every runtime instance an adapter creates is named `bsb`, in code and docs alike. Adapter factories return `Better<Thing>` (`BetterNext`, `BetterClient`, `BetterPostgres`), and the `./client` subpath exports `createClient`.
+  - The definition is named `betterSupabase`, and every runtime instance an adapter creates is named `bs`, in code and docs alike. Adapter factories return `Better<Thing>` (`BetterNext`, `BetterClient`, `BetterPostgres`), and the `./client` subpath exports `createClient`.
   - Each app keeps its instances in `lib/supabase/` as described in the naming rules in [`architecture.md`](architecture.md).
 - **`packages/supabase`** re-exports the typed clients and holds the one `createAdminContext()` (`server` subpath), the only place `sb_secret_` is read.
 - **`@supabase/supabase-js`** follows better-supabase's peer range. The next major is published on the `next` tag; adopt it only once that peer range allows it, and record a `blocked` row until then.
@@ -77,6 +77,7 @@ Applies to product repos with Database or Roles and permissions set to yes. Offl
 - Repositories return a `Result`, never throw, and run as the caller.
 - Use the framework subpaths (`/next`, `/hono`, `/orpc`, `/mcp`, `/query`, `/server`, `/env`, `/storage`, `/realtime`).
 - `better-supabase doctor` runs in `verify`.
+- It exposes a per-request session snapshot that `use cache` scopes read, so no island repeats the session read or the JWT verification, and apps use it instead of creating a request context per island ([`performance.md`](performance.md#authenticated-request-cost)).
 
 ## Audit log
 
@@ -89,5 +90,6 @@ Applies to product repos with Database or Roles and permissions set to yes. Offl
 - `packages/policy` holds `definePermissions`, `resource` and `definePolicy`.
 - One frozen instance per request through `permdock/next`, `/hono`, `/orpc` or `/mcp`. The UI uses `permdock/react`.
 - Memberships come from the verified subject.
+- Every instance reads permission versions through one shared version cache, created once at module scope (`memoryVersionCache()`, passed to `claimsFirst(source, { versions })`), never through a per-instance memo. Apps pass it to every instance, so a request reads the version at most once ([`performance.md`](performance.md#authenticated-request-cost)).
 - `permdock rls generate`, `permdock collect --check` and `permdock doctor` run in `verify`.
 - Never add a permission without its feature.

@@ -29,7 +29,6 @@ Applies to every repo kind. A tooling repo without TypeScript skips the tsconfig
 Ground rule 2 adopts new majors early, but never a pre-release of a minor. While a minor is in beta or rc, the repo stays on the latest stable `typescript` and the `oxlint-tsgolint` built for it, and gets ready for the minor instead:
 
 - Never install, run or test the pre-release, not even in a throwaway worktree. The bump waits for the stable release and a matching tsgolint build, and both land in one commit.
-  - The one exception is a feature that exists only in the pre-release and that the library ships against it. Pin the pre-release in a named catalog that only the test projects for that feature use, list it under "Pre-release pins", and record it in an ADR that says when it ends. better-supabase's `ts71` catalog for the content mapper is the example (ADR 0097).
 - Read the announcement's "Notable Behavioral Changes" and apply each fix in a form that compiles on the current version and on every version in `typecheck:matrix`.
 - Add the pending upgrade checklist to AGENTS.md (see [`agent-files.md`](agent-files.md)).
 - New `target` and `lib` years, new module features and new compiler APIs are separate decisions, made when the minor ships. The `target` year follows the runtime (see the TypeScript config below).
