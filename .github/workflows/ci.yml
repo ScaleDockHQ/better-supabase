@@ -123,7 +123,7 @@ jobs:
   # Runs next to verify, not after it: Integration is the longest job, so waiting for verify would
   # add its whole runtime to the critical path. Each shard starts its own stack.
   stack:
-    name: Integration (${{ matrix.shard }}/2)
+    name: Integration (${{ matrix.shard }}/3)
     needs: affected
     # `affected` is skipped on push, and a skipped need skips this job unless `!cancelled()`.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
@@ -135,7 +135,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,10 +159,34 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: >-
           pnpm exec dotenv -e .env.development.local --
-          pnpm --filter better-supabase exec vitest run --project integration --shard="$SHARD/2"
+          pnpm --filter better-supabase exec vitest run --project integration --shard="$SHARD/3"
+
+  # Its own job, so it runs next to the shards instead of after one of them.
+  validation:
+    name: Integration (validation projects)
+    needs: affected
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Create the local signing key
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm exec better-supabase dev keys --cwd .
+
+      - name: Start Supabase
+        uses: $/.github/actions/supabase-stack
 
       - name: Validation projects on the stack
-        if: matrix.shard == 1
         run: >-
           pnpm exec dotenv -e .env.development.local -- sh -c
           'pnpm --filter @better-supabase/validation-centrakit test
