@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
+import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
@@ -59,6 +60,32 @@ describe("handle", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: USER });
+  });
+
+  it("ignores the session cookie with cookies false", async () => {
+    const cookie = writeSession([], "sb-abcdefghijklmnopqrst-auth-token", {
+      access_token: await signer.sign({ sub: USER }),
+      refresh_token: "r-handle",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: "bearer",
+      user: { id: USER },
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+
+    const withCookie = () =>
+      new Request("https://api.test/notes", { headers: { cookie } });
+
+    const run = (ctx: { readonly auth: { readonly kind: string } }) =>
+      ctx.auth.kind;
+
+    expect(await (await handle(server, withCookie(), run)).json()).toBe("user");
+    expect(
+      (await handle(server, withCookie(), run, { cookies: false })).status,
+    ).toBe(401);
+    await expect(
+      handle(server, withCookie(), run, { cookies: false, refresh: true }),
+    ).rejects.toThrow(TypeError);
   });
 
   it("refuses callers the guard rejects without running the handler", async () => {

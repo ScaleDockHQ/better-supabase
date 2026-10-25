@@ -292,6 +292,12 @@ export interface McpOptions<
    */
   readonly requiredRoles?: RequiredRoles;
   /**
+   * Read the session cookie. Defaults to false: MCP clients send bearer tokens,
+   * and a cookie would let any page the user visits call the tools. Turn it on
+   * only together with `allowedOrigins`.
+   */
+  readonly cookies?: boolean;
+  /**
    * Origins allowed to call the server (DNS rebinding protection). Defaults to
    * any.
    */
@@ -1112,7 +1118,9 @@ export function createMcp<
       return unsupportedVersion(null, header);
     }
 
-    const ctx = await server.context(request, { cookies: false });
+    const ctx = await server.context(request, {
+      cookies: options.cookies ?? false,
+    });
 
     const denied = guard(
       ctx.auth,

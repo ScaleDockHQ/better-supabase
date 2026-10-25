@@ -32,7 +32,12 @@ import { flushEvents } from "../server/adapter.ts";
 import { authorizeCaller } from "../server/kit.ts";
 import { rateLimitGate } from "../server/rate-limit.ts";
 import { refreshFor } from "../server/refresh.ts";
-import { defaultExpose, guard, settle } from "../server/respond.ts";
+import {
+  assertCookieRefresh,
+  defaultExpose,
+  guard,
+  settle,
+} from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { apiProcedures } from "./router.ts";
 
@@ -51,10 +56,14 @@ export type { OrpcHandlerLike, ToOrpcOptions } from "../bridges/orpc.ts";
 
 export type { ApiRoute, ApiRouter, ApiRouterOptions } from "./router.ts";
 
-/** Initial context: pass `{ context: { request } }` to the oRPC handler. */
-export interface OrpcRequestContext {
-  readonly request: Request;
-}
+/**
+ * Initial context: pass `{ context: { request } }` to the oRPC handler, or `{
+ * context: { headers } }` from an adapter that has no `Request` (the Node
+ * handler, a WebSocket peer). `url` defaults to `http://localhost/`.
+ */
+export type OrpcRequestContext =
+  | { readonly request: Request }
+  | { readonly headers: Headers; readonly url?: string };
 
 /** What `middleware()` adds to `context`. */
 export interface OrpcContext<
@@ -118,10 +127,14 @@ export type OrpcMiddleware<
   Record<never, never>
 >;
 
-/** What a `rateLimit()` key function reads: the procedure's context and path. */
+/**
+ * What a `rateLimit()` key function reads: the procedure's context, its path
+ * and the request (built from `context.headers` when the context has none).
+ */
 export interface OrpcRateLimitInput<TContext extends OrpcRequestContext> {
   readonly context: TContext;
   readonly path: readonly string[];
+  readonly request: Request;
 }
 
 /** The middleware `rateLimit()` returns; it adds nothing to `context`. */
@@ -308,6 +321,35 @@ function withHeaders(
   return copy;
 }
 
+const built = new WeakMap<Headers, Request>();
+
+/**
+ * A `Request` carrying `headers`, built once per `Headers` object so nested
+ * middleware share the per-request cache.
+ */
+function requestFromHeaders(
+  headers: Headers,
+  url = "http://localhost/",
+): Request {
+  const known = built.get(headers);
+
+  if (known) {
+    return known;
+  }
+
+  const request = new Request(url, { headers });
+  built.set(headers, request);
+
+  return request;
+}
+
+/** The context's request, built from its headers when it has none. */
+function requestOf(context: OrpcRequestContext): Request {
+  return "request" in context
+    ? context.request
+    : requestFromHeaders(context.headers, context.url);
+}
+
 /** ORPC integration: middleware adding the caller's repositories to `context`. */
 export function createOrpc<
   M extends AnyModels,
@@ -327,7 +369,7 @@ export function createOrpc<
 
   const contexts = new WeakMap<
     Request,
-    { ctx: ServerContext<M, F, E, C, P, B>; refresh: boolean }
+    { ctx: ServerContext<M, F, E, C, P, B>; refresh: boolean; cookies: boolean }
   >();
 
   const limits = new WeakMap<Request, Headers>();
@@ -347,25 +389,35 @@ export function createOrpc<
       P,
       ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
     > = {},
-  ): OrpcMiddleware<M, F, E, C, P, B> =>
-    os
+  ): OrpcMiddleware<M, F, E, C, P, B> => {
+    assertCookieRefresh(middlewareOptions);
+
+    const cookies = middlewareOptions.cookies;
+
+    return os
       .$context<OrpcRequestContext>()
       .middleware(async ({ context, next }, input: unknown) => {
+        const request = requestOf(context);
         // Nested middleware resolves the request once; the context is kept
         // before the guard so a denied call still returns rotated cookies.
-        const refresh =
-          refreshFor(middlewareOptions.refresh, context.request) ?? false;
+        const refresh = refreshFor(middlewareOptions.refresh, request) ?? false;
 
-        const known = contexts.get(context.request);
+        const readsCookies = cookies !== false;
+        const known = contexts.get(request);
 
-        const ctx =
-          known && (known.refresh || !refresh)
-            ? known.ctx
-            : await server.context(context.request, { refresh });
+        // A context resolved from the cookie never serves a `cookies: false`
+        // middleware, nor the other way round.
+        const reuse =
+          known?.cookies === readsCookies && (known.refresh || !refresh);
 
-        contexts.set(context.request, {
+        const ctx = reuse
+          ? known.ctx
+          : await server.context(request, { refresh, cookies: readsCookies });
+
+        contexts.set(request, {
           ctx,
-          refresh: refresh || (known?.refresh ?? false),
+          refresh: reuse ? known.refresh || refresh : refresh,
+          cookies: readsCookies,
         });
 
         const denied = guard(
@@ -406,6 +458,7 @@ export function createOrpc<
           throw cause;
         }
       });
+  };
 
   return extendServer<BetterOrpc<M, F, E, C, P, B>>(server, {
     toOrpcError,
@@ -420,19 +473,20 @@ export function createOrpc<
       return os
         .$context<TContext>()
         .middleware(async ({ context, path, next }) => {
-          const outcome = await gate({ context, path });
+          const request = requestOf(context);
+          const outcome = await gate({ context, path, request });
 
           if (outcome.kind === "skip") {
             return next();
           }
 
-          const kept = limits.get(context.request) ?? new Headers();
+          const kept = limits.get(request) ?? new Headers();
 
           for (const [name, value] of outcome.headers) {
             kept.set(name, value);
           }
 
-          limits.set(context.request, kept);
+          limits.set(request, kept);
 
           if (outcome.kind === "deny") {
             throw toOrpcError(outcome.error);
@@ -509,7 +563,7 @@ export function createOrpc<
         procedures[route.operationId] = routed.handler(
           async ({ input, context }) => {
             const settled = await settle(() =>
-              run({ input, db: context.db, request: context.request }),
+              run({ input, db: context.db, request: requestOf(context) }),
             );
 
             if (!settled.ok) {

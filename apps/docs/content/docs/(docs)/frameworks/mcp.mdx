@@ -134,7 +134,10 @@ answers `OPTIONS` with the allowed methods and the MCP headers
 rest), and every response exposes `WWW-Authenticate` so the client can read
 the challenge. Any origin may call by default, which is safe because the
 token travels in a header, not a cookie. With `allowedOrigins`, only a listed
-origin is echoed back. `cors: false` turns all of it off.
+origin is echoed back. `cors: false` turns all of it off. The server never
+reads the session cookie unless you pass `cookies: true`, and then only
+together with `allowedOrigins`, since a cookie lets any page the user visits
+call the tools.
 
 A tool that starts background work enqueues it with
 `{ context: db.$context }` from `run`'s `db`, and the worker runs it as the

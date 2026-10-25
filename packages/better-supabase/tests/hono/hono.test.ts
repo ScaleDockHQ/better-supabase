@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { HonoEnv } from "../../src/hono/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
+import { writeSession } from "../../src/auth/session.ts";
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
@@ -418,5 +419,43 @@ describe("instant sessions", () => {
 
     expect(await response.json()).toEqual({ kind: "anon" });
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("bsb.middleware({ cookies: false })", () => {
+  const bsb = createHono(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks },
+  });
+
+  it("ignores the session cookie and refuses refresh at setup", async () => {
+    const cookie = writeSession([], "sb-abcdefghijklmnopqrst-auth-token", {
+      access_token: await signer.sign({ sub: USER }),
+      refresh_token: "r-hono",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: "bearer",
+      user: { id: USER },
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+
+    const app = new Hono<typeof bsb.Env>()
+      .use("/web/*", bsb.middleware({ allow: ["user", "anon"] }))
+      .use(
+        "/native/*",
+        bsb.middleware({ allow: ["user", "anon"], cookies: false }),
+      )
+      .get("/web/who", (c) => c.json({ kind: c.var.auth.kind }))
+      .get("/native/who", (c) => c.json({ kind: c.var.auth.kind }));
+
+    expect(
+      await (await app.request("/web/who", { headers: { cookie } })).json(),
+    ).toEqual({ kind: "user" });
+    expect(
+      await (await app.request("/native/who", { headers: { cookie } })).json(),
+    ).toEqual({ kind: "anon" });
+    expect(() => bsb.middleware({ cookies: false, refresh: true })).toThrow(
+      TypeError,
+    );
   });
 });

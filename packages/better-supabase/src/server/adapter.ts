@@ -10,7 +10,12 @@ import type {
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { refreshFor } from "./refresh.ts";
-import { defaultExpose, guard, respond } from "./respond.ts";
+import {
+  assertCookieRefresh,
+  defaultExpose,
+  guard,
+  respond,
+} from "./respond.ts";
 
 export interface HandleOptions extends MiddlewareOptions {
   /**
@@ -110,8 +115,11 @@ export async function handle<
   const expose = options.expose ?? defaultExpose();
   const instance = options.instance ?? new URL(request.url).pathname;
 
+  assertCookieRefresh(options);
+
   const ctx = await server.context(request, {
     ...options.context,
+    ...(options.cookies === undefined ? {} : { cookies: options.cookies }),
     refresh: refreshFor(options.refresh, request) ?? false,
   });
 

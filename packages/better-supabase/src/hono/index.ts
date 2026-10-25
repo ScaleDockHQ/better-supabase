@@ -38,7 +38,11 @@ import { requireCaller } from "../server/kit.ts";
 import { rateLimitGate } from "../server/rate-limit.ts";
 import { defineResource } from "../server/resource.ts";
 import { matchResource } from "../server/resources.ts";
-import { defaultExpose, respond } from "../server/respond.ts";
+import {
+  assertCookieRefresh,
+  defaultExpose,
+  respond,
+} from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -316,6 +320,8 @@ export function createHono<
     },
 
     middleware(middlewareOptions = {}) {
+      assertCookieRefresh(middlewareOptions);
+
       const run = honoMiddleware(
         [withBetterSupabase(server, { ...middlewareOptions, expose })],
         (c, ctx) => {
