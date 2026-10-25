@@ -343,7 +343,7 @@ export function fakeStorage(
           data: {
             path,
             token: `token-${path}`,
-            signedUrl: `https://storage.test/upload/${key(path)}`,
+            signedUrl: `https://storage.test/storage/v1/object/upload/sign/${key(path)}?token=token-${path}`,
           },
           error: null,
         };

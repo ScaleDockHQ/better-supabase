@@ -1423,7 +1423,8 @@ describe("BucketClient signed uploads", () => {
     expect(await bucket.reserve(A).orThrow()).toEqual({
       path: "o1/u1/a.txt",
       token: "token-o1/u1/a.txt",
-      signedUrl: "https://storage.test/upload/docs/o1/u1/a.txt",
+      signedUrl:
+        "https://storage.test/storage/v1/object/upload/sign/docs/o1/u1/a.txt?token=token-o1/u1/a.txt",
     });
     await bucket.reserve(A, { upsert: true });
     expect(calls.map((call) => call.args[1])).toEqual([

@@ -97,6 +97,31 @@ export type { SubjectReadersOptions } from "../core/subject-readers.ts";
 
 export { supportStorage } from "./support-storage.ts";
 
+export { claimsFingerprint, sessionStatusRoute } from "./session-status.ts";
+
+export {
+  liveRelayTopic,
+  realtimeRelay,
+  realtimeTopicAccess,
+} from "./realtime-relay.ts";
+
+export type {
+  RealtimeRelayOptions,
+  RelayAccessInput,
+  RelayAuthorize,
+  RelayEndReason,
+  RelayPostgres,
+  RelayServer,
+  RelayTopic,
+} from "./realtime-relay.ts";
+
+export type {
+  SessionStatusBody,
+  SessionStatusRouteOptions,
+  SessionStatusServer,
+  SessionWatchStatus,
+} from "./session-status.ts";
+
 export type { SupportStorageOptions } from "./support-storage.ts";
 
 export {

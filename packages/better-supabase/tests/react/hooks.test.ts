@@ -18,6 +18,7 @@ import type { PresenceTopic } from "../../src/react/presence.ts";
 import type {
   PresenceMember,
   SubscriptionStatus,
+  RealtimeClient,
 } from "../../src/realtime/index.ts";
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
@@ -47,6 +48,7 @@ import {
   useProtectedRoute,
 } from "../../src/react/native/index.ts";
 import { usePresence } from "../../src/react/presence.ts";
+import { useRealtimeRelay } from "../../src/react/relay.ts";
 import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
 import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
@@ -232,7 +234,11 @@ vi.mock("react", async (importOriginal) => {
 function renderHook<P, R>(
   hook: (props: P) => R,
   initial: P,
-  provider: { client: ClientLike; queryClient?: QueryClient } | null,
+  provider: {
+    client: ClientLike;
+    queryClient?: QueryClient;
+    realtime?: RealtimeClient;
+  } | null,
 ) {
   const { state } = runtime;
   state.slots = [];
@@ -635,6 +641,31 @@ describe("useBroadcast", () => {
       });
     }).not.toThrow();
     expect(realtime.client.channel).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
+  it("joins through the provider's realtime client when it has one", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const relay = fakeRealtime();
+    const created = vi.fn();
+
+    const view = renderHook(
+      () => useBroadcast(room, { roomId: "r1" }, { created }),
+      undefined,
+      {
+        client: browser,
+        // SAFETY: the fake implements the members joinTopic calls.
+        realtime: relay.client as unknown as RealtimeClient,
+      },
+    );
+
+    await flush();
+    expect(view.result).toBe("subscribed");
+    expect(relay.client.channel).toHaveBeenCalledOnce();
+    expect(client.channel).not.toHaveBeenCalled();
+    relay.emit("room:r1", "created", { title: "Relayed" });
+    await flush();
+    expect(created).toHaveBeenCalledOnce();
     view.unmount();
   });
 
@@ -2077,5 +2108,75 @@ describe("useSyncStatus and useConflicts", () => {
     expect(view.result.changes).toHaveLength(1);
     view.result.dismiss();
     expect(view.result.changes).toEqual([]);
+  });
+});
+
+describe("useRealtimeRelay", () => {
+  it("relays only in a support session unless asked to always", () => {
+    const outside = renderHook(
+      () => useRealtimeRelay("/api/realtime"),
+      undefined,
+      null,
+    );
+
+    expect(outside.result).toBeUndefined();
+
+    const always = renderHook(
+      () => useRealtimeRelay("/api/realtime", { when: "always" }),
+      undefined,
+      null,
+    );
+
+    const first = always.result;
+    expect(first?.getChannels()).toEqual([]);
+    always.rerender(undefined);
+    expect(always.result).toBe(first);
+  });
+
+  it("passes the EventSource, fetch, timeout and backoff to the client", async () => {
+    const urls: string[] = [];
+    const statuses: string[] = [];
+
+    class Source {
+      readyState = 0;
+
+      constructor(url: string) {
+        urls.push(url);
+      }
+
+      addEventListener() {}
+
+      close() {
+        this.readyState = 2;
+      }
+    }
+
+    const fetch = vi.fn(async () => new Response(null, { status: 202 }));
+
+    const relayed = renderHook(
+      () =>
+        useRealtimeRelay("/api/realtime", {
+          when: "always",
+          EventSource: Source,
+          fetch,
+          timeoutMs: 1,
+          maxBackoffMs: 10,
+        }),
+      undefined,
+      null,
+    );
+
+    const channel = relayed.result?.channel("room:1");
+    channel?.subscribe((status: string) => statuses.push(status));
+    expect(urls).toEqual(["/api/realtime?topic=room%3A1"]);
+
+    await channel?.httpSend("e", 1);
+    expect(fetch).toHaveBeenCalledOnce();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    expect(statuses).toEqual(["TIMED_OUT"]);
+    await relayed.result?.removeChannel(channel!);
   });
 });

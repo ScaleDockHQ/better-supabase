@@ -32,6 +32,7 @@ import type { usePresence as clientUsePresence } from "./presence.ts";
 import type { useRecordForm as clientUseRecordForm } from "./record-form.ts";
 import type { useRecordListState as clientUseRecordListState } from "./record-list.ts";
 import type { createRecordProvider as clientCreateRecordProvider } from "./record.ts";
+import type { useRealtimeRelay as clientUseRealtimeRelay } from "./relay.ts";
 import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
 import type {
   useSignIn as clientUseSignIn,
@@ -125,6 +126,7 @@ export type {
   UploadStatus,
   UploadTarget,
   UseImageOptions,
+  UseRealtimeRelayOptions,
   UseUploadOptions,
 } from "./index.ts";
 
@@ -191,6 +193,13 @@ export const useActionForm: <T>(
  * Component.
  */
 export const usePresence: typeof clientUsePresence = clientOnly("usePresence");
+
+/**
+ * The `react-server` build of `useRealtimeRelay`: create the relay client in a
+ * Client Component.
+ */
+export const useRealtimeRelay: typeof clientUseRealtimeRelay =
+  clientOnly("useRealtimeRelay");
 
 /**
  * The `react-server` build of `useSignIn`: sign in from a Client Component or a

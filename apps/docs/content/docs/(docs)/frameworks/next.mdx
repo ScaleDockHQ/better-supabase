@@ -108,6 +108,55 @@ A proxy that does not use `bsb.proxy` can run the same check with
 `sessionStatus` and `clearSessionCookies`
 ([details](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 
+### Watching the session in the browser
+
+`endedSession` covers document loads. An app that keeps the session in
+httpOnly cookies, with no browser Supabase client, also notices a revoked
+session, a ban or changed claims while a page stays open with
+`sessionStatusRoute` from `better-supabase/server` and `useSessionWatch` from
+`better-supabase/next/client`:
+
+```ts title="app/api/session-status/route.ts"
+import { sessionStatusRoute } from "better-supabase/server";
+
+import { bsb } from "@/lib/supabase/server";
+
+export const GET = sessionStatusRoute(bsb);
+```
+
+```tsx title="app/session-watch.tsx"
+"use client";
+
+import { useSessionWatch } from "better-supabase/next/client";
+
+export function SessionWatch() {
+  useSessionWatch({ redirect: "/login?reason=session_ended" });
+
+  return null;
+}
+```
+
+The route answers `{ status, userId, fingerprint, expiresAt, support }` with
+`Cache-Control: no-store`: `active`, `expired` (the token expired and the
+proxy refreshes it on the next navigation), `ended`, `banned` or
+`signed_out`. It asks Auth whether the session still exists on every check
+(`checkSession: false` skips that) and refreshes nothing unless `refresh:
+true`. `fingerprint` is a SHA-256 of the claims that decide access (all but
+`exp`, `iat`, `nbf`, `jti` and `ignoreClaims`) and of the running support
+session, so a role or tenant change, or a support session that starts, ends
+or switches target, changes it. `claimsFingerprint(claims, support)` computes
+the same value on the server, for a page that passes it to the hook.
+
+The hook checks on focus, when the tab becomes visible and every
+`intervalMs` (60000) while visible. An ended, banned or signed-out session
+loads `redirect`, or the current page so the proxy sends it to sign-in. A
+claims change calls `router.refresh()`. Each change goes to the app's other
+tabs over a `BroadcastChannel` (`channel`, `false` for none), which react the
+same way. `onChange(event)` replaces the default, with `event.reason`
+(`ended`, `banned`, `signed_out`, `claims_changed`) and `event.source`
+(`check` or `tab`). `watchSession(onChange, options)` is the same watcher
+without React.
+
 ### Auth outages
 
 When a refresh fails because Auth is unreachable, times out or answers 5xx

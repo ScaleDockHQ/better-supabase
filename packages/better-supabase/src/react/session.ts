@@ -57,3 +57,13 @@ export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
 export function useSupportSession(): SupportView | undefined {
   return supportOf(useSession());
 }
+
+/**
+ * `useSupportSession()` that answers `undefined` outside a `<SessionProvider>`
+ * instead of throwing.
+ */
+export function useOptionalSupportSession(): SupportView | undefined {
+  const promise = useContext(SessionContext);
+
+  return promise ? supportOf(use(promise)) : undefined;
+}

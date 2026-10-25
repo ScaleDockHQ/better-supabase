@@ -28,7 +28,7 @@ import type {
 } from "../realtime/live.ts";
 import type { DataEngine } from "./data-engine.ts";
 
-import { hasAuthModule } from "../core/auth-module.ts";
+import { authModuleOf } from "../core/auth-module.ts";
 import { dbError } from "../core/errors.ts";
 import { invalidateTables } from "../query/invalidate.ts";
 import { liveCount, liveQuery } from "../realtime/live.ts";
@@ -77,11 +77,11 @@ export interface UseActionOptions<I, T> {
 
 export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
   /**
-   * A supabase-js client to subscribe with, for apps without the provider. It
-   * resubscribes when the client's user changes. Defaults to the provider's
-   * client.
+   * A supabase-js client to subscribe with, for apps without the provider, or a
+   * `relayRealtimeClient(url)`. It resubscribes when the client's user changes.
+   * Defaults to the provider's `realtime`, then its client.
    */
-  readonly client?: SupabaseClient;
+  readonly client?: RealtimeClient;
   /** The query client `invalidate` refetches with. Defaults to the provider's. */
   readonly queryClient?: QueryClient;
   /**
@@ -116,7 +116,7 @@ export interface PresenceHookOptions<I> {
    */
   readonly state?: I | null;
   /** A supabase-js client for apps without the provider. */
-  readonly client?: SupabaseClient;
+  readonly client?: RealtimeClient;
 }
 
 /** The parts of a `defineTopic(..., { presence })` topic the bindings use. */
@@ -166,20 +166,22 @@ export function callerOf(auth: AuthSnapshot): Caller {
  * The caller of a plain supabase-js client, for subscriptions made without the
  * provider. `loading` until auth-js reports the first state.
  */
-export function plainCaller(supabase: SupabaseClient): Store<Caller> {
+export function plainCaller(supabase: RealtimeClient): Store<Caller> {
   let caller: Caller = { status: "loading", userId: null };
 
   return {
     current: () => caller,
     subscribe: (listener) => {
+      const authModule = authModuleOf(supabase);
+
       // Without the auth module there is no session to follow.
-      if (!hasAuthModule(supabase)) {
+      if (!authModule) {
         caller = { status: "signed-out", userId: null };
 
         return () => undefined;
       }
 
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data } = authModule.onAuthStateChange((_event, session) => {
         caller = {
           status: session ? "signed-in" : "signed-out",
           userId: session ? sessionUserId(session) : null,
@@ -195,7 +197,7 @@ export function plainCaller(supabase: SupabaseClient): Store<Caller> {
 }
 
 export interface BroadcastRun<P extends string, E extends EventSchemas> {
-  readonly supabase: SupabaseClient;
+  readonly supabase: RealtimeClient;
   readonly topic: Topic<P, E>;
   readonly name: string;
   /** Read on every message, so handlers can change without a resubscribe. */
@@ -289,6 +291,8 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
 
 export interface LiveQueryRun {
   readonly client: ClientLike;
+  /** Joins through this client instead of `client.supabase`. */
+  readonly realtime?: RealtimeClient;
   readonly queryClient: QueryClient;
   readonly spec: QuerySpec;
   readonly auth: AuthSnapshot;
@@ -329,15 +333,20 @@ export function startLiveQuery(run: LiveQueryRun): () => void {
 
   const userId = run.auth.user?.id ?? null;
 
-  const live = liveQuery(client.betterSupabase, client.supabase, run.spec, {
-    onChange: (tables) => void invalidateTables(queryClient, tables),
-    onStatus: run.onStatus,
-    ...(tenant === undefined ? {} : { tenant }),
-    ...(userId === null ? {} : { user: userId }),
-    ...(options.debounceMs === undefined
-      ? {}
-      : { debounceMs: options.debounceMs }),
-  });
+  const live = liveQuery(
+    client.betterSupabase,
+    run.realtime ?? client.supabase,
+    run.spec,
+    {
+      onChange: (tables) => void invalidateTables(queryClient, tables),
+      onStatus: run.onStatus,
+      ...(tenant === undefined ? {} : { tenant }),
+      ...(userId === null ? {} : { user: userId }),
+      ...(options.debounceMs === undefined
+        ? {}
+        : { debounceMs: options.debounceMs }),
+    },
+  );
 
   if (run.resumed) {
     live.ready.then(
@@ -401,6 +410,8 @@ export const NO_COUNT: CountState = {
 
 export interface LiveCountRun {
   readonly client: ClientLike;
+  /** Joins through this client instead of `client.supabase`. */
+  readonly realtime?: RealtimeClient;
   readonly spec: QuerySpec<string, "count", number>;
   readonly key: string;
   readonly auth: AuthSnapshot;
@@ -424,7 +435,7 @@ export function startLiveCount(run: LiveCountRun): () => void {
   // SAFETY: the client db runs count specs.
   const live = liveCount(
     client.betterSupabase,
-    client.supabase,
+    run.realtime ?? client.supabase,
     client.db as CountRunner,
     run.spec,
     {
@@ -492,7 +503,7 @@ export interface PresenceJoin<I> {
  * match.
  */
 export function joinPresence<P extends string, I, O>(
-  supabase: SupabaseClient,
+  supabase: RealtimeClient,
   topic: PresenceTopic<P, I, O>,
   name: string,
   handlers: {

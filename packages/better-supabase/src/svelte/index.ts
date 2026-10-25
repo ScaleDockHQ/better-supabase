@@ -28,6 +28,7 @@ import type { QuerySpec } from "../core/spec.ts";
 import type {
   EventSchemas,
   PresenceMember,
+  RealtimeClient,
   SubscriptionStatus,
   TemplateValues,
   Topic,
@@ -260,9 +261,9 @@ export function createBetterSvelte<B extends ClientLike>(
 ): BetterSvelte<B> {
   const { queryClient } = options;
   const auth = reactive(client.auth);
-  const plainCallers = new WeakMap<SupabaseClient, Current<Caller>>();
+  const plainCallers = new WeakMap<RealtimeClient, Current<Caller>>();
 
-  const callerFor = (supabase: SupabaseClient | undefined): Current<Caller> => {
+  const callerFor = (supabase: RealtimeClient | undefined): Current<Caller> => {
     if (supabase === undefined) {
       return {
         get current() {

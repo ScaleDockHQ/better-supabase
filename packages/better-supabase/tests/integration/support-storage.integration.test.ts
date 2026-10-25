@@ -478,6 +478,57 @@ create policy bsb_it_insert_only_select on storage.objects for select to authent
     expect(await (await asTarget.download(path)).data?.text()).toBe("big");
   });
 
+  it("reserves a resumable upload, takes TUS bytes without a token and claims them", async () => {
+    const path = own("resumable.txt");
+    const bucket = files.connect(writer);
+    const reservation = await bucket.reserveResumable(path).orThrow();
+    const bytes = new TextEncoder().encode("resumable");
+    const base64 = (value: string) => Buffer.from(value).toString("base64");
+
+    expect(reservation).toMatchObject({
+      bucket: files.id,
+      tusEndpoint: `${url}/storage/v1/upload/resumable/sign`,
+      metadata: { bucketName: files.id, objectName: path },
+      headers: { "x-upsert": "false" },
+    });
+    expect(Date.parse(reservation.expiresAt)).toBeGreaterThan(Date.now());
+
+    const created = await fetch(reservation.tusEndpoint, {
+      method: "POST",
+      headers: {
+        ...reservation.headers,
+        "tus-resumable": "1.0.0",
+        "upload-length": String(bytes.length),
+        "upload-metadata": [
+          `bucketName ${base64(reservation.metadata.bucketName)}`,
+          `objectName ${base64(reservation.metadata.objectName)}`,
+          `contentType ${base64("text/plain")}`,
+        ].join(","),
+      },
+    });
+
+    expect(created.status).toBe(201);
+
+    const patched = await fetch(created.headers.get("location")!, {
+      method: "PATCH",
+      headers: {
+        ...reservation.headers,
+        "tus-resumable": "1.0.0",
+        "upload-offset": "0",
+        "content-type": "application/offset+octet-stream",
+      },
+      body: bytes,
+    });
+
+    expect(patched.status).toBe(204);
+    expect(await row(files.id, path)).toMatchObject({ owner_id: null });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({ path });
+    expect(await row(files.id, path)).toMatchObject({
+      owner_id: USER,
+      user_metadata: { supportSessionId: SESSION.id },
+    });
+  });
+
   it("uploads to a reservation from the server and claims it", async () => {
     const path = own("reserved-server.txt");
     const bucket = files.connect(writer);

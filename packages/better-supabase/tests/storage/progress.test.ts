@@ -123,7 +123,7 @@ describe("upload progress", () => {
     expect(calls.map((call) => call.method)).toEqual(["createSignedUploadUrl"]);
     expect(sent[0]).toMatchObject({
       method: "PUT",
-      url: "https://storage.test/upload/docs/o1/a.txt",
+      url: "https://storage.test/storage/v1/object/upload/sign/docs/o1/a.txt?token=token-o1/a.txt",
       headers: {
         "x-upsert": "true",
         "cache-control": "max-age=60",
@@ -204,6 +204,21 @@ describe("upload progress", () => {
         .upload(A, "x", { onProgress: () => undefined }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     expect(calls.some((call) => call.method === "remove")).toBe(false);
+  });
+
+  it("returns the signing error without sending a request", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+
+    const { client } = fakeStorage({
+      fail: { createSignedUploadUrl: { message: "denied", statusCode: "403" } },
+    });
+
+    expect(
+      await docs
+        .connect(client)
+        .upload(A, "x", { onProgress: () => undefined }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(sent).toEqual([]);
   });
 
   it("cancels the request on abort", async () => {
