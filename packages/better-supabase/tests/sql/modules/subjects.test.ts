@@ -172,7 +172,7 @@ describe("subjectsOption with the registry", () => {
       `"better_supabase"."subject_presence_allowed"(topic text)`,
     );
     expect(sql).toContain(
-      "regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$')",
+      "regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$')",
     );
     expect(sql).toContain(
       `coalesce("better_supabase"."can_subject"(v_parts[1], v_parts[2], 'read'), false)`,

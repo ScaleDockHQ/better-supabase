@@ -7,6 +7,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
+import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   lockTable,
@@ -86,7 +87,7 @@ function bindingTrigger(
   c: (column: string) => string,
 ): string {
   const type = binding.subject.type;
-  const name = `bsb_field_history_${type}`;
+  const name = `bsb_field_history_${subjectTypeIdent(type)}`;
   const watched = binding.fields.map(sqlIdent).join(", ");
 
   const values = binding.fields

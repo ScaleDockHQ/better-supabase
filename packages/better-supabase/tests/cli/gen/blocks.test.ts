@@ -81,6 +81,43 @@ describe("blocks.generated.ts", () => {
     expect(plain["tags"]).not.toHaveProperty("names");
   });
 
+  it("writes the tenant column sql.tenantColumn gives a block's tables", () => {
+    const entries = blockConfigEntries(
+      resolveConfig(
+        {
+          blocks: ["quotes"],
+          database: { sql: { tenantColumn: "organization_id" } },
+        },
+        "/project",
+      ),
+    );
+
+    expect(entries["quotes"]?.names).toEqual({
+      tenantColumn: "organization_id",
+    });
+    expect(entries["memberships"]).not.toHaveProperty("names");
+  });
+
+  it("writes the tenant column a block maps on all of its tables", () => {
+    const entries = blockConfigEntries(
+      resolveConfig(
+        {
+          blocks: {
+            quotes: {
+              columns: {
+                quotes: { tenant: "org_id" },
+                lines: { tenant: "org_id" },
+              },
+            },
+          },
+        },
+        "/project",
+      ),
+    );
+
+    expect(entries["quotes"]?.names).toEqual({ tenantColumn: "org_id" });
+  });
+
   it("writes the entities blocks.<name>.entities renames", () => {
     const config = resolveConfig(
       {

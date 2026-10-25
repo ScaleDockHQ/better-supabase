@@ -3067,7 +3067,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:6edfad661ce042d147e2dfcd68c5b86b655e71c5187c9fce32f5d89ab2a8f816
+-- @bsb-hash sha256:78e966e6792e9ba06eb7833495ee0b979190801c2879c13dea30fb06bed49b08
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3300,29 +3300,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_quote"(uuid, jsonb) to authenticated, service_role;
-create table if not exists "better_supabase"."quote_lines" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "parent_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
-  "product_type" text,
-  "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
-  "unit_amount" bigint not null,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
-  "tax_code" text,
-  "position" integer not null,
-  "created_at" timestamptz not null default now(),
-  check (("product_type" is null) = ("product_id" is null))
-);
+-- better_supabase.quote_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."quote_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."quote_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."quote_lines" add column if not exists "parent_id" uuid references "better_supabase"."quotes" ("id") on delete cascade;
+alter table "better_supabase"."quote_lines" add column if not exists "product_type" text;
+alter table "better_supabase"."quote_lines" add column if not exists "product_id" text;
+alter table "better_supabase"."quote_lines" add column if not exists "description" text check (length("description") between 1 and 2000);
+alter table "better_supabase"."quote_lines" add column if not exists "quantity" numeric(18, 4) check ("quantity" > 0);
+alter table "better_supabase"."quote_lines" add column if not exists "unit_amount" bigint;
+alter table "better_supabase"."quote_lines" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."quote_lines" add column if not exists "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000);
+alter table "better_supabase"."quote_lines" add column if not exists "tax_code" text;
+alter table "better_supabase"."quote_lines" add column if not exists "position" integer;
+alter table "better_supabase"."quote_lines" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
-drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
-create policy "quote_lines_read" on "better_supabase"."quote_lines" for select to authenticated
+drop policy if exists bsb_quote_lines_select on "better_supabase"."quote_lines";
+create policy bsb_quote_lines_select on "better_supabase"."quote_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its lines. A record without lines keeps

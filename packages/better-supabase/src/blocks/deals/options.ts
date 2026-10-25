@@ -11,6 +11,7 @@ export type DealsSqlOptions = {
   readonly prefix?: string;
   readonly readAll?: boolean;
   readonly extraColumns?: ExtraColumns;
+  readonly lineExtraColumns?: ExtraColumns;
 };
 
 export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
@@ -22,4 +23,5 @@ export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
     prefix: option.string({ default: "DEAL-" }),
     readAll: option.boolean({ default: true }),
     extraColumns: option.extraColumns(),
+    lineExtraColumns: option.extraColumns(),
   });

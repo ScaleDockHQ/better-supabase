@@ -257,7 +257,7 @@ create table if not exists ${assets} (
   ${s("name")} text not null check (length(${s("name")}) between 1 and 200),${ctx.has("assets", "tag") ? "\n  -- The asset tag, unique per organization." : ""}${column("assets", "tag", (tag) => `${tag} text check (${tag} is null or length(${tag}) between 1 and 100)`)}${column("assets", "serial", (serial) => `${serial} text check (${serial} is null or length(${serial}) <= 200)`)}
   ${s("status")} text not null default 'active' check (${s("status")} in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  ${s("assigneeType")} text check (${s("assigneeType")} is null or ${s("assigneeType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${s("assigneeType")} text check (${s("assigneeType")} is null or ${s("assigneeType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${s("assigneeId")} text,${tracked ? `\n  -- Where a moving asset (a vehicle) was last seen.\n  ${coordinates(s("latitude"), s("longitude"))}` : ""}${postgis && tracked ? `\n  ${pointColumn(s("latitude"), s("longitude"))}` : ""}${object("assets", "metadata")}${column("assets", "retiredAt", (retired) => `${retired} timestamptz`)}${column("assets", "createdBy", (createdBy) => `${createdBy} uuid`)}
   ${s("createdAt")} timestamptz not null default now(),
   ${s("updatedAt")} timestamptz not null default now()${constraints([

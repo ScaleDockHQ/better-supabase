@@ -182,9 +182,7 @@ function subjectCheck(ctx: BlockSqlContext): string {
   const blocks = blockSubjects(ctx);
   const owned = new Set(blocks.map(([type]) => type));
 
-  const registered = subjectsOption(ctx, [], { hyphens: true }).filter(
-    ([type]) => !owned.has(type),
-  );
+  const registered = subjectsOption(ctx).filter(([type]) => !owned.has(type));
 
   const others =
     registered.length === 0

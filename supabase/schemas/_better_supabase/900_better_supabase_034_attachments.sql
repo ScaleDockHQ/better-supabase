@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:7162ff466f1751ee356c8350aaf0e9d30f1e48944158dfe12b45ed0694460646
+-- @bsb-hash sha256:e83b88658d36ffd88c58b9de7b466bb4da7580f36cfc8f63b52ccc4eaa994644
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -62,7 +62,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
   "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored,

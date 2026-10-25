@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:101436b09e380b9275299c6ebcdda55566ece2998efe9b1c0df2e58a27c0ae17
+-- @bsb-hash sha256:66624af463a6927d2ad22f0b9e26d663441752bed8e6386de5a0c418f9000dfe
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1451,7 +1451,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;

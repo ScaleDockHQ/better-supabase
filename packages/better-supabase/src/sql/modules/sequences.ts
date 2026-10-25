@@ -158,7 +158,7 @@ create table if not exists ${members} (
   ${r("enrollment")} uuid primary key references ${q.enrollments} (${q.e("id")}) on delete cascade,
   ${r("tenant")} ${ctx.idType} not null,
   ${r("sequence")} uuid not null references ${sequences} (${s("id")}) on delete cascade,
-  ${r("subjectType")} text not null check (${r("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${r("subjectType")} text not null check (${r("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${r("subjectId")} text not null check (length(${r("subjectId")}) between 1 and 200),
   ${r("address")} text check (${r("address")} is null or (length(${r("address")}) <= 320 and ${r("address")} ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   ${r("name")} text check (${r("name")} is null or length(${r("name")}) <= 200),

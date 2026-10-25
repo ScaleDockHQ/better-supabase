@@ -68,6 +68,48 @@ export default defineConfig({
 });
 ```
 
+### One tenant column name
+
+Blocks name the tenant column of their tables `tenant_id`. When your schema
+calls it something else everywhere, such as `organization_id`, set
+`database.sql.tenantColumn` once instead of mapping `tenant` on every table:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { sql: { tenantColumn: "organization_id" } },
+});
+```
+
+Every table a block creates then gets that column, and every block table that
+runs over yours looks for it there. A `columns.<table>.tenant` mapping still
+wins for its table. The SQL, the generated types (read from the database) and
+the policies use the name; `gen` writes it to the block's `names` in
+`blocks.generated.ts`, so the block's TypeScript client reads rows back with
+`tenant_id` as before. A name another column of a block table already has,
+such as `parent_id`, is refused.
+
+### Line tables
+
+The line tables of `quotes`, `invoices` and `deals` (`quote_lines`,
+`invoice_lines`, `deal_lines`) can be yours too. Map them with `tables.lines`
+and `columns.lines`, and declare the columns of yours that `set_*_lines`
+should write in `options.lineExtraColumns`: each line's `fields` sets them, a
+key it leaves out keeps the column's default, and reads return them under
+`fields` on each line. `set_*_lines` replaces every line of the record, so
+give a column of yours that no line sets a default.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    quotes: {
+      tables: { quotes: "public.quotes", lines: "public.quote_lines" },
+      columns: { lines: { parent: "quote_id" } },
+      options: { lineExtraColumns: { sku: "text" } },
+    },
+  },
+});
+```
+
 ### Names on your tables
 
 The policies and triggers a block adds to your table start with `bsb_`, so

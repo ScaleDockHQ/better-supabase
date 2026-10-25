@@ -20,6 +20,7 @@ import {
   instanceFunctions,
   resolveBlock,
   resolveBlocks,
+  SQL_MODULES,
 } from "../../sql/index.ts";
 import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
@@ -36,6 +37,50 @@ function hasSchema(
   module: string,
 ): module is keyof typeof BLOCK_OPTION_SCHEMAS {
   return module in BLOCK_OPTION_SCHEMAS;
+}
+
+const DEFAULT_TENANT_COLUMN = "tenant_id";
+
+function tenantColumnOf(
+  config: Pick<ResolvedConfig, "blocks" | "sql">,
+  modules: readonly string[],
+): string | undefined {
+  const names = new Set<string>();
+  const others = new Set<string>();
+
+  for (const module of modules) {
+    const resolved = resolveBlock(config.blocks[module]);
+
+    for (const [table, spec] of Object.entries(
+      SQL_MODULES[module]?.names?.tables ?? {},
+    )) {
+      if (resolved.tables[table] === null) {
+        continue;
+      }
+
+      for (const [logical, name] of Object.entries(spec.columns)) {
+        if (name !== DEFAULT_TENANT_COLUMN) {
+          others.add(name);
+          continue;
+        }
+
+        const mapped = resolved.columns[table]?.[logical];
+
+        if (mapped !== null) {
+          names.add(mapped ?? config.sql.tenantColumn ?? name);
+        }
+      }
+    }
+  }
+
+  const [name] = names;
+
+  return names.size === 1 &&
+    name !== undefined &&
+    name !== DEFAULT_TENANT_COLUMN &&
+    !others.has(name)
+    ? name
+    : undefined;
 }
 
 /**
@@ -64,13 +109,20 @@ function namingOf(
 
   const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
+  const tenantColumn = tenantColumnOf(config, modules);
 
-  if (tenant === undefined && !renames && entities.length === 0) {
+  if (
+    tenant === undefined &&
+    !renames &&
+    entities.length === 0 &&
+    tenantColumn === undefined
+  ) {
     return undefined;
   }
 
   return {
     ...(tenant === undefined ? {} : { tenant }),
+    ...(tenantColumn === undefined ? {} : { tenantColumn }),
     ...(renames ? { functions } : {}),
     ...(entities.length === 0 ? {} : { entities }),
   };

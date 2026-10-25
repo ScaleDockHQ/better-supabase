@@ -35,6 +35,9 @@ export function moduleLayout(
     modules: config.blocks,
     instances: config.instances,
     ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
+    ...(config.sql.tenantColumn === undefined
+      ? {}
+      : { blockTenantColumn: config.sql.tenantColumn }),
     subjects: config.subjects,
     appTables: config.appTables,
     vectorSearch: config.vectorSearch,

@@ -375,6 +375,45 @@ describe.skipIf(!live)("quotes and invoices", () => {
     }
   });
 
+  it("writes and reads the line table's extra columns from each line's fields", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      await s.install(MODULES, {
+        ...layout,
+        modules: {
+          quotes: {
+            options: {
+              lineExtraColumns: { sku: "text", hours: "integer default 1" },
+            },
+          },
+        },
+      });
+      const org = await s.organization(owner);
+      const quotes = createQuotes({ transport: sqlTransport(s.sql) });
+      await s.as(owner);
+
+      const quote = await quotes
+        .create(org, { title: "Fields" }, [
+          {
+            description: "Setup",
+            unitAmount: eur(100n),
+            fields: { sku: "S-1" },
+          },
+          { description: "Hours", unitAmount: eur(50n) },
+        ])
+        .orThrow();
+
+      expect(quote.lines.map((line) => line.fields)).toEqual([
+        { sku: "S-1", hours: 1 },
+        { sku: null, hours: 1 },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("voids drafts, expires sent quotes and refuses quotes that aren't accepted", async () => {
     const s = await BlockSession.open(pool);
 

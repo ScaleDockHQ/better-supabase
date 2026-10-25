@@ -1,7 +1,11 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import {
+  lineFieldsJson,
+  lineItemsSql,
+  TOTAL_COLUMNS,
+} from "../line-items-sql.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
@@ -25,6 +29,7 @@ export interface InvoiceNames {
   readonly service: string;
   /** `options.extraColumns`, which `create_invoice` writes by name. */
   readonly extras: readonly ExtraColumn[];
+  readonly lineExtras: readonly ExtraColumn[];
 }
 
 /** Whether the invoices table has both columns of a company or contact. */
@@ -108,7 +113,7 @@ export function invoiceFunctions(
     `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
       'balance', ${balance(alias)}::text,
       'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
-      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', ${ledger.payments(alias)})`;
 
   const record = (
@@ -337,7 +342,12 @@ $$;
 ${userGrant(`${fn("create_invoice")}(${ctx.idType}, jsonb, jsonb)`)}
 ${lineItemsSql(
   ctx,
-  { lines: "lines", parent: "invoices", frozen: `p.${i("status")} <> 'draft'` },
+  {
+    lines: "lines",
+    parent: "invoices",
+    frozen: `p.${i("status")} <> 'draft'`,
+    extras: n.lineExtras,
+  },
   {
     setter: "set_invoice_lines",
     guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.write)}) then

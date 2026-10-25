@@ -10,6 +10,7 @@ import type { InvoiceNames } from "./invoices-functions.ts";
 
 import { guestOr } from "../guest-sql.ts";
 import {
+  lineExtraColumns,
   lineTableSpec,
   TOTAL_COLUMNS,
   totalColumnsSql,
@@ -80,6 +81,7 @@ const NAMES: BlockSqlNames = {
     "creditPrefix",
     "termsDays",
     "extraColumns",
+    "lineExtraColumns",
   ],
   tables: {
     invoices: {
@@ -229,6 +231,7 @@ function build(ctx: BlockSqlContext): string {
       "balance",
       "overdue",
     ]),
+    lineExtras: lineExtraColumns(ctx),
   };
 
   return `${schemaPreamble(ctx)}

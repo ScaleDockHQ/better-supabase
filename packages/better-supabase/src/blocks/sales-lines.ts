@@ -3,7 +3,7 @@ import type { RecordRef } from "./sales-shared.ts";
 
 import { amountText, moneyOf } from "./money-codec.ts";
 import { compact, refOf } from "./sales-shared.ts";
-import { optionalText, recordOf, textOf } from "./shared.ts";
+import { isRecord, optionalText, recordOf, textOf } from "./shared.ts";
 
 /** A line of a quote or invoice, in the document's currency. */
 export interface LineInput {
@@ -14,6 +14,7 @@ export interface LineInput {
   readonly taxRateBps?: number;
   readonly taxCode?: string;
   readonly product?: RecordRef;
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface Line extends LineInput {
@@ -44,6 +45,7 @@ export function lineOf(value: unknown, currency: string): Line {
     taxRateBps: Number(row["taxRateBps"] ?? 0),
     taxCode: optionalText(row["taxCode"]),
     product: refOf(product["type"], product["id"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : undefined,
   });
 }
 

@@ -673,7 +673,7 @@ $$;`;
  * with the tenant column.
  */
 function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
-  const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
+  const subjects = subjectsOption(ctx, [], { tenantless: true });
 
   if (!subjects.some(([, subject]) => subject.cascade)) {
     return "";

@@ -488,7 +488,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^${PRESENCE_TOPIC_PREFIX}:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^${PRESENCE_TOPIC_PREFIX}:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;

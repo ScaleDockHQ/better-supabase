@@ -607,7 +607,7 @@ begin
   if v_row.${s("status")} = 'retired' then
     ${fail("ASSETS_RETIRED", "a retired asset can't be assigned", "55000")}
   end if;
-  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
+  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
     ${invalid("ASSETS_ASSIGNEE_INVALID", "an assignee needs a lowercase type and an id")}
   end if;
   if assign_asset.assignee_type = 'member' and (

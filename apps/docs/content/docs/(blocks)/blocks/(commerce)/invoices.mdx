@@ -59,6 +59,11 @@ const rows = useInvoices({ limit: 50 });
 
 ## Your own fields
 
+`options.lineExtraColumns` adds columns to the line table, keyed by column
+name with their SQL type: each line's `fields` writes them, and lines come back with them under `fields` (untyped,
+since `fields` validates the record's own columns). A line table of yours
+runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).
+
 `blocks.invoices.options.extraColumns` adds columns to the `invoices` table,
 keyed by column name with their SQL type. `create` writes them from the input by name, and every invoice comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,

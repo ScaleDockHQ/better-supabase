@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
+import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
@@ -231,7 +232,7 @@ function bindingTrigger(
   fn: (name: string) => string,
 ): string {
   const type = binding.subject.type;
-  const name = `bsb_sla_${type}`;
+  const name = `bsb_sla_${subjectTypeIdent(type)}`;
   const status = sqlIdent(binding.status);
 
   const priority =

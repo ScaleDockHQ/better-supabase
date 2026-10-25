@@ -764,8 +764,8 @@ const FLAT = {
       v.pipe(
         v.string(),
         v.regex(
-          /^[a-z][a-z0-9_]{0,62}$/,
-          "a subject type is lowercase letters, digits and underscores",
+          /^[a-z][a-z0-9_-]{0,62}$/,
+          "a subject type is lowercase letters, digits, hyphens and underscores",
         ),
       ),
       v.strictObject({
@@ -806,6 +806,7 @@ const FLAT = {
       api: v.optional(v.string()),
       owner: v.optional(v.picklist(["tenant", "user", "none"])),
       ownTablePolicies: v.optional(v.picklist(["block", "app"])),
+      tenantColumn: v.optional(v.string()),
     }),
   ),
   seed: v.optional(

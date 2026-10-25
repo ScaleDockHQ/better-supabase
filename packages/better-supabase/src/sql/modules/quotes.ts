@@ -10,6 +10,7 @@ import type { QuoteNames } from "./quotes-functions.ts";
 
 import { QUOTE_TO_ORDER } from "../../blocks/quotes/automations.ts";
 import {
+  lineExtraColumns,
   lineTableSpec,
   TOTAL_COLUMNS,
   totalColumnsSql,
@@ -62,7 +63,14 @@ const NAMES: BlockSqlNames = {
     "before_quote_accept",
     "after_quote_accept",
   ],
-  options: ["company", "contact", "prefix", "validDays", "extraColumns"],
+  options: [
+    "company",
+    "contact",
+    "prefix",
+    "validDays",
+    "extraColumns",
+    "lineExtraColumns",
+  ],
   tables: {
     quotes: {
       name: "quotes",
@@ -201,6 +209,7 @@ function build(ctx: BlockSqlContext): string {
     service: "(auth.role() = 'service_role')",
     // The keys a quote read returns next to its columns.
     extras: ctx.extraColumns("quotes", ["lines", "token", "fields"]),
+    lineExtras: lineExtraColumns(ctx),
   };
 
   return `${schemaPreamble(ctx)}

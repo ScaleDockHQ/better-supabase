@@ -20,15 +20,16 @@ import type { BlockSqlScope } from "./scope.ts";
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
-import { isSqlType } from "../config/sql-type.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
+import { checkedExtraColumns } from "./extra-columns.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
+import { blockColumnName } from "./tenant-column.ts";
 
 export { NOTHING };
 
@@ -472,6 +473,7 @@ export interface BlockSqlContext {
   extraColumns(
     table: string,
     reserved?: readonly string[],
+    name?: string,
   ): readonly ExtraColumn[];
   /**
    * PL/pgSQL that calls the app's hook function when it exists, with `[type,
@@ -594,8 +596,6 @@ export interface ExtraColumn {
   readonly type: string;
 }
 
-const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
-
 export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
   /** `config.records`, which `subjectsOption` falls back to. */
@@ -615,6 +615,7 @@ export interface BlockSqlContextSource {
   readonly providerGuests?: boolean;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
+  readonly tenantColumn?: string;
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -922,6 +923,12 @@ export function createModuleContext(
     return parts;
   };
 
+  const tenantColumn = source.tenantColumn;
+
+  if (tenantColumn !== undefined) {
+    checkIdent("sql.tenantColumn", tenantColumn);
+  }
+
   const column = (table: string, logical: string): string | null => {
     const known = names.tables[table];
 
@@ -934,7 +941,13 @@ export function createModuleContext(
     const mapped = config.columns[table]?.[logical];
 
     return mapped === undefined
-      ? naming.rename(known.columns[logical]!)
+      ? blockColumnName(
+          { module, table },
+          known.columns,
+          known.columns[logical]!,
+          tenantColumn,
+          (name) => naming.rename(name),
+        )
       : mapped;
   };
 
@@ -1324,14 +1337,14 @@ export function createModuleContext(
 
       return value;
     },
-    extraColumns(table, reserved = []) {
-      const value = option("extraColumns");
+    extraColumns(table, reserved = [], key = "extraColumns") {
+      const value = option(key);
 
       if (value === undefined) {
         return [];
       }
 
-      const at = `${where}.options.extraColumns`;
+      const at = `${where}.options.${key}`;
 
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
         throw new TypeError(`${at} must be an object`);
@@ -1350,25 +1363,7 @@ export function createModuleContext(
           .flatMap((logical) => column(table, logical) ?? []),
       ]);
 
-      return Object.entries(value).map(([name, type]) => {
-        if (!EXTRA_COLUMN.test(name) || name.length > 63) {
-          throw new TypeError(`${at}: "${name}" is not a valid column name`);
-        }
-
-        if (taken.has(name)) {
-          throw new TypeError(
-            `${at}.${name} shadows a column the module already returns`,
-          );
-        }
-
-        if (typeof type !== "string" || !isSqlType(type)) {
-          throw new TypeError(
-            `${at}.${name} must be a SQL type such as "text not null default 'en'"`,
-          );
-        }
-
-        return { name, ident: sqlIdent(name), type };
-      });
+      return checkedExtraColumns(at, value, taken);
     },
     hook(name, args) {
       const target = hookTarget(name);

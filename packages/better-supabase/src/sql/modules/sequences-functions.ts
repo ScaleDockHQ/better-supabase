@@ -544,7 +544,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     ${q.invalid("attrs must be an object")}
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     ${q.invalid("subject_type: use lowercase letters, digits or _")}
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then

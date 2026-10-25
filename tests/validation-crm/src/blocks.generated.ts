@@ -20,6 +20,9 @@ export const blockConfig = {
   permissions: {
     schema: "better_supabase",
     options: {},
+    names: {
+      tenantColumn: "organization_id",
+    },
   },
   organizations: {
     schema: "better_supabase",
@@ -36,6 +39,9 @@ export const blockConfig = {
   teams: {
     schema: "better_supabase",
     options: {},
+    names: {
+      tenantColumn: "organization_id",
+    },
   },
   memberships: {
     schema: "better_supabase",

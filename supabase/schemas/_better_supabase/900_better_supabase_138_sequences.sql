@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:f23fc4300e979c024cdf446852e0a98151d8b7abdf6642daa5d86ee466e12579
+-- @bsb-hash sha256:16702f2d60063ec1b41e66c93c626588327b90135578aa419fef45dfbaa18a38
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,7 @@ create table if not exists "better_supabase"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -619,7 +619,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then

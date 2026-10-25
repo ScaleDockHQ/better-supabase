@@ -11,7 +11,7 @@ const UUID =
 
 const NAME = String.raw`\[([^\]\n]{1,100})\]`;
 const USER = String.raw`\((?:[uU][sS][eE][rR]:)?(${UUID})\)`;
-const TYPE = "[a-z][a-z0-9_]{0,62}";
+const TYPE = "[a-z][a-z0-9_-]{0,62}";
 const RECORD = String.raw`\(subject:(${TYPE})/([^)\s]{1,200})\)`;
 const SCOPE = String.raw`(^|[^\w@])@(channel|here)\b`;
 

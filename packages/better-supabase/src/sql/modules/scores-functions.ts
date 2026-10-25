@@ -141,7 +141,7 @@ begin
   if v_name is null or length(v_name) > 200 then
     ${invalid("a score model needs a name of at most 200 characters")}
   end if;
-  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     ${invalid("a score model needs a subject type")}
   end if;
   if jsonb_typeof(v_rules) is distinct from 'array' or jsonb_array_length(v_rules) > ${maxRules} then

@@ -5,6 +5,10 @@ import type {
 import type { EntityNames } from "../core/entity-naming.ts";
 
 import { tenantNames } from "../core/entity-naming.ts";
+import {
+  SUBJECT_TYPE_PATTERN,
+  subjectTypeIdent,
+} from "../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { splitTable } from "./shared.ts";
 
@@ -22,7 +26,7 @@ export interface RegisteredSubject {
   readonly tenant: string | undefined;
 }
 
-const TYPE = /^[a-z][a-z0-9_]{0,62}$/;
+const TYPE = SUBJECT_TYPE_PATTERN;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
 const ACTION = /^[a-z][a-z0-9_.-]{0,62}$/;
@@ -46,12 +50,26 @@ export function registeredSubjects(
   subjects: SubjectsConfig,
   naming: EntityNames = tenantNames(),
 ): readonly RegisteredSubject[] {
+  const idents = new Map<string, string>();
+
+  for (const type of Object.keys(subjects)) {
+    const other = idents.get(subjectTypeIdent(type));
+
+    if (other !== undefined) {
+      throw new TypeError(
+        `subjects.${type}: "${type}" and "${other}" name the same SQL objects. Keep one of them.`,
+      );
+    }
+
+    idents.set(subjectTypeIdent(type), type);
+  }
+
   return Object.entries(subjects).map(([type, entry]) => {
     const where = `subjects.${type}`;
 
     if (!TYPE.test(type)) {
       throw new TypeError(
-        `${where}: a subject type is lowercase letters, digits and underscores`,
+        `${where}: a subject type is lowercase letters, digits, hyphens and underscores, starting with a letter`,
       );
     }
 

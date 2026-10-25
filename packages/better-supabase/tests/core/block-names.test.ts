@@ -140,3 +140,18 @@ describe("blockNames with renamed entities", () => {
     ]);
   });
 });
+
+describe("blockNames with a tenant column", () => {
+  it("gives result rows the tenant column as tenant_id", async () => {
+    const { fn, result } = await call(
+      { tenantColumn: "organization_id" },
+      "list_quotes",
+      [{ id: "q1", organization_id: "o1", fields: { organization_id: "x" } }],
+    );
+
+    expect(fn).toBe("list_quotes");
+    expect(result).toEqual([
+      { id: "q1", tenant_id: "o1", fields: { organization_id: "x" } },
+    ]);
+  });
+});

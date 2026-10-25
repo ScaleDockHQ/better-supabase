@@ -3122,7 +3122,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:751085b7bb910f99a129661abe80ec00724c9ff8a115186bfc6430bfae335d75
+-- @bsb-hash sha256:3fd4365d1195ea4d3b7ff3d3c059d22967598f3ddee3b0317274d736ac3b09f6
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3305,29 +3305,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_invoice"(uuid, jsonb, jsonb) to authenticated, service_role;
-create table if not exists "better_supabase"."invoice_lines" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
-  "product_type" text,
-  "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
-  "unit_amount" bigint not null,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
-  "tax_code" text,
-  "position" integer not null,
-  "created_at" timestamptz not null default now(),
-  check (("product_type" is null) = ("product_id" is null))
-);
+-- better_supabase.invoice_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."invoice_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."invoice_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."invoice_lines" add column if not exists "parent_id" uuid references "better_supabase"."invoices" ("id") on delete cascade;
+alter table "better_supabase"."invoice_lines" add column if not exists "product_type" text;
+alter table "better_supabase"."invoice_lines" add column if not exists "product_id" text;
+alter table "better_supabase"."invoice_lines" add column if not exists "description" text check (length("description") between 1 and 2000);
+alter table "better_supabase"."invoice_lines" add column if not exists "quantity" numeric(18, 4) check ("quantity" > 0);
+alter table "better_supabase"."invoice_lines" add column if not exists "unit_amount" bigint;
+alter table "better_supabase"."invoice_lines" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."invoice_lines" add column if not exists "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000);
+alter table "better_supabase"."invoice_lines" add column if not exists "tax_code" text;
+alter table "better_supabase"."invoice_lines" add column if not exists "position" integer;
+alter table "better_supabase"."invoice_lines" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
-create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
+drop policy if exists bsb_invoice_lines_select on "better_supabase"."invoice_lines";
+create policy bsb_invoice_lines_select on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its lines. A record without lines keeps
