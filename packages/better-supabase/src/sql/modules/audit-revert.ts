@@ -50,6 +50,11 @@ export function revert(ctx: BlockSqlContext, restricted: boolean): string {
 
   const target = `to_regclass(quote_ident(split_part(l.${c("table")}, '.', 1)) || '.' || quote_ident(split_part(l.${c("table")}, '.', 2)))`;
 
+  const keyColumns = ctx.has("registry", "keyColumns")
+    ? `
+        (select a.${ctx.col("registry", "keyColumns")} from ${ctx.table("registry")} a where a.${ctx.col("registry", "target")} = ${target}),`
+    : "";
+
   const written = correlated
     ? `
 -- The entries the caller wrote under one correlation id, for the undo of a revert.
@@ -91,8 +96,7 @@ begin
       'old', ${snapshot("old")},
       'new', ${snapshot("new")},
       'changed', ${changed},
-      'keys', to_jsonb(coalesce(
-        (select a.key_columns from better_supabase.audited_tables a where a.target = ${target}),
+      'keys', to_jsonb(coalesce(${keyColumns}
         (select array_agg(att.attname::text order by k.ord)
          from pg_catalog.pg_index i
          cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)

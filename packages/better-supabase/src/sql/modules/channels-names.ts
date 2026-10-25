@@ -43,6 +43,7 @@ export const CHANNELS_NAMES: BlockSqlNames = {
   tables: {
     channels: {
       name: "channels",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -57,6 +58,7 @@ export const CHANNELS_NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["subjectType", "subjectId", "createdAt", "updatedAt"],
       typed: ["visibility"],
     },
   },

@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
@@ -18,7 +18,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     streams: {
       name: "streams",
+      app: {},
       lifecycle: { user: "owner", tenant: "tenant" },
+      optional: ["kind", "wake", "createdAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -33,6 +35,7 @@ const NAMES: BlockSqlNames = {
     },
     chunks: {
       name: "stream_chunks",
+      app: {},
       columns: { stream: "stream_id", idx: "idx", data: "data" },
     },
   },
@@ -64,6 +67,29 @@ function build(ctx: BlockSqlContext): string {
   const cs = (column: string): string => ctx.col("streams", column);
   const cc = (column: string): string => ctx.col("chunks", column);
   const prefix = topicPrefix(ctx);
+  const has = (column: string): boolean => ctx.has("streams", column);
+
+  const wakes = (alias: string): string =>
+    has("wake") ? `${alias}${cs("wake")}` : "true";
+
+  const opened = (
+    [
+      ["id", "stream_id"],
+      ["owner", "owner"],
+      ["tenant", "tenant"],
+      ["kind", "coalesce(kind, 'default')"],
+      ["wake", "coalesce(wake, true)"],
+      ["expiresAt", "now() + coalesce(ttl, interval '1 day')"],
+    ] as const
+  ).filter(([column]) => ctx.has("streams", column));
+
+  const streamsKey = ctx.owns("streams")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("streams").name}_id_key`)} on ${s} (${cs("id")});`;
+
+  const chunksKey = ctx.owns("chunks")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("chunks").name}_idx_key`)} on ${c} (${cc("stream")}, ${cc("idx")});`;
 
   const topic = (stream: string): string =>
     `${sqlString(`${prefix}:`)} || ${stream}`;
@@ -89,16 +115,13 @@ create table if not exists ${s} (
   ${cs("id")} text primary key check (length(${cs("id")}) between 1 and 200),
   ${cs("tenant")} ${id},
   ${cs("owner")} uuid references auth.users (id) on delete cascade,
-  ${cs("kind")} text not null default 'default' check (length(${cs("kind")}) between 1 and 100),
-  ${cs("wake")} boolean not null default true,
-  ${cs("createdAt")} timestamptz not null default now(),
-  ${cs("closedAt")} timestamptz,
+${has("kind") ? `  ${cs("kind")} text not null default 'default' check (length(${cs("kind")}) between 1 and 100),\n` : ""}${has("wake") ? `  ${cs("wake")} boolean not null default true,\n` : ""}${has("createdAt") ? `  ${cs("createdAt")} timestamptz not null default now(),\n` : ""}  ${cs("closedAt")} timestamptz,
   ${cs("cancelRequestedAt")} timestamptz,
   ${cs("expiresAt")} timestamptz not null default now() + interval '1 day'
 );
 create index if not exists streams_owner_idx on ${s} (${cs("owner")});
 create index if not exists streams_tenant_idx on ${s} (${cs("tenant")});
-create index if not exists streams_expires_idx on ${s} (${cs("expiresAt")});
+create index if not exists streams_expires_idx on ${s} (${cs("expiresAt")});${streamsKey}
 alter table ${s} enable row level security;
 ${revokeTable(s)}
 grant select on ${s} to authenticated;
@@ -112,7 +135,7 @@ create table if not exists ${c} (
   ${cc("idx")} integer not null check (${cc("idx")} >= 0),
   ${cc("data")} text not null,
   primary key (${cc("stream")}, ${cc("idx")})
-);
+);${chunksKey}
 alter table ${c} enable row level security;
 ${revokeTable(c)}
 grant select on ${c} to authenticated;
@@ -136,8 +159,8 @@ as $$
 declare
   v_created boolean;
 begin
-  insert into ${s} (${cs("id")}, ${cs("owner")}, ${cs("tenant")}, ${cs("kind")}, ${cs("wake")}, ${cs("expiresAt")})
-  values (stream_id, owner, tenant, coalesce(kind, 'default'), coalesce(wake, true), now() + coalesce(ttl, interval '1 day'))
+  insert into ${s} (${opened.map(([column]) => cs(column)).join(", ")})
+  values (${opened.map(([, value]) => value).join(", ")})
   on conflict (${cs("id")}) do nothing
   returning true into v_created;
   return coalesce(v_created, false);
@@ -178,7 +201,7 @@ begin
   from unnest(coalesce(chunks, '{}'::text[])) with ordinality as n(chunk, ord)
   on conflict do nothing;
   v_next := greatest(v_next, from_idx + coalesce(cardinality(chunks), 0));
-  v_wake := v_stream.${cs("wake")} and coalesce(cardinality(chunks), 0) > 0;
+  v_wake := ${wakes("v_stream.")} and coalesce(cardinality(chunks), 0) > 0;
   ${wake("stream_append.stream_id", "append")}
   return jsonb_build_object('next', v_next, 'cancelled', v_stream.${cs("cancelRequestedAt")} is not null);
 end;
@@ -238,7 +261,7 @@ as $$
     'next', (select coalesce(max(ch.${cc("idx")}) + 1, 0) from ${c} ch where ch.${cc("stream")} = st.${cs("id")}),
     'closed', st.${cs("closedAt")} is not null,
     'cancelled', st.${cs("cancelRequestedAt")} is not null,
-    'kind', st.${cs("kind")},
+    'kind', ${has("kind") ? `st.${cs("kind")}` : "'default'"},
     'expires_at', st.${cs("expiresAt")}
   )
   from ${s} st
@@ -259,7 +282,7 @@ declare
 begin
   update ${s} set ${cs("closedAt")} = now()
   where ${cs("id")} = stream_close.stream_id and ${cs("closedAt")} is null
-  returning ${cs("wake")} into v_wake;
+  returning ${wakes("")} into v_wake;
   if not found then
     return false;
   end if;
@@ -286,7 +309,7 @@ begin
     and ${cs("cancelRequestedAt")} is null
     and ${cs("closedAt")} is null
     and (${SERVICE_CALLER} or ${cs("owner")} = (select auth.uid()))
-  returning ${cs("wake")} into v_wake;
+  returning ${wakes("")} into v_wake;
   if not found then
     return false;
   end if;

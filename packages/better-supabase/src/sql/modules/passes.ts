@@ -11,7 +11,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addForeignKey,
   fail,
-  lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -20,6 +19,7 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { asText, lockModuleTable } from "./over-app.ts";
 import {
   creditsContract,
   creditsOn,
@@ -89,6 +89,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     passes: {
       name: "passes",
+      app: {},
       lifecycle: { tenant: "tenant", user: "holderUser", export: true },
       columns: {
         id: "id",
@@ -112,9 +113,20 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         revokedAt: "revoked_at",
       },
+      optional: [
+        "holderName",
+        "holderEmail",
+        "subjectType",
+        "subjectId",
+        "issuedBy",
+        "updatedAt",
+        "revokedAt",
+      ],
+      typed: ["status"],
     },
     checkIns: {
       name: "pass_check_ins",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -129,6 +141,8 @@ const NAMES: BlockSqlNames = {
         checkedInBy: "checked_in_by",
         createdAt: "created_at",
       },
+      optional: ["gate", "checkedInBy"],
+      typed: ["method", "reason"],
     },
   },
 };
@@ -137,6 +151,10 @@ const REQUIRES = ["memberships", "permissions"] as const;
 
 const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
+
+/** Whether the passes table keeps the record a pass is for. */
+const keepsSubject = (ctx: BlockSqlContext): boolean =>
+  ctx.has("passes", "subjectType") && ctx.has("passes", "subjectId");
 
 function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
@@ -150,6 +168,18 @@ function tables(ctx: BlockSqlContext): string {
 
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
+
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${ctx.col(table, logical)} ${definition(ctx.col(table, logical))},`
+      : "";
+
+  const subject = keepsSubject(ctx);
 
   const bookingKeys = ctx.installed("bookings")
     ? (() => {
@@ -182,11 +212,7 @@ create table if not exists ${passes} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
   ${p("kind")} text not null default 'ticket' check (${p("kind")} ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  ${p("holderUser")} uuid references auth.users (id) on delete set null,
-  ${p("holderName")} text check (${p("holderName")} is null or length(${p("holderName")}) >= 1 and length(${p("holderName")}) <= 200),
-  ${p("holderEmail")} text check (${p("holderEmail")} is null or (length(${p("holderEmail")}) >= 3 and length(${p("holderEmail")}) <= 320 and position('@' in ${p("holderEmail")}) > 1)),
-  ${p("subjectType")} text check (${p("subjectType")} is null or ${p("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${p("subjectId")} text check (${p("subjectId")} is null or length(${p("subjectId")}) >= 1 and length(${p("subjectId")}) <= 200),
+  ${p("holderUser")} uuid references auth.users (id) on delete set null,${column("passes", "holderName", (name) => `text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 200)`)}${column("passes", "holderEmail", (name) => `text check (${name} is null or (length(${name}) >= 3 and length(${name}) <= 320 and position('@' in ${name}) > 1))`)}${column("passes", "subjectType", (name) => `text check (${name} is null or ${name} ~ '^[a-z][a-z0-9_-]{0,62}$')`)}${column("passes", "subjectId", (name) => `text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 200)`)}
   ${p("booking")} uuid,
   ${p("resource")} uuid,
   ${p("usesAllowed")} integer check (${p("usesAllowed")} is null or ${p("usesAllowed")} > 0),
@@ -194,12 +220,8 @@ create table if not exists ${passes} (
   ${p("validFrom")} timestamptz not null default now(),
   ${p("validUntil")} timestamptz,
   ${p("status")} text not null default 'active' check (${p("status")} in ('active', 'revoked')),
-  ${p("nonce")} text not null unique,
-  ${p("issuedBy")} uuid,
-  ${p("createdAt")} timestamptz not null default now(),
-  ${p("updatedAt")} timestamptz not null default now(),
-  ${p("revokedAt")} timestamptz,
-  check ((${p("subjectType")} is null) = (${p("subjectId")} is null)),
+  ${p("nonce")} text not null unique,${column("passes", "issuedBy", () => "uuid")}
+  ${p("createdAt")} timestamptz not null default now(),${column("passes", "updatedAt", () => "timestamptz not null default now()")}${column("passes", "revokedAt", () => "timestamptz")}${subject ? `\n  check ((${p("subjectType")} is null) = (${p("subjectId")} is null)),` : ""}
   check (${p("usesAllowed")} is null or ${p("uses")} <= ${p("usesAllowed")}),
   check (${p("validUntil")} is null or ${p("validUntil")} > ${p("validFrom")})
 );
@@ -207,8 +229,7 @@ create index if not exists ${index("passes", "tenant_idx")} on ${passes} (${p("t
 create index if not exists ${index("passes", "holder_idx")} on ${passes} (${p("holderUser")});
 create index if not exists ${index("passes", "booking_idx")} on ${passes} (${p("booking")});
 create index if not exists ${index("passes", "resource_idx")} on ${passes} (${p("resource")});
-create index if not exists ${index("passes", "subject_idx")} on ${passes} (${p("tenant")}, ${p("subjectType")}, ${p("subjectId")});
-${lockTable(passes)}
+${subject ? `create index if not exists ${index("passes", "subject_idx")} on ${passes} (${p("tenant")}, ${p("subjectType")}, ${p("subjectId")});\n` : ""}${lockModuleTable(ctx, "passes")}
 ${bookingKeys}
 -- Every scan, admitted or not, for the door log and the drop-in count.
 create table if not exists ${checkIns} (
@@ -216,18 +237,16 @@ create table if not exists ${checkIns} (
   ${k("tenant")} ${ctx.idType} not null,
   ${k("pass")} uuid not null references ${passes} (${p("id")}) on delete cascade,
   ${k("resource")} uuid,
-  ${k("booking")} uuid,
-  ${k("gate")} text check (${k("gate")} is null or length(${k("gate")}) >= 1 and length(${k("gate")}) <= 100),
+  ${k("booking")} uuid,${column("checkIns", "gate", (name) => `text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 100)`)}
   ${k("method")} text not null check (${k("method")} in (${list(PASS_METHODS)})),
   ${k("admitted")} boolean not null,
-  ${k("reason")} text check (${k("reason")} is null or ${k("reason")} in (${list(PASS_REJECTIONS)})),
-  ${k("checkedInBy")} uuid,
+  ${k("reason")} text check (${k("reason")} is null or ${k("reason")} in (${list(PASS_REJECTIONS)})),${column("checkIns", "checkedInBy", () => "uuid")}
   ${k("createdAt")} timestamptz not null default now(),
   check (${k("admitted")} = (${k("reason")} is null))
 );
 create index if not exists ${index("checkIns", "log_idx")} on ${checkIns} (${k("pass")}, ${k("createdAt")} desc);
 create index if not exists ${index("checkIns", "drop_in_idx")} on ${checkIns} (${k("resource")}, ${k("createdAt")}) where ${k("admitted")} and ${k("booking")} is null;
-${lockTable(checkIns)}
+${lockModuleTable(ctx, "checkIns")}
 `;
 }
 
@@ -249,14 +268,82 @@ function functions(ctx: BlockSqlContext): string {
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
+  const subject = keepsSubject(ctx);
+
+  // Column `column` of row `row`, or `missing` when the app's table lacks it.
+  const pass = (row: string, column: string, missing = "null"): string =>
+    ctx.has("passes", column) ? `${row}.${p(column)}` : missing;
+
+  const scan = (row: string, column: string): string =>
+    ctx.has("checkIns", column) ? `${row}.${k(column)}` : "null";
+
+  const passStatus = (row: string): string =>
+    asText(ctx, "passes", `${row}.${p("status")}`);
+
+  // `, column = now()` for each listed column the app's passes table has.
+  const stamped = (...columns: string[]): string =>
+    columns
+      .filter((column) => ctx.has("passes", column))
+      .map((column) => `, ${p(column)} = now()`)
+      .join("");
+
+  const issued = (
+    [
+      ["tenant", "issue_pass.tenant"],
+      ["kind", "coalesce(issue_pass.kind, 'ticket')"],
+      ["holderUser", "issue_pass.holder_user"],
+      ["holderName", "issue_pass.holder_name"],
+      ["holderEmail", "lower(btrim(issue_pass.holder_email))"],
+      ["subjectType", "issue_pass.subject_type"],
+      ["subjectId", "issue_pass.subject_id"],
+      ["booking", "issue_pass.booking_id"],
+      ["resource", "v_resource"],
+      [
+        "usesAllowed",
+        "case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end",
+      ],
+      ["validFrom", "coalesce(issue_pass.valid_from, now())"],
+      ["validUntil", "v_until"],
+      ["nonce", "encode(extensions.gen_random_bytes(16), 'hex')"],
+      ["issuedBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("passes", column));
+
+  const scanned = (
+    [
+      ["tenant", `v_pass.${p("tenant")}`],
+      ["pass", `v_pass.${p("id")}`],
+      ["resource", "v_resource"],
+      ["booking", `v_pass.${p("booking")}`],
+      ["gate", "check_in_pass.gate"],
+      ["method", ctx.cast("checkIns", "method", "check_in_pass.method")],
+      ["admitted", "v_reason is null"],
+      ["reason", ctx.cast("checkIns", "reason", "v_reason")],
+      ["checkedInBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("checkIns", column));
+
+  // Rejects an argument the app's passes table has no column to keep.
+  const unsupported = (
+    argument: string,
+    supported: boolean,
+    message: string,
+  ): string =>
+    supported
+      ? ""
+      : `
+  if ${argument} is not null then
+    ${fail("PASS_FIELD_UNSUPPORTED", message, "0A000")}
+  end if;`;
+
   const passJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}::text, 'kind', ${row}.${p("kind")}, 'holderUserId', ${row}.${p("holderUser")}, 'holderName', ${row}.${p("holderName")}, 'holderEmail', ${row}.${p("holderEmail")}, 'subjectType', ${row}.${p("subjectType")}, 'subjectId', ${row}.${p("subjectId")}, 'bookingId', ${row}.${p("booking")}, 'resourceId', ${row}.${p("resource")}, 'usesAllowed', ${row}.${p("usesAllowed")}, 'uses', ${row}.${p("uses")}, 'validFrom', ${row}.${p("validFrom")}, 'validUntil', ${row}.${p("validUntil")}, 'status', ${row}.${p("status")}, 'issuedBy', ${row}.${p("issuedBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")}, 'revokedAt', ${row}.${p("revokedAt")})`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}::text, 'kind', ${row}.${p("kind")}, 'holderUserId', ${row}.${p("holderUser")}, 'holderName', ${pass(row, "holderName")}, 'holderEmail', ${pass(row, "holderEmail")}, 'subjectType', ${pass(row, "subjectType")}, 'subjectId', ${pass(row, "subjectId")}, 'bookingId', ${row}.${p("booking")}, 'resourceId', ${row}.${p("resource")}, 'usesAllowed', ${row}.${p("usesAllowed")}, 'uses', ${row}.${p("uses")}, 'validFrom', ${row}.${p("validFrom")}, 'validUntil', ${row}.${p("validUntil")}, 'status', ${row}.${p("status")}, 'issuedBy', ${pass(row, "issuedBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${pass(row, "updatedAt", `${row}.${p("createdAt")}`)}, 'revokedAt', ${pass(row, "revokedAt")})`;
 
   const withNonce = (row: string): string =>
     `${passJson(row)} || jsonb_build_object('nonce', ${row}.${p("nonce")})`;
 
   const checkInJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}::text, 'passId', ${row}.${k("pass")}, 'resourceId', ${row}.${k("resource")}, 'bookingId', ${row}.${k("booking")}, 'gate', ${row}.${k("gate")}, 'method', ${row}.${k("method")}, 'admitted', ${row}.${k("admitted")}, 'reason', ${row}.${k("reason")}, 'checkedInBy', ${row}.${k("checkedInBy")}, 'createdAt', ${row}.${k("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}::text, 'passId', ${row}.${k("pass")}, 'resourceId', ${row}.${k("resource")}, 'bookingId', ${row}.${k("booking")}, 'gate', ${scan(row, "gate")}, 'method', ${row}.${k("method")}, 'admitted', ${row}.${k("admitted")}, 'reason', ${row}.${k("reason")}, 'checkedInBy', ${scan(row, "checkedInBy")}, 'createdAt', ${row}.${k("createdAt")})`;
 
   const passRecord = (
     type: "pass.issued" | "pass.revoked",
@@ -430,7 +517,7 @@ begin
   end if;
   if (issue_pass.subject_type is null) <> (issue_pass.subject_id is null) then
     ${fail("PASS_SUBJECT_INVALID", "pass both subject_type and subject_id, or neither", "22023")}
-  end if;
+  end if;${unsupported("issue_pass.subject_type", subject, "this passes table keeps no record")}${unsupported("issue_pass.holder_name", ctx.has("passes", "holderName"), "this passes table keeps no holder name")}${unsupported("issue_pass.holder_email", ctx.has("passes", "holderEmail"), "this passes table keeps no holder email")}
   if issue_pass.subject_type is not null
     and ${subjectTenant(ctx, "issue_pass.subject_type", "issue_pass.subject_id")} is distinct from issue_pass.tenant::text then
     ${fail("PASS_SUBJECT_NOT_FOUND", "the record does not exist in this organization", "P0002")}
@@ -442,11 +529,15 @@ ${issueChecks}
   if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
     ${fail("PASS_VALIDITY_INVALID", "valid_until must be after valid_from and in the future", "22023")}
   end if;
-  insert into ${passes} (${p("tenant")}, ${p("kind")}, ${p("holderUser")}, ${p("holderName")}, ${p("holderEmail")}, ${p("subjectType")}, ${p("subjectId")}, ${p("booking")}, ${p("resource")}, ${p("usesAllowed")}, ${p("validFrom")}, ${p("validUntil")}, ${p("nonce")}, ${p("issuedBy")})
-  values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
+  insert into ${passes} (${issued.map(([column]) => p(column)).join(", ")})
+  values (${
+    issued.length === 14
+      ? `issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid()`
+      : issued.map(([, value]) => value).join(",\n    ")
+  })
   returning * into v_row;
   ${passRecord("pass.issued", "v_row", "issued pass")}
   return ${withNonce("v_row")};
@@ -469,8 +560,8 @@ begin
   if not found or not ${allowed(`v_row.${p("tenant")}`, manage)} then
     ${fail("PASS_NOT_FOUND", "pass not found", "P0002")}
   end if;
-  if v_row.${p("status")} <> 'revoked' then
-    update ${passes} x set ${p("status")} = 'revoked', ${p("revokedAt")} = now(), ${p("updatedAt")} = now()
+  if ${passStatus("v_row")} <> 'revoked' then
+    update ${passes} x set ${p("status")} = ${ctx.cast("passes", "status", "'revoked'")}${stamped("revokedAt", "updatedAt")}
       where x.${p("id")} = v_row.${p("id")}
       returning * into v_row;
     ${passRecord("pass.revoked", "v_row", "revoked pass")}
@@ -529,18 +620,18 @@ begin
   v_resource := coalesce(check_in_pass.resource_id, v_pass.${p("resource")});
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass.${p("nonce")} then 'invalid'
-    when v_pass.${p("status")} = 'revoked' then 'revoked'
+    when ${passStatus("v_pass")} = 'revoked' then 'revoked'
     when now() < v_pass.${p("validFrom")} then 'not_yet_valid'
     when v_pass.${p("validUntil")} is not null and now() >= v_pass.${p("validUntil")} then 'expired'
     when v_pass.${p("usesAllowed")} is not null and v_pass.${p("uses")} >= v_pass.${p("usesAllowed")} then 'used_up'
     when check_in_pass.resource_id is not null and v_pass.${p("resource")} is not null
       and check_in_pass.resource_id <> v_pass.${p("resource")} then 'wrong_resource'
   end;${capacity}
-  insert into ${checkIns} (${k("tenant")}, ${k("pass")}, ${k("resource")}, ${k("booking")}, ${k("gate")}, ${k("method")}, ${k("admitted")}, ${k("reason")}, ${k("checkedInBy")})
-  values (v_pass.${p("tenant")}, v_pass.${p("id")}, v_resource, v_pass.${p("booking")}, check_in_pass.gate, check_in_pass.method, v_reason is null, v_reason, auth.uid())
+  insert into ${checkIns} (${scanned.map(([column]) => k(column)).join(", ")})
+  values (${scanned.map(([, value]) => value).join(", ")})
   returning * into v_row;
   if v_reason is null then
-    update ${passes} x set ${p("uses")} = x.${p("uses")} + 1, ${p("updatedAt")} = now()
+    update ${passes} x set ${p("uses")} = x.${p("uses")} + 1${stamped("updatedAt")}
       where x.${p("id")} = v_pass.${p("id")}
       returning * into v_pass;
     ${checkInRecord("pass.admitted")}
@@ -572,8 +663,8 @@ begin
       from ${passes} x
       where x.${p("tenant")} = list_passes.tenant
         and (list_passes.holder_user is null or x.${p("holderUser")} = list_passes.holder_user)
-        and (list_passes.subject_type is null or (x.${p("subjectType")} = list_passes.subject_type and x.${p("subjectId")} = list_passes.subject_id))
-        and (list_passes.status is null or x.${p("status")} = list_passes.status)
+        and (list_passes.subject_type is null${subject ? ` or (x.${p("subjectType")} = list_passes.subject_type and x.${p("subjectId")} = list_passes.subject_id)` : ""})
+        and (list_passes.status is null or ${passStatus("x")} = list_passes.status)
         and (list_passes.before is null or x.${p("createdAt")} < list_passes.before)
       order by x.${p("createdAt")} desc, x.${p("id")} desc
       limit ${pageSize("list_passes.page_size", 50, 500)}
@@ -594,7 +685,7 @@ as $$
   select coalesce(jsonb_agg(${withNonce("x")} order by x.${p("validFrom")}, x.${p("id")}), '[]'::jsonb)
   from ${passes} x
   where x.${p("holderUser")} = auth.uid()
-    and x.${p("status")} = 'active'
+    and ${passStatus("x")} = 'active'
     and (x.${p("validUntil")} is null or x.${p("validUntil")} > now())
     and not better_supabase.tenant_disabled(x.${p("tenant")})
 $$;
@@ -635,6 +726,10 @@ ${occupancy}`;
 
 /** Moves the passes on a merged registered subject to the record it merged into. */
 function passMerges(ctx: BlockSqlContext): string {
+  if (!keepsSubject(ctx)) {
+    return "";
+  }
+
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [

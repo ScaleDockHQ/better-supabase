@@ -224,11 +224,8 @@ describe("blocks over the app's tables", () => {
 // The tables a block can't build over the app's own table yet, by module. The
 // list only shrinks: a table that gains `app` has to leave it.
 const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
-  "api-keys": ["keys"],
   settings: ["user", "organization", "platform"],
   usage: ["counters", "events", "history", "distinct", "quotas"],
-  billing: ["customers", "subscriptions"],
-  flags: ["flags", "overrides"],
   attachments: ["attachments", "versions", "scans", "cleanup"],
   "data-lifecycle": ["exports", "deletions", "policies", "holds"],
   sso: [
@@ -240,8 +237,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "syncLog",
   ],
   waitlist: ["entries", "codes", "redemptions"],
-  announcements: ["announcements", "dismissals"],
-  streams: ["streams", "chunks"],
   workflows: ["schedules", "semaphores", "startRequests"],
   "workflow-editor": [
     "versions",
@@ -304,11 +299,8 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
   agents: ["agents", "installs", "ratings", "skills"],
   connectors: ["servers", "grants", "sessions", "fingerprints"],
   "ai-schedules": ["tasks", "runs"],
-  push: ["devices", "tickets"],
-  "ai-cache": ["entries"],
   "ai-keys": ["keys", "batches", "items"],
   reactions: ["reactions", "scores", "emoji"],
-  "access-requests": ["requests"],
   documents: ["documents", "updates", "snapshots", "suggestions"],
   orders: [
     "fulfillmentLines",
@@ -318,21 +310,15 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "preparations",
   ],
   promotions: ["promotions", "codes", "cartCodes", "redemptions"],
-  identities: ["links", "codes"],
   templates: ["workflows"],
   pipelines: ["pipelines", "stages", "transitions", "history"],
   contacts: ["personContacts"],
   activities: ["engagements", "links", "recordings", "segments", "notes"],
   deals: ["deals", "contacts", "members"],
-  sla: ["policies", "clocks"],
-  goals: ["targets"],
   collections: ["collections", "entries", "favorites", "savedItems"],
-  "signing-keys": ["keys"],
   "security-events": ["streams", "events", "received"],
   "oauth-server": ["clients", "grants", "codes", "devices", "revocations"],
-  domains: ["hostnames"],
   moderation: ["items", "reports", "actions", "bans"],
-  reviews: ["reviews", "stats"],
   automations: ["rules", "defaults", "versions", "evaluations", "fields"],
   "vercel-marketplace": [
     "installations",
@@ -344,13 +330,10 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
   ledger: ["balances", "holds"],
   scores: ["models", "versions", "scores"],
   enrollments: ["programs", "enrollments", "steps"],
-  guests: ["guests", "grants"],
-  passes: ["passes", "checkIns"],
   "billable-time": ["rates", "billed"],
   leases: ["leases", "charges"],
   donations: ["funds", "pledges", "receipts", "donations"],
   dispatch: ["workOrders", "routes", "stops", "parts"],
-  contracts: ["contracts", "obligations"],
   compliance: [
     "frameworks",
     "controls",
@@ -370,7 +353,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
   ],
   courses: ["courses", "modules", "lessons", "progress", "certificates"],
   messaging: ["edits", "reads", "recordMentions", "summaries"],
-  channels: ["channels"],
   "mail-sync": [
     "accounts",
     "threads",
@@ -381,21 +363,12 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
   ],
   segments: ["segments", "members"],
   assignment: ["queues", "members", "log"],
-  enrichment: ["enrichments"],
   forecasts: ["snapshots", "deals"],
-  "field-history": ["changes"],
   sequences: ["sequences", "members"],
-  "lead-scoring": ["checks"],
-  posts: ["boards", "posts"],
-  content: ["entries"],
 };
 
 // The tables a module creates without a `names.tables` entry, by module.
 const SPECLESS: Readonly<Record<string, readonly string[]>> = {
-  audit: ["audited_tables"],
-  "reserved-slugs": ["reserved_slugs"],
-  idempotency: ["idempotency_keys", "leases"],
-  "rate-limit": ["rate_limit_rules"],
   // ADR 0098: the Workflow SDK owns the shape of its world's tables.
   "workflow-sdk": [
     "workflow_event_slots",
@@ -413,7 +386,8 @@ const SPECLESS: Readonly<Record<string, readonly string[]>> = {
 /** The modules registry every module writes its row to. */
 const REGISTRY = "blocks";
 
-const CREATE_TABLE = /create table (?:if not exists )?"?\w+"?\."?(\w+)"?/giu;
+const CREATE_TABLE =
+  /create (?:unlogged )?table (?:if not exists )?"?\w+"?\."?(\w+)"?/giu;
 
 describe("every block table", () => {
   it("can be the app's own table", () => {

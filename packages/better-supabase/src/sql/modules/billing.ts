@@ -45,7 +45,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     customers: {
       name: "billing_customers",
+      app: {},
       lifecycle: { tenant: "tenant" },
+      optional: ["account", "createdAt"],
       columns: {
         tenant: "organization_id",
         customer: "stripe_customer_id",
@@ -55,7 +57,10 @@ const NAMES: BlockSqlNames = {
     },
     subscriptions: {
       name: "billing_subscriptions",
+      app: {},
       lifecycle: { tenant: "tenant" },
+      optional: ["price", "plan", "periodEnd", "cancelAt", "updatedAt"],
+      typed: ["status"],
       columns: {
         tenant: "organization_id",
         subscription: "subscription_id",
@@ -262,7 +267,9 @@ function build(ctx: BlockSqlContext): string {
 
   const webhook = subscriptionSourceOf(ctx) === "webhook";
   const seatRoles = ctx.list("seatRoles", []);
-  const references = ctx.manages ? tenantReference(ctx) : undefined;
+  const owns = ctx.owns("customers");
+  const hasAccount = ctx.has("customers", "account");
+  const references = ctx.manages && owns ? tenantReference(ctx) : undefined;
 
   const tenantKey =
     references === undefined
@@ -274,6 +281,10 @@ function build(ctx: BlockSqlContext): string {
           references,
           onDelete: "cascade",
         })}\n`;
+
+  const subscriptionPrice = ctx.has("subscriptions", "price")
+    ? `b.${ctx.col("subscriptions", "price")}`
+    : "null::text";
 
   const seatFilter =
     seatRoles.length === 0
@@ -287,14 +298,15 @@ function build(ctx: BlockSqlContext): string {
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table if not exists ${t} (
   ${c("tenant")} ${id} primary key,
-  ${c("customer")} text unique check (${c("customer")} ~ '^cus_'),
-  ${c("account")} text unique check (${c("account")} ~ '^acct_'),
-  ${c("createdAt")} timestamptz not null default now()
+  ${c("customer")} text unique check (${c("customer")} ~ '^cus_')${hasAccount ? `,\n  ${c("account")} text unique check (${c("account")} ~ '^acct_')` : ""}${ctx.has("customers", "createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}
 );
-alter table ${t} add column if not exists ${c("account")} text unique check (${c("account")} ~ '^acct_');
-alter table ${t} alter column ${c("customer")} drop not null;
+${
+  owns
+    ? `${hasAccount ? `alter table ${t} add column if not exists ${c("account")} text unique check (${c("account")} ~ '^acct_');\n` : ""}alter table ${t} alter column ${c("customer")} drop not null;
 alter table ${t} drop constraint if exists bsb_billing_customers_party;
-alter table ${t} add constraint bsb_billing_customers_party check (${c("customer")} is not null or ${c("account")} is not null);
+alter table ${t} add constraint bsb_billing_customers_party check (${c("customer")} is not null${hasAccount ? ` or ${c("account")} is not null` : ""});`
+    : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("customers").name}_tenant_key`)} on ${t} (${c("tenant")});`
+}
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
@@ -322,8 +334,12 @@ stable
 security definer
 set search_path = ''
 as $$
-  select b.${c("account")} from ${t} b
-  where b.${c("tenant")} = billing_account.tenant and ${can("billing_account.tenant", "read")}
+  ${
+    hasAccount
+      ? `select b.${c("account")} from ${t} b
+  where b.${c("tenant")} = billing_account.tenant and ${can("billing_account.tenant", "read")}`
+      : "select null::text"
+  }
 $$;
 
 -- The tenant of a customer (cus_) or an account (acct_).
@@ -335,8 +351,12 @@ security definer
 set search_path = ''
 as $$
   select b.${c("tenant")} from ${t} b
-  where b.${c("customer")} = billing_customer_tenant.customer
-    or b.${c("account")} = billing_customer_tenant.customer
+  where b.${c("customer")} = billing_customer_tenant.customer${
+    hasAccount
+      ? `
+    or b.${c("account")} = billing_customer_tenant.customer`
+      : ""
+  }
 $$;
 
 -- Links tenant to customer once, or records the customer Stripe created for
@@ -383,7 +403,9 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into ${t} as b (${c("tenant")}, ${c("account")})
+${
+  hasAccount
+    ? `  insert into ${t} as b (${c("tenant")}, ${c("account")})
   values (link_billing_account.tenant, link_billing_account.account)
   on conflict (${c("tenant")}) do update set ${c("account")} = excluded.${c("account")}
     where b.${c("account")} is null;
@@ -403,7 +425,9 @@ begin
     })}
   end if;
   return (select b.${c("account")} from ${t} b where b.${c("tenant")} = link_billing_account.tenant);
-end;
+`
+    : "  return null;\n"
+}end;
 $$;
 
 -- Members who take a seat${seatRoles.length === 0 ? "" : ` (roles ${seatRoles.join(", ")}, from options.seatRoles)`}.
@@ -435,13 +459,13 @@ begin${
     webhook
       ? `
   select jsonb_build_object(
-    'subscription', b.${ctx.col("subscriptions", "subscription")}, 'item', null, 'price', b.${ctx.col("subscriptions", "price")},
+    'subscription', b.${ctx.col("subscriptions", "subscription")}, 'item', null, 'price', ${subscriptionPrice},
     'quantity', null, 'status', b.${ctx.col("subscriptions", "status")}
   ) into found
   from ${ctx.table("subscriptions")} b
   where b.${ctx.col("subscriptions", "tenant")} = billing_subscription_item.tenant
     and b.${ctx.col("subscriptions", "status")} in ('active', 'trialing', 'past_due')
-    and (billing_subscription_item.price is null or b.${ctx.col("subscriptions", "price")} = billing_subscription_item.price);
+    and (billing_subscription_item.price is null or ${subscriptionPrice} = billing_subscription_item.price);
   return found;`
       : `
   if customer is null or to_regclass('stripe.subscription_items') is null then
@@ -700,7 +724,7 @@ begin
   end if;
   return jsonb_build_object(
     'customer', (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_status.tenant),
-    'account', (select b.${c("account")} from ${t} b where b.${c("tenant")} = billing_status.tenant),
+    'account', ${hasAccount ? `(select b.${c("account")} from ${t} b where b.${c("tenant")} = billing_status.tenant)` : "null"},
     'seats', ${fn("billing_seat_count")}(tenant),
     'subscription', ${fn("billing_subscription_item")}(tenant)
   );

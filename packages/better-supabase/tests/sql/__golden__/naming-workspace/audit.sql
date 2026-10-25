@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:a5b88235b5b6e3d74767abf47e7222ad090a1b4db2da9ad6d4d97cd00c885a2e
+-- @bsb-hash sha256:b05c8738a5ce252637592bbc05444487c9da2cd4fa4c0c1a64eb7ae28443dcf2
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,21 +19,21 @@ end $$;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-create table if not exists better_supabase.audited_tables (
-  target regclass primary key,
-  ignore text[] not null default '{}'
+create table if not exists "better_supabase"."audited_tables" (
+  "target" regclass primary key,
+  "ignore" text[] not null default '{}'
 );
 -- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table better_supabase.audited_tables add column if not exists key_columns text[] not null default '{id}';
+alter table "better_supabase"."audited_tables" add column if not exists "key_columns" text[] not null default '{id}';
 -- Per-table event naming and redaction.
-alter table better_supabase.audited_tables add column if not exists redact text[] not null default '{}';
-alter table better_supabase.audited_tables add column if not exists category text;
-alter table better_supabase.audited_tables add column if not exists event_prefix text;
-alter table better_supabase.audited_tables add column if not exists target_type text;
-alter table better_supabase.audited_tables add column if not exists tenant_column text;
-alter table better_supabase.audited_tables add column if not exists label_column text;
-alter table better_supabase.audited_tables enable row level security;
-revoke all on better_supabase.audited_tables from anon, authenticated;
+alter table "better_supabase"."audited_tables" add column if not exists "redact" text[] not null default '{}';
+alter table "better_supabase"."audited_tables" add column if not exists "category" text;
+alter table "better_supabase"."audited_tables" add column if not exists "event_prefix" text;
+alter table "better_supabase"."audited_tables" add column if not exists "target_type" text;
+alter table "better_supabase"."audited_tables" add column if not exists "tenant_column" text;
+alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
+alter table "better_supabase"."audited_tables" enable row level security;
+revoke all on "better_supabase"."audited_tables" from anon, authenticated;
 
 -- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
@@ -209,12 +209,14 @@ begin
       settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
     into entry;
   else
-    select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
-      coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
-      a.label_column, null::jsonb as tenant_path, null::text as tenant_function
+    select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
+      coalesce(a."redact", '{}') as redact, a."category" as category,
+      a."event_prefix" as event_prefix, a."target_type" as target_type,
+      a."tenant_column" as tenant_column, a."label_column" as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
     into entry
     from (select 1) one
-    left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
+    left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
   -- A child row without a tenant column: follow the foreign-key path
@@ -411,7 +413,7 @@ begin
   cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
   join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
   where i.indrelid = audit.target and i.indisprimary;
-  delete from better_supabase.audited_tables a where a.target = audit.target;
+  delete from "better_supabase"."audited_tables" a where a."target" = audit.target;
   base_settings := jsonb_strip_nulls(jsonb_build_object(
     'ignore', to_jsonb(coalesce(audit.ignore, '{}')),
     'redact', to_jsonb(coalesce(audit.redact, '{}')),
@@ -455,10 +457,10 @@ as $$
      from pg_catalog.pg_trigger t
      where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
-       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),
-       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,
-       'tenant_column', a.tenant_column, 'label_column', a.label_column))
-     from better_supabase.audited_tables a where a.target = audit_settings.target)
+       'ignore', to_jsonb(a."ignore"), 'redact', to_jsonb(a."redact"), 'key_columns', to_jsonb(a."key_columns"),
+       'category', a."category", 'event_prefix', a."event_prefix", 'target_type', a."target_type",
+       'tenant_column', a."tenant_column", 'label_column', a."label_column"))
+     from "better_supabase"."audited_tables" a where a."target" = audit_settings.target)
   )
 $$;
 
@@ -470,7 +472,7 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  delete from better_supabase.audited_tables a where a.target = unaudit.target;
+  delete from "better_supabase"."audited_tables" a where a."target" = unaudit.target;
 end;
 $$;
 
@@ -485,8 +487,8 @@ begin
   if relation is not null then
     perform better_supabase.unaudit(relation);
   end if;
-  delete from better_supabase.audited_tables a
-  where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+  delete from "better_supabase"."audited_tables" a
+  where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 end;
 $$;
 
@@ -496,8 +498,8 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  delete from better_supabase.audited_tables a
-  where a.target::oid in (
+  delete from "better_supabase"."audited_tables" a
+  where a."target"::oid in (
     select d.objid from pg_catalog.pg_event_trigger_dropped_objects() d
     where d.object_type = 'table'
   );
@@ -1219,7 +1221,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7c82e03def4e740125420a5ba68a4b9013881cdee0a9d886ac38ac30ed914c04
+-- @bsb-hash sha256:1281b44af207c58632eac0ed74435a3060fa43302c307d4295e2bd74e4bf2076
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1231,8 +1233,8 @@ create event trigger bsb_audit_forget_dropped on sql_drop
   execute function better_supabase.audit_forget_dropped();
 
 -- Registrations of tables dropped before bsb_audit_forget_dropped existed.
-delete from better_supabase.audited_tables a
-where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+delete from "better_supabase"."audited_tables" a
+where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('audit', 9, 'managed')

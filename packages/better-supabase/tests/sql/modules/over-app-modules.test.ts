@@ -28,29 +28,99 @@ const MODULES = [
   "comments",
   "timeline",
   "ledger",
+  "idempotency",
+  "rate-limit",
+  "reserved-slugs",
+  "audit",
+  "api-keys",
+  "access-requests",
+  "domains",
+  "signing-keys",
+  "ai-cache",
+  "content",
+  "channels",
+  "enrichment",
+  "field-history",
+  "goals",
+  "lead-scoring",
+  "flags",
+  "push",
+  "posts",
+  "guests",
+  "passes",
+  "contracts",
+  "sla",
+  "identities",
+  "announcements",
+  "streams",
+  "billing",
+  "reviews",
+  "queue",
 ] as const;
+
+interface Setup {
+  /** Blocks installed next to the module. */
+  readonly with?: readonly string[];
+  readonly options?: Readonly<Record<string, unknown>>;
+}
+
+/** The configuration under which each module creates every table it can adopt. */
+const SETUP: Readonly<Partial<Record<(typeof MODULES)[number], Setup>>> = {
+  billing: { options: { subscriptions: "webhook" } },
+  push: { with: ["notifications"] },
+  queue: { options: { backend: "table", scheduler: "drain" } },
+};
+
+const setupOf = (module: string): Setup =>
+  SETUP[module as (typeof MODULES)[number]] ?? {};
+
+/** The blocks rendered for `module`, with its setup's options in `modules`. */
+function configOf(
+  module: string,
+  modules: AnyBlocksConfig = {},
+): { names: string[]; modules: AnyBlocksConfig } {
+  const setup = setupOf(module);
+  const own = modules[module] ?? {};
+
+  return {
+    names: [module, ...(setup.with ?? [])],
+    modules:
+      setup.options === undefined
+        ? modules
+        : {
+            ...modules,
+            [module]: { ...own, options: { ...setup.options, ...own.options } },
+          },
+  };
+}
 
 const SCHEMAS = ["public", "better_supabase"];
 
 const unquote = (text: string): string => text.replaceAll('"', "");
 
 /**
- * `schema.table` of each logical table that can be the app's, as the module
- * renders it by default.
+ * `schema.table` of each logical table that can be the app's and that the
+ * module creates in its setup.
  */
 function tablesOf(module: string): Record<string, string> {
-  const ctx = moduleContext(module, {}, [module]);
+  const config = configOf(module);
+  const ctx = moduleContext(module, { modules: config.modules }, config.names);
+
+  const created = declaredTables([{ text: render(module, {}) }], SCHEMAS);
 
   return Object.fromEntries(
-    Object.entries(SQL_MODULES[module]?.names?.tables ?? {})
-      .filter(
-        ([logical, spec]) => spec.app !== undefined && ctx.hasTable(logical),
-      )
-      .map(([logical]) => {
-        const { schema, name } = ctx.tableName(logical);
+    Object.entries(SQL_MODULES[module]?.names?.tables ?? {}).flatMap(
+      ([logical, spec]) => {
+        if (spec.app === undefined || !ctx.hasTable(logical)) {
+          return [];
+        }
 
-        return [logical, `${schema}.${name}`];
-      }),
+        const { schema, name } = ctx.tableName(logical);
+        const table = `${schema}.${name}`;
+
+        return created.includes(table) ? [[logical, table]] : [];
+      },
+    ),
   );
 }
 
@@ -60,7 +130,9 @@ function render(
   ownTables: Record<string, string>,
   modules: AnyBlocksConfig = {},
 ): string {
-  return renderBlocks([module], { ownTables, modules })
+  const config = configOf(module, modules);
+
+  return renderBlocks(config.names, { ownTables, modules: config.modules })
     .filter((file) => file.module === module && file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");

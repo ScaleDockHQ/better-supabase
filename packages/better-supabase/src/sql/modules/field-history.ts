@@ -24,6 +24,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     changes: {
       name: "field_changes",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -36,6 +37,7 @@ const NAMES: BlockSqlNames = {
         changedBy: "changed_by",
         changedAt: "changed_at",
       },
+      optional: ["changedBy", "changedAt"],
     },
   },
 };
@@ -90,6 +92,8 @@ function bindingTrigger(
   const name = `bsb_field_history_${subjectTypeIdent(type)}`;
   const watched = binding.fields.map(sqlIdent).join(", ");
 
+  const by = ctx.has("changes", "changedBy");
+
   const values = binding.fields
     .map(
       (field) =>
@@ -106,8 +110,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into ${ctx.table("changes")} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("field")}, ${c("before")}, ${c("after")}, ${c("changedBy")})
-  select new.${binding.subject.tenant}, ${sqlString(type)}, new.${binding.subject.id}::text, x.field, x.old_value, x.new_value, auth.uid()
+  insert into ${ctx.table("changes")} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("field")}, ${c("before")}, ${c("after")}${by ? `, ${c("changedBy")}` : ""})
+  select new.${binding.subject.tenant}, ${sqlString(type)}, new.${binding.subject.id}::text, x.field, x.old_value, x.new_value${by ? ", auth.uid()" : ""}
   from (values
       ${values}
   ) as x (field, old_value, new_value)
@@ -129,6 +133,8 @@ function build(ctx: BlockSqlContext): string {
   const c = (column: string): string => ctx.col("changes", column);
   const canSubject = ctx.of("subjects").fn("can_subject");
   const policy = `${ctx.tableName("changes").name}_read`;
+  const by = ctx.has("changes", "changedBy");
+  const at = ctx.has("changes", "changedAt");
 
   const readable = (tenant: string, type: string, id: string): string =>
     `(${SERVICE_CALLER} or (${ctx.scope.can(tenant, read)} and coalesce(${canSubject}(${type}, ${id}, 'read'), false)))`;
@@ -143,13 +149,14 @@ create table if not exists ${t} (
   ${c("subjectId")} text not null,
   ${c("field")} text not null,
   ${c("before")} jsonb,
-  ${c("after")} jsonb,
-  ${c("changedBy")} uuid references auth.users (id) on delete set null,
-  ${c("changedAt")} timestamptz not null default now()
+  ${c("after")} jsonb${by ? `,\n  ${c("changedBy")} uuid references auth.users (id) on delete set null` : ""}${at ? `,\n  ${c("changedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("field_changes_subject_idx")} on ${t} (${c("subjectType")}, ${c("subjectId")}, ${c("id")} desc);
-create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on ${t} (${c("tenant")}, ${c("changedAt")});
-create index if not exists ${ctx.naming.rename("field_changes_changed_by_idx")} on ${t} (${c("changedBy")}) where ${c("changedBy")} is not null;
+create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on ${t} (${c("tenant")}${at ? `, ${c("changedAt")}` : ""});${
+    by
+      ? `\ncreate index if not exists ${ctx.naming.rename("field_changes_changed_by_idx")} on ${t} (${c("changedBy")}) where ${c("changedBy")} is not null;`
+      : ""
+  }
 ${lockTable(t, { read: true })}
 drop policy if exists ${policy} on ${t};
 create policy ${policy} on ${t} for select to authenticated
@@ -174,8 +181,8 @@ as $$
     'field', z.${c("field")},
     'before', z.${c("before")},
     'after', z.${c("after")},
-    'changedBy', z.${c("changedBy")},
-    'changedAt', z.${c("changedAt")}
+    'changedBy', ${by ? `z.${c("changedBy")}` : "null"},
+    'changedAt', ${at ? `z.${c("changedAt")}` : "null"}
   ) order by z.${c("id")} desc), '[]'::jsonb)
   from (
     select x.* from ${t} x

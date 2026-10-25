@@ -13,7 +13,8 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { CONTRACT_RESERVED } from "./contracts-shared.ts";
+import { CONTRACT_RESERVED, keepsContract } from "./contracts-shared.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /**
@@ -69,6 +70,39 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
 
   const notFound = fail("CONTRACT_NOT_FOUND", "contract not found", "P0002");
 
+  const keeps = (column: string): boolean => keepsContract(ctx, column);
+
+  const obligationKeeps = (column: string): boolean =>
+    ctx.has("obligations", column);
+
+  const counterparty = keeps("counterpartyType");
+
+  // Column `column` of row `row`, or `missing` when the app's table lacks it.
+  const contractValue = (
+    row: string,
+    column: string,
+    missing = "null",
+  ): string => (keeps(column) ? `${row}.${c(column)}` : missing);
+
+  const obligationValue = (
+    row: string,
+    column: string,
+    missing = "null",
+  ): string => (obligationKeeps(column) ? `${row}.${o(column)}` : missing);
+
+  const contractStatus = (row: string): string =>
+    asText(ctx, "contracts", `${row}.${c("status")}`);
+
+  // `column = value` assignments for the columns the contracts table keeps.
+  const sets = (
+    pairs: readonly (readonly [column: string, value: string])[],
+  ): string[] =>
+    pairs
+      .filter(([column]) => keeps(column))
+      .map(([column, value]) => `${c(column)} = ${value}`);
+
+  const touched = keeps("updatedAt") ? `, ${c("updatedAt")} = now()` : "";
+
   const isMember = (tenant: string, user: string): string =>
     `exists (select 1 from ${members.table("memberships")} m where m.${members.col("memberships", "tenant")} = ${tenant} and m.${members.col("memberships", "user")} = ${user})`;
 
@@ -76,10 +110,10 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
     `case when ${row}.${c("endsOn")} is null then null else ${row}.${c("endsOn")} - ${row}.${c("noticeDays")} end`;
 
   const contractJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'title', ${row}.${c("title")}, 'description', ${row}.${c("description")}, 'counterpartyType', ${row}.${c("counterpartyType")}, 'counterpartyId', ${row}.${c("counterpartyId")}, 'ownerId', ${row}.${c("owner")}, 'status', ${row}.${c("status")}, 'value', ${row}.${c("value")}::text, 'currency', ${row}.${c("currency")}, 'startsOn', ${row}.${c("startsOn")}, 'endsOn', ${row}.${c("endsOn")}, 'autoRenew', ${row}.${c("autoRenew")}, 'renewalMonths', ${row}.${c("renewalMonths")}, 'noticeDays', ${row}.${c("noticeDays")}, 'noticeDeadline', ${deadline(row)}, 'renewedCount', ${row}.${c("renewedCount")}, 'signatureRequestId', ${row}.${c("signatureRequest")}, 'signedAt', ${row}.${c("signedAt")}, 'terminatedAt', ${row}.${c("terminatedAt")}, 'terminationReason', ${row}.${c("terminationReason")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'title', ${row}.${c("title")}, 'description', ${contractValue(row, "description")}, 'counterpartyType', ${contractValue(row, "counterpartyType")}, 'counterpartyId', ${contractValue(row, "counterpartyId")}, 'ownerId', ${row}.${c("owner")}, 'status', ${row}.${c("status")}, 'value', ${contractValue(row, "value")}::text, 'currency', ${contractValue(row, "currency")}, 'startsOn', ${row}.${c("startsOn")}, 'endsOn', ${row}.${c("endsOn")}, 'autoRenew', ${row}.${c("autoRenew")}, 'renewalMonths', ${row}.${c("renewalMonths")}, 'noticeDays', ${row}.${c("noticeDays")}, 'noticeDeadline', ${deadline(row)}, 'renewedCount', ${contractValue(row, "renewedCount", "0")}, 'signatureRequestId', ${row}.${c("signatureRequest")}, 'signedAt', ${contractValue(row, "signedAt")}, 'terminatedAt', ${contractValue(row, "terminatedAt")}, 'terminationReason', ${contractValue(row, "terminationReason")}, 'createdBy', ${contractValue(row, "createdBy")}, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${contractValue(row, "updatedAt", `${row}.${c("createdAt")}`)}${extraFieldsJson(row, extras)})`;
 
   const obligationJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${o("id")}, 'organizationId', ${row}.${o("tenant")}, 'contractId', ${row}.${o("contract")}, 'title', ${row}.${o("title")}, 'description', ${row}.${o("description")}, 'dueOn', ${row}.${o("dueOn")}, 'ownerId', ${row}.${o("owner")}, 'status', ${row}.${o("status")}, 'overdue', (${row}.${o("status")} = 'open' and ${row}.${o("dueOn")} < current_date), 'completedAt', ${row}.${o("completedAt")}, 'completedBy', ${row}.${o("completedBy")}, 'createdAt', ${row}.${o("createdAt")}, 'updatedAt', ${row}.${o("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${o("id")}, 'organizationId', ${row}.${o("tenant")}, 'contractId', ${row}.${o("contract")}, 'title', ${row}.${o("title")}, 'description', ${obligationValue(row, "description")}, 'dueOn', ${row}.${o("dueOn")}, 'ownerId', ${row}.${o("owner")}, 'status', ${row}.${o("status")}, 'overdue', (${row}.${o("status")} = 'open' and ${row}.${o("dueOn")} < current_date), 'completedAt', ${obligationValue(row, "completedAt")}, 'completedBy', ${obligationValue(row, "completedBy")}, 'createdAt', ${row}.${o("createdAt")}, 'updatedAt', ${obligationValue(row, "updatedAt", `${row}.${o("createdAt")}`)})`;
 
   const contractRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -113,32 +147,85 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
       },
     });
 
+  const savedObligation = (
+    [
+      ["tenant", `v_contract.${c("tenant")}`],
+      ["contract", `v_contract.${c("id")}`],
+      ["title", "trim(save_obligation.title)"],
+      ["description", "nullif(trim(save_obligation.description), '')"],
+      ["dueOn", "save_obligation.due_on"],
+      ["owner", "save_obligation.owner_id"],
+    ] as const
+  ).filter(([column]) => obligationKeeps(column));
+
   // The checks create_contract and update_contract share, over v_row.
-  const termsCheck = `if v_row.${c("counterpartyType")} is not null and not ${subjectInTenant(ctx, `v_row.${c("counterpartyType")}`, `v_row.${c("counterpartyId")}`, `v_row.${c("tenant")}`)} then
+  const termsCheck = `${
+    counterparty
+      ? `if v_row.${c("counterpartyType")} is not null and not ${subjectInTenant(ctx, `v_row.${c("counterpartyType")}`, `v_row.${c("counterpartyId")}`, `v_row.${c("tenant")}`)} then
     ${invalid("the counterparty is unknown or not in this organization")}
   end if;
-  if v_row.${c("owner")} is not null and not ${isMember(`v_row.${c("tenant")}`, `v_row.${c("owner")}`)} then
+  `
+      : ""
+  }if v_row.${c("owner")} is not null and not ${isMember(`v_row.${c("tenant")}`, `v_row.${c("owner")}`)} then
     ${invalid("the owner must be a member of the organization")}
   end if;`;
+
+  const created = (
+    [
+      ["tenant", `v_row.${c("tenant")}`],
+      ["title", `v_row.${c("title")}`],
+      ["description", contractValue("v_row", "description")],
+      ["counterpartyType", contractValue("v_row", "counterpartyType")],
+      ["counterpartyId", contractValue("v_row", "counterpartyId")],
+      ["owner", `v_row.${c("owner")}`],
+      ["value", contractValue("v_row", "value")],
+      ["currency", `upper(${contractValue("v_row", "currency")})`],
+      ["startsOn", `v_row.${c("startsOn")}`],
+      ["endsOn", `v_row.${c("endsOn")}`],
+      ["autoRenew", `coalesce(v_row.${c("autoRenew")}, false)`],
+      ["renewalMonths", `coalesce(v_row.${c("renewalMonths")}, 12)`],
+      ["noticeDays", `coalesce(v_row.${c("noticeDays")}, 30)`],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => keeps(column));
 
   // attrs (jsonb) over the current row, for create (v_row empty) and update.
   const assign = (column: string, key: string, cast: string): string =>
     `v_row.${c(column)} := case when attrs ? '${key}' then (attrs ->> '${key}')::${cast} else v_row.${c(column)} end;`;
 
+  const attributes = [
+    ["title", "title", "text"],
+    ["description", "description", "text"],
+    ["counterpartyType", "counterpartyType", "text"],
+    ["counterpartyId", "counterpartyId", "text"],
+    ["owner", "ownerId", "uuid"],
+    ["value", "value", "bigint"],
+    ["currency", "currency", "text"],
+    ["startsOn", "startsOn", "date"],
+    ["endsOn", "endsOn", "date"],
+    ["autoRenew", "autoRenew", "boolean"],
+    ["renewalMonths", "renewalMonths", "integer"],
+    ["noticeDays", "noticeDays", "integer"],
+  ] as const;
+
+  const dropped = attributes
+    .filter(([column]) => !keeps(column))
+    .map(([, key]) => sqlString(key));
+
+  // An attrs key for a column the app's contracts table doesn't keep fails
+  // instead of being dropped.
   const applyAttrs = (attrs: string): string =>
     [
-      assign("title", "title", "text"),
-      assign("description", "description", "text"),
-      assign("counterpartyType", "counterpartyType", "text"),
-      assign("counterpartyId", "counterpartyId", "text"),
-      assign("owner", "ownerId", "uuid"),
-      assign("value", "value", "bigint"),
-      assign("currency", "currency", "text"),
-      assign("startsOn", "startsOn", "date"),
-      assign("endsOn", "endsOn", "date"),
-      assign("autoRenew", "autoRenew", "boolean"),
-      assign("renewalMonths", "renewalMonths", "integer"),
-      assign("noticeDays", "noticeDays", "integer"),
+      ...(dropped.length === 0
+        ? []
+        : [
+            `if attrs ?| array[${dropped.join(", ")}] then
+    ${fail("CONTRACT_FIELD_UNSUPPORTED", "this contracts table doesn't keep every attribute passed", "0A000")}
+  end if;`,
+          ]),
+      ...attributes
+        .filter(([column]) => keeps(column))
+        .map(([column, key, cast]) => assign(column, key, cast)),
     ]
       .map((line) => line.replaceAll("attrs", attrs))
       .join("\n  ");
@@ -198,18 +285,38 @@ begin
   if not found then
     ${notFound}
   end if;
-  v_from := v_row.${c("status")};
+  v_from := ${contractStatus("v_row")};
   if v_from = contract_apply_status.status then
     return ${contractJson("v_row")};
   end if;
   update ${contracts} x set
-    ${c("status")} = contract_apply_status.status,
-    ${c("startsOn")} = case when contract_apply_status.status = 'active' then coalesce(x.${c("startsOn")}, current_date) else x.${c("startsOn")} end,
-    ${c("signedAt")} = case when contract_apply_status.status = 'active' and x.${c("signatureRequest")} is not null then now() else x.${c("signedAt")} end,
-    ${c("signatureRequest")} = case when contract_apply_status.status in ('draft', 'in_review') then null else x.${c("signatureRequest")} end,
-    ${c("terminatedAt")} = case when contract_apply_status.status = 'terminated' then now() else x.${c("terminatedAt")} end,
-    ${c("terminationReason")} = case when contract_apply_status.status = 'terminated' then nullif(trim(contract_apply_status.reason), '') else x.${c("terminationReason")} end,
-    ${c("updatedAt")} = now()
+    ${sets([
+      [
+        "status",
+        ctx.cast("contracts", "status", "contract_apply_status.status"),
+      ],
+      [
+        "startsOn",
+        `case when contract_apply_status.status = 'active' then coalesce(x.${c("startsOn")}, current_date) else x.${c("startsOn")} end`,
+      ],
+      [
+        "signedAt",
+        `case when contract_apply_status.status = 'active' and x.${c("signatureRequest")} is not null then now() else ${contractValue("x", "signedAt")} end`,
+      ],
+      [
+        "signatureRequest",
+        `case when contract_apply_status.status in ('draft', 'in_review') then null else x.${c("signatureRequest")} end`,
+      ],
+      [
+        "terminatedAt",
+        `case when contract_apply_status.status = 'terminated' then now() else ${contractValue("x", "terminatedAt")} end`,
+      ],
+      [
+        "terminationReason",
+        `case when contract_apply_status.status = 'terminated' then nullif(trim(contract_apply_status.reason), '') else ${contractValue("x", "terminationReason")} end`,
+      ],
+      ["updatedAt", "now()"],
+    ]).join(",\n    ")}
     where x.${c("id")} = v_row.${c("id")}
     returning * into v_row;
   perform ${fn("contract_schedule_renewal")}(v_row.${c("id")});
@@ -222,7 +329,7 @@ begin
       category: "data",
       targetType: "contract",
       recordId: `v_row.${c("id")}::text`,
-      summary: `'moved contract ' || v_row.${c("title")} || ' from ' || v_from || ' to ' || v_row.${c("status")}`,
+      summary: `'moved contract ' || v_row.${c("title")} || ' from ' || v_from || ' to ' || ${contractStatus("v_row")}`,
     },
   })}
   return ${contractJson("v_row")};
@@ -261,8 +368,8 @@ begin
     ${invalid("a contract needs a title")}
   end if;
   ${termsCheck}
-  insert into ${contracts} (${c("tenant")}, ${c("title")}, ${c("description")}, ${c("counterpartyType")}, ${c("counterpartyId")}, ${c("owner")}, ${c("value")}, ${c("currency")}, ${c("startsOn")}, ${c("endsOn")}, ${c("autoRenew")}, ${c("renewalMonths")}, ${c("noticeDays")}, ${c("createdBy")})
-  values (v_row.${c("tenant")}, v_row.${c("title")}, v_row.${c("description")}, v_row.${c("counterpartyType")}, v_row.${c("counterpartyId")}, v_row.${c("owner")}, v_row.${c("value")}, upper(v_row.${c("currency")}), v_row.${c("startsOn")}, v_row.${c("endsOn")}, coalesce(v_row.${c("autoRenew")}, false), coalesce(v_row.${c("renewalMonths")}, 12), coalesce(v_row.${c("noticeDays")}, 30), auth.uid())
+  insert into ${contracts} (${created.map(([column]) => c(column)).join(", ")})
+  values (${created.map(([, value]) => value).join(", ")})
   returning * into v_row;${writeExtraColumns(contracts, extras, "create_contract.fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   ${contractRecord("contract.created", "v_row", "created contract")}
   return ${contractJson("v_row")};
@@ -311,12 +418,21 @@ begin
   end if;
   ${termsCheck}
   update ${contracts} x set
-    ${c("title")} = v_row.${c("title")}, ${c("description")} = v_row.${c("description")},
+    ${
+      created.length === 14 && keeps("updatedAt")
+        ? `${c("title")} = v_row.${c("title")}, ${c("description")} = v_row.${c("description")},
     ${c("counterpartyType")} = v_row.${c("counterpartyType")}, ${c("counterpartyId")} = v_row.${c("counterpartyId")},
     ${c("owner")} = v_row.${c("owner")}, ${c("value")} = v_row.${c("value")}, ${c("currency")} = upper(v_row.${c("currency")}),
     ${c("startsOn")} = v_row.${c("startsOn")}, ${c("endsOn")} = v_row.${c("endsOn")},
     ${c("autoRenew")} = coalesce(v_row.${c("autoRenew")}, false), ${c("renewalMonths")} = coalesce(v_row.${c("renewalMonths")}, 12),
-    ${c("noticeDays")} = coalesce(v_row.${c("noticeDays")}, 30), ${c("updatedAt")} = now()
+    ${c("noticeDays")} = coalesce(v_row.${c("noticeDays")}, 30), ${c("updatedAt")} = now()`
+        : sets([
+            ...created.filter(
+              ([column]) => column !== "tenant" && column !== "createdBy",
+            ),
+            ["updatedAt", "now()"],
+          ]).join(",\n    ")
+    }
     where x.${c("id")} = v_row.${c("id")}
     returning * into v_row;${writeExtraColumns(contracts, extras, "update_contract.fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   if v_owner is distinct from v_row.${c("owner")} and v_row.${c("owner")} is not null then
@@ -364,7 +480,7 @@ begin
   if not ${allowed(`v_row.${c("tenant")}`, `case when transition_contract.action in ('submit', 'return') then ${write} else ${manage} end`)} then
     ${forbidden("not allowed to move this contract")}
   end if;
-  if not (v_row.${c("status")} = any (v_from)) then
+  if not (${contractStatus("v_row")} = any (v_from)) then
     ${fail("CONTRACT_TRANSITION_INVALID", "the contract can't take this step from its status", "55000")}
   end if;
   if v_row.${c("status")} = 'out_for_signature' and v_row.${c("signatureRequest")} is not null then
@@ -415,7 +531,7 @@ begin
     coalesce(send_contract_for_signature.sign_order, 'parallel'), null,
     send_contract_for_signature.message
   ) ->> 'id')::uuid;
-  update ${contracts} x set ${c("signatureRequest")} = v_request, ${c("updatedAt")} = now()
+  update ${contracts} x set ${c("signatureRequest")} = v_request${touched}
     where x.${c("id")} = v_row.${c("id")};
   return ${fn("contract_apply_status")}(v_row.${c("id")}, 'out_for_signature');
 end;
@@ -481,8 +597,8 @@ as $$
   from (
     select * from ${contracts} y
     where (list_contracts.tenant is null or y.${c("tenant")} = list_contracts.tenant)
-      and (list_contracts.status is null or y.${c("status")} = list_contracts.status)
-      and (list_contracts.counterparty_type is null or (y.${c("counterpartyType")} = list_contracts.counterparty_type and y.${c("counterpartyId")} = list_contracts.counterparty_id))
+      and (list_contracts.status is null or ${contractStatus("y")} = list_contracts.status)
+      and (list_contracts.counterparty_type is null${counterparty ? ` or (y.${c("counterpartyType")} = list_contracts.counterparty_type and y.${c("counterpartyId")} = list_contracts.counterparty_id)` : ""})
       and (list_contracts.owner_id is null or y.${c("owner")} = list_contracts.owner_id)
       and (list_contracts.renewing_before is null or (y.${c("status")} = 'active' and ${deadline("y")} <= list_contracts.renewing_before))
       and (list_contracts.before is null or y.${c("createdAt")} < list_contracts.before)
@@ -515,14 +631,17 @@ begin
     if v_row.${c("autoRenew")} then
       while v_row.${c("endsOn")} < v_today loop
         v_row.${c("endsOn")} := (v_row.${c("endsOn")} + make_interval(months => v_row.${c("renewalMonths")}))::date;
-        v_row.${c("renewedCount")} := v_row.${c("renewedCount")} + 1;
-      end loop;
-      update ${contracts} x set ${c("endsOn")} = v_row.${c("endsOn")}, ${c("renewedCount")} = v_row.${c("renewedCount")}, ${c("updatedAt")} = now()
+${
+  keeps("renewedCount")
+    ? `        v_row.${c("renewedCount")} := v_row.${c("renewedCount")} + 1;\n`
+    : ""
+}      end loop;
+      update ${contracts} x set ${c("endsOn")} = v_row.${c("endsOn")}${keeps("renewedCount") ? `, ${c("renewedCount")} = v_row.${c("renewedCount")}` : ""}${touched}
         where x.${c("id")} = v_row.${c("id")};
       perform ${fn("contract_schedule_renewal")}(v_row.${c("id")});
       ${ctx.record({
         type: "contract.renewed",
-        payload: `jsonb_build_object('organizationId', v_row.${c("tenant")}, 'contractId', v_row.${c("id")}, 'endsOn', v_row.${c("endsOn")}, 'renewedCount', v_row.${c("renewedCount")})`,
+        payload: `jsonb_build_object('organizationId', v_row.${c("tenant")}, 'contractId', v_row.${c("id")}, 'endsOn', v_row.${c("endsOn")}, 'renewedCount', ${contractValue("v_row", "renewedCount")})`,
         subject: `'contracts/' || v_row.${c("id")}::text`,
         tenant: `v_row.${c("tenant")}`,
         audit: {
@@ -565,16 +684,36 @@ begin
   if nullif(trim(save_obligation.title), '') is null then
     ${invalid("an obligation needs a title")}
   end if;
-  if save_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "save_obligation.owner_id")} then
+${
+  obligationKeeps("description")
+    ? ""
+    : `  if nullif(trim(save_obligation.description), '') is not null then
+    ${fail("CONTRACT_FIELD_UNSUPPORTED", "this obligations table keeps no description", "0A000")}
+  end if;
+`
+}  if save_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "save_obligation.owner_id")} then
     ${invalid("the owner must be a member of the organization")}
   end if;
   if save_obligation.obligation_id is null then
-    insert into ${obligations} (${o("tenant")}, ${o("contract")}, ${o("title")}, ${o("description")}, ${o("dueOn")}, ${o("owner")})
-    values (v_contract.${c("tenant")}, v_contract.${c("id")}, trim(save_obligation.title), nullif(trim(save_obligation.description), ''), save_obligation.due_on, save_obligation.owner_id)
+    insert into ${obligations} (${savedObligation.map(([column]) => o(column)).join(", ")})
+    values (${savedObligation.map(([, value]) => value).join(", ")})
     returning * into v_row;
   else
-    update ${obligations} x set ${o("title")} = trim(save_obligation.title), ${o("description")} = nullif(trim(save_obligation.description), ''),
-      ${o("dueOn")} = save_obligation.due_on, ${o("owner")} = save_obligation.owner_id, ${o("updatedAt")} = now()
+    update ${obligations} x set ${
+      obligationKeeps("description") && obligationKeeps("updatedAt")
+        ? `${o("title")} = trim(save_obligation.title), ${o("description")} = nullif(trim(save_obligation.description), ''),
+      ${o("dueOn")} = save_obligation.due_on, ${o("owner")} = save_obligation.owner_id, ${o("updatedAt")} = now()`
+        : [
+            ...savedObligation.filter(
+              ([column]) => column !== "tenant" && column !== "contract",
+            ),
+            ...(obligationKeeps("updatedAt")
+              ? [["updatedAt", "now()"] as const]
+              : []),
+          ]
+            .map(([column, value]) => `${o(column)} = ${value}`)
+            .join(", ")
+    }
       where x.${o("id")} = save_obligation.obligation_id and x.${o("contract")} = v_contract.${c("id")}
       returning * into v_row;
     if not found then
@@ -608,10 +747,24 @@ begin
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
     ${invalid("status must be open, done or waived")}
   end if;
-  update ${obligations} x set ${o("status")} = set_obligation_status.status,
-    ${o("completedAt")} = case when set_obligation_status.status = 'open' then null else now() end,
-    ${o("completedBy")} = case when set_obligation_status.status = 'open' then null else auth.uid() end,
-    ${o("updatedAt")} = now()
+  update ${obligations} x set ${[
+    `${o("status")} = ${ctx.cast("obligations", "status", "set_obligation_status.status")}`,
+    ...(
+      [
+        [
+          "completedAt",
+          "case when set_obligation_status.status = 'open' then null else now() end",
+        ],
+        [
+          "completedBy",
+          "case when set_obligation_status.status = 'open' then null else auth.uid() end",
+        ],
+        ["updatedAt", "now()"],
+      ] as const
+    )
+      .filter(([column]) => obligationKeeps(column))
+      .map(([column, value]) => `${o(column)} = ${value}`),
+  ].join(",\n    ")}
     where x.${o("id")} = v_row.${o("id")}
     returning * into v_row;
   ${obligationRecord("obligation.status_changed", "v_row", "marked obligation")}

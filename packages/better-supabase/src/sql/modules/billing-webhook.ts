@@ -35,6 +35,44 @@ export function webhookSubscriptions(
   const fn = (name: string): string => ctx.fn(name);
   const table = ctx.table("subscriptions");
   const s = (logical: string): string => ctx.col("subscriptions", logical);
+  const has = (logical: string): boolean => ctx.has("subscriptions", logical);
+
+  const optional = (logical: string, type: string): string =>
+    has(logical) ? `\n  ${s(logical)} ${type},` : "";
+
+  const written = (
+    [
+      ["tenant", "upsert_billing_subscription.tenant"],
+      ["subscription", "upsert_billing_subscription.subscription"],
+      [
+        "status",
+        ctx.cast(
+          "subscriptions",
+          "status",
+          "upsert_billing_subscription.status",
+        ),
+      ],
+      ["price", "upsert_billing_subscription.price"],
+      [
+        "plan",
+        `${fn("billing_plan_of_price")}(upsert_billing_subscription.price)`,
+      ],
+      ["periodEnd", "upsert_billing_subscription.period_end"],
+      ["cancelAt", "upsert_billing_subscription.cancel_at"],
+      ["eventAt", "upsert_billing_subscription.event_at"],
+    ] as const
+  ).filter(([logical]) => has(logical));
+
+  const updated = [
+    ...written
+      .filter(([logical]) => logical !== "tenant")
+      .map(([logical]) => `${s(logical)} = excluded.${s(logical)}`),
+    ...(has("updatedAt") ? [`${s("updatedAt")} = now()`] : []),
+  ];
+
+  const key = ctx.owns("subscriptions")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("subscriptions").name}_tenant_key`)} on ${table} (${s("tenant")});`;
 
   const planOf = plans
     ? `select p.${sqlIdent(plans.key)}::text from ${plans.table} p where p.${sqlIdent(plans.price)}::text = billing_plan_of_price.price limit 1`
@@ -46,14 +84,9 @@ export function webhookSubscriptions(
 create table if not exists ${table} (
   ${s("tenant")} ${id} primary key,
   ${s("subscription")} text not null,
-  ${s("status")} text not null,
-  ${s("price")} text,
-  ${s("plan")} text,
-  ${s("periodEnd")} timestamptz,
-  ${s("cancelAt")} timestamptz,
-  ${s("eventAt")} timestamptz not null,
-  ${s("updatedAt")} timestamptz not null default now()
-);
+  ${s("status")} text not null,${optional("price", "text")}${optional("plan", "text")}${optional("periodEnd", "timestamptz")}${optional("cancelAt", "timestamptz")}
+  ${s("eventAt")} timestamptz not null${has("updatedAt") ? `,\n  ${s("updatedAt")} timestamptz not null default now()` : ""}
+);${key}
 alter table ${table} enable row level security;
 revoke all on ${table} from public, anon, authenticated;
 grant all on ${table} to service_role;
@@ -85,22 +118,10 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("BILLING_FORBIDDEN", "only the service role stores subscriptions")}
   end if;
-  insert into ${table} as b (${s("tenant")}, ${s("subscription")}, ${s("status")}, ${s("price")}, ${s("plan")},
-    ${s("periodEnd")}, ${s("cancelAt")}, ${s("eventAt")})
-  values (upsert_billing_subscription.tenant, upsert_billing_subscription.subscription,
-    upsert_billing_subscription.status, upsert_billing_subscription.price,
-    ${fn("billing_plan_of_price")}(upsert_billing_subscription.price),
-    upsert_billing_subscription.period_end, upsert_billing_subscription.cancel_at,
-    upsert_billing_subscription.event_at)
+  insert into ${table} as b (${written.map(([logical]) => s(logical)).join(", ")})
+  values (${written.map(([, value]) => value).join(",\n    ")})
   on conflict (${s("tenant")}) do update set
-    ${s("subscription")} = excluded.${s("subscription")},
-    ${s("status")} = excluded.${s("status")},
-    ${s("price")} = excluded.${s("price")},
-    ${s("plan")} = excluded.${s("plan")},
-    ${s("periodEnd")} = excluded.${s("periodEnd")},
-    ${s("cancelAt")} = excluded.${s("cancelAt")},
-    ${s("eventAt")} = excluded.${s("eventAt")},
-    ${s("updatedAt")} = now()
+    ${updated.join(",\n    ")}
   where excluded.${s("eventAt")} >= b.${s("eventAt")};
   v_applied := found;
   return v_applied;

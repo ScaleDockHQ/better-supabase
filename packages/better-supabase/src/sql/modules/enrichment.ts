@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -41,6 +41,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     enrichments: {
       name: "enrichments",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -54,6 +55,8 @@ const NAMES: BlockSqlNames = {
         fetchedAt: "fetched_at",
         requestedBy: "requested_by",
       },
+      optional: ["requestedBy"],
+      typed: ["status"],
     },
   },
 };
@@ -101,6 +104,19 @@ function names(ctx: BlockSqlContext): EnrichmentNames {
 function tables(ctx: BlockSqlContext, n: EnrichmentNames): string {
   const { t, e, co, pe } = n;
   const policy = `${ctx.tableName("enrichments").name}_read`;
+  const by = ctx.has("enrichments", "requestedBy");
+  const name = ctx.tableName("enrichments").name;
+
+  // The app's table lacks the module's named unique constraints, so the
+  // upserts there target these indexes by their columns.
+  const keys = ctx.owns("enrichments")
+    ? ""
+    : (["company", "person"] as const)
+        .map(
+          (column) =>
+            `create unique index if not exists ${sqlIdent(`bsb_${name}_${column}_provider_key`)} on ${t("enrichments")} (${e(column)}, ${e("provider")});\n`,
+        )
+        .join("");
 
   return `create table if not exists ${t("enrichments")} (
   ${e("id")} uuid primary key default gen_random_uuid(),
@@ -111,15 +127,13 @@ function tables(ctx: BlockSqlContext, n: EnrichmentNames): string {
   ${e("status")} text not null check (${e("status")} in ('matched', 'not_found')),
   ${e("data")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${e("data")}) = 'object'),
   ${e("filled")} text[] not null default '{}',
-  ${e("fetchedAt")} timestamptz not null default now(),
-  ${e("requestedBy")} uuid references auth.users (id) on delete set null,
+  ${e("fetchedAt")} timestamptz not null default now(),${by ? `\n  ${e("requestedBy")} uuid references auth.users (id) on delete set null,` : ""}
   check (num_nonnulls(${e("company")}, ${e("person")}) = 1),
   constraint ${ctx.naming.rename("enrichments_company_provider_key")} unique (${e("company")}, ${e("provider")}),
   constraint ${ctx.naming.rename("enrichments_person_provider_key")} unique (${e("person")}, ${e("provider")})
 );
 create index if not exists ${ctx.naming.rename("enrichments_tenant_idx")} on ${t("enrichments")} (${e("tenant")}, ${e("fetchedAt")});
-create index if not exists ${ctx.naming.rename("enrichments_requested_by_idx")} on ${t("enrichments")} (${e("requestedBy")}) where ${e("requestedBy")} is not null;
-${lockTable(t("enrichments"), { read: true })}
+${by ? `create index if not exists ${ctx.naming.rename("enrichments_requested_by_idx")} on ${t("enrichments")} (${e("requestedBy")}) where ${e("requestedBy")} is not null;\n` : ""}${keys}${lockTable(t("enrichments"), { read: true })}
 drop policy if exists ${policy} on ${t("enrichments")};
 create policy ${policy} on ${t("enrichments")} for select to authenticated
 using (${ctx.scope.check(e("tenant"), n.read)});
@@ -147,9 +161,10 @@ function personTarget(n: EnrichmentNames, row: string): string {
 
 function functions(ctx: BlockSqlContext, n: EnrichmentNames): string {
   const { fn, t, e, co, pe } = n;
+  const by = ctx.has("enrichments", "requestedBy");
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'subjectType', case when ${row}.${e("company")} is not null then ${n.company} else ${n.person} end, 'subjectId', coalesce(${row}.${e("company")}, ${row}.${e("person")}), 'provider', ${row}.${e("provider")}, 'status', ${row}.${e("status")}, 'data', ${row}.${e("data")}, 'filled', to_jsonb(${row}.${e("filled")}), 'fetchedAt', ${row}.${e("fetchedAt")}, 'requestedBy', ${row}.${e("requestedBy")})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'subjectType', case when ${row}.${e("company")} is not null then ${n.company} else ${n.person} end, 'subjectId', coalesce(${row}.${e("company")}, ${row}.${e("person")}), 'provider', ${row}.${e("provider")}, 'status', ${row}.${e("status")}, 'data', ${row}.${e("data")}, 'filled', to_jsonb(${row}.${e("filled")}), 'fetchedAt', ${row}.${e("fetchedAt")}, 'requestedBy', ${by ? `${row}.${e("requestedBy")}` : "null"})`;
 
   const unknown = fail(
     "ENRICHMENT_SUBJECT_UNKNOWN",
@@ -165,14 +180,13 @@ function functions(ctx: BlockSqlContext, n: EnrichmentNames): string {
 
   const upsert = (
     column: "company" | "person",
-  ): string => `insert into ${t("enrichments")} (${e("tenant")}, ${e(column)}, ${e("provider")}, ${e("status")}, ${e("data")}, ${e("filled")}, ${e("requestedBy")})
-    values (v_tenant, record_enrichment.subject_id, record_enrichment.provider, v_status, v_data, v_filled, auth.uid())
-    on conflict on constraint ${ctx.naming.rename(`enrichments_${column}_provider_key`)} do update set
+  ): string => `insert into ${t("enrichments")} (${e("tenant")}, ${e(column)}, ${e("provider")}, ${e("status")}, ${e("data")}, ${e("filled")}${by ? `, ${e("requestedBy")}` : ""})
+    values (v_tenant, record_enrichment.subject_id, record_enrichment.provider, ${ctx.cast("enrichments", "status", "v_status")}, v_data, v_filled${by ? ", auth.uid()" : ""})
+    on conflict ${ctx.owns("enrichments") ? `on constraint ${ctx.naming.rename(`enrichments_${column}_provider_key`)}` : `(${e(column)}, ${e("provider")})`} do update set
       ${e("status")} = excluded.${e("status")},
       ${e("data")} = excluded.${e("data")},
       ${e("filled")} = excluded.${e("filled")},
-      ${e("fetchedAt")} = now(),
-      ${e("requestedBy")} = excluded.${e("requestedBy")}
+      ${e("fetchedAt")} = now()${by ? `,\n      ${e("requestedBy")} = excluded.${e("requestedBy")}` : ""}
     returning * into v_row;`;
 
   const due = (
@@ -225,7 +239,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $$${ctx.owns("enrichments") ? "" : "\n#variable_conflict use_column"}
 declare
   v_tenant ${ctx.idType};
   v_company ${n.companies};

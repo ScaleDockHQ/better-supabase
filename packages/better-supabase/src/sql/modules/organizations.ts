@@ -226,10 +226,12 @@ function slugCheck(ctx: BlockSqlContext, n: OrganizationNames): string {
   const max = ctx.number("slugMaxLength", 48);
   const reservedList = ctx.list("reservedSlugs", []);
 
+  const slugs = ctx.of("reserved-slugs");
+
   const reserved = [
     ...(ctx.installed("reserved-slugs")
       ? [
-          "exists (select 1 from better_supabase.reserved_slugs r where r.slug = lower(value))",
+          `exists (select 1 from ${slugs.table("slugs")} r where r.${slugs.col("slugs", "slug")} = lower(value))`,
         ]
       : []),
     ...(reservedList.length > 0

@@ -1,8 +1,8 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { raise, schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
-import { columnsOf, rowJson } from "./module-columns.ts";
 
 const ENTRIES = {
   key: "key",
@@ -23,6 +23,9 @@ const NAMES: BlockSqlNames = {
       name: "ai_cache_entries",
       columns: ENTRIES,
       lifecycle: { tenant: "tenant" },
+      app: {},
+      optional: ["model", "hits", "createdAt", "lastHitAt"],
+      typed: ["kind"],
     },
   },
 };
@@ -30,8 +33,27 @@ const NAMES: BlockSqlNames = {
 function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const e = columnsOf(ctx, "entries", ENTRIES);
+
+  const has = (column: keyof typeof ENTRIES): boolean =>
+    ctx.has("entries", column);
+
+  const col = (column: keyof typeof ENTRIES): string =>
+    ctx.col("entries", column);
+
+  const e = {
+    key: col("key"),
+    tenant: col("tenant"),
+    kind: col("kind"),
+    value: col("value"),
+    expiresAt: col("expiresAt"),
+  };
+
   const entries = ctx.table("entries");
+  const { name } = ctx.tableName("entries");
+
+  const line = (column: keyof typeof ENTRIES, type: string): string =>
+    has(column) ? `\n  ${col(column)} ${type},` : "";
+
   const maxTtl = ctx.number("maxTtl", 7 * 24 * 60 * 60);
   const maxBytes = ctx.number("maxBytes", 1024 * 1024);
 
@@ -47,7 +69,34 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
-  const entryJson = (row: string): string => rowJson(ENTRIES, e, row);
+  const entryJson = (row: string): string =>
+    `jsonb_build_object(${Object.entries(ENTRIES)
+      .map(
+        ([logical, key]) =>
+          `'${key}', ${ctx.has("entries", logical) ? `${row}.${ctx.col("entries", logical)}` : logical === "hits" ? "0" : "null"}`,
+      )
+      .join(", ")})`;
+
+  const hit = [
+    ...(has("hits") ? [`${col("hits")} = x.${col("hits")} + 1`] : []),
+    ...(has("lastHitAt") ? [`${col("lastHitAt")} = now()`] : []),
+  ];
+
+  const lookup =
+    hit.length > 0
+      ? `update ${entries} x set ${hit.join(", ")}
+  where x.${e.key} = ai_cache_get.key and x.${e.expiresAt} > now()
+  returning * into v_row;`
+      : `select * into v_row from ${entries} x
+  where x.${e.key} = ai_cache_get.key and x.${e.expiresAt} > now();`;
+
+  const model = has("model");
+
+  const resets = [
+    ...(has("hits") ? [`${col("hits")} = 0`] : []),
+    ...(has("createdAt") ? [`${col("createdAt")} = now()`] : []),
+    ...(has("lastHitAt") ? [`${col("lastHitAt")} = null`] : []),
+  ];
 
   return `${schemaPreamble(ctx)}
 -- Model responses cached by a key the application derives from the request
@@ -56,16 +105,16 @@ function build(ctx: BlockSqlContext): string {
 create table if not exists ${entries} (
   ${e.key} text primary key check (length(${e.key}) between 1 and 256),
   ${e.tenant} ${id},
-  ${e.kind} text not null default 'generate' check (${e.kind} in ('generate', 'stream', 'embed', 'other')),
-  ${e.model} text check (length(${e.model}) <= 200),
-  ${e.value} jsonb not null check (octet_length(${e.value}::text) <= ${maxBytes}),
-  ${e.hits} integer not null default 0,
-  ${e.createdAt} timestamptz not null default now(),
-  ${e.lastHitAt} timestamptz,
+  ${e.kind} text not null default 'generate' check (${e.kind} in ('generate', 'stream', 'embed', 'other')),${model ? `\n  ${col("model")} text check (length(${col("model")}) <= 200),` : ""}
+  ${e.value} jsonb not null check (octet_length(${e.value}::text) <= ${maxBytes}),${line("hits", "integer not null default 0")}${line("createdAt", "timestamptz not null default now()")}${line("lastHitAt", "timestamptz")}
   ${e.expiresAt} timestamptz not null
 );
 create index if not exists ai_cache_entries_expires_idx on ${entries} (${e.expiresAt});
-create index if not exists ai_cache_entries_tenant_idx on ${entries} (${e.tenant});
+create index if not exists ai_cache_entries_tenant_idx on ${entries} (${e.tenant});${
+    ctx.owns("entries")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_key_key`)} on ${entries} (${e.key});`
+  }
 ${lockTable(entries)}
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -78,9 +127,7 @@ as $$
 declare
   v_row ${entries}%rowtype;
 begin
-  update ${entries} x set ${e.hits} = x.${e.hits} + 1, ${e.lastHitAt} = now()
-  where x.${e.key} = ai_cache_get.key and x.${e.expiresAt} > now()
-  returning * into v_row;
+  ${lookup}
   if not found then
     return null;
   end if;
@@ -103,17 +150,13 @@ begin
   if ai_cache_set.ttl is null or ai_cache_set.ttl < 1 then
     ${raise("ttl must be at least one second", "22023", "AI_CACHE_INVALID")}
   end if;
-  insert into ${entries} (${e.key}, ${e.tenant}, ${e.kind}, ${e.model}, ${e.value}, ${e.expiresAt})
-  values (ai_cache_set.key, ai_cache_set.tenant, coalesce(ai_cache_set.kind, 'generate'), ai_cache_set.model, ai_cache_set.value,
+  insert into ${entries} (${e.key}, ${e.tenant}, ${e.kind}, ${model ? `${col("model")}, ` : ""}${e.value}, ${e.expiresAt})
+  values (ai_cache_set.key, ai_cache_set.tenant, ${ctx.cast("entries", "kind", "coalesce(ai_cache_set.kind, 'generate')")}, ${model ? "ai_cache_set.model, " : ""}ai_cache_set.value,
     now() + make_interval(secs => least(ai_cache_set.ttl, ${maxTtl})))
   on conflict (${e.key}) do update set
     ${e.tenant} = excluded.${e.tenant},
-    ${e.kind} = excluded.${e.kind},
-    ${e.model} = excluded.${e.model},
-    ${e.value} = excluded.${e.value},
-    ${e.hits} = 0,
-    ${e.createdAt} = now(),
-    ${e.lastHitAt} = null,
+    ${e.kind} = excluded.${e.kind},${model ? `\n    ${col("model")} = excluded.${col("model")},` : ""}
+    ${e.value} = excluded.${e.value},${resets.map((reset) => `\n    ${reset},`).join("")}
     ${e.expiresAt} = excluded.${e.expiresAt}
   returning * into v_row;
   return ${entryJson("v_row")} - '${ENTRIES.value}';
@@ -137,7 +180,7 @@ begin
   delete from ${entries} x
   where (ai_cache_delete.key is null or x.${e.key} = ai_cache_delete.key)
     and (ai_cache_delete.tenant is null or x.${e.tenant} = ai_cache_delete.tenant)
-    and (ai_cache_delete.model is null or x.${e.model} = ai_cache_delete.model);
+    and (ai_cache_delete.model is null or ${model ? `x.${col("model")} = ai_cache_delete.model` : "false"});
   get diagnostics v_count = row_count;
   return v_count;
 end;

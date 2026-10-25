@@ -1,6 +1,8 @@
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { SCHEMA } from "../shared.ts";
+import { sqlIdent } from "../../core/template.ts";
+import { schemaPreamble } from "../shared.ts";
 
 const RATE_LIMIT_HOOK = `-- Points PostgREST's pre-request hook at check_request. It keeps an
 -- existing pre-request function; chain from it.
@@ -41,44 +43,81 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
-export const RATE_LIMIT: BlockSqlDefinition = {
-  name: "rate-limit",
-  names: { tables: {}, options: ["preRequest"] },
-  data: (ctx) =>
-    ctx.flag("preRequest", true) ? RATE_LIMIT_HOOK : RATE_LIMIT_NO_HOOK,
-  title: "Write rate limits",
-  description:
-    "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
-  requires: [],
-  target: "schema",
-  build: () => `${SCHEMA}
+const NAMES: BlockSqlNames = {
+  options: ["preRequest"],
+  tables: {
+    rules: {
+      name: "rate_limit_rules",
+      app: { writes: false },
+      columns: {
+        scope: "scope",
+        maxRequests: "max_requests",
+        period: "period",
+        keyClaim: "key_claim",
+      },
+    },
+    counters: {
+      name: "rate_limits",
+      app: { writes: false },
+      columns: {
+        scope: "scope",
+        key: "key",
+        windowStart: "window_start",
+        hits: "hits",
+        period: "period",
+      },
+    },
+  },
+};
+
+function build(ctx: BlockSqlContext): string {
+  const rules = ctx.table("rules");
+  const r = (column: string): string => ctx.col("rules", column);
+  const counters = ctx.table("counters");
+  const c = (column: string): string => ctx.col("counters", column);
+
+  // Over the app's table the module's primary key isn't there.
+  const counterKey = ctx.owns("counters")
+    ? "on constraint rate_limits_pkey"
+    : `(${c("scope")}, ${c("key")})`;
+
+  const counterIndex = ctx.owns("counters")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("counters").name}_scope_key_key`)} on ${counters} (${c("scope")}, ${c("key")});`;
+
+  // Over the app's table the module's primary key isn't there.
+  const scopeIndex = ctx.owns("rules")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("rules").name}_scope_key`)} on ${rules} (${r("scope")});`;
+
+  return `${schemaPreamble(ctx)}
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
-create table if not exists better_supabase.rate_limit_rules (
-  scope text primary key,
-  max_requests integer not null check (max_requests > 0),
-  period interval not null check (period > interval '0'),
-  key_claim text not null default 'sub'
-);
+create table if not exists ${rules} (
+  ${r("scope")} text primary key,
+  ${r("maxRequests")} integer not null check (${r("maxRequests")} > 0),
+  ${r("period")} interval not null check (${r("period")} > interval '0'),
+  ${r("keyClaim")} text not null default 'sub'
+);${scopeIndex}
 
-create unlogged table if not exists better_supabase.rate_limits (
-  scope text not null,
-  key text not null,
-  window_start timestamptz not null,
-  hits integer not null,
-  primary key (scope, key)
-);
+create unlogged table if not exists ${counters} (
+  ${c("scope")} text not null,
+  ${c("key")} text not null,
+  ${c("windowStart")} timestamptz not null,
+  ${c("hits")} integer not null,
+  primary key (${c("scope")}, ${c("key")})
+);${counterIndex}
 -- The window length the counter was last hit with, so purge_rate_limits keeps
 -- a counter for its whole window when no rule names its period.
-alter table better_supabase.rate_limits add column if not exists period interval;
+alter table ${counters} add column if not exists ${c("period")} interval;
 
-alter table better_supabase.rate_limit_rules enable row level security;
-alter table better_supabase.rate_limits enable row level security;
-revoke all on table better_supabase.rate_limit_rules from anon, authenticated;
-revoke all on table better_supabase.rate_limits from anon, authenticated;
+alter table ${rules} enable row level security;
+alter table ${counters} enable row level security;
+revoke all on table ${rules} from anon, authenticated;
+revoke all on table ${counters} from anon, authenticated;
 
 -- select better_supabase.set_rate_limit('/rpc/send_invite', 5, interval '1 minute');
 -- A null max_requests removes the rule.
@@ -93,16 +132,17 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if max_requests is null then
-    delete from better_supabase.rate_limit_rules r where r.scope = set_rate_limit.scope;
-    delete from better_supabase.rate_limits l where l.scope = set_rate_limit.scope;
+    delete from ${rules} r where r.${r("scope")} = set_rate_limit.scope;
+    delete from ${counters} l where l.${c("scope")} = set_rate_limit.scope;
     return;
   end if;
-  insert into better_supabase.rate_limit_rules as r (scope, max_requests, period, key_claim)
+  insert into ${rules} as r (${r("scope")}, ${r("maxRequests")}, ${r("period")}, ${r("keyClaim")})
   values (scope, max_requests, period, key_claim)
-  on conflict on constraint rate_limit_rules_pkey do update
-    set max_requests = excluded.max_requests, period = excluded.period, key_claim = excluded.key_claim;
+  on conflict (${r("scope")}) do update
+    set ${r("maxRequests")} = excluded.${r("maxRequests")}, ${r("period")} = excluded.${r("period")}, ${r("keyClaim")} = excluded.${r("keyClaim")};
 end
 $$;
 
@@ -125,7 +165,7 @@ declare
   path text := current_setting('request.path', true);
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
-  rule better_supabase.rate_limit_rules;
+  rule ${rules};
   caller text;
   used integer;
   started timestamptz;
@@ -141,25 +181,25 @@ begin
     return;
   end if;
   for rule in
-    select * from better_supabase.rate_limit_rules r where r.scope in ('*', path) order by r.scope
+    select * from ${rules} r where r.${r("scope")} in ('*', path) order by r.${r("scope")}
   loop
     caller := coalesce(
-      claims ->> rule.key_claim,
+      claims ->> rule.${r("keyClaim")},
       'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
-    insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
-    values (rule.scope, caller, now(), 1, rule.period)
-    on conflict on constraint rate_limits_pkey do update set
-      window_start = case when l.window_start + rule.period <= now() then now() else l.window_start end,
-      hits = case when l.window_start + rule.period <= now() then 1 else l.hits + 1 end,
-      period = rule.period
-    returning l.hits, l.window_start into used, started;
-    if used > rule.max_requests then
-      retry := greatest(1, ceil(extract(epoch from started + rule.period - now()))::integer);
+    insert into ${counters} as l (${c("scope")}, ${c("key")}, ${c("windowStart")}, ${c("hits")}, ${c("period")})
+    values (rule.${r("scope")}, caller, now(), 1, rule.${r("period")})
+    on conflict ${counterKey} do update set
+      ${c("windowStart")} = case when l.${c("windowStart")} + rule.${r("period")} <= now() then now() else l.${c("windowStart")} end,
+      ${c("hits")} = case when l.${c("windowStart")} + rule.${r("period")} <= now() then 1 else l.${c("hits")} + 1 end,
+      ${c("period")} = rule.${r("period")}
+    returning l.${c("hits")}, l.${c("windowStart")} into used, started;
+    if used > rule.${r("maxRequests")} then
+      retry := greatest(1, ceil(extract(epoch from started + rule.${r("period")} - now()))::integer);
       raise sqlstate 'PGRST' using
         message = json_build_object(
           'code', 'BS429',
-          'message', format('Rate limit for %s exceeded: %s writes per %s', rule.scope, rule.max_requests, rule.period),
+          'message', format('Rate limit for %s exceeded: %s writes per %s', rule.${r("scope")}, rule.${r("maxRequests")}, rule.${r("period")}),
           'details', format('Retry after %s seconds.', retry),
           'hint', null
         )::text,
@@ -194,26 +234,26 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  rule better_supabase.rate_limit_rules;
+  rule ${rules};
   limit_max integer;
   limit_period interval;
   used integer;
   started timestamptz;
 begin
-  select * into rule from better_supabase.rate_limit_rules r where r.scope = hit_rate_limit.scope;
-  limit_max := coalesce(max_requests, rule.max_requests);
-  limit_period := coalesce(period, rule.period);
+  select * into rule from ${rules} r where r.${r("scope")} = hit_rate_limit.scope;
+  limit_max := coalesce(max_requests, rule.${r("maxRequests")});
+  limit_period := coalesce(period, rule.${r("period")});
   if limit_max is null or limit_period is null then
     raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope
       using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
   end if;
-  insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+  insert into ${counters} as l (${c("scope")}, ${c("key")}, ${c("windowStart")}, ${c("hits")}, ${c("period")})
   values (scope, key, now(), 1, limit_period)
-  on conflict on constraint rate_limits_pkey do update set
-    window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,
-    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end,
-    period = limit_period
-  returning l.hits, l.window_start into used, started;
+  on conflict ${counterKey} do update set
+    ${c("windowStart")} = case when l.${c("windowStart")} + limit_period <= now() then now() else l.${c("windowStart")} end,
+    ${c("hits")} = case when l.${c("windowStart")} + limit_period <= now() then 1 else l.${c("hits")} + 1 end,
+    ${c("period")} = limit_period
+  returning l.${c("hits")}, l.${c("windowStart")} into used, started;
   return query select
     used <= limit_max,
     greatest(limit_max - used, 0),
@@ -262,8 +302,8 @@ declare
   used integer[] := '{}';
   starts timestamptz[] := '{}';
   hit jsonb;
-  rule better_supabase.rate_limit_rules;
-  counter better_supabase.rate_limits;
+  rule ${rules};
+  counter ${counters};
   limit_max integer;
   limit_period interval;
   current_hits integer;
@@ -283,9 +323,9 @@ begin
       raise exception 'Hit % of check_rate_limits needs a scope and a key', i - 1
         using errcode = '22023', hint = 'RATE_LIMIT_HITS';
     end if;
-    select * into rule from better_supabase.rate_limit_rules r where r.scope = hit ->> 'scope';
-    limit_max := coalesce((hit ->> 'max_requests')::integer, rule.max_requests);
-    limit_period := coalesce((hit ->> 'period')::interval, rule.period);
+    select * into rule from ${rules} r where r.${r("scope")} = hit ->> 'scope';
+    limit_max := coalesce((hit ->> 'max_requests')::integer, rule.${r("maxRequests")});
+    limit_period := coalesce((hit ->> 'period')::interval, rule.${r("period")});
     if limit_max is null or limit_period is null then
       raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', hit ->> 'scope'
         using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
@@ -306,27 +346,27 @@ begin
     periods := periods || limit_period;
   end loop;
 
-  insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+  insert into ${counters} as l (${c("scope")}, ${c("key")}, ${c("windowStart")}, ${c("hits")}, ${c("period")})
   select u.scope, u.key, now(), 0, u.period
   from unnest(scopes, keys, periods) as u(scope, key, period)
   order by u.scope, u.key
-  on conflict on constraint rate_limits_pkey do nothing;
+  on conflict ${counterKey} do nothing;
 
   perform 1
-  from better_supabase.rate_limits l
-  join unnest(scopes, keys) as u(scope, key) on l.scope = u.scope and l.key = u.key
-  order by l.scope, l.key
+  from ${counters} l
+  join unnest(scopes, keys) as u(scope, key) on l.${c("scope")} = u.scope and l.${c("key")} = u.key
+  order by l.${c("scope")}, l.${c("key")}
   for update of l;
 
   for i in 1 .. total loop
-    select * into counter from better_supabase.rate_limits l
-    where l.scope = scopes[i] and l.key = keys[i];
-    if counter.window_start + periods[i] <= now() then
+    select * into counter from ${counters} l
+    where l.${c("scope")} = scopes[i] and l.${c("key")} = keys[i];
+    if counter.${c("windowStart")} + periods[i] <= now() then
       used := used || 0;
       starts := starts || now();
     else
-      used := used || counter.hits;
-      starts := starts || counter.window_start;
+      used := used || counter.${c("hits")};
+      starts := starts || counter.${c("windowStart")};
     end if;
     if used[i] + 1 > maxes[i] then
       longest := greatest(longest, greatest(1, ceil(extract(epoch from starts[i] + periods[i] - now()))::integer));
@@ -338,11 +378,11 @@ begin
 
   if passed then
     for i in 1 .. total loop
-      update better_supabase.rate_limits l set
-        window_start = starts[i],
-        hits = used[i] + 1,
-        period = periods[i]
-      where l.scope = scopes[i] and l.key = keys[i];
+      update ${counters} l set
+        ${c("windowStart")} = starts[i],
+        ${c("hits")} = used[i] + 1,
+        ${c("period")} = periods[i]
+      where l.${c("scope")} = scopes[i] and l.${c("key")} = keys[i];
     end loop;
   end if;
 
@@ -379,20 +419,33 @@ security definer
 set search_path = ''
 as $$
   with expired as (
-    select l.scope, l.key from better_supabase.rate_limits l
-    left join better_supabase.rate_limit_rules r on r.scope = l.scope
-    where l.window_start + coalesce(l.period, r.period, interval '1 day') <= now()
+    select l.${c("scope")}, l.${c("key")} from ${counters} l
+    left join ${rules} r on r.${r("scope")} = l.${c("scope")}
+    where l.${c("windowStart")} + coalesce(l.${c("period")}, r.${r("period")}, interval '1 day') <= now()
     limit batch
   ),
   purged as (
-    delete from better_supabase.rate_limits l
+    delete from ${counters} l
     using expired e
-    where l.scope = e.scope and l.key = e.key
+    where l.${c("scope")} = e.scope and l.${c("key")} = e.key
     returning 1
   )
   select count(*)::integer from purged
 $$;
 
 revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
-grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`,
+grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`;
+}
+
+export const RATE_LIMIT: BlockSqlDefinition = {
+  name: "rate-limit",
+  names: NAMES,
+  data: (ctx) =>
+    ctx.flag("preRequest", true) ? RATE_LIMIT_HOOK : RATE_LIMIT_NO_HOOK,
+  title: "Write rate limits",
+  description:
+    "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
+  requires: [],
+  target: "schema",
+  build,
 };

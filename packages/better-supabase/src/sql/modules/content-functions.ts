@@ -9,8 +9,8 @@ import { contentSql, MAX_BODY, SLUG } from "./content-sql.ts";
 function validate(q: ContentSql, tenant: string): string {
   const { invalid } = q;
 
-  const cover =
-    q.attachments === undefined
+  const cover = q.has("cover")
+    ? q.attachments === undefined
       ? q.attachmentsInstalled
         ? ""
         : `
@@ -23,6 +23,10 @@ function validate(q: ContentSql, tenant: string): string {
     where a.${q.attachments.col("attachments", "id")} = v_cover and a.${q.attachments.col("attachments", "tenant")} = ${tenant}
   ) then
     ${invalid("the cover image is not an attachment of this organization")}
+  end if;`
+    : `
+  if v_cover is not null then
+    ${fail("CONTENT_MEDIA_UNSUPPORTED", "the entries table has no cover column", "0A000")}
   end if;`;
 
   return `if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -73,13 +77,13 @@ export function contentSnapshot(
 
   return `
   perform ${q.versions.fn("version_insert")}(${row}.${e("tenant")}, ${q.subject}, ${row}.${e("id")}::text,
-    jsonb_build_object('title', ${row}.${e("title")}, 'slug', ${row}.${e("slug")}, 'summary', ${row}.${e("summary")}, 'body', ${row}.${e("body")}),
+    jsonb_build_object('title', ${row}.${e("title")}, 'slug', ${row}.${e("slug")}, 'summary', ${q.of(row, "summary")}, 'body', ${row}.${e("body")}),
     null, ${label === undefined ? "null" : sqlString(label)}, ${label === undefined ? "'auto'" : "'manual'"}, ${label === undefined ? "false" : "true"}, auth.uid());`;
 }
 
 function entryWrites(ctx: BlockSqlContext): string {
   const q = contentSql(ctx);
-  const { fn, e, entries, invalid, forbidden, missing, json } = q;
+  const { fn, e, entries, invalid, forbidden, missing, json, has } = q;
 
   const load = (
     func: string,
@@ -87,6 +91,10 @@ function entryWrites(ctx: BlockSqlContext): string {
   if not found then
     ${missing}
   end if;`;
+
+  const clearApproval = has("approval")
+    ? `\n    ${e("approval")} = case when x.${e("status")} = 'draft' then null else x.${e("approval")} end,`
+    : "";
 
   // Under requireApproval only publishers change what is live or scheduled.
   const liveGuard = q.approval
@@ -138,23 +146,23 @@ begin
     if not found then
       ${missing}
     end if;
-    if v_source.${e("type")} <> v_type then
+    if v_source.${e("type")} <> ${q.cast("type", "v_type", "null")} then
       ${invalid("a translation has the type of the entry it translates")}
     end if;
     v_group := v_source.${e("translationGroup")};
     if exists (
       select 1 from ${entries} x
-      where x.${e("tenant")} = create_content_entry.tenant and x.${e("translationGroup")} = v_group and x.${e("locale")} = v_locale
+      where x.${e("tenant")} = create_content_entry.tenant and x.${e("translationGroup")} = v_group and x.${e("locale")} = ${q.cast("locale", "v_locale", "null")}
     ) then
       ${fail("CONTENT_TRANSLATION_EXISTS", "the entry already has a translation in this locale", "23505")}
     end if;
   end if;
   v_row.${e("tenant")} := create_content_entry.tenant;
-  v_row.${e("type")} := v_type;
-  v_row.${e("locale")} := v_locale;
+  v_row.${e("type")} := ${q.cast("type", "v_type")};
+  v_row.${e("locale")} := ${q.cast("locale", "v_locale")};
   ${slugFree(q, "null::uuid")}
-  insert into ${entries} (${e("tenant")}, ${e("type")}, ${e("locale")}, ${e("slug")}, ${e("title")}, ${e("summary")}, ${e("body")}, ${e("cover")}, ${e("translationGroup")}, ${e("author")}, ${e("createdBy")})
-  values (create_content_entry.tenant, v_type, v_locale, v_slug, v_title, v_summary, v_body, v_cover, v_group, auth.uid(), auth.uid())
+  insert into ${entries} (${e("tenant")}, ${e("type")}, ${e("locale")}, ${e("slug")}, ${e("title")}, ${has("summary") ? `${e("summary")}, ` : ""}${e("body")}${has("cover") ? `, ${e("cover")}` : ""}, ${e("translationGroup")}, ${e("author")}${has("createdBy") ? `, ${e("createdBy")}` : ""})
+  values (create_content_entry.tenant, ${q.cast("type", "v_type")}, ${q.cast("locale", "v_locale")}, v_slug, v_title, ${has("summary") ? "v_summary, " : ""}v_body${has("cover") ? ", v_cover" : ""}, v_group, auth.uid()${has("createdBy") ? ", auth.uid()" : ""})
   returning * into v_row;
   ${q.record("content_entry.created", "v_row", false)}
   return ${json("v_row")};
@@ -188,18 +196,15 @@ begin
   end if;
   v_slug := case when update_content_entry.attrs ? 'slug' then lower(trim(update_content_entry.attrs ->> 'slug')) else v_row.${e("slug")} end;
   v_title := case when update_content_entry.attrs ? 'title' then trim(update_content_entry.attrs ->> 'title') else v_row.${e("title")} end;
-  v_summary := case when update_content_entry.attrs ? 'summary' then nullif(trim(update_content_entry.attrs ->> 'summary'), '') else v_row.${e("summary")} end;
+  v_summary := case when update_content_entry.attrs ? 'summary' then nullif(trim(update_content_entry.attrs ->> 'summary'), '') else ${q.of("v_row", "summary")} end;
   v_body := case when update_content_entry.attrs ? 'body' then coalesce(update_content_entry.attrs -> 'body', '{}'::jsonb) else v_row.${e("body")} end;
-  v_cover := case when update_content_entry.attrs ? 'coverAttachmentId' then nullif(update_content_entry.attrs ->> 'coverAttachmentId', '')::uuid else v_row.${e("cover")} end;
+  v_cover := case when update_content_entry.attrs ? 'coverAttachmentId' then nullif(update_content_entry.attrs ->> 'coverAttachmentId', '')::uuid else ${q.of("v_row", "cover")} end;
   ${validate(q, `v_row.${e("tenant")}`)}
   ${slugFree(q, `v_row.${e("id")}`)}${q.withdraw("v_row")}
   update ${entries} x set
     ${e("slug")} = v_slug,
-    ${e("title")} = v_title,
-    ${e("summary")} = v_summary,
-    ${e("body")} = v_body,
-    ${e("cover")} = v_cover,
-    ${e("approval")} = case when x.${e("status")} = 'draft' then null else x.${e("approval")} end,
+    ${e("title")} = v_title,${has("summary") ? `\n    ${e("summary")} = v_summary,` : ""}
+    ${e("body")} = v_body,${has("cover") ? `\n    ${e("cover")} = v_cover,` : ""}${clearApproval}
     ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
   returning * into v_row;${contentSnapshot(q, "v_row", undefined)}
@@ -230,9 +235,8 @@ begin
     return ${json("v_row")};
   end if;${q.withdraw("v_row")}
   update ${entries} x set
-    ${e("status")} = 'archived',
-    ${e("publishAt")} = null,
-    ${e("approval")} = case when x.${e("status")} = 'draft' then null else x.${e("approval")} end,
+    ${e("status")} = ${q.cast("status", "'archived'")},
+    ${e("publishAt")} = null,${clearApproval}
     ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
   returning * into v_row;
@@ -296,9 +300,9 @@ begin
     select ${json("x")} as item, x.${e("updatedAt")} as updated, x.${e("id")} as id
     from ${entries} x
     where x.${e("tenant")} = list_content_entries.tenant
-      and (v_filter ->> 'type' is null or x.${e("type")} = v_filter ->> 'type')
-      and (v_filter ->> 'locale' is null or x.${e("locale")} = v_filter ->> 'locale')
-      and (v_filter ->> 'status' is null or x.${e("status")} = v_filter ->> 'status')
+      and (v_filter ->> 'type' is null or x.${e("type")} = ${q.cast("type", "v_filter ->> 'type'", "null")})
+      and (v_filter ->> 'locale' is null or x.${e("locale")} = ${q.cast("locale", "v_filter ->> 'locale'", "null")})
+      and (v_filter ->> 'status' is null or x.${e("status")} = ${q.cast("status", "v_filter ->> 'status'", "null")})
       and (v_filter ->> 'translationGroupId' is null or x.${e("translationGroup")} = (v_filter ->> 'translationGroupId')::uuid)
       and (v_query is null or x.${e("title")} ilike '%' || v_query || '%' or x.${e("slug")} ilike '%' || v_query || '%')
     order by x.${e("updatedAt")} desc, x.${e("id")}

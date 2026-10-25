@@ -530,7 +530,7 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;",
+      'grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;',
     );
     expect(file!.contents).toContain(
       "when length(slug) < 3 or length(slug) > 40 then 'invalid'",

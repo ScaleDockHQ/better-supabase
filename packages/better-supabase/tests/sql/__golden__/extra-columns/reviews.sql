@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:6e0634d4cbc9d2b74593ff16ed861874ded437d708486cc09e26f9530485978e
+-- @bsb-hash sha256:096b7085115092d55dfdca0c2b1ca24c7c736099dbf09a283e526f81b2527769
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -211,14 +211,9 @@ begin
     end if;
   end;
   insert into "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "author_id", "author_name", "rating", "title", "body", "status", "verified", "published_at")
-  values (submit_review.tenant, submit_review.subject_type, submit_review.subject_id, v_me, nullif(trim(submit_review.author_name), ''),
-    submit_review.rating, nullif(trim(submit_review.title), ''), nullif(trim(submit_review.body), ''),
-    'pending', v_verified, null)
+  values (submit_review.tenant, submit_review.subject_type, submit_review.subject_id, v_me, nullif(trim(submit_review.author_name), ''), submit_review.rating, nullif(trim(submit_review.title), ''), nullif(trim(submit_review.body), ''), 'pending', v_verified, null)
   on conflict ("tenant_id", "subject_type", "subject_id", "author_id") do update
-    set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body",
-      "author_name" = excluded."author_name", "verified" = excluded."verified",
-      "status" = excluded."status", "published_at" = excluded."published_at",
-      "rejection_reason" = null, "updated_at" = now()
+    set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body", "author_name" = excluded."author_name", "verified" = excluded."verified", "status" = excluded."status", "published_at" = excluded."published_at", "rejection_reason" = null, "updated_at" = now()
   returning * into v_row;
   update "better_supabase"."reviews" x set "app_note" = case when submit_review.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."reviews", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(submit_review.fields) e where e.key in ('app_note'))) r

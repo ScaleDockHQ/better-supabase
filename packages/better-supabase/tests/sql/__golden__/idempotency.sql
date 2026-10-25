@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
+-- @bsb-hash sha256:81212b5b73396a34c16a76bb0923bfcf93e83ce21eac97b8df309f19be1ba865
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,25 +9,25 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-create table if not exists better_supabase.idempotency_keys (
-  scope text not null default '',
-  key text not null,
-  request_hash text not null,
-  status text not null default 'running' check (status in ('running', 'completed')),
-  status_code integer,
-  response jsonb,
-  locked_until timestamptz,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."idempotency_keys" (
+  "scope" text not null default '',
+  "key" text not null,
+  "request_hash" text not null,
+  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status_code" integer,
+  "response" jsonb,
+  "locked_until" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-create index if not exists idempotency_keys_expiry_idx on better_supabase.idempotency_keys (expires_at);
+create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table better_supabase.idempotency_keys add column if not exists holder uuid;
+alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
-alter table better_supabase.idempotency_keys enable row level security;
-revoke all on better_supabase.idempotency_keys from anon, authenticated;
-grant all on better_supabase.idempotency_keys to service_role;
+alter table "better_supabase"."idempotency_keys" enable row level security;
+revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
@@ -46,32 +46,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  existing better_supabase.idempotency_keys;
+  existing "better_supabase"."idempotency_keys";
   token uuid := gen_random_uuid();
 begin
-  delete from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key and k.expires_at < now();
+  delete from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at, holder)
-  values (scope, key, request_hash, now() + lock, now() + ttl, token)
-  on conflict on constraint idempotency_keys_pkey do nothing;
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
+  on conflict ("scope", "key") do nothing;
   if found then
     return query select 'started'::text, null::integer, null::jsonb, token;
     return;
   end if;
 
-  select * into existing from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key
+  select * into existing from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key
   for update;
-  if existing.request_hash <> request_hash then
+  if existing."request_hash" <> request_hash then
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
-  elsif existing.status = 'completed' then
-    return query select 'replay'::text, existing.status_code, existing.response, null::uuid;
-  elsif existing.locked_until < now() then
+  elsif existing."status" = 'completed' then
+    return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
+  elsif existing."locked_until" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update better_supabase.idempotency_keys k set locked_until = now() + lock, holder = token
-    where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key;
+    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
     return query select 'running'::text, null::integer, null::jsonb, null::uuid;
@@ -94,11 +94,11 @@ language sql
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.idempotency_keys k
-    set status = 'completed', status_code = complete_idempotent.status_code,
-        response = complete_idempotent.response, locked_until = null, holder = null
-    where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
-      and k.status = 'running' and k.holder = complete_idempotent.holder
+    update "better_supabase"."idempotency_keys" k
+    set "status" = 'completed', "status_code" = complete_idempotent.status_code,
+        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+    where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
+      and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
   )
   select exists (select 1 from done)
@@ -118,11 +118,11 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.idempotency_keys k
-    set locked_until = now() + extend_idempotent.lock
-    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
-      and k.status = 'running' and k.holder = extend_idempotent.holder
-      and k.locked_until > now()
+    update "better_supabase"."idempotency_keys" k
+    set "locked_until" = now() + extend_idempotent.lock
+    where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
+      and k."status" = 'running' and k."holder" = extend_idempotent.holder
+      and k."locked_until" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -137,9 +137,9 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.idempotency_keys k
-    where k.scope = release_idempotent.scope and k.key = release_idempotent.key
-      and k.status = 'running' and k.holder = release_idempotent.holder
+    delete from "better_supabase"."idempotency_keys" k
+    where k."scope" = release_idempotent.scope and k."key" = release_idempotent.key
+      and k."status" = 'running' and k."holder" = release_idempotent.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -148,33 +148,33 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists better_supabase.leases (
-  scope text not null default '',
-  key text not null,
-  holder uuid not null,
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."leases" (
+  "scope" text not null default '',
+  "key" text not null,
+  "holder" uuid not null,
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-alter table better_supabase.leases enable row level security;
-revoke all on better_supabase.leases from anon, authenticated;
-grant all on better_supabase.leases to service_role;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from anon, authenticated;
+grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
 language plpgsql
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into better_supabase.leases as l (scope, key, holder, expires_at)
+  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
-  on conflict on constraint leases_pkey do update
-    set holder = excluded.holder, expires_at = excluded.expires_at
-    where l.expires_at <= now()
-  returning l.holder into taken;
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning l."holder" into taken;
   return taken;
 end;
 $$;
@@ -186,10 +186,10 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.leases l
-    set expires_at = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
-    where l.scope = extend_lease.scope and l.key = extend_lease.key
-      and l.holder = extend_lease.holder and l.expires_at > now()
+    update "better_supabase"."leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l."scope" = extend_lease.scope and l."key" = extend_lease.key
+      and l."holder" = extend_lease.holder and l."expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -201,8 +201,8 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.leases l
-    where l.scope = release_lease.scope and l.key = release_lease.key and l.holder = release_lease.holder
+    delete from "better_supabase"."leases" l
+    where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -214,7 +214,7 @@ language sql
 set search_path = ''
 as $$
   with purged as (
-    delete from better_supabase.idempotency_keys where expires_at < now() returning 1
+    delete from "better_supabase"."idempotency_keys" k where k."expires_at" < now() returning 1
   )
   select count(*)::integer from purged
 $$;
@@ -266,7 +266,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
+-- @bsb-hash sha256:81212b5b73396a34c16a76bb0923bfcf93e83ce21eac97b8df309f19be1ba865
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -274,25 +274,25 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-create table if not exists better_supabase.idempotency_keys (
-  scope text not null default '',
-  key text not null,
-  request_hash text not null,
-  status text not null default 'running' check (status in ('running', 'completed')),
-  status_code integer,
-  response jsonb,
-  locked_until timestamptz,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."idempotency_keys" (
+  "scope" text not null default '',
+  "key" text not null,
+  "request_hash" text not null,
+  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status_code" integer,
+  "response" jsonb,
+  "locked_until" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-create index if not exists idempotency_keys_expiry_idx on better_supabase.idempotency_keys (expires_at);
+create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table better_supabase.idempotency_keys add column if not exists holder uuid;
+alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
-alter table better_supabase.idempotency_keys enable row level security;
-revoke all on better_supabase.idempotency_keys from anon, authenticated;
-grant all on better_supabase.idempotency_keys to service_role;
+alter table "better_supabase"."idempotency_keys" enable row level security;
+revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
@@ -311,32 +311,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  existing better_supabase.idempotency_keys;
+  existing "better_supabase"."idempotency_keys";
   token uuid := gen_random_uuid();
 begin
-  delete from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key and k.expires_at < now();
+  delete from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at, holder)
-  values (scope, key, request_hash, now() + lock, now() + ttl, token)
-  on conflict on constraint idempotency_keys_pkey do nothing;
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
+  on conflict ("scope", "key") do nothing;
   if found then
     return query select 'started'::text, null::integer, null::jsonb, token;
     return;
   end if;
 
-  select * into existing from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key
+  select * into existing from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key
   for update;
-  if existing.request_hash <> request_hash then
+  if existing."request_hash" <> request_hash then
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
-  elsif existing.status = 'completed' then
-    return query select 'replay'::text, existing.status_code, existing.response, null::uuid;
-  elsif existing.locked_until < now() then
+  elsif existing."status" = 'completed' then
+    return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
+  elsif existing."locked_until" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update better_supabase.idempotency_keys k set locked_until = now() + lock, holder = token
-    where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key;
+    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
     return query select 'running'::text, null::integer, null::jsonb, null::uuid;
@@ -359,11 +359,11 @@ language sql
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.idempotency_keys k
-    set status = 'completed', status_code = complete_idempotent.status_code,
-        response = complete_idempotent.response, locked_until = null, holder = null
-    where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
-      and k.status = 'running' and k.holder = complete_idempotent.holder
+    update "better_supabase"."idempotency_keys" k
+    set "status" = 'completed', "status_code" = complete_idempotent.status_code,
+        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+    where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
+      and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
   )
   select exists (select 1 from done)
@@ -383,11 +383,11 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.idempotency_keys k
-    set locked_until = now() + extend_idempotent.lock
-    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
-      and k.status = 'running' and k.holder = extend_idempotent.holder
-      and k.locked_until > now()
+    update "better_supabase"."idempotency_keys" k
+    set "locked_until" = now() + extend_idempotent.lock
+    where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
+      and k."status" = 'running' and k."holder" = extend_idempotent.holder
+      and k."locked_until" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -402,9 +402,9 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.idempotency_keys k
-    where k.scope = release_idempotent.scope and k.key = release_idempotent.key
-      and k.status = 'running' and k.holder = release_idempotent.holder
+    delete from "better_supabase"."idempotency_keys" k
+    where k."scope" = release_idempotent.scope and k."key" = release_idempotent.key
+      and k."status" = 'running' and k."holder" = release_idempotent.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -413,33 +413,33 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists better_supabase.leases (
-  scope text not null default '',
-  key text not null,
-  holder uuid not null,
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."leases" (
+  "scope" text not null default '',
+  "key" text not null,
+  "holder" uuid not null,
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-alter table better_supabase.leases enable row level security;
-revoke all on better_supabase.leases from anon, authenticated;
-grant all on better_supabase.leases to service_role;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from anon, authenticated;
+grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
 language plpgsql
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into better_supabase.leases as l (scope, key, holder, expires_at)
+  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
-  on conflict on constraint leases_pkey do update
-    set holder = excluded.holder, expires_at = excluded.expires_at
-    where l.expires_at <= now()
-  returning l.holder into taken;
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning l."holder" into taken;
   return taken;
 end;
 $$;
@@ -451,10 +451,10 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.leases l
-    set expires_at = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
-    where l.scope = extend_lease.scope and l.key = extend_lease.key
-      and l.holder = extend_lease.holder and l.expires_at > now()
+    update "better_supabase"."leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l."scope" = extend_lease.scope and l."key" = extend_lease.key
+      and l."holder" = extend_lease.holder and l."expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -466,8 +466,8 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.leases l
-    where l.scope = release_lease.scope and l.key = release_lease.key and l.holder = release_lease.holder
+    delete from "better_supabase"."leases" l
+    where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -479,7 +479,7 @@ language sql
 set search_path = ''
 as $$
   with purged as (
-    delete from better_supabase.idempotency_keys where expires_at < now() returning 1
+    delete from "better_supabase"."idempotency_keys" k where k."expires_at" < now() returning 1
   )
   select count(*)::integer from purged
 $$;
@@ -531,33 +531,35 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:a78cc09c2c3477a3428f881d021abb7e5232edbe7785121541351f94882791cd
+-- @bsb-hash sha256:7dd0143a70a8f4e2ae19a134e6f0347094055eb759b3dc8fc5a13deca7b1d5f2
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create schema if not exists "app_private";
+grant usage on schema "app_private" to anon, authenticated, service_role;
 
-create table if not exists better_supabase.idempotency_keys (
-  scope text not null default '',
-  key text not null,
-  request_hash text not null,
-  status text not null default 'running' check (status in ('running', 'completed')),
-  status_code integer,
-  response jsonb,
-  locked_until timestamptz,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "app_private"."idempotency_keys" (
+  "scope" text not null default '',
+  "key" text not null,
+  "request_hash" text not null,
+  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status_code" integer,
+  "response" jsonb,
+  "locked_until" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-create index if not exists idempotency_keys_expiry_idx on better_supabase.idempotency_keys (expires_at);
+create index if not exists "idempotency_keys_expiry_idx" on "app_private"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table better_supabase.idempotency_keys add column if not exists holder uuid;
+alter table "app_private"."idempotency_keys" add column if not exists "holder" uuid;
 
-alter table better_supabase.idempotency_keys enable row level security;
-revoke all on better_supabase.idempotency_keys from anon, authenticated;
-grant all on better_supabase.idempotency_keys to service_role;
+alter table "app_private"."idempotency_keys" enable row level security;
+revoke all on "app_private"."idempotency_keys" from anon, authenticated;
+grant all on "app_private"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
@@ -576,32 +578,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  existing better_supabase.idempotency_keys;
+  existing "app_private"."idempotency_keys";
   token uuid := gen_random_uuid();
 begin
-  delete from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key and k.expires_at < now();
+  delete from "app_private"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at, holder)
-  values (scope, key, request_hash, now() + lock, now() + ttl, token)
-  on conflict on constraint idempotency_keys_pkey do nothing;
+  insert into "app_private"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
+  on conflict ("scope", "key") do nothing;
   if found then
     return query select 'started'::text, null::integer, null::jsonb, token;
     return;
   end if;
 
-  select * into existing from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key
+  select * into existing from "app_private"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key
   for update;
-  if existing.request_hash <> request_hash then
+  if existing."request_hash" <> request_hash then
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
-  elsif existing.status = 'completed' then
-    return query select 'replay'::text, existing.status_code, existing.response, null::uuid;
-  elsif existing.locked_until < now() then
+  elsif existing."status" = 'completed' then
+    return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
+  elsif existing."locked_until" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update better_supabase.idempotency_keys k set locked_until = now() + lock, holder = token
-    where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key;
+    update "app_private"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
     return query select 'running'::text, null::integer, null::jsonb, null::uuid;
@@ -624,11 +626,11 @@ language sql
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.idempotency_keys k
-    set status = 'completed', status_code = complete_idempotent.status_code,
-        response = complete_idempotent.response, locked_until = null, holder = null
-    where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
-      and k.status = 'running' and k.holder = complete_idempotent.holder
+    update "app_private"."idempotency_keys" k
+    set "status" = 'completed', "status_code" = complete_idempotent.status_code,
+        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+    where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
+      and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
   )
   select exists (select 1 from done)
@@ -648,11 +650,11 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.idempotency_keys k
-    set locked_until = now() + extend_idempotent.lock
-    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
-      and k.status = 'running' and k.holder = extend_idempotent.holder
-      and k.locked_until > now()
+    update "app_private"."idempotency_keys" k
+    set "locked_until" = now() + extend_idempotent.lock
+    where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
+      and k."status" = 'running' and k."holder" = extend_idempotent.holder
+      and k."locked_until" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -667,9 +669,9 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.idempotency_keys k
-    where k.scope = release_idempotent.scope and k.key = release_idempotent.key
-      and k.status = 'running' and k.holder = release_idempotent.holder
+    delete from "app_private"."idempotency_keys" k
+    where k."scope" = release_idempotent.scope and k."key" = release_idempotent.key
+      and k."status" = 'running' and k."holder" = release_idempotent.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -678,33 +680,33 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists better_supabase.leases (
-  scope text not null default '',
-  key text not null,
-  holder uuid not null,
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "app_private"."leases" (
+  "scope" text not null default '',
+  "key" text not null,
+  "holder" uuid not null,
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-alter table better_supabase.leases enable row level security;
-revoke all on better_supabase.leases from anon, authenticated;
-grant all on better_supabase.leases to service_role;
+alter table "app_private"."leases" enable row level security;
+revoke all on "app_private"."leases" from anon, authenticated;
+grant all on "app_private"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
 language plpgsql
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into better_supabase.leases as l (scope, key, holder, expires_at)
+  insert into "app_private"."leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
-  on conflict on constraint leases_pkey do update
-    set holder = excluded.holder, expires_at = excluded.expires_at
-    where l.expires_at <= now()
-  returning l.holder into taken;
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning l."holder" into taken;
   return taken;
 end;
 $$;
@@ -716,10 +718,10 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.leases l
-    set expires_at = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
-    where l.scope = extend_lease.scope and l.key = extend_lease.key
-      and l.holder = extend_lease.holder and l.expires_at > now()
+    update "app_private"."leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l."scope" = extend_lease.scope and l."key" = extend_lease.key
+      and l."holder" = extend_lease.holder and l."expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -731,8 +733,8 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.leases l
-    where l.scope = release_lease.scope and l.key = release_lease.key and l.holder = release_lease.holder
+    delete from "app_private"."leases" l
+    where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -744,7 +746,7 @@ language sql
 set search_path = ''
 as $$
   with purged as (
-    delete from better_supabase.idempotency_keys where expires_at < now() returning 1
+    delete from "app_private"."idempotency_keys" k where k."expires_at" < now() returning 1
   )
   select count(*)::integer from purged
 $$;
@@ -796,7 +798,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:0ad643c897cd387014d79fa0a9dfe8773b7e6e98e4223a329c19f1598c92461b
+-- @bsb-hash sha256:90dd3d351ce30683c77d411131a90440759afc9680d5d9df265cb694ffdaea8e
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -804,25 +806,25 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-create table if not exists better_supabase.idempotency_keys (
-  scope text not null default '',
-  key text not null,
-  request_hash text not null,
-  status text not null default 'running' check (status in ('running', 'completed')),
-  status_code integer,
-  response jsonb,
-  locked_until timestamptz,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."idempotency_keys" (
+  "scope" text not null default '',
+  "key" text not null,
+  "request_hash" text not null,
+  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status_code" integer,
+  "response" jsonb,
+  "locked_until" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-create index if not exists idempotency_keys_expiry_idx on better_supabase.idempotency_keys (expires_at);
+create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table better_supabase.idempotency_keys add column if not exists holder uuid;
+alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
 
-alter table better_supabase.idempotency_keys enable row level security;
-revoke all on better_supabase.idempotency_keys from anon, authenticated;
-grant all on better_supabase.idempotency_keys to service_role;
+alter table "better_supabase"."idempotency_keys" enable row level security;
+revoke all on "better_supabase"."idempotency_keys" from anon, authenticated;
+grant all on "better_supabase"."idempotency_keys" to service_role;
 
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
@@ -841,32 +843,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  existing better_supabase.idempotency_keys;
+  existing "better_supabase"."idempotency_keys";
   token uuid := gen_random_uuid();
 begin
-  delete from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key and k.expires_at < now();
+  delete from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at, holder)
-  values (scope, key, request_hash, now() + lock, now() + ttl, token)
-  on conflict on constraint idempotency_keys_pkey do nothing;
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
+  on conflict ("scope", "key") do nothing;
   if found then
     return query select 'started'::text, null::integer, null::jsonb, token;
     return;
   end if;
 
-  select * into existing from better_supabase.idempotency_keys k
-  where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key
+  select * into existing from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key
   for update;
-  if existing.request_hash <> request_hash then
+  if existing."request_hash" <> request_hash then
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
-  elsif existing.status = 'completed' then
-    return query select 'replay'::text, existing.status_code, existing.response, null::uuid;
-  elsif existing.locked_until < now() then
+  elsif existing."status" = 'completed' then
+    return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
+  elsif existing."locked_until" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update better_supabase.idempotency_keys k set locked_until = now() + lock, holder = token
-    where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key;
+    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
     return query select 'running'::text, null::integer, null::jsonb, null::uuid;
@@ -889,11 +891,11 @@ language sql
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.idempotency_keys k
-    set status = 'completed', status_code = complete_idempotent.status_code,
-        response = complete_idempotent.response, locked_until = null, holder = null
-    where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
-      and k.status = 'running' and k.holder = complete_idempotent.holder
+    update "better_supabase"."idempotency_keys" k
+    set "status" = 'completed', "status_code" = complete_idempotent.status_code,
+        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+    where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
+      and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
   )
   select exists (select 1 from done)
@@ -913,11 +915,11 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.idempotency_keys k
-    set locked_until = now() + extend_idempotent.lock
-    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
-      and k.status = 'running' and k.holder = extend_idempotent.holder
-      and k.locked_until > now()
+    update "better_supabase"."idempotency_keys" k
+    set "locked_until" = now() + extend_idempotent.lock
+    where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
+      and k."status" = 'running' and k."holder" = extend_idempotent.holder
+      and k."locked_until" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -932,9 +934,9 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.idempotency_keys k
-    where k.scope = release_idempotent.scope and k.key = release_idempotent.key
-      and k.status = 'running' and k.holder = release_idempotent.holder
+    delete from "better_supabase"."idempotency_keys" k
+    where k."scope" = release_idempotent.scope and k."key" = release_idempotent.key
+      and k."status" = 'running' and k."holder" = release_idempotent.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -943,33 +945,33 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists better_supabase.leases (
-  scope text not null default '',
-  key text not null,
-  holder uuid not null,
-  expires_at timestamptz not null,
-  primary key (scope, key)
+create table if not exists "better_supabase"."leases" (
+  "scope" text not null default '',
+  "key" text not null,
+  "holder" uuid not null,
+  "expires_at" timestamptz not null,
+  primary key ("scope", "key")
 );
-alter table better_supabase.leases enable row level security;
-revoke all on better_supabase.leases from anon, authenticated;
-grant all on better_supabase.leases to service_role;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from anon, authenticated;
+grant all on "better_supabase"."leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
 language plpgsql
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into better_supabase.leases as l (scope, key, holder, expires_at)
+  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
-  on conflict on constraint leases_pkey do update
-    set holder = excluded.holder, expires_at = excluded.expires_at
-    where l.expires_at <= now()
-  returning l.holder into taken;
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning l."holder" into taken;
   return taken;
 end;
 $$;
@@ -981,10 +983,10 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.leases l
-    set expires_at = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
-    where l.scope = extend_lease.scope and l.key = extend_lease.key
-      and l.holder = extend_lease.holder and l.expires_at > now()
+    update "better_supabase"."leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l."scope" = extend_lease.scope and l."key" = extend_lease.key
+      and l."holder" = extend_lease.holder and l."expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -996,8 +998,8 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from better_supabase.leases l
-    where l.scope = release_lease.scope and l.key = release_lease.key and l.holder = release_lease.holder
+    delete from "better_supabase"."leases" l
+    where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
   select exists (select 1 from released)
@@ -1009,7 +1011,7 @@ language sql
 set search_path = ''
 as $$
   with purged as (
-    delete from better_supabase.idempotency_keys where expires_at < now() returning 1
+    delete from "better_supabase"."idempotency_keys" k where k."expires_at" < now() returning 1
   )
   select count(*)::integer from purged
 $$;
@@ -1125,6 +1127,282 @@ revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
+-- better-supabase module: idempotency
+-- @bsb-block-data idempotency
+-- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('idempotency', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
+-- better-supabase module: idempotency
+-- @bsb-block idempotency@1 managed
+-- @bsb-hash sha256:be12ee6e6d7001a50e3b75016a0c1b2ef942113037b5c7e3be53f95d5d63003b
+-- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+
+-- better_supabase.idempotency_keys is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."idempotency_keys" add column if not exists "scope" text not null default '';
+alter table "better_supabase"."idempotency_keys" add column if not exists "key" text;
+alter table "better_supabase"."idempotency_keys" add column if not exists "request_hash" text;
+alter table "better_supabase"."idempotency_keys" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'completed'));
+alter table "better_supabase"."idempotency_keys" add column if not exists "status_code" integer;
+alter table "better_supabase"."idempotency_keys" add column if not exists "response" jsonb;
+alter table "better_supabase"."idempotency_keys" add column if not exists "locked_until" timestamptz;
+alter table "better_supabase"."idempotency_keys" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."idempotency_keys" add column if not exists "expires_at" timestamptz;
+create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
+-- The token of the request that holds the key while it runs.
+alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
+create unique index if not exists "bsb_idempotency_keys_scope_key_key" on "better_supabase"."idempotency_keys" ("scope", "key");
+
+alter table "better_supabase"."idempotency_keys" enable row level security;
+grant all on "better_supabase"."idempotency_keys" to service_role;
+
+-- state: 'started' (run it, with holder as the token complete and release
+-- need), 'replay' (send the stored response), 'running' (another request
+-- holds the key) or 'mismatch' (same key, different request).
+drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+create or replace function better_supabase.begin_idempotent(
+  scope text,
+  key text,
+  request_hash text,
+  ttl interval default '24 hours',
+  lock interval default '1 minute'
+)
+returns table (state text, status_code integer, response jsonb, holder uuid)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  existing "better_supabase"."idempotency_keys";
+  token uuid := gen_random_uuid();
+begin
+  delete from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
+
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  values (scope, key, request_hash, better_supabase.as_column_type('running', (null::"better_supabase"."idempotency_keys")."status"), now() + lock, now() + ttl, token)
+  on conflict ("scope", "key") do nothing;
+  if found then
+    return query select 'started'::text, null::integer, null::jsonb, token;
+    return;
+  end if;
+
+  select * into existing from "better_supabase"."idempotency_keys" k
+  where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key
+  for update;
+  if existing."request_hash" <> request_hash then
+    return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
+  elsif existing."status" = 'completed' then
+    return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
+  elsif existing."locked_until" < now() then
+    -- The holder's lock ran out: this request takes the key over, and the
+    -- former holder's complete and release now return false.
+    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
+    return query select 'started'::text, null::integer, null::jsonb, token;
+  else
+    return query select 'running'::text, null::integer, null::jsonb, null::uuid;
+  end if;
+end;
+$$;
+
+-- Stores the response for the holder that begin_idempotent returned; false
+-- when another request has taken the key over since.
+drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+create or replace function better_supabase.complete_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  status_code integer,
+  response jsonb
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with done as (
+    update "better_supabase"."idempotency_keys" k
+    set "status" = better_supabase.as_column_type('completed', (null::"better_supabase"."idempotency_keys")."status"), "status_code" = complete_idempotent.status_code,
+        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+    where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
+      and k."status" = 'running' and k."holder" = complete_idempotent.holder
+    returning 1
+  )
+  select exists (select 1 from done)
+$$;
+
+-- Moves the lock of a running key the holder still has, for a request that
+-- runs longer than lock; false once the lock ran out or another request took
+-- the key over.
+create or replace function better_supabase.extend_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  lock interval default '1 minute'
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update "better_supabase"."idempotency_keys" k
+    set "locked_until" = now() + extend_idempotent.lock
+    where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
+      and k."status" = 'running' and k."holder" = extend_idempotent.holder
+      and k."locked_until" > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
+-- On failure: forget the key so the client can retry. False when another
+-- request holds it now.
+drop function if exists better_supabase.release_idempotent(text, text);
+create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with released as (
+    delete from "better_supabase"."idempotency_keys" k
+    where k."scope" = release_idempotent.scope and k."key" = release_idempotent.key
+      and k."status" = 'running' and k."holder" = release_idempotent.holder
+    returning 1
+  )
+  select exists (select 1 from released)
+$$;
+
+-- Leases: one holder per (scope, key) until it expires, for work that must
+-- not run twice at once (one automation per conversation). acquire_lease
+-- returns the holder token, or null while someone else holds the lease.
+-- better_supabase.leases is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."leases" add column if not exists "scope" text not null default '';
+alter table "better_supabase"."leases" add column if not exists "key" text;
+alter table "better_supabase"."leases" add column if not exists "holder" uuid;
+alter table "better_supabase"."leases" add column if not exists "expires_at" timestamptz;
+create unique index if not exists "bsb_leases_scope_key_key" on "better_supabase"."leases" ("scope", "key");
+alter table "better_supabase"."leases" enable row level security;
+grant all on "better_supabase"."leases" to service_role;
+
+create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  token uuid := gen_random_uuid();
+  taken uuid;
+begin
+  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
+  values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
+  on conflict ("scope", "key") do update
+    set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
+    where l."expires_at" <= now()
+  returning l."holder" into taken;
+  return taken;
+end;
+$$;
+
+-- Moves the expiry of a lease the holder still has; false once it is lost.
+create or replace function better_supabase.extend_lease(key text, holder uuid, seconds integer default 60, scope text default '')
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update "better_supabase"."leases" l
+    set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l."scope" = extend_lease.scope and l."key" = extend_lease.key
+      and l."holder" = extend_lease.holder and l."expires_at" > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
+create or replace function better_supabase.release_lease(key text, holder uuid, scope text default '')
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with released as (
+    delete from "better_supabase"."leases" l
+    where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
+    returning 1
+  )
+  select exists (select 1 from released)
+$$;
+
+create or replace function better_supabase.purge_idempotency_keys()
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from "better_supabase"."idempotency_keys" k where k."expires_at" < now() returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
+revoke execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) from public, anon, authenticated;
+grant execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) to service_role;
+revoke execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) to service_role;
+revoke execute on function better_supabase.extend_idempotent(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_idempotent(text, text, uuid, interval) to service_role;
+revoke execute on function better_supabase.release_idempotent(text, text, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.release_idempotent(text, text, uuid) to service_role;
+revoke execute on function better_supabase.purge_idempotency_keys() from public, anon, authenticated;
+grant execute on function better_supabase.purge_idempotency_keys() to service_role;
+revoke execute on function better_supabase.acquire_lease(text, integer, text) from public, anon, authenticated;
+grant execute on function better_supabase.acquire_lease(text, integer, text) to service_role;
+revoke execute on function better_supabase.extend_lease(text, uuid, integer, text) from public, anon, authenticated;
+grant execute on function better_supabase.extend_lease(text, uuid, integer, text) to service_role;
+revoke execute on function better_supabase.release_lease(text, uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.release_lease(text, uuid, text) to service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
 -- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932

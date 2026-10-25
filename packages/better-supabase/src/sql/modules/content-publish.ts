@@ -31,7 +31,7 @@ function requestPublish(q: ContentSql, at: string): string {
       jsonb_build_object('type', v_row.${e("type")}, 'locale', v_row.${e("locale")}, 'slug', v_row.${e("slug")}, 'title', v_row.${e("title")}, 'publishAt', ${at})
     );
     update ${entries} x set
-      ${e("status")} = 'draft',
+      ${e("status")} = ${q.cast("status", "'draft'")},
       ${e("publishAt")} = ${at},
       ${e("approval")} = (v_request ->> 'id')::uuid,
       ${e("updatedAt")} = now()
@@ -74,7 +74,7 @@ begin
     [ctx.idType, `v_row.${e("tenant")}`],
   ])}
   update ${entries} x set
-    ${e("status")} = 'published',
+    ${e("status")} = ${q.cast("status", "'published'")},
     ${e("publishedAt")} = now(),
     ${e("publishAt")} = null,
     ${e("updatedAt")} = now()
@@ -146,9 +146,8 @@ begin
       ${invalid("the entry is not scheduled")}
     end if;${q.withdraw("v_row")}
     update ${entries} x set
-      ${e("status")} = 'draft',
-      ${e("publishAt")} = null,
-      ${e("approval")} = case when x.${e("status")} = 'draft' then null else x.${e("approval")} end,
+      ${e("status")} = ${q.cast("status", "'draft'")},
+      ${e("publishAt")} = null,${q.has("approval") ? `\n      ${e("approval")} = case when x.${e("status")} = 'draft' then null else x.${e("approval")} end,` : ""}
       ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;
@@ -172,7 +171,7 @@ begin
     ${forbidden("not allowed to publish content")}
   end if;
   update ${entries} x set
-    ${e("status")} = 'scheduled',
+    ${e("status")} = ${q.cast("status", "'scheduled'")},
     ${e("publishAt")} = schedule_content_entry.at,
     ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
@@ -197,11 +196,11 @@ declare
   v_row ${entries};
 begin
   select * into v_row from ${entries} x where x.${e("id")} = content_entry_approved.entry_id for update;
-  if not found or v_row.${e("status")} <> 'draft' or v_row.${e("approval")} is null then
+  if not found or v_row.${e("status")} <> 'draft' or ${q.of("v_row", "approval")} is null then
     return;
   end if;
   if v_row.${e("publishAt")} is not null and v_row.${e("publishAt")} > now() then
-    update ${entries} x set ${e("status")} = 'scheduled', ${e("updatedAt")} = now()
+    update ${entries} x set ${e("status")} = ${q.cast("status", "'scheduled'")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;
     ${q.record("content_entry.scheduled", "v_row", "scheduled a content entry")}
@@ -256,7 +255,7 @@ function publicReads(ctx: BlockSqlContext): string {
     `${row}.${e("status")} = 'published' and ${row}.${e("publishedAt")} <= now()`;
 
   const item = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'type', ${row}.${e("type")}, 'locale', ${row}.${e("locale")}, 'slug', ${row}.${e("slug")}, 'title', ${row}.${e("title")}, 'summary', ${row}.${e("summary")}, 'coverAttachmentId', ${row}.${e("cover")}, 'translationGroupId', ${row}.${e("translationGroup")}, 'publishedAt', ${row}.${e("publishedAt")}, 'updatedAt', ${row}.${e("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'type', ${row}.${e("type")}, 'locale', ${row}.${e("locale")}, 'slug', ${row}.${e("slug")}, 'title', ${row}.${e("title")}, 'summary', ${q.of(row, "summary")}, 'coverAttachmentId', ${q.of(row, "cover")}, 'translationGroupId', ${row}.${e("translationGroup")}, 'publishedAt', ${row}.${e("publishedAt")}, 'updatedAt', ${row}.${e("updatedAt")})`;
 
   return `-- A published entry by type, slug and locale, or null. A slug the locale
 -- lacks falls back to the default locale. Each entry lists its published
@@ -275,11 +274,11 @@ declare
 begin
   select * into v_row from ${entries} x
   where x.${e("tenant")} = public_content_entry.tenant
-    and x.${e("type")} = public_content_entry.type
+    and x.${e("type")} = ${q.cast("type", "public_content_entry.type", "null")}
     and x.${e("slug")} = public_content_entry.slug
-    and x.${e("locale")} in (v_locale, ${q.defaultLocale})
+    and x.${e("locale")} in (${q.cast("locale", "v_locale", "null")}, ${q.defaultLocale})
     and ${live("x")}
-  order by (x.${e("locale")} = v_locale) desc
+  order by (x.${e("locale")} = ${q.cast("locale", "v_locale", "null")}) desc
   limit 1;
   if not found then
     return null;
@@ -313,8 +312,8 @@ as $$
     select ${item("x")} as item, x.${e("publishedAt")} as published, x.${e("id")} as id
     from ${entries} x
     where x.${e("tenant")} = public_content_entries.tenant
-      and (public_content_entries.type is null or x.${e("type")} = public_content_entries.type)
-      and x.${e("locale")} = coalesce(nullif(public_content_entries.locale, ''), ${q.defaultLocale})
+      and (public_content_entries.type is null or x.${e("type")} = ${q.cast("type", "public_content_entries.type", "null")})
+      and x.${e("locale")} = ${q.cast("locale", `coalesce(nullif(public_content_entries.locale, ''), ${q.defaultLocale})`, "null")}
       and ${live("x")}
       and (public_content_entries.before is null or x.${e("publishedAt")} < public_content_entries.before)
     order by x.${e("publishedAt")} desc, x.${e("id")}

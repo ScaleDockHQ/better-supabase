@@ -35,6 +35,10 @@ export interface PostsSql {
   readonly b: (column: string) => string;
   /** A column of the posts table. */
   readonly p: (column: string) => string;
+  /** Whether the boards table has an optional column. */
+  readonly hasBoard: (column: string) => boolean;
+  /** Whether the posts table has an optional column. */
+  readonly hasPost: (column: string) => boolean;
   readonly boards: string;
   readonly posts: string;
   /** The posts' subject type, after renames, as a SQL literal. */
@@ -95,12 +99,23 @@ export function postsSql(ctx: BlockSqlContext): PostsSql {
   const keys = moduleOperations("posts");
   const b = (column: string): string => ctx.col("boards", column);
   const p = (column: string): string => ctx.col("posts", column);
+  const hasBoard = (column: string): boolean => ctx.has("boards", column);
+  const hasPost = (column: string): boolean => ctx.has("posts", column);
   const extras = ctx.extraColumns("posts", POST_KEYS);
+
+  // Column `column` of row `row`, or `missing` when the app's table lacks it.
+  const board = (row: string, column: string, missing = "null"): string =>
+    hasBoard(column) ? `${row}.${b(column)}` : missing;
+
+  const post = (row: string, column: string, missing = "null"): string =>
+    hasPost(column) ? `${row}.${p(column)}` : missing;
 
   return {
     fn: (name) => ctx.fn(name),
     b,
     p,
+    hasBoard,
+    hasPost,
     boards: ctx.table("boards"),
     posts: ctx.table("posts"),
     subject: sqlString(ctx.naming.rename("post")),
@@ -121,10 +136,10 @@ export function postsSql(ctx: BlockSqlContext): PostsSql {
     postMissing: fail("POST_NOT_FOUND", "no such post", "P0002"),
     boardMissing: fail("POST_BOARD_NOT_FOUND", "no such board", "P0002"),
     boardJson: (row) =>
-      `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'key', ${row}.${b("key")}, 'name', ${row}.${b("name")}, 'description', ${row}.${b("description")}, 'kind', ${row}.${b("kind")}, 'archivedAt', ${row}.${b("archivedAt")}, 'createdBy', ${row}.${b("createdBy")}, 'createdAt', ${row}.${b("createdAt")}, 'updatedAt', ${row}.${b("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'key', ${row}.${b("key")}, 'name', ${row}.${b("name")}, 'description', ${board(row, "description")}, 'kind', ${row}.${b("kind")}, 'archivedAt', ${board(row, "archivedAt")}, 'createdBy', ${board(row, "createdBy")}, 'createdAt', ${row}.${b("createdAt")}, 'updatedAt', ${board(row, "updatedAt", `${row}.${b("createdAt")}`)})`,
     postJson: (row) =>
       withExtraFields(
-        `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'boardId', ${row}.${p("board")}, 'authorId', ${row}.${p("author")}, 'mine', coalesce(${row}.${p("author")} = (select auth.uid()), false), 'title', ${row}.${p("title")}, 'body', ${row}.${p("body")}, 'status', ${row}.${p("status")}, 'moderation', ${row}.${p("moderation")}, 'pinnedAt', ${row}.${p("pinnedAt")}, 'lockedAt', ${row}.${p("lockedAt")}, 'mergedIntoId', ${row}.${p("mergedInto")}, 'replyCount', ${row}.${p("replyCount")}, 'lastActivityAt', ${row}.${p("lastActivityAt")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`,
+        `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'boardId', ${row}.${p("board")}, 'authorId', ${row}.${p("author")}, 'mine', coalesce(${row}.${p("author")} = (select auth.uid()), false), 'title', ${row}.${p("title")}, 'body', ${row}.${p("body")}, 'status', ${row}.${p("status")}, 'moderation', ${row}.${p("moderation")}, 'pinnedAt', ${post(row, "pinnedAt")}, 'lockedAt', ${post(row, "lockedAt")}, 'mergedIntoId', ${row}.${p("mergedInto")}, 'replyCount', ${post(row, "replyCount", "0")}, 'lastActivityAt', ${post(row, "lastActivityAt", `${row}.${p("createdAt")}`)}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${post(row, "updatedAt", `${row}.${p("createdAt")}`)})`,
         row,
         extras,
       ),

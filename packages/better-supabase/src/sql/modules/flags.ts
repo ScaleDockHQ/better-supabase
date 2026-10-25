@@ -42,6 +42,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     flags: {
       name: "flags",
+      app: {},
       columns: {
         key: "key",
         type: "type",
@@ -55,9 +56,18 @@ const NAMES: BlockSqlNames = {
         rolloutVariant: "rollout_variant",
         updatedAt: "updated_at",
       },
+      optional: [
+        "description",
+        "archived",
+        "rolloutPercentage",
+        "rolloutVariant",
+        "updatedAt",
+      ],
+      typed: ["type"],
     },
     overrides: {
       name: "flag_overrides",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
@@ -69,6 +79,7 @@ const NAMES: BlockSqlNames = {
         variant: "variant",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
   },
 };
@@ -158,6 +169,13 @@ function contextsOf(ctx: BlockSqlContext): readonly FlagContextSource[] {
   );
 }
 
+/** The columns that make an override unique: its flag and its target. */
+function overrideTarget(ctx: BlockSqlContext): string {
+  const o = (logical: string): string => ctx.col("overrides", logical);
+
+  return `${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("context")}, ${o("contextKey")}`;
+}
+
 /** The check and unique constraints of `flag_overrides` from version 3. */
 function overrideConstraints(ctx: BlockSqlContext): {
   readonly target: string;
@@ -167,7 +185,7 @@ function overrideConstraints(ctx: BlockSqlContext): {
 
   return {
     target: `constraint ${ctx.naming.rename("flag_overrides_target")} check (num_nonnulls(${o("tenant")}, ${o("user")}, ${o("context")}) = 1 and (${o("context")} is null) = (${o("contextKey")} is null))`,
-    unique: `constraint ${ctx.naming.rename("flag_overrides_unique")} unique nulls not distinct (${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("context")}, ${o("contextKey")})`,
+    unique: `constraint ${ctx.naming.rename("flag_overrides_unique")} unique nulls not distinct (${overrideTarget(ctx)})`,
   };
 }
 
@@ -182,6 +200,56 @@ function build(ctx: BlockSqlContext): string {
   const f = (logical: string): string => ctx.col("flags", logical);
   const o = (logical: string): string => ctx.col("overrides", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const has = (logical: string): boolean => ctx.has("flags", logical);
+  const rollout = has("rolloutPercentage") && has("rolloutVariant");
+
+  const optional = (
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    has(logical) ? `\n  ${f(logical)} ${definition(f(logical))},` : "";
+
+  const archived = has("archived") ? ` or flag.${f("archived")}` : "";
+
+  // Each written column: its value for a new flag and the definition key that
+  // changes it on an existing one.
+  const written = (
+    [
+      [
+        "type",
+        ctx.cast("flags", "type", "coalesce(d ->> 'type', 'boolean')"),
+        "type",
+      ],
+      ["description", "d ->> 'description'", "description"],
+      [
+        "variants",
+        `coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb)`,
+        "variants",
+      ],
+      [
+        "defaultVariant",
+        "coalesce(d ->> 'default_variant', 'off')",
+        "default_variant",
+      ],
+      ["enabled", "coalesce((d ->> 'enabled')::boolean, true)", "enabled"],
+      ["archived", "coalesce((d ->> 'archived')::boolean, false)", "archived"],
+      ["rules", "coalesce(d -> 'rules', '[]'::jsonb)", "rules"],
+      [
+        "rolloutPercentage",
+        "coalesce((d ->> 'rollout_percentage')::numeric, 0)",
+        "rollout_percentage",
+      ],
+      ["rolloutVariant", "d ->> 'rollout_variant'", "rollout_variant"],
+    ] as const
+  ).filter(([logical]) => has(logical));
+
+  const assignments = [
+    ...written.map(
+      ([logical, , key]) =>
+        `${f(logical)} = case when d ? '${key}' then excluded.${f(logical)} else x.${f(logical)} end`,
+    ),
+    ...(has("updatedAt") ? [`${f("updatedAt")} = now()`] : []),
+  ];
 
   const manage = ctx.staff(
     ctx.permission("manage", OPERATIONS["flags.manage"]),
@@ -246,19 +314,17 @@ create extension if not exists pgcrypto with schema extensions;
 -- serves its default variant.
 create table if not exists ${flags} (
   ${f("key")} text primary key check (${f("key")} ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  ${f("type")} text not null default 'boolean' check (${f("type")} in ('boolean', 'string', 'number', 'object')),
-  ${f("description")} text,
+  ${f("type")} text not null default 'boolean' check (${f("type")} in ('boolean', 'string', 'number', 'object')),${optional("description", () => "text")}
   ${f("variants")} jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof(${f("variants")}) = 'object'),
   ${f("defaultVariant")} text not null default 'off',
-  ${f("enabled")} boolean not null default true,
-  ${f("archived")} boolean not null default false,
-  ${f("rules")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${f("rules")}) = 'array'),
-  ${f("rolloutPercentage")} numeric(5, 2) not null default 0 check (${f("rolloutPercentage")} between 0 and 100),
-  ${f("rolloutVariant")} text,
-  ${f("updatedAt")} timestamptz not null default now(),
-  check (${f("variants")} ? ${f("defaultVariant")}),
-  check (${f("rolloutVariant")} is null or ${f("variants")} ? ${f("rolloutVariant")})
-);${addExtraColumns(flags, extras)}
+  ${f("enabled")} boolean not null default true,${optional("archived", () => "boolean not null default false")}
+  ${f("rules")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${f("rules")}) = 'array'),${optional("rolloutPercentage", (name) => `numeric(5, 2) not null default 0 check (${name} between 0 and 100)`)}${optional("rolloutVariant", () => "text")}${optional("updatedAt", () => "timestamptz not null default now()")}
+  check (${f("variants")} ? ${f("defaultVariant")})${has("rolloutVariant") ? `,\n  check (${f("rolloutVariant")} is null or ${f("variants")} ? ${f("rolloutVariant")})` : ""}
+);${addExtraColumns(flags, extras)}${
+    ctx.owns("flags")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("flags").name}_key_key`)} on ${flags} (${f("key")});`
+  }
 ${lockTable(flags)}
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -271,13 +337,16 @@ create table if not exists ${overrides} (
   ${o("user")} uuid references auth.users (id) on delete cascade,
   ${o("context")} text check (${o("context")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${o("contextKey")} text check (length(${o("contextKey")}) between 1 and 200),
-  ${o("variant")} text not null,
-  ${o("createdAt")} timestamptz not null default now(),
+  ${o("variant")} text not null,${ctx.has("overrides", "createdAt") ? `\n  ${o("createdAt")} timestamptz not null default now(),` : ""}
   ${constraints.target},
   ${constraints.unique}
 );
 ${upgradeContexts(ctx)}
-create index if not exists ${ctx.naming.rename("flag_overrides_user_idx")} on ${overrides} (${o("user")});
+${
+  ctx.owns("overrides")
+    ? ""
+    : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("overrides").name}_target_key`)} on ${overrides} (${overrideTarget(ctx)}) nulls not distinct;\n`
+}create index if not exists ${ctx.naming.rename("flag_overrides_user_idx")} on ${overrides} (${o("user")});
 ${lockTable(overrides)}
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -318,7 +387,7 @@ begin
   if flag.${f("key")} is null then
     return null;
   end if;
-  if not flag.${f("enabled")} or flag.${f("archived")} then
+  if not flag.${f("enabled")}${archived} then
     return jsonb_build_object('value', flag.${f("variants")} -> flag.${f("defaultVariant")}, 'variant', flag.${f("defaultVariant")}, 'reason', 'DISABLED');
   end if;${resolve}
   select x.${o("variant")} into chosen from ${overrides} x
@@ -354,12 +423,16 @@ begin
         exit;
       end if;
     end loop;
-  end if;
+  end if;${
+    rollout
+      ? `
   if chosen is null and flag.${f("rolloutVariant")} is not null and target is not null
     and ${fn("flag_bucket")}(flag.${f("key")}, target) < flag.${f("rolloutPercentage")} * 100 then
     chosen := flag.${f("rolloutVariant")};
     reason := 'SPLIT';
-  end if;
+  end if;`
+      : ""
+  }
   if chosen is null or not flag.${f("variants")} ? chosen then
     chosen := flag.${f("defaultVariant")};
     reason := 'DEFAULT';
@@ -406,15 +479,15 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'key', x.${f("key")},
     'type', x.${f("type")},
-    'description', x.${f("description")},
+    'description', ${has("description") ? `x.${f("description")}` : "null"},
     'variants', x.${f("variants")},
     'default_variant', x.${f("defaultVariant")},
     'enabled', x.${f("enabled")},
-    'archived', x.${f("archived")},
+    'archived', ${has("archived") ? `x.${f("archived")}` : "false"},
     'rules', x.${f("rules")},
-    'rollout_percentage', x.${f("rolloutPercentage")},
-    'rollout_variant', x.${f("rolloutVariant")},
-    'updated_at', x.${f("updatedAt")}${extraFieldsJson("x", extras)},
+    'rollout_percentage', ${rollout ? `x.${f("rolloutPercentage")}` : "0"},
+    'rollout_variant', ${rollout ? `x.${f("rolloutVariant")}` : "null"},
+    'updated_at', ${has("updatedAt") ? `x.${f("updatedAt")}` : "null"}${extraFieldsJson("x", extras)},
     'overrides', coalesce((
       select jsonb_agg(jsonb_build_object('organization_id', v.${o("tenant")}, 'user_id', v.${o("user")}, 'context', v.${o("context")}, 'context_key', v.${o("contextKey")}, 'variant', v.${o("variant")})
         order by (v.${o("user")} is not null) desc, (v.${o("tenant")} is not null) desc,
@@ -455,30 +528,12 @@ declare
   d jsonb := coalesce(definition, '{}');
 begin
   ${denied}
-  insert into ${flags} as x (${f("key")}, ${f("type")}, ${f("description")}, ${f("variants")}, ${f("defaultVariant")}, ${f("enabled")}, ${f("archived")}, ${f("rules")}, ${f("rolloutPercentage")}, ${f("rolloutVariant")})
+  insert into ${flags} as x (${[f("key"), ...written.map(([logical]) => f(logical))].join(", ")})
   values (
-    save_flag.key,
-    coalesce(d ->> 'type', 'boolean'),
-    d ->> 'description',
-    coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
-    coalesce(d ->> 'default_variant', 'off'),
-    coalesce((d ->> 'enabled')::boolean, true),
-    coalesce((d ->> 'archived')::boolean, false),
-    coalesce(d -> 'rules', '[]'::jsonb),
-    coalesce((d ->> 'rollout_percentage')::numeric, 0),
-    d ->> 'rollout_variant'
+    ${["save_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}
   )
   on conflict (${f("key")}) do update set
-    ${f("type")} = case when d ? 'type' then excluded.${f("type")} else x.${f("type")} end,
-    ${f("description")} = case when d ? 'description' then excluded.${f("description")} else x.${f("description")} end,
-    ${f("variants")} = case when d ? 'variants' then excluded.${f("variants")} else x.${f("variants")} end,
-    ${f("defaultVariant")} = case when d ? 'default_variant' then excluded.${f("defaultVariant")} else x.${f("defaultVariant")} end,
-    ${f("enabled")} = case when d ? 'enabled' then excluded.${f("enabled")} else x.${f("enabled")} end,
-    ${f("archived")} = case when d ? 'archived' then excluded.${f("archived")} else x.${f("archived")} end,
-    ${f("rules")} = case when d ? 'rules' then excluded.${f("rules")} else x.${f("rules")} end,
-    ${f("rolloutPercentage")} = case when d ? 'rollout_percentage' then excluded.${f("rolloutPercentage")} else x.${f("rolloutPercentage")} end,
-    ${f("rolloutVariant")} = case when d ? 'rollout_variant' then excluded.${f("rolloutVariant")} else x.${f("rolloutVariant")} end,
-    ${f("updatedAt")} = now();${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = save_flag.key`)}
+    ${assignments.join(",\n    ")};${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = save_flag.key`)}
   ${flagEvent("flag.saved", "save_flag.key")}
   return (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = save_flag.key);
 end;
@@ -510,7 +565,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $$${ctx.owns("overrides") ? "" : "\n#variable_conflict use_column"}
 begin
   ${denied}
   if num_nonnulls(tenant, member, context) <> 1 or (context is null) <> (context_key is null) then
@@ -531,7 +586,7 @@ begin
   end if;
   insert into ${overrides} (${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("context")}, ${o("contextKey")}, ${o("variant")})
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)
-  on conflict on constraint ${ctx.naming.rename("flag_overrides_unique")} do update set ${o("variant")} = excluded.${o("variant")};
+  on conflict ${ctx.owns("overrides") ? `on constraint ${ctx.naming.rename("flag_overrides_unique")}` : `(${overrideTarget(ctx)})`} do update set ${o("variant")} = excluded.${o("variant")};
   ${overrideEvent}
   return true;
 end;
@@ -559,7 +614,8 @@ grant execute on function ${fn("flag_definitions")}() to service_role;`;
 /**
  * Brings version 2 tables forward: adds the context columns and the archived
  * flag, and replaces the unnamed tenant-or-user check and unique constraint of
- * `flag_overrides` with the named ones. A no-op on version 3 tables.
+ * `flag_overrides` with the named ones. A no-op on version 3 tables, and it
+ * leaves the app's tables alone.
  */
 function upgradeContexts(ctx: BlockSqlContext): string {
   const flags = ctx.table("flags");
@@ -567,8 +623,16 @@ function upgradeContexts(ctx: BlockSqlContext): string {
   const o = (logical: string): string => ctx.col("overrides", logical);
   const { target, unique } = overrideConstraints(ctx);
 
-  return `alter table ${flags} add column if not exists ${ctx.col("flags", "archived")} boolean not null default false;
-alter table ${overrides} add column if not exists ${o("context")} text check (${o("context")} ~ '^[a-z][a-z0-9_]{0,62}$');
+  const archived =
+    ctx.owns("flags") && ctx.has("flags", "archived")
+      ? `alter table ${flags} add column if not exists ${ctx.col("flags", "archived")} boolean not null default false;\n`
+      : "";
+
+  if (!ctx.owns("overrides")) {
+    return archived;
+  }
+
+  return `${archived}alter table ${overrides} add column if not exists ${o("context")} text check (${o("context")} ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table ${overrides} add column if not exists ${o("contextKey")} text check (length(${o("contextKey")}) between 1 and 200);
 do $$
 declare

@@ -25,6 +25,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     targets: {
       name: "targets",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -42,6 +43,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["team", "archivedAt", "createdAt", "updatedAt"],
     },
   },
 };
@@ -75,8 +77,12 @@ function metrics(
     const a = (column: string): string => `a.${items.col("assignees", column)}`;
     out["work_items.completed"] =
       `(select count(*) from ${items.table("items")} w
-      where ${w("tenant")} = x.${c("tenant")} and ${w("state")} = 'completed' and ${window(w("closedAt"))}
-        and (x.${c("team")} is null or ${w("team")} = x.${c("team")})
+      where ${w("tenant")} = x.${c("tenant")} and ${w("state")} = 'completed' and ${window(w("closedAt"))}${
+        ctx.has("targets", "team")
+          ? `
+        and (x.${c("team")} is null or ${w("team")} = x.${c("team")})`
+          : ""
+      }
         and (x.${c("owner")} is null or exists (select 1 from ${items.table("assignees")} a where ${a("item")} = ${w("id")} and ${a("user")} = x.${c("owner")})))`;
   }
 
@@ -122,6 +128,12 @@ ${Object.entries(known)
   ]);
 
   const int8 = [c("goal"), c("actual")];
+  const has = (column: string): boolean => ctx.has("targets", column);
+
+  const optional = (column: string, definition: string): string =>
+    has(column) ? `\n  ${c(column)} ${definition},` : "";
+
+  const active = has("archivedAt") ? ` and x.${c("archivedAt")} is null` : "";
 
   const progressRow = withExtraFields(
     `(to_jsonb(p) || ${int8Text("p", int8)})`,
@@ -139,19 +151,15 @@ ${
   ${c("tenant")} ${ctx.idType} not null,
   ${c("name")} text not null check (length(${c("name")}) between 1 and 200),
   ${c("metric")} text not null check (${c("metric")} ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  ${c("owner")} uuid,
-  ${c("team")} uuid,
+  ${c("owner")} uuid,${optional("team", "uuid")}
   ${c("periodStart")} date not null,
   ${c("periodEnd")} date not null,
   ${c("currency")} char(3) check (${c("currency")} ~ '^[A-Z]{3}$'),
   ${c("goal")} bigint not null check (${c("goal")} > 0),
-  ${c("actual")} bigint not null default 0,
-  ${c("archivedAt")} timestamptz,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("updatedAt")} timestamptz not null default now(),
+  ${c("actual")} bigint not null default 0,${optional("archivedAt", "timestamptz")}${optional("createdAt", "timestamptz not null default now()")}${optional("updatedAt", "timestamptz not null default now()")}
   check (${c("periodEnd")} >= ${c("periodStart")})
 );${addExtraColumns(t, extras)}
-create index if not exists ${ctx.naming.rename("targets_period_idx")} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")}) where ${c("archivedAt")} is null;
+create index if not exists ${ctx.naming.rename("targets_period_idx")} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
 drop policy if exists ${ctx.naming.rename("targets_read")} on ${t};
 create policy ${ctx.naming.rename("targets_read")} on ${t} for select to authenticated
@@ -176,9 +184,9 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into ${t} (${c("tenant")}, ${c("name")}, ${c("metric")}, ${c("owner")}, ${c("team")}, ${c("periodStart")}, ${c("periodEnd")}, ${c("currency")}, ${c("goal")}, ${c("actual")})
+      insert into ${t} (${c("tenant")}, ${c("name")}, ${c("metric")}, ${c("owner")}, ${has("team") ? `${c("team")}, ` : ""}${c("periodStart")}, ${c("periodEnd")}, ${c("currency")}, ${c("goal")}, ${c("actual")})
       values (save_target.tenant, save_target.attrs ->> 'name', save_target.attrs ->> 'metric', (save_target.attrs ->> 'ownerId')::uuid,
-        (save_target.attrs ->> 'teamId')::uuid, (save_target.attrs ->> 'periodStart')::date, (save_target.attrs ->> 'periodEnd')::date,
+        ${has("team") ? "(save_target.attrs ->> 'teamId')::uuid, " : ""}(save_target.attrs ->> 'periodStart')::date, (save_target.attrs ->> 'periodEnd')::date,
         upper(save_target.attrs ->> 'currency'), (save_target.attrs ->> 'goal')::bigint, coalesce((save_target.attrs ->> 'actual')::bigint, 0))
       returning ${c("id")} into v_id;
     else
@@ -187,9 +195,11 @@ begin
         ${c("goal")} = coalesce((save_target.attrs ->> 'goal')::bigint, x.${c("goal")}),
         ${c("actual")} = coalesce((save_target.attrs ->> 'actual')::bigint, x.${c("actual")}),
         ${c("periodStart")} = coalesce((save_target.attrs ->> 'periodStart')::date, x.${c("periodStart")}),
-        ${c("periodEnd")} = coalesce((save_target.attrs ->> 'periodEnd')::date, x.${c("periodEnd")}),
-        ${c("archivedAt")} = case when coalesce((save_target.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end,
-        ${c("updatedAt")} = now()
+        ${c("periodEnd")} = coalesce((save_target.attrs ->> 'periodEnd')::date, x.${c("periodEnd")})${
+          has("archivedAt")
+            ? `,\n        ${c("archivedAt")} = case when coalesce((save_target.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end`
+            : ""
+        }${has("updatedAt") ? `,\n        ${c("updatedAt")} = now()` : ""}
       where x.${c("id")} = v_id and x.${c("tenant")} = save_target.tenant;
       if not found then
         ${fail("TARGET_NOT_FOUND", "target not found", "P0002")}
@@ -217,7 +227,7 @@ as $$
     select x.*, v.value::text as progress, round(v.value::numeric / x.${c("goal")}, 4) as attainment, x.${c("periodStart")} as period_start_order, x.${c("name")} as name_order
     from ${t} x
     cross join lateral (select ${actual} as value) v
-    where x.${c("tenant")} = target_progress.tenant and x.${c("archivedAt")} is null
+    where x.${c("tenant")} = target_progress.tenant${active}
       and coalesce(target_progress.on_date, current_date) between x.${c("periodStart")} and x.${c("periodEnd")}
       and (target_progress.owner is null or x.${c("owner")} = target_progress.owner)
   ) p

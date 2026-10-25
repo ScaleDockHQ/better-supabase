@@ -210,6 +210,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "log": "id" | "table" | "record" | "op" | "old" | "new" | "changed" | "actor" | "actorRole" | "tenant" | "occurredAt" | "impersonatedBy" | "impersonationReason" | "supportSession" | "eventType" | "category" | "outcome" | "source" | "targetType" | "metadata" | "idempotencyKey" | "actorKind" | "actorLabel" | "tenantLabel" | "targetLabel" | "summary" | "requestId" | "correlationId" | "scope";
       readonly "restricted": "entry" | "old" | "new" | "ip" | "userAgent" | "metadata" | "sessionId" | "changedValues";
+      readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
     readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "list_audit_events" | "purge_audit_log";
     readonly actions: "view" | "viewAll" | "revert";
@@ -795,7 +796,10 @@ export interface BlockNameRegistry {
     readonly primary: "job";
   };
   readonly "idempotency": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "keys": "scope" | "key" | "requestHash" | "status" | "statusCode" | "response" | "lockedUntil" | "createdAt" | "expiresAt" | "holder";
+      readonly "leases": "scope" | "key" | "holder" | "expiresAt";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1293,7 +1297,10 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "queue": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "messages": "id" | "queue" | "message" | "attempts" | "enqueuedAt" | "visibleAt" | "archivedAt" | "dead" | "dedupeKey" | "maxAttempts";
+      readonly "schedules": "jobName" | "schedule" | "timezone" | "queue" | "payload" | "nextRun" | "lastRun" | "lockedUntil" | "createdAt" | "tenant" | "firstAfter";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1322,7 +1329,10 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "rate-limit": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "rules": "scope" | "maxRequests" | "period" | "keyClaim";
+      readonly "counters": "scope" | "key" | "windowStart" | "hits" | "period";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1386,7 +1396,9 @@ export interface BlockNameRegistry {
     readonly primary: "reminder";
   };
   readonly "reserved-slugs": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "slugs": "slug" | "reason";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;

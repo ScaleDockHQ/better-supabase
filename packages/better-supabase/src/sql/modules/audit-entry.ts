@@ -1,4 +1,6 @@
-import type { BlockSqlIdType } from "../context.ts";
+import type { BlockSqlContext, BlockSqlIdType } from "../context.ts";
+
+import { registryColumn } from "./audit-register.ts";
 
 /** A text expression as the id type, or null when it doesn't parse as one. */
 export function castId(value: string, idType: BlockSqlIdType): string {
@@ -31,7 +33,10 @@ export function castId(value: string, idType: BlockSqlIdType): string {
  * Reads the row's audit settings: the trigger argument, or the legacy
  * `audited_tables` row.
  */
-export function entrySql(): string {
+export function entrySql(ctx: BlockSqlContext): string {
+  const a = (logical: string, missing: string): string =>
+    registryColumn(ctx, "a", logical, missing);
+
   return `  if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
     select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
@@ -51,12 +56,14 @@ export function entrySql(): string {
       settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
     into entry;
   else
-    select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
-      coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
-      a.label_column, null::jsonb as tenant_path, null::text as tenant_function
+    select coalesce(${a("ignore", "null")}, '{}') as ignore, coalesce(${a("keyColumns", "null")}, '{id}') as key_columns,
+      coalesce(${a("redact", "null")}, '{}') as redact, ${a("category", "null::text")} as category,
+      ${a("eventPrefix", "null::text")} as event_prefix, ${a("targetType", "null::text")} as target_type,
+      ${a("tenantColumn", "null::text")} as tenant_column, ${a("labelColumn", "null::text")} as label_column,
+      null::jsonb as tenant_path, null::text as tenant_function
     into entry
     from (select 1) one
-    left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
+    left join ${ctx.table("registry")} a on a.${ctx.col("registry", "target")} = tg_relid::regclass;
   end if;`;
 }
 

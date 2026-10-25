@@ -171,11 +171,15 @@ function rateLimit(p: Parts, link: string): string {
     return "";
   }
 
+  const limits = p.ctx.of("rate-limit");
+  const rules = limits.table("rules");
+  const scope = limits.col("rules", "scope");
+
   return `select l.allowed, l.retry_after into v_allowed, v_retry
   from better_supabase.hit_rate_limit(
     '${RATE_SCOPE}',
     ${link}::text || ':' || coalesce(nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''), ',', 1)), ''), 'unknown'),
-    case when exists (select 1 from better_supabase.rate_limit_rules q where q.scope = '${RATE_SCOPE}') then null else 30 end,
+    case when exists (select 1 from ${rules} q where q.${scope} = '${RATE_SCOPE}') then null else 30 end,
     interval '1 minute'
   ) l;
   if not v_allowed then

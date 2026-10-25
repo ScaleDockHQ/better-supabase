@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { fail, revokeTable, SERVICE_CALLER } from "../shared.ts";
 
 /**
@@ -46,6 +47,10 @@ export function pushTickets(ctx: BlockSqlContext): string {
   const t = ctx.table("tickets");
   const c = (logical: string): string => ctx.col("tickets", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const error = ctx.has("tickets", "error");
+
+  const status = (value: string): string =>
+    ctx.cast("tickets", "status", value);
 
   const serviceOnly = `
   if not (${SERVICE_CALLER}) then
@@ -82,12 +87,11 @@ create table if not exists ${t} (
   ${c("delivery")} uuid not null references ${notifications.table("deliveries")} (${d("id")}) on delete cascade,
   ${c("token")} text not null,
   ${c("ticket")} text,
-  ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'ok', 'error')),
-  ${c("error")} text,
+  ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'ok', 'error')),${error ? `\n  ${c("error")} text,` : ""}
   ${c("createdAt")} timestamptz not null default now(),
   ${c("checkedAt")} timestamptz,
   unique (${c("delivery")}, ${c("token")})
-);
+);${ctx.owns("tickets") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("tickets").name}_delivery_token_key`)} on ${t} (${c("delivery")}, ${c("token")});`}
 create index if not exists push_tickets_unchecked_idx on ${t} (${c("createdAt")}) where ${c("checkedAt")} is null and ${c("ticket")} is not null;
 alter table ${t} enable row level security;
 ${revokeTable(t)}
@@ -108,20 +112,23 @@ begin${serviceOnly}
   if jsonb_typeof(record_push_tickets.tickets) <> 'array' or jsonb_array_length(record_push_tickets.tickets) > 1000 then
     ${fail("PUSH_TOO_MANY", "pass at most 1000 tickets", "22023")}
   end if;
-  insert into ${t} as x (${c("delivery")}, ${c("token")}, ${c("ticket")}, ${c("status")}, ${c("error")})
+  insert into ${t} as x (${c("delivery")}, ${c("token")}, ${c("ticket")}, ${c("status")}${error ? `, ${c("error")}` : ""})
   select record_push_tickets.delivery, e ->> 'token', e ->> 'id',
-    case when e ->> 'id' is null then 'error' else 'pending' end,
-    e ->> 'error'
+    ${status("case when e ->> 'id' is null then 'error' else 'pending' end")}${error ? ",\n    e ->> 'error'" : ""}
   from jsonb_array_elements(record_push_tickets.tickets) e
   where e ->> 'token' is not null
   on conflict (${c("delivery")}, ${c("token")}) do update set
     ${c("ticket")} = coalesce(excluded.${c("ticket")}, x.${c("ticket")}),
-    ${c("status")} = case when x.${c("ticket")} is not null then x.${c("status")} else excluded.${c("status")} end,
+    ${c("status")} = case when x.${c("ticket")} is not null then x.${c("status")} else excluded.${c("status")} end${
+      error
+        ? `,
     ${c("error")} = case
       when x.${c("ticket")} is not null then x.${c("error")}
       when excluded.${c("ticket")} is not null then null
       else excluded.${c("error")}
-    end;
+    end`
+        : ""
+    };
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -140,7 +147,7 @@ begin${serviceOnly}
     select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
       'token', x.${c("token")},
       'id', x.${c("ticket")},
-      'error', x.${c("error")}
+      'error', ${error ? `x.${c("error")}` : "null::text"}
     )) order by x.${c("createdAt")}, x.${c("token")}), '[]'::jsonb)
     from ${t} x
     where x.${c("delivery")} = push_tickets_for.delivery
@@ -193,8 +200,7 @@ begin${serviceOnly}
     ${fail("PUSH_TOO_MANY", "pass at most 1000 receipts", "22023")}
   end if;${events}
   update ${t} x set
-    ${c("status")} = case when r ->> 'status' = 'ok' then 'ok' else 'error' end,
-    ${c("error")} = case when r ->> 'status' = 'ok' then null else coalesce(r ->> 'error', 'Unknown') end,
+    ${c("status")} = ${status("case when r ->> 'status' = 'ok' then 'ok' else 'error' end")},${error ? `\n    ${c("error")} = case when r ->> 'status' = 'ok' then null else coalesce(r ->> 'error', 'Unknown') end,` : ""}
     ${c("checkedAt")} = now()
   from jsonb_array_elements(complete_push_receipts.receipts) r
   where x.${c("ticket")} = r ->> 'id'

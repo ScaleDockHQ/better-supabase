@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   ensureCheck,
@@ -95,6 +95,17 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      app: {},
+      optional: [
+        "kind",
+        "rateLimit",
+        "windowStart",
+        "windowHits",
+        "lastUsedAt",
+        "rotatedFrom",
+        "createdBy",
+      ],
+      typed: ["kind"],
     },
   },
 };
@@ -177,6 +188,20 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const has = (logical: string): boolean => ctx.has("keys", logical);
+
+  const of = (alias: string, logical: string, absent = "null"): string =>
+    has(logical) ? `${alias}.${c(logical)}` : absent;
+
+  const owns = ctx.owns("keys");
+  const kind = has("kind");
+  const rotates = has("rotatedFrom");
+  const touches = has("lastUsedAt");
+  const limits = has("rateLimit") && has("windowStart") && has("windowHits");
+
+  const line = (logical: string, type: (col: string) => string): string =>
+    has(logical) ? `  ${c(logical)} ${type(c(logical))},\n` : "";
+
   const permissions = moduleOperations("api-keys");
 
   const can = (tenant: string, action: "manage" | "own"): string =>
@@ -185,11 +210,19 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const allowed = allowedScopes(ctx, layout);
   const prefix = sqlString(prefixOf(ctx));
   const touch = Math.max(0, Math.trunc(ctx.number("touchInterval", 60)));
-  const reset = `(k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now())`;
-  const nextHits = `case when ${reset} then 1 else k.${c("windowHits")} + 1 end`;
+
+  const reset = limits
+    ? `(k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now())`
+    : "";
+
+  const nextHits = limits
+    ? `case when ${reset} then 1 else k.${c("windowHits")} + 1 end`
+    : "";
 
   const due = (alias: string): string =>
-    `(${alias}.${c("lastUsedAt")} is null or ${alias}.${c("lastUsedAt")} + interval '${touch} seconds' <= now())`;
+    touches
+      ? `(${alias}.${c("lastUsedAt")} is null or ${alias}.${c("lastUsedAt")} + interval '${touch} seconds' <= now())`
+      : "false";
 
   const wildcard =
     allowed === undefined && accessModel(ctx) === "provider"
@@ -214,13 +247,20 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     end`;
 
   const successor = (alias: string): string =>
-    `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`;
+    rotates
+      ? `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`
+      : "null::uuid";
 
   const extras = ctx.extraColumns("keys", KEY_KEYS);
   const kinds = kindsOf(ctx);
   // Version 3 had no kind argument; drop its signatures so calls stay unambiguous.
   const previousArgs = `text, text, text, ${id}, boolean, text[], timestamptz, integer, text`;
   const createArgs = `${previousArgs}, text`;
+
+  const index = (logical: string, name: string): string =>
+    has(logical)
+      ? `create index if not exists ${ctx.naming.rename(name)} on ${t} (${c(logical)});\n`
+      : "";
 
   const kindCheck =
     kinds.length === 0
@@ -242,16 +282,41 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     'prefix', ${alias}.${c("prefix")},
     'public_id', ${alias}.${c("publicId")},
     'scopes', to_jsonb(${alias}.${c("scopes")}),
-    'kind', ${alias}.${c("kind")},
-    'rate_limit', ${alias}.${c("rateLimit")},
+    'kind', ${of(alias, "kind")},
+    'rate_limit', ${of(alias, "rateLimit")},
     'expires_at', ${alias}.${c("expiresAt")},
-    'last_used_at', ${alias}.${c("lastUsedAt")},
+    'last_used_at', ${of(alias, "lastUsedAt")},
     'revoked_at', ${alias}.${c("revokedAt")},
-    'rotated_from', ${alias}.${c("rotatedFrom")},
-    'created_by', ${alias}.${c("createdBy")},
+    'rotated_from', ${of(alias, "rotatedFrom")},
+    'created_by', ${of(alias, "createdBy")},
     'created_at', ${alias}.${c("createdAt")},
     'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}${extraFieldsJson(alias, extras)}
   )`;
+
+  const touchOnly = touches
+    ? `update ${t} k set ${c("lastUsedAt")} = now() where k.${c("id")} = found.${c("id")};`
+    : "";
+
+  const counting = limits
+    ? `  if found.${c("rateLimit")} is not null then
+    -- One update counts the hit and, for an allowed request, touches last_used_at.
+    update ${t} k set
+      ${c("windowStart")} = case when ${reset} then now() else k.${c("windowStart")} end,
+      ${c("windowHits")} = ${nextHits}${touches ? `,\n      ${c("lastUsedAt")} = case when ${nextHits} <= k.${c("rateLimit")} and ${due("k")} then now() else k.${c("lastUsedAt")} end` : ""}
+    where k.${c("id")} = found.${c("id")}
+    returning k.${c("windowStart")}, k.${c("windowHits")} into started, hits;
+    if hits > found.${c("rateLimit")} then
+      return jsonb_build_object(
+        'status', 'rate_limited',
+        'retry_after', greatest(1, ceil(extract(epoch from started + interval '1 minute' - now()))::integer)
+      );
+    end if;${touches ? `\n  elsif ${due("found")} then\n    ${touchOnly}` : ""}
+  end if;`
+    : touches
+      ? `  if ${due("found")} then
+    ${touchOnly}
+  end if;`
+      : "";
 
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
@@ -284,27 +349,28 @@ create table if not exists ${t} (
   ${c("publicId")} text not null unique check (${c("publicId")} ~ '^[0-9a-f]{16}$'),
   ${c("secretHash")} text not null check (${c("secretHash")} ~ '^[0-9a-f]{64}$'),
   ${c("scopes")} text[] not null default '{}',
-  ${c("rateLimit")} integer check (${c("rateLimit")} > 0),
-  ${c("windowStart")} timestamptz,
-  ${c("windowHits")} integer not null default 0,
-  ${c("expiresAt")} timestamptz,
-  ${c("lastUsedAt")} timestamptz,
-  ${c("revokedAt")} timestamptz,
-  ${c("rotatedFrom")} uuid references ${t} (${c("id")}) on delete set null,
-  ${c("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${c("createdAt")} timestamptz not null default now(),
+${line("rateLimit", (col) => `integer check (${col} > 0)`)}${line("windowStart", () => "timestamptz")}${line("windowHits", () => "integer not null default 0")}  ${c("expiresAt")} timestamptz,
+${line("lastUsedAt", () => "timestamptz")}  ${c("revokedAt")} timestamptz,
+${line("rotatedFrom", () => `uuid references ${t} (${c("id")}) on delete set null`)}${line("createdBy", () => "uuid references auth.users (id) on delete set null default auth.uid()")}  ${c("createdAt")} timestamptz not null default now(),
   check (${c("tenant")} is not null or ${c("user")} is not null)
 );
--- verify_api_key updates the counters on every request; free space on each
+${
+  owns
+    ? `-- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table ${t} set (fillfactor = 80);
-create index if not exists ${ctx.naming.rename("api_keys_tenant_idx")} on ${t} (${c("tenant")});
+`
+    : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("keys").name}_public_id_key`)} on ${t} (${c("publicId")});
+`
+}create index if not exists ${ctx.naming.rename("api_keys_tenant_idx")} on ${t} (${c("tenant")});
 create index if not exists ${ctx.naming.rename("api_keys_user_idx")} on ${t} (${c("user")});
-create index if not exists ${ctx.naming.rename("api_keys_rotated_from_idx")} on ${t} (${c("rotatedFrom")});
-create index if not exists ${ctx.naming.rename("api_keys_created_by_idx")} on ${t} (${c("createdBy")});
--- What a key is for (blocks.api-keys.options.kinds), such as client or export.
+${index("rotatedFrom", "api_keys_rotated_from_idx")}${index("createdBy", "api_keys_created_by_idx")}${
+    owns && kind
+      ? `-- What a key is for (blocks.api-keys.options.kinds), such as client or export.
 alter table ${t} add column if not exists ${c("kind")} text;
-${kindCheck}${addExtraColumns(t, extras)}
+${kindCheck}`
+      : ""
+  }${addExtraColumns(t, extras)}
 ${lockTable(t)}
 
 -- Creates a key. TypeScript generates the public id and the secret and sends
@@ -357,8 +423,8 @@ begin
   if expires_at is not null and expires_at <= now() then
     ${fail("API_KEY_EXPIRED", "expires_at is in the past", "22023")}
   end if;
-  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("kind")}, ${c("rateLimit")}, ${c("expiresAt")})
-  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
+  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}${kind ? `, ${c("kind")}` : ""}${has("rateLimit") ? `, ${c("rateLimit")}` : ""}, ${c("expiresAt")})
+  values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}')${kind ? `, ${ctx.cast("keys", "kind", "create_api_key.kind")}` : ""}${has("rateLimit") ? ", create_api_key.rate_limit" : ""}, create_api_key.expires_at)
   returning * into created;${writeExtraColumns(t, extras, "create_api_key.fields", `x.${c("id")} = created.${c("id")}`, "created")}
   ${keyEvent("api_key.created", "created")}
   return ${json("created")};
@@ -438,8 +504,8 @@ begin
   if grace is null or grace < interval '0' then
     ${fail("API_KEY_GRACE", "grace must be zero or more", "22023")}
   end if;
-  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("kind")}, ${c("rateLimit")}, ${c("expiresAt")}, ${c("rotatedFrom")}${extras.map((extra) => `, ${extra.ident}`).join("")})
-  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("kind")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")}${extras.map((extra) => `, old.${extra.ident}`).join("")})
+  insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}${kind ? `, ${c("kind")}` : ""}${has("rateLimit") ? `, ${c("rateLimit")}` : ""}, ${c("expiresAt")}${rotates ? `, ${c("rotatedFrom")}` : ""}${extras.map((extra) => `, ${extra.ident}`).join("")})
+  values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}${kind ? `, old.${c("kind")}` : ""}${has("rateLimit") ? `, old.${c("rateLimit")}` : ""}, old.${c("expiresAt")}${rotates ? `, old.${c("id")}` : ""}${extras.map((extra) => `, old.${extra.ident}`).join("")})
   returning * into created;
   update ${t} k set ${c("revokedAt")} = now() + grace where k.${c("id")} = old.${c("id")};
   ${keyEvent("api_key.rotated", "created", `, 'previousKeyId', old.${c("id")}`)}
@@ -477,23 +543,7 @@ begin
   then
     return jsonb_build_object('status', 'invalid');
   end if;
-  if found.${c("rateLimit")} is not null then
-    -- One update counts the hit and, for an allowed request, touches last_used_at.
-    update ${t} k set
-      ${c("windowStart")} = case when ${reset} then now() else k.${c("windowStart")} end,
-      ${c("windowHits")} = ${nextHits},
-      ${c("lastUsedAt")} = case when ${nextHits} <= k.${c("rateLimit")} and ${due("k")} then now() else k.${c("lastUsedAt")} end
-    where k.${c("id")} = found.${c("id")}
-    returning k.${c("windowStart")}, k.${c("windowHits")} into started, hits;
-    if hits > found.${c("rateLimit")} then
-      return jsonb_build_object(
-        'status', 'rate_limited',
-        'retry_after', greatest(1, ceil(extract(epoch from started + interval '1 minute' - now()))::integer)
-      );
-    end if;
-  elsif ${due("found")} then
-    update ${t} k set ${c("lastUsedAt")} = now() where k.${c("id")} = found.${c("id")};
-  end if;
+${counting}
   return jsonb_build_object('status', 'ok', 'key', ${json("found", false)});
 end;
 $$;
