@@ -14,6 +14,10 @@ export * from "./design-subject.ts";
 
 export * from "./design-issues.ts";
 
+export type * from "./issue.ts";
+
+export * from "./project.ts";
+
 export * from "./design.ts";
 
 export * from "./preview-provider.ts";

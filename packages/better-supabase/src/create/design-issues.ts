@@ -1,6 +1,6 @@
-import type { DesignErrorCode } from "../preset/design.ts";
 import type { Preset } from "../preset/index.ts";
 import type { Design } from "./design.ts";
+import type { Issue } from "./issue.ts";
 import type { SchemaData } from "./schema.ts";
 
 import { jsonPointer } from "../preset/design.ts";
@@ -9,46 +9,6 @@ import { lockedWithoutDefault } from "./column-keys.ts";
 import { AUTH_USERS, scopeColumnOf } from "./design-scope.ts";
 import { subjectColumns } from "./design-subject.ts";
 import { defaultError, identifierError, isAppTable } from "./design.ts";
-
-/**
- * Why `checkDesign` rejects a design: a `DesignErrorCode` from parsing, or a
- * rule that needs the preset. The codes are stable; the messages may change.
- */
-export type DesignIssueCode =
-  | DesignErrorCode
-  /** A block already creates a table with this name. */
-  | "table_name_taken"
-  /** A table name too long for the names Postgres derives from it. */
-  | "name_too_long"
-  /** Another app table already has this subject type. */
-  | "subject_type_taken"
-  /** A column default its type doesn't accept. */
-  | "invalid_default"
-  /** A required column signed-in users can't write, with no default. */
-  | "default_required"
-  /** A column that clashes with one its record features add. */
-  | "column_clash"
-  /** A unique key or index naming a column the table doesn't have. */
-  | "unknown_column"
-  /** A reference to a table the preset doesn't install. */
-  | "missing_reference"
-  /** A set-null delete on a required column. */
-  | "set_null_required"
-  /** A conflict in the preset itself, such as a block that needs tenants. */
-  | "preset_conflict";
-
-export interface DesignIssue {
-  readonly code: DesignIssueCode;
-  /**
-   * A JSON Pointer (RFC 6901) into the design, such as
-   * `/appTables/tasks/columns/title`. `""` is the design itself, and the path
-   * of an issue with the preset.
-   */
-  readonly path: string;
-  /** The app table or block module the issue is on, or `design` or `preset`. */
-  readonly table: string;
-  readonly message: string;
-}
 
 /**
  * What would stop `upgrade` from writing the design: a table name a block
@@ -61,8 +21,8 @@ export function designIssues(
   design: Design,
   data: SchemaData,
   preset: Pick<Preset, "scope" | "tenantName" | "idType">,
-): readonly DesignIssue[] {
-  const issues: DesignIssue[] = [];
+): readonly Issue[] {
+  const issues: Issue[] = [];
 
   const names = new Set(
     data.tables
@@ -97,6 +57,8 @@ export function designIssues(
 
     if (invalid !== undefined) {
       issues.push({
+        severity: "error",
+        source: "rules",
         code: "invalid_name",
         path: jsonPointer("appTables", name),
         table: name,
@@ -106,6 +68,8 @@ export function designIssues(
 
     if (names.has(name)) {
       issues.push({
+        severity: "error",
+        source: "rules",
         code: "table_name_taken",
         path: jsonPointer("appTables", name),
         table: name,
@@ -117,6 +81,8 @@ export function designIssues(
 
     if (long !== undefined) {
       issues.push({
+        severity: "error",
+        source: "rules",
         code: "name_too_long",
         path: jsonPointer("appTables", name),
         table: name,
@@ -128,6 +94,8 @@ export function designIssues(
 
     if (type !== undefined && subjectTypes.get(type) !== name) {
       issues.push({
+        severity: "error",
+        source: "rules",
         code: "subject_type_taken",
         path: jsonPointer("appTables", name, "subject", "type"),
         table: name,
@@ -143,6 +111,8 @@ export function designIssues(
 
       if (fallback !== undefined) {
         issues.push({
+          severity: "error",
+          source: "rules",
           code: "invalid_default",
           path: jsonPointer("appTables", name, "columns", column, "default"),
           table: name,
@@ -152,6 +122,8 @@ export function designIssues(
 
       if (lockedWithoutDefault(config)) {
         issues.push({
+          severity: "error",
+          source: "rules",
           code: "default_required",
           path: jsonPointer("appTables", name, "columns", column),
           table: name,
@@ -163,6 +135,8 @@ export function designIssues(
     for (const column of subjectColumns(table.subject)) {
       if (Object.hasOwn(table.columns ?? {}, column.name)) {
         issues.push({
+          severity: "error",
+          source: "rules",
           code: "column_clash",
           path: jsonPointer("appTables", name, "columns", column.name),
           table: name,
@@ -192,6 +166,8 @@ export function designIssues(
 
         if (gone.length > 0) {
           issues.push({
+            severity: "error",
+            source: "rules",
             code: "unknown_column",
             path: jsonPointer("appTables", name, field, index),
             table: name,
@@ -216,6 +192,8 @@ export function designIssues(
 
       if (missing) {
         issues.push({
+          severity: "error",
+          source: "rules",
           code: "missing_reference",
           path: jsonPointer("appTables", name, "columns", column, "references"),
           table: name,
@@ -225,6 +203,8 @@ export function designIssues(
 
       if (reference.onDelete === "set null" && config.nullable === false) {
         issues.push({
+          severity: "error",
+          source: "rules",
           code: "set_null_required",
           path: jsonPointer(
             "appTables",
@@ -244,6 +224,8 @@ export function designIssues(
   for (const block of Object.keys(design.extraColumns ?? {})) {
     if (!modules.has(block)) {
       issues.push({
+        severity: "error",
+        source: "rules",
         code: "block_not_installed",
         path: jsonPointer("extraColumns", block),
         table: block,

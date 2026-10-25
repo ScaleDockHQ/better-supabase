@@ -33,7 +33,7 @@ describe("checkDesign", () => {
   });
 
   it("reports a malformed design or preset as an issue", async () => {
-    expect(await checkDesign({ tables: {} }, SAAS)).toEqual({
+    expect(await checkDesign({ tables: {} }, SAAS)).toMatchObject({
       ok: false,
       issues: [
         {
@@ -92,7 +92,7 @@ describe("checkDesign", () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.ok ? [] : result.issues).toEqual([
+    expect(result.ok ? [] : result.issues).toMatchObject([
       {
         code: "table_name_taken",
         path: "/appTables/profiles",

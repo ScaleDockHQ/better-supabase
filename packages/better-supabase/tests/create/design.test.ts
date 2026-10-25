@@ -596,7 +596,7 @@ describe("column keys", () => {
       unique: [["title", "missing"]],
     });
 
-    expect(designIssues(design, data, preset)).toEqual([
+    expect(designIssues(design, data, preset)).toMatchObject([
       {
         code: "unknown_column",
         path: "/appTables/projects/unique/0",

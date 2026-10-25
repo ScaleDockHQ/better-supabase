@@ -29,6 +29,17 @@ export function previewAccessProvider(preset: Preset): BlockSqlAccessProvider {
 }
 
 /**
+ * The tables the project already has, as the CLI reads them from the catalog,
+ * so the preview shows what a block does over them (ADR 0100).
+ */
+export interface PreviewOptions {
+  /** `schema.table` to the file that creates it, or `database`. */
+  readonly ownTables?: Readonly<Record<string, string>>;
+  /** The columns of the tables in `ownTables`. */
+  readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
  * The files `upgrade` writes for a config with only this preset and its
  * `/create` design (app tables and extra columns). With `access: "provider"`
  * the access functions come from `previewAccessProvider`.
@@ -36,6 +47,7 @@ export function previewAccessProvider(preset: Preset): BlockSqlAccessProvider {
 export function previewFiles(
   input: PresetInput,
   design: CreateDesign = {},
+  options: PreviewOptions = {},
 ): readonly PresetMigrationFile[] {
   const preset = presetOf(input);
 
@@ -49,9 +61,23 @@ export function previewFiles(
   const provider =
     preset.access === "provider" ? previewAccessProvider(preset) : undefined;
 
+  const layout = moduleLayout(
+    config,
+    config.sql.testsDir,
+    [],
+    undefined,
+    provider,
+  );
+
   return renderBlocks(
     config.blockNames,
-    moduleLayout(config, config.sql.testsDir, [], undefined, provider),
+    options.ownTables === undefined
+      ? layout
+      : {
+          ...layout,
+          ownTables: options.ownTables,
+          ...(options.ownColumns ? { ownColumns: options.ownColumns } : {}),
+        },
   ).map((file) => ({
     path: file.path,
     module: file.module,

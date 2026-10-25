@@ -1,17 +1,11 @@
 import type { LiteRuntime } from "../../lite/runtime.ts";
+import type { Issue } from "../issue.ts";
 import type { PresetMigrationFile } from "../types.ts";
 
 import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 
 export { SUPABASE_PRELUDE } from "./prelude.ts";
-
-/** One file that failed to apply in Postgres. */
-export interface DesignIssue {
-  readonly module: string;
-  readonly path: string;
-  readonly message: string;
-}
 
 /**
  * A module PGlite can't run, such as one that needs an extension it doesn't
@@ -25,7 +19,8 @@ export interface SkippedBlock {
 export interface DesignValidation {
   /** `true` when every file that could run applied cleanly. */
   readonly ok: boolean;
-  readonly issues: readonly DesignIssue[];
+  /** One issue per file Postgres rejected: `source: "sql"`, `table` the module. */
+  readonly issues: readonly Issue[];
   readonly skipped: readonly SkippedBlock[];
   /** Tables in `public` after the files applied. */
   readonly tables: number;
@@ -68,7 +63,7 @@ export async function validateDesign(
 
     await driver.exec(SUPABASE_PRELUDE);
 
-    const issues: DesignIssue[] = [];
+    const issues: Issue[] = [];
     const skipped = new Map<string, string>();
 
     for (const file of files) {
@@ -83,7 +78,15 @@ export async function validateDesign(
         const extension = MISSING_EXTENSION.exec(message)?.[1];
 
         if (extension === undefined) {
-          issues.push({ module: file.module, path: file.path, message });
+          issues.push({
+            code: "sql_error",
+            severity: "error",
+            source: "sql",
+            path: "",
+            table: file.module,
+            file: file.path,
+            message,
+          });
         } else {
           skipped.set(
             file.module,
@@ -113,4 +116,14 @@ export async function validateDesign(
   } finally {
     await connection.close();
   }
+}
+
+/**
+ * The issues `validateDesign` finds, for `checkProject`'s `sql` option:
+ * `checkProject(project, { sql: sqlIssues })`.
+ */
+export async function sqlIssues(
+  files: readonly PresetMigrationFile[],
+): Promise<readonly Issue[]> {
+  return (await validateDesign(files)).issues;
 }
