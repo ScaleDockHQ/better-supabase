@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.18.0 (2026-10-25)
+
+- Close the gaps a production Expo, oRPC and MCP app hit on the blocks. See the
+  0.17 to 0.18 migration guide.
+
+  - Security: `team_ids_of(member)` refuses a signed-in caller that names another
+    user, and `list_members` checks a key `blocks.organizations.permissions.listMembers`
+    can remap. The profiles email mirror is stored lowercase, with a backfill.
+  - The audit block takes `ipHeader`, `staffClaim` and `subjectColumns`.
+  - The oRPC, Hono, `handle()` and MCP middleware take `cookies: false` for bearer
+    tokens and API keys only. oRPC contexts accept `headers` and `url`.
+  - `blocks.memberships.options.roles.many` lets a member hold several roles
+    (memberships version 3), with `addMemberRole` and `removeMemberRole`, and
+    invitations take `defaultRole` and `onAccept`.
+  - Notifications (version 9) render per delivery and per locale, and take
+    `actions` and `resolve({ resolution })`. Push (version 2) retries Expo sends,
+    stores tickets and records receipts with `devices.checkReceipts()`.
+    Profiles gain a `locale` column; `add --adopt` leaves it unmapped when the
+    app's `locale` column is an enum.
+  - Attachments take `offline`: client ids, an upload trigger, a cleanup queue
+    with `createAttachmentSweeper`, and an `{ext}` path placeholder.
+  - PowerSync: `better-supabase powersync streams` and `gen.powersync` write the
+    Sync Streams and the publication migration for notifications and attachments.
+    `better-supabase/powersync` adds `powersyncNotificationsTransport`,
+    `notificationRecipientsRoute`, `powersyncTopicPort` and
+    `attachmentQueueRoute`, and `gen` marks the other block instances as needing
+    the network on native.
+  - Every block types `extraColumns`, and memberships, organizations and teams type
+    their nested options. Column types accept quoted defaults and casts.
+  - `acceptInvitationById` and `declineInvitationById` emit `invitation.accepted`
+    and `invitation.declined`. The access-requests approve key is in the typed
+    permission registry, and doctor BS409 compares
+    `tokenHook.activeOrganizationFrom` with `blocks.permissions.activeTenant`.
+
 ## 0.17.0 (2026-10-25)
 
 - Add `ownTablePolicies` to keep blocks' policies off your own tables. Set `database.sql.ownTablePolicies: "app"` for every block, or `blocks.<name>.ownTablePolicies` for one, which wins. With `app`, a block that runs over a table your schema creates adds none of its `bsb_<table>_<command>` policies there, even where none of your policies repeats its condition, and no restrictive `bsb_tenant_scope` either, so your policies alone decide who reaches the rows (a platform permission that reads across organizations keeps working). It still writes its functions, triggers, indexes and grants. Its file keeps the `drop policy if exists` and a comment that your policies govern the table, so `upgrade` removes the copies an earlier install left. The default, `block`, keeps the behaviour since 0.15, and `add --adopt` suggests `app` when an adopted table already has permissive policies of its own. Doctor skips such tables in BS347, and the new BS350 (info) reports one with row level security on but no permissive policy for a command the block's policies would have granted.
