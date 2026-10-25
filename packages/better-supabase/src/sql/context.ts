@@ -420,9 +420,16 @@ export interface BlockSqlContext {
    * lists in `typed`. On a table the app has, the column may be an enum or
    * another type with a text input, so the value goes through
    * `better_supabase.as_column_type`; on the module's own table it stays as it
-   * is.
+   * is. With `invalid: "null"`, a value the type rejects, such as a label the
+   * enum lacks, becomes null through `better_supabase.try_column_type` instead
+   * of raising.
    */
-  cast(table: string, column: string, value: string): string;
+  cast(
+    table: string,
+    column: string,
+    value: string,
+    invalid?: "raise" | "null",
+  ): string;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
   /** Whether the module renders its managed SQL (not adopt or custom mode). */

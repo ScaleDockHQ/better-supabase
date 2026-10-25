@@ -548,7 +548,8 @@ A column of your table keeps the type the module writes, which is `text` for
 names, kinds and subject types. A few of those may be an enum or a domain
 instead, because the module casts what it writes through
 `better_supabase.as_column_type` and compares as text: status columns, the
-tags `kind` and `subjectType` and the numbering `entity`. Any other text
+tags `kind` and `subjectType`, the numbering `entity` and the profiles
+`locale`. Any other text
 column the module writes a parameter or computed value into must take a text
 value: `upgrade` and `add --adopt` refuse an enum there when the schema files
 declare it, and doctor reports it as [BS342](/docs/cli/doctor#bs342). A

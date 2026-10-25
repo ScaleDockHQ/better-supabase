@@ -204,7 +204,16 @@ describe("proposeAdoption", () => {
 
     const profiles = proposeAdoption("profiles", [
       enumColumn(
-        table("profiles", { id: "uuid", email: "text", locale: "text" }),
+        enumColumn(
+          table("profiles", {
+            id: "uuid",
+            email: "text",
+            username: "text",
+            locale: "text",
+          }),
+          "username",
+          "app_handle",
+        ),
         "locale",
         "app_locale",
       ),
@@ -212,9 +221,13 @@ describe("proposeAdoption", () => {
 
     expect(profiles.errors).toEqual([]);
     expect(profiles.entry.columns?.["profiles"]).toMatchObject({
-      locale: null,
+      username: null,
     });
+    expect(profiles.entry.columns?.["profiles"]?.["locale"]).toBeUndefined();
     expect(profiles.warnings).toContainEqual(
+      expect.stringContaining("public.profiles.username is an enum"),
+    );
+    expect(profiles.warnings).not.toContainEqual(
       expect.stringContaining("public.profiles.locale is an enum"),
     );
   });

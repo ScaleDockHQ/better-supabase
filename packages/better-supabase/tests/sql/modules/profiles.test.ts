@@ -65,6 +65,30 @@ describe("profiles module", () => {
     ).toMatch(/grant update \([^)]*"language"/);
   });
 
+  it("casts the locale into the app's column type, so it can be an enum", () => {
+    const sql = overApp({
+      profiles: {
+        tables: { profiles: "public.profiles" },
+        columns: { profiles: { locale: "locale" } },
+        options: { metadata: { locale: "locale" } },
+      },
+    });
+
+    expect(sql).toContain(
+      `"locale" = case when update_my_profile.attrs ? 'locale' then better_supabase.as_column_type(update_my_profile.attrs ->> 'locale', (null::"public"."profiles")."locale") else p."locale" end`,
+    );
+    expect(sql).toContain(
+      `better_supabase.try_column_type(nullif(btrim(coalesce(meta ->> 'locale')), ''), (null::"public"."profiles")."locale")`,
+    );
+    expect(sql).toContain(
+      "create or replace function better_supabase.as_column_type(value text, target anyelement)",
+    );
+    expect(sql).toContain(
+      "create or replace function better_supabase.try_column_type(value text, target anyelement)",
+    );
+    expect(body({})).not.toContain("_column_type(");
+  });
+
   it("keeps an avatar_path column that auth metadata never writes", () => {
     const sql = body({});
     expect(sql).toContain('  "avatar_path" text,');

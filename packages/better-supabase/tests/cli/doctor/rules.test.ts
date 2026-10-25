@@ -1460,6 +1460,54 @@ describe("enum columns of the app's tables the module writes as text (BS342)", (
     expect(await run("BS342", context(enumSnapshot))).toEqual([]);
     expect(await run("BS342", context(base, {}, blocks))).toEqual([]);
   });
+
+  it("passes an enum profiles locale, which the module casts, and reports an enum username", async () => {
+    const profiles = snapshot((tables, catalog) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      catalog.enums = [
+        ...catalog.enums,
+        { schema: "public", name: "app_locale", values: ["en", "nl"] },
+      ];
+
+      tables.push({
+        ...notes,
+        name: "profiles",
+        columns: ["locale", "username"].map((name) => ({
+          ...column,
+          name,
+          udt: "app_locale",
+          format: "app_locale",
+          typeSchema: "public",
+          isEnum: true,
+          isArray: false,
+        })),
+        foreignKeys: [],
+        triggers: [],
+      });
+    });
+
+    expect(
+      await run(
+        "BS342",
+        context(
+          profiles,
+          {},
+          {
+            blocks: {
+              profiles: {
+                tables: { profiles: "public.profiles" },
+                columns: { profiles: { locale: "locale" } },
+              },
+            },
+          },
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({ target: "public.profiles.username" }),
+    ]);
+  });
 });
 
 describe("app webhook endpoints without a format (BS344)", () => {
