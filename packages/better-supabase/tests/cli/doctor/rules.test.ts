@@ -1723,6 +1723,21 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ).toEqual([]);
   });
 
+  it("passes a write policy that adds the support-session actor guard", async () => {
+    const guarded = `(${tenantOnly} AND ( SELECT better_supabase.actor_may_write() AS actor_may_write))`;
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          withPolicies(tenantOnly, guarded),
+          {},
+          config({ note: { table: "notes" } }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("counts the subject's own read key, which the readable check adds", async () => {
     const snap = withPolicies(strict, tenantOnly);
 
