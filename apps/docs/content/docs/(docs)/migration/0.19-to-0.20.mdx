@@ -1,0 +1,145 @@
+---
+title: From 0.19 to 0.20
+description: What to check when upgrading to better-supabase 0.20, where db.$api returns a Result, block dates are Temporal values and every block table can be the app's own.
+---
+
+0.20 needs no codemod, but three changes break code that compiled on 0.19:
+`db.$api` returns a `Result`, several block fields are Temporal values, and
+some block calls refuse an app table that lacks a column. Upgrade the
+package, then regenerate the block files and a migration:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase gen
+npx better-supabase db diff -f blocks_0_20
+```
+
+The migration replaces block functions. It changes no table you own, except
+the unique index on adopted line tables described below.
+
+## `db.$api` returns a `Result`
+
+`db.$api(fn, args)` threw on a database error. It now returns an
+`AsyncResult`, like a repository call, so the error is a plain `DbError`.
+Add `.orThrow()` where you want the exception back:
+
+```ts
+// 0.19
+const total = await db.$api("invoice_total", { invoice: id });
+
+// 0.20
+const total = await db.$api("invoice_total", { invoice: id }).orThrow();
+
+const result = await db.$api("invoice_total", { invoice: id });
+if (result.ok) {
+  console.log(result.value);
+}
+```
+
+The third argument takes the options of `$rpc` without `schema` (the
+`ApiOptions` type from `better-supabase/types`). A `returns` schema validates
+the value and types it:
+
+```ts
+const total = await db
+  .$api("invoice_total", { invoice: id }, { returns: z.string() })
+  .orThrow();
+```
+
+`db.$apiResult`, added in 0.19, is the same call now and is deprecated.
+
+`BlockSet.call(db, fn, args)` also returns an `AsyncResult`, and
+`BlockSet.api` names the API schema the blocks are wrapped in (`sql.api`).
+If you implemented `DbBlockSource` yourself, replace its `call` method with an
+`api` property that holds that schema name; the core calls the function
+through `$rpc`.
+
+## Block dates are Temporal values
+
+These fields were ISO strings and are now `Temporal.Instant`:
+
+| Block         | Fields                                                         |
+| ------------- | -------------------------------------------------------------- |
+| reminders     | the argument of `markSent`                                     |
+| notifications | `DeliveryPayload.occurrenceAt`, `PlannedDelivery.occurrenceAt` |
+| relations     | `Relation.createdAt`                                           |
+| bulk          | `BulkRun.createdAt`, `BulkRun.finishedAt`                      |
+| webhooks      | `IncomingWebhook.createdAt`, `IncomingWebhook.lastReceivedAt`  |
+
+A bookings service's duration is a `Temporal.Duration`. Read a string with
+`.toString()`, or compare instants with `Temporal.Instant.compare`.
+
+Temporal values can now go anywhere a value is sent: function arguments,
+`queryRaw` parameters and block fields, at any depth inside objects and
+arrays. A `ZonedDateTime` is sent as its instant, and `Duration`,
+`PlainYearMonth` and `PlainMonthDay` are sent in their ISO form, so code that
+called `.toString()` before passing a value can drop it.
+
+## Every block table can be your own
+
+Every block table can now be one of the app's tables, except the
+`workflow-sdk` world, which the SDK owns. Map it with
+`blocks.<name>.tables` and `blocks.<name>.columns`; see
+[your own schemas](/docs/blocks/own-schemas). Idempotency, rate-limit,
+reserved-slugs, queue and `audit.registry` have table names you can set, and
+their default SQL quotes every identifier.
+
+The line tables of quotes, invoices and deals take optional columns and an
+enum `productType`. Lines upsert by position, so an adopted line table gets a
+`bsb_<lines>_position_key` unique index on its parent and position columns.
+Remove duplicate positions before you apply the migration.
+
+A block that runs over your table needs the columns its calls use. A call
+that needs a column your table lacks fails with a `*_UNSUPPORTED` error
+instead of a Postgres error, and a review reply fails with `REVIEW_INVALID`
+when the reviews table maps no reply column.
+
+Other changes to adopted tables:
+
+- The attachments trigger resets the scan state of a row a client inserts, so
+  a client can't mark its own upload as scanned.
+- Adopted usage history is never partitioned, and its id must be an
+  increasing `bigint`.
+- Adopted ledger balances keep the grants your app gave them.
+
+## Tenant columns follow your config
+
+State machine and numbering entities use the tenant column of their
+`config.records` entry, else `organization_id` or the name
+`database.sql.tenantColumn` gives it. `history.tenant` defaults to the
+machine's tenant column. The tasks pipeline, doctor's subject check and the
+legacy upgrades follow a renamed tenant column, and `gen` writes the renamed
+columns so the middleware reads them back as `tenant_id`.
+
+`orderMetrics`, `timeTrackingMetrics` and `driveSubject` take `table` and
+`tenant` for an app table with another layout. The workflow editor takes
+`tenantClaim`, and the SSO block's SCIM sync log maps through
+`blocks.sso.tables` and `blocks.sso.columns`.
+
+## Default SQL changes
+
+Regenerating changes the SQL of blocks you didn't adopt as well:
+
+- Identities, queue and collections upsert `on conflict` by column names
+  instead of by constraint name.
+- Status columns are written explicitly instead of through their defaults.
+- The activities `externalRef` index exists only when the column is mapped.
+
+## Notifications on adopted profiles
+
+A profiles table whose locale column is an enum or a domain now works through
+notification delivery, not only through `upgrade`.
+
+## Two blocks can't create one table
+
+Render now stops when two blocks would create the same table and names both
+config keys. For example, the idempotency module's `leases` table and the
+leases block's `lease_agreements` table have different names by default, but
+setting `blocks.leases.tables.leases` to `better_supabase.leases` fails with:
+
+```text
+blocks.idempotency.tables.leases and blocks.leases.tables.leases both name better_supabase.leases, and each block creates its own table there. Set one of them to another table name.
+```
+
+Before 0.20, the second `create table if not exists` did nothing, and the
+second block ran over the first block's table.
