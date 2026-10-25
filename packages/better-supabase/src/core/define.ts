@@ -32,6 +32,7 @@ import type { StandardSchemaV1 } from "./standard.ts";
 import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
+import { isStorageApi } from "../storage/storage-api.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";
@@ -69,9 +70,6 @@ interface DbSource {
   readonly client: unknown;
   readonly storage: StorageApi | undefined;
 }
-
-const isStorageApi = (value: unknown): value is StorageApi =>
-  isRecord(value) && typeof value["from"] === "function";
 
 /**
  * A supabase-js client builds a new storage client on each read of `storage`,

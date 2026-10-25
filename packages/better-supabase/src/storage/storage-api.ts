@@ -1,5 +1,7 @@
 import type { UploadBody } from "./bucket.ts";
 
+import { isRecord } from "../core/guards.ts";
+
 /**
  * A failed Storage call's `error`, as supabase-js returns it
  * (`StorageApiError`, `StorageUnknownError`).
@@ -269,6 +271,10 @@ export interface StorageApi {
     path: string,
   ): PromiseLike<StorageResponse<{ readonly path: string }>>;
 }
+
+/** Whether `value` has Storage's `from(bucket)`. */
+export const isStorageApi = (value: unknown): value is StorageApi =>
+  isRecord(value) && typeof value["from"] === "function";
 
 /**
  * What `bucket.connect()` takes: a `StorageApi`, or a client that carries one

@@ -474,3 +474,7 @@ const lifecycle = createDataLifecycle({
 await lifecycle.requestExport().orThrow();
 await lifecycle.requestExport({ organizationId }).orThrow();
 ```
+
+Read through a `Db` with the block installed through `.blocks()`,
+`db.$blocks.dataLifecycle` gets the `Db`'s Storage (`db.$storage`), so
+`download` signs the export files as the same caller.
