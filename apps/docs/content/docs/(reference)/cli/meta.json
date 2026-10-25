@@ -8,6 +8,7 @@
     "dev",
     "db",
     "spec",
+    "powersync",
     "doctor",
     "codemod",
     "agent-mode",

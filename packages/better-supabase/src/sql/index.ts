@@ -109,6 +109,7 @@ export { subjectColumns } from "./subject-registry.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 
 export {
+  declaredColumnTypes,
   declaredTableColumns,
   declaredTables,
   declaredUpdatedAtTriggers,

@@ -843,7 +843,7 @@ Options
   --metadata <path|->                   Read a GeneratorMetadata document (- for stdin) and print one file on stdout
   --emit <file>                         With --metadata, the file to print: schema, types, zod, valibot, json-schema, standard-schema. Defaults to schema
   --out-dir <dir>                       With --metadata, write every generated file into this directory instead of printing one
-  --only <list,...>                     Tasks to run: types, sql, spec, seed, env. Defaults to gen.tasks, or every task the config sets up
+  --only <list,...>                     Tasks to run: types, sql, powersync, spec, seed, env. Defaults to gen.tasks, or every task the config sets up
   --check                               Fail when a generated file is out of date
   --dry-run                             Print what would change and write nothing
   --force                               Overwrite a file at a generated path that the CLI did not write
@@ -954,6 +954,65 @@ Examples
 
 Side effects: Reads the database, writes files with --allow-writes.
 Docs: https://bettersupabase.com/docs/cli/mcp
+"
+`;
+
+exports[`help > documents powersync 1`] = `
+"Usage: better-supabase powersync <command> [options]
+
+Writes PowerSync sync streams, the PowerSync schema and the publication migration for the blocks that sync offline
+
+Commands
+  streams  Writes sync-streams.yaml and schema.ts for the synced block instances, and a migration that adds their tables to the powersync publication
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Docs: https://bettersupabase.com/docs/cli/powersync
+"
+`;
+
+exports[`help > documents powersync streams 1`] = `
+"Usage: better-supabase powersync streams [options]
+
+Writes sync-streams.yaml and schema.ts for the synced block instances, and a migration that adds their tables to the powersync publication
+
+Options
+  --instance <keys>  Block instances to sync, comma separated. Defaults to gen.powersync.instances
+  --out <dir>        Folder for sync-streams.yaml and schema.ts. Defaults to gen.powersync.out, then powersync
+  --dry-run          Print what would change, with a diff, and write nothing
+  --check            Write nothing; exit 1 with a diff when a file would change
+  --force            Overwrite files the CLI did not generate
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Writes the files for gen.powersync.instances
+  $ better-supabase powersync streams
+  # Exits 1 when a file for notifications is out of date
+  $ better-supabase powersync streams --instance notifications --check
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/powersync
 "
 `;
 
@@ -1222,8 +1281,9 @@ Set up
   completion  Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb
 
 Generate
-  gen   Writes the typed client from the database, then every other generated file the config sets up
-  spec  Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
+  gen        Writes the typed client from the database, then every other generated file the config sets up
+  powersync  Writes PowerSync sync streams, the PowerSync schema and the publication migration for the blocks that sync offline
+  spec       Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
 
 Local stack
   dev  Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine

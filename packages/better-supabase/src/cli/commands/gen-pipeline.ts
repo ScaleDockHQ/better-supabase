@@ -9,6 +9,7 @@ import type { Paint } from "../style.ts";
 import { failedResult, parseNames } from "../core/errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
 import { runEnv } from "./env.ts";
+import { runPowerSync } from "./powersync.ts";
 import { runSeed } from "./seed.ts";
 import { runSpec, specOptionsFromConfig } from "./spec.ts";
 import { runSql } from "./sql.ts";
@@ -67,6 +68,7 @@ export function configuredTasks(config: ResolvedConfig): readonly GenTask[] {
     types: () => true,
     sql: () =>
       config.blockNames.length > 0 || config.realtime.policies !== undefined,
+    powersync: () => config.gen.powersync !== undefined,
     spec: () => exists(config.specs.entry),
     seed: () => exists(config.seed.entry),
     env: () => false,
@@ -88,6 +90,7 @@ export function stepInputs(
   const inputs: Readonly<Record<GenTask, () => readonly string[]>> = {
     types: () => [],
     sql: () => [],
+    powersync: () => [],
     spec: () => [
       at(config.specs.entry),
       ...config.specs.outputs.flatMap((output) =>
@@ -109,6 +112,8 @@ const STEPS: Readonly<
 > = {
   sql: ({ config, check, dryRun, paint }) =>
     runSql(config, { _: ["sync"], check, "dry-run": dryRun }, paint),
+  powersync: ({ config, check, dryRun }) =>
+    runPowerSync(config, { check, "dry-run": dryRun }),
   spec: ({ config, check, dryRun }) =>
     runSpec(
       specOptionsFromConfig(

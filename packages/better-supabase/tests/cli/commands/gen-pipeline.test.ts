@@ -86,7 +86,7 @@ describe("gen tasks", () => {
 
   it("rejects an unknown task", () => {
     expect(parseTasks(["types", "lint"])).toBe(
-      'Unknown gen task "lint". Available: types, sql, spec, seed, env.',
+      'Unknown gen task "lint". Available: types, sql, powersync, spec, seed, env.',
     );
   });
 

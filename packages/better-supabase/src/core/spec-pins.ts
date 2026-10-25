@@ -38,6 +38,8 @@ export const SPEC_PINS: {
   readonly scim: "2.0";
   readonly supabaseSdkCapabilities: "1.14.0";
   readonly aiMessage: "1";
+  /** The PowerSync sync streams config edition `powersync streams` writes. */
+  readonly powersyncSyncStreams: "2";
   readonly aiSdkUiMessageStream: "v1";
   readonly anthropicMemoryTool: "20250818";
   /** RFC 5545 recurrence rules expanded by the reminders block. */
@@ -150,6 +152,7 @@ export const SPEC_PINS: {
   scim: "2.0",
   supabaseSdkCapabilities: "1.14.0",
   aiMessage: "1",
+  powersyncSyncStreams: "2",
   aiSdkUiMessageStream: "v1",
   anthropicMemoryTool: "20250818",
   rfc5545: "2009-09",

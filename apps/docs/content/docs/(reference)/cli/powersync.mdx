@@ -1,0 +1,77 @@
+---
+title: powersync
+description: Write PowerSync sync streams, the PowerSync schema and the publication migration for the blocks that work offline.
+---
+
+`powersync streams` writes the files PowerSync needs to sync block tables to a
+device: the sync streams for the PowerSync service, the client `Schema`
+tables, and a migration that adds the tables to the `powersync` publication.
+Set `gen.powersync` and `gen` runs it as the `powersync` task.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { memberships: {}, notifications: {}, attachments: {} },
+  gen: { powersync: { instances: ["notifications", "attachments"] } },
+});
+```
+
+```bash
+pnpm better-supabase powersync streams           # write the files
+pnpm better-supabase powersync streams --check   # exit 1 when a file is out of date
+```
+
+| Command             | Side effects  |
+| ------------------- | ------------- |
+| `powersync streams` | Writes files. |
+
+## Options
+
+| Option            | Default                               | What it does                                                 |
+| ----------------- | ------------------------------------- | ------------------------------------------------------------ |
+| `--instance keys` | `gen.powersync.instances`             | The block instances to sync, comma separated                 |
+| `--out dir`       | `gen.powersync.out`, then `powersync` | The folder for `sync-streams.yaml` and `schema.ts`           |
+| `--check`         |                                       | Writes nothing; exits 1 with a diff when a file would change |
+| `--dry-run`       |                                       | Prints what would change and writes nothing                  |
+| `--force`         |                                       | Overwrites files the CLI did not write                       |
+
+`gen.powersync.import` sets the module `schema.ts` imports `column` and
+`Table` from. It defaults to `@powersync/common`; React Native apps can use
+`@powersync/react-native`.
+
+## What it writes
+
+| File                                                    | What it holds                                                                     |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `powersync/sync-streams.yaml`                           | One auto-subscribed stream per table, filtered to the signed-in user              |
+| `powersync/schema.ts`                                   | A PowerSync `Table` per synced table, and `blockTables` to spread into `Schema`   |
+| `supabase/migrations/<stamp>_powersync_publication.sql` | Creates the `powersync` publication when it is missing and adds each synced table |
+
+Each block syncs only the rows the user can read:
+
+| Block           | Tables                                           | Rows                                                   |
+| --------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| `notifications` | `notification_recipients`, `notification_events` | The user's recipients and the events they point at     |
+| `attachments`   | `attachments`                                    | The files of the organizations the user is a member of |
+
+`attachments` reads the user's organizations from the `memberships` block, so
+the config needs it. Other blocks can't sync yet; the command names the
+instance it refuses.
+
+The migration is written once. A later run compares the newest
+`*_powersync_publication.sql` with what it would write and adds a new
+migration only when the synced tables change, so a pushed migration is never
+rewritten.
+
+Upload the streams with the PowerSync dashboard or CLI, then spread the tables
+into the client schema:
+
+```ts title="src/powersync/schema.ts"
+import { Schema } from "@powersync/react-native";
+
+import { blockTables } from "../../powersync/schema";
+
+export const schema = new Schema({ ...blockTables });
+```
+
+[PowerSync](/docs/frontend/powersync#offline-capable-blocks) covers the
+engine options that answer the blocks' reads from the local database.

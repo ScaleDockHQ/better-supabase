@@ -16,13 +16,14 @@ Side effects: Writes files, reads the database, calls the Supabase Management AP
 
 ## Tasks
 
-| Task    | Runs by default when                                   | Does what                                                                       |
-| ------- | ------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `types` | always                                                 | Writes the files this page describes                                            |
-| `sql`   | `blocks` lists a module, or `realtime.policies` is set | [`upgrade`](/docs/blocks/sql): rewrites the SQL module files                    |
-| `spec`  | the `api.specs.entry` file exists                      | [`spec emit`](/docs/cli/spec), with `api.specs.failOn` and `api.specs.manifest` |
-| `seed`  | the `database.seed.entry` file exists                  | [`seed`](/docs/cli/db#seed): renders the fixtures to SQL                        |
-| `env`   | never; list it to run it                               | [`env`](/docs/cli/dev#env): writes the local stack's keys to `env.output`       |
+| Task        | Runs by default when                                   | Does what                                                                                                     |
+| ----------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `types`     | always                                                 | Writes the files this page describes                                                                          |
+| `sql`       | `blocks` lists a module, or `realtime.policies` is set | [`upgrade`](/docs/blocks/sql): rewrites the SQL module files                                                  |
+| `powersync` | `gen.powersync` is set                                 | [`powersync streams`](/docs/cli/powersync): writes the sync streams, the schema and the publication migration |
+| `spec`      | the `api.specs.entry` file exists                      | [`spec emit`](/docs/cli/spec), with `api.specs.failOn` and `api.specs.manifest`                               |
+| `seed`      | the `database.seed.entry` file exists                  | [`seed`](/docs/cli/db#seed): renders the fixtures to SQL                                                      |
+| `env`       | never; list it to run it                               | [`env`](/docs/cli/dev#env): writes the local stack's keys to `env.output`                                     |
 
 The tasks run in that order, since later ones read what earlier ones write.
 Pin the list in the config with `gen.tasks`, or pass `--only` for one run:

@@ -2531,7 +2531,7 @@
         "tasks": {
           "type": "array",
           "items": {
-            "enum": ["types", "sql", "spec", "seed", "env"],
+            "enum": ["types", "sql", "powersync", "spec", "seed", "env"],
             "type": "string"
           },
           "description": "The steps gen runs, in order. Without a list: types, plus sql, spec and seed when the project uses them. env runs only when listed."
@@ -2545,6 +2545,26 @@
           "type": "boolean",
           "description": "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
           "default": false
+        },
+        "powersync": {
+          "type": "object",
+          "properties": {
+            "instances": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "out": {
+              "type": "string"
+            },
+            "import": {
+              "type": "string"
+            }
+          },
+          "required": ["instances"],
+          "additionalProperties": false
         },
         "output": {
           "type": "string",

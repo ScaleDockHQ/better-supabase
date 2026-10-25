@@ -48,6 +48,11 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/blocks.ts").then((m) => m.blocksSearchCommand),
   ],
   [
+    "powersync streams",
+    () =>
+      import("./commands/powersync.ts").then((m) => m.powersyncStreamsCommand),
+  ],
+  [
     "spec emit",
     () => import("./commands/spec.ts").then((m) => m.specEmitCommand),
   ],

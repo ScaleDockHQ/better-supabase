@@ -263,6 +263,34 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES, READS_DATABASE, MANAGEMENT_API],
   },
   {
+    name: "powersync",
+    description:
+      "Writes PowerSync sync streams, the PowerSync schema and the publication migration for the blocks that sync offline",
+    group: "generate",
+    docs: "/docs/cli/powersync",
+    effects: [FILES],
+    subcommands: [
+      {
+        name: "streams",
+        description:
+          "Writes sync-streams.yaml and schema.ts for the synced block instances, and a migration that adds their tables to the powersync publication",
+        docs: "/docs/cli/powersync",
+        examples: [
+          {
+            command: "better-supabase powersync streams",
+            description: "Writes the files for gen.powersync.instances",
+          },
+          {
+            command:
+              "better-supabase powersync streams --instance notifications --check",
+            description: "Exits 1 when a file for notifications is out of date",
+          },
+        ],
+        effects: [FILES],
+      },
+    ],
+  },
+  {
     name: "spec",
     description:
       "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",

@@ -24,6 +24,7 @@ import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { movedKeyIssues } from "./config-moved.ts";
 import { GEN_TASKS, HOOK_FRAMEWORKS, INTEGRATIONS } from "./names.ts";
+import { powersyncGenSchema } from "./powersync/config-schema.ts";
 
 const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
@@ -920,6 +921,7 @@ const ENTRIES = {
         v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
       ),
       contentMapper: v.optional(v.boolean()),
+      powersync: v.optional(powersyncGenSchema),
       ...pickEntries([
         "output",
         "casing",
