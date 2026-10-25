@@ -113,6 +113,8 @@ const TO_MESSAGING: BlockSqlUpgrade = {
     const dt = q.cols("details");
     const old = (name: string): string => `${ctx.schema}.${name}`;
     const messages = old("inbox_messages");
+    // The old table took the tenant column the block names on its other tables.
+    const mt = cv("tenant");
     const at = ctx.of("attachments");
     const files = at.table("attachments");
     const a = (column: string): string => at.col("attachments", column);
@@ -131,7 +133,7 @@ const TO_MESSAGING: BlockSqlUpgrade = {
       return `  update ${table} x set ${c("subjectType")} = ${core.message} where x.${c("subjectType")} = 'inbox_message';
   perform set_config('better_supabase.bsb_reactions_backfill', 'on', true);
   insert into ${table} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")})
-  select x.tenant_id, ${core.message}, x.id::text, w.actor,
+  select x.${mt}, ${core.message}, x.id::text, w.actor,
     case when w.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then w.actor::uuid end,
     e.key
   from ${messages} x
@@ -162,12 +164,12 @@ begin
   from ${q.t("conversations")} v
   on conflict do nothing;
   insert into ${msg} (${[cm("id"), cm("tenant"), cm("conversation"), cm("author"), cm("kind"), cm("body"), cm("mentions"), cm("sentAt"), cm("editedAt"), cm("deletedAt"), cm("createdAt")].join(", ")})
-  select x.id, x.tenant_id, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.deleted_at, x.created_at
+  select x.id, x.${mt}, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.deleted_at, x.created_at
   from ${messages} x
   order by x.created_at, x.id
   on conflict do nothing;
   insert into ${q.t("details")} (${[dt("message"), dt("tenant"), dt("conversation"), dt("direction"), dt("authorType"), dt("format"), dt("externalId"), dt("replyTo"), dt("metadata")].join(", ")})
-  select x.id, x.tenant_id, x.conversation_id, x.direction, x.author_type, x.format, x.external_id, x.reply_to, x.metadata
+  select x.id, x.${mt}, x.conversation_id, x.direction, x.author_type, x.format, x.external_id, x.reply_to, x.metadata
   from ${messages} x
   on conflict do nothing;
   insert into ${members} as k (${ck("conversation")}, ${ck("tenant")}, ${ck("user")}, ${ck("lastReadAt")})
@@ -189,7 +191,7 @@ begin
     set ${ck("lastReadAt")} = greatest(k.${ck("lastReadAt")}, excluded.${ck("lastReadAt")});
   if to_regclass(${sqlString(files)}) is not null then
     insert into ${files} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")}, ${a("name")}, ${a("mimeType")}, ${a("size")}, ${a("uploadedBy")}, ${a("detail")}, ${a("createdAt")})
-    select x.tenant_id, ${core.message}, x.id::text,
+    select x.${mt}, ${core.message}, x.id::text,
       left(coalesce(nullif(f ->> 'name', ''), 'file'), 255),
       case when lower(f ->> 'content_type') ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$' then lower(f ->> 'content_type') else 'application/octet-stream' end,
       coalesce((f ->> 'size')::bigint, 0),

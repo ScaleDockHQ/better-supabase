@@ -1,5 +1,8 @@
 import type { SubjectsConfig } from "../../config/types/subjects.ts";
+import type { EntityNames } from "../../core/entity-naming.ts";
 import type { BlockSqlContext } from "../context.ts";
+
+import { tenantColumnOf } from "../subject-registry.ts";
 
 const NAME = /^[a-z][a-z0-9_]*$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
@@ -53,7 +56,7 @@ export function machines(ctx: BlockSqlContext): readonly Machine[] {
   }
 
   return Object.entries(raw).map(([name, entry]) =>
-    machine(name, entry, ctx.subjects),
+    machine(name, entry, ctx.subjects, ctx.naming),
   );
 }
 
@@ -65,6 +68,7 @@ function registered(
   name: string,
   registry: SubjectsConfig,
   where: string,
+  naming: EntityNames,
 ): Record<string, unknown> {
   const entry = Object.hasOwn(registry, name) ? registry[name] : undefined;
 
@@ -82,7 +86,7 @@ function registered(
     table: entry.table,
     ...(entry.id !== undefined && { id: entry.id }),
     ...(entry.idType !== undefined && { idType: entry.idType }),
-    tenant: entry.tenant ?? "organization_id",
+    tenant: entry.tenant ?? naming.rename("organization_id"),
   };
 }
 
@@ -90,6 +94,7 @@ function machine(
   name: string,
   entry: unknown,
   registry: SubjectsConfig,
+  naming: EntityNames,
 ): Machine {
   const where = `blocks.state-machine.options.machines.${name}`;
 
@@ -109,7 +114,7 @@ function machine(
 
   const record =
     own["table"] === undefined
-      ? { ...registered(name, registry, where), ...own }
+      ? { ...registered(name, registry, where, naming), ...own }
       : own;
 
   const table = record["table"];
@@ -201,7 +206,18 @@ function machine(
     }
   }
 
-  const history = historyOf(record["history"], where);
+  const tenantColumn =
+    typeof record["tenant"] === "string"
+      ? record["tenant"]
+      : tenantColumnOf(table, registry, naming);
+
+  if (tenantColumn === undefined) {
+    throw new TypeError(
+      `${where}: ${table} has no tenant column in config.records, which a machine needs`,
+    );
+  }
+
+  const history = historyOf(record["history"], where, tenantColumn);
 
   return {
     name,
@@ -209,8 +225,7 @@ function machine(
     column,
     idColumn: typeof record["id"] === "string" ? record["id"] : "id",
     ...(idType === undefined ? {} : { idType }),
-    tenantColumn:
-      typeof record["tenant"] === "string" ? record["tenant"] : "tenant_id",
+    tenantColumn,
     initial,
     transitions: edges,
     requiresApproval: gated,
@@ -278,6 +293,7 @@ function namesOf(value: unknown, where: string): readonly string[] {
 function historyOf(
   value: unknown,
   where: string,
+  tenant: string,
 ): Machine["history"] | undefined {
   if (value === undefined) {
     return undefined;
@@ -321,7 +337,7 @@ function historyOf(
     actor: text("actor", "actor_user_id"),
     reason: text("reason", "reason"),
     subject: text("subject", "subject_id"),
-    tenant: text("tenant", "tenant_id"),
+    tenant: text("tenant", tenant),
     createdAt: text("createdAt", "created_at"),
   };
 }

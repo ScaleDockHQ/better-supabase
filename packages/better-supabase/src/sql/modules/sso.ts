@@ -155,6 +155,20 @@ const NAMES: BlockSqlNames = {
       name: "scim_group_members",
       columns: { group: "group_id", member: "scim_user_id" },
     },
+    syncLog: {
+      name: "scim_sync_log",
+      columns: {
+        id: "id",
+        tenant: "organization_id",
+        operation: "operation",
+        resourceType: "resource_type",
+        resourceId: "resource_id",
+        status: "status",
+        error: "error",
+        requestId: "request_id",
+        createdAt: "created_at",
+      },
+    },
   },
 };
 

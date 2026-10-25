@@ -63,6 +63,31 @@ describe("number sequences", () => {
     expect(sql).toContain("INV-{yyyy}-{n:5}");
   });
 
+  it("takes the tenant column of a numbered table from config.records", () => {
+    const entities = {
+      invoice: {
+        period: "none",
+        format: "{n}",
+        table: "public.invoices",
+        column: "number",
+      },
+    };
+
+    const render = (subjects = {}): string =>
+      renderBlocks(["numbering"], {
+        modules: { numbering: { options: { entities } } },
+        subjects,
+      })
+        .filter((file) => file.module === "numbering")
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(render()).toContain('new."organization_id"');
+    expect(
+      render({ invoice: { table: "invoices", tenant: "org_id" } }),
+    ).toContain('new."org_id"');
+  });
+
   it("refuses a predicate that is not an expression", () => {
     expect(() =>
       sqlOf({

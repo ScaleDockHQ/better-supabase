@@ -503,6 +503,8 @@ function stockMovementsUpgrade(ctx: BlockSqlContext): string {
   const t = columns(ledger, "transactions");
   const e = columns(ledger, "entries");
   const old = `${ctx.schema}.stock_movements`;
+  // The old table took the tenant column the block names on its other tables.
+  const mt = ctx.col("levels", "tenant");
   const read = ctx.permission("read", OPERATIONS["inventory.read"]);
   const accounts = ledger.table("accounts");
   const memo = ledger.has("transactions", "memo");
@@ -514,25 +516,25 @@ begin
     return;
   end if;
   insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("holderType")}, ${a("holderId")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("managedBy")}, ${a("metadata")})
-  select distinct m.tenant_id, 'stock', 'stock:' || m.variant_id::text || ':' || m.location_id::text, 'Stock', 'item', 'product-variants', m.variant_id::text, true, ${read}, 'inventory',
+  select distinct m.${mt}, 'stock', 'stock:' || m.variant_id::text || ':' || m.location_id::text, 'Stock', 'item', 'product-variants', m.variant_id::text, true, ${read}, 'inventory',
     jsonb_build_object('variantId', m.variant_id, 'locationId', m.location_id)
   from ${old} m
   on conflict do nothing;
   insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("managedBy")})
-  select distinct m.tenant_id, 'stock_counter', ${counterCase("m.reason", 0)}, ${counterCase("m.reason", 1)}, 'item', true, ${read}, 'inventory'
+  select distinct m.${mt}, 'stock_counter', ${counterCase("m.reason", 0)}, ${counterCase("m.reason", 1)}, 'item', true, ${read}, 'inventory'
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("transactions")} (${t("id")}, ${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}, ${memo ? `${t("memo")}, ` : ""}${t("metadata")}, ${t("effectiveAt")}, ${t("actor")}, ${t("createdAt")})
-  select m.id, m.tenant_id, 'stock.' || m.reason, m.reference_type, m.reference_id,${memo ? " m.note," : ""}
+  select m.id, m.${mt}, 'stock.' || m.reason, m.reference_type, m.reference_id,${memo ? " m.note," : ""}
     jsonb_build_object('variantId', m.variant_id, 'locationId', m.location_id, 'reason', m.reason), m.created_at, m.actor_id, m.created_at
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("entries")} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")}, ${e("createdAt")})
-  select m.tenant_id, m.id, x.${a("id")}, m.quantity, 'item', m.created_at
-  from ${old} m join ${accounts} x on x.${a("tenant")} = m.tenant_id and x.${a("code")} = 'stock:' || m.variant_id::text || ':' || m.location_id::text
+  select m.${mt}, m.id, x.${a("id")}, m.quantity, 'item', m.created_at
+  from ${old} m join ${accounts} x on x.${a("tenant")} = m.${mt} and x.${a("code")} = 'stock:' || m.variant_id::text || ':' || m.location_id::text
   union all
-  select m.tenant_id, m.id, x.${a("id")}, -m.quantity, 'item', m.created_at
-  from ${old} m join ${accounts} x on x.${a("tenant")} = m.tenant_id and x.${a("code")} = ${counterCase("m.reason", 0)};
+  select m.${mt}, m.id, x.${a("id")}, -m.quantity, 'item', m.created_at
+  from ${old} m join ${accounts} x on x.${a("tenant")} = m.${mt} and x.${a("code")} = ${counterCase("m.reason", 0)};
   ${ledgerRebalance(ledger)}
   drop table ${old};
   drop function if exists ${ctx.fn("apply_stock_movement")}();

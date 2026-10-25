@@ -243,6 +243,19 @@ describe("blocks next to the app's tables", () => {
     expect(sql).not.toContain("new.tenant_id");
   });
 
+  it("binds pipelines to the tenant column the app's work items table names", () => {
+    const items = tablesOf("tasks")["items"]!;
+
+    const sql = files(
+      ["tasks", "pipelines"],
+      { [items]: "app.sql" },
+      { tasks: { columns: { items: { tenant: "org_id" } } } },
+    );
+
+    expect(sql).toContain("default_pipeline(new.org_id, 'work_item'");
+    expect(sql).not.toContain("new.tenant_id");
+  });
+
   it("moves stock movements onto a ledger without a memo column", () => {
     expect(() =>
       files(

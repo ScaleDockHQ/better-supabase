@@ -295,8 +295,6 @@ end;
 $$;`;
 }
 
-const SCIM_SYNC_LOG = "better_supabase.scim_sync_log";
-
 export const SCIM_SYNC_LOG_CONTRACT: readonly BlockSqlContractFunction[] = [
   {
     name: "scim_log_sync",
@@ -318,23 +316,26 @@ export function scimSyncLogSql(
 ): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
+  const log = ctx.table("syncLog");
+  const { name } = ctx.tableName("syncLog");
+  const c = (column: string): string => ctx.col("syncLog", column);
 
   return `-- One row per SCIM write: what the identity provider asked for and how it
 -- went. sqlScimSyncLog writes it through scim_log_sync.
-create table if not exists ${SCIM_SYNC_LOG} (
-  id bigint generated always as identity primary key,
-  organization_id ${id} not null,
-  operation text not null check (operation in ('create', 'replace', 'patch', 'delete')),
-  resource_type text not null check (resource_type in ('User', 'Group')),
-  resource_id text,
-  status integer not null,
-  error text,
-  request_id text,
-  created_at timestamptz not null default now()
+create table if not exists ${log} (
+  ${c("id")} bigint generated always as identity primary key,
+  ${c("tenant")} ${id} not null,
+  ${c("operation")} text not null check (${c("operation")} in ('create', 'replace', 'patch', 'delete')),
+  ${c("resourceType")} text not null check (${c("resourceType")} in ('User', 'Group')),
+  ${c("resourceId")} text,
+  ${c("status")} integer not null,
+  ${c("error")} text,
+  ${c("requestId")} text,
+  ${c("createdAt")} timestamptz not null default now()
 );
-create index if not exists scim_sync_log_tenant_idx on ${SCIM_SYNC_LOG} (organization_id, created_at desc);
-create index if not exists scim_sync_log_created_idx on ${SCIM_SYNC_LOG} (created_at);
-${lockTable(SCIM_SYNC_LOG)}
+create index if not exists ${name}_tenant_idx on ${log} (${c("tenant")}, ${c("createdAt")} desc);
+create index if not exists ${name}_created_idx on ${log} (${c("createdAt")});
+${lockTable(log)}
 
 create or replace function ${fn("scim_log_sync")}(
   tenant ${id},
@@ -352,7 +353,7 @@ set search_path = ''
 as $$
 begin
   ${serviceOnly("logs SCIM writes")}
-  insert into ${SCIM_SYNC_LOG} (organization_id, operation, resource_type, resource_id, status, error, request_id)
+  insert into ${log} (${["tenant", "operation", "resourceType", "resourceId", "status", "error", "requestId"].map(c).join(", ")})
   values (scim_log_sync.tenant, scim_log_sync.operation, scim_log_sync.resource_type, scim_log_sync.resource_id,
     coalesce(scim_log_sync.status, 0), left(scim_log_sync.error, 2000), left(scim_log_sync.request_id, 200));
 end;
@@ -371,9 +372,12 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc, x.id desc), '[]'::jsonb)
     from (
-      select * from ${SCIM_SYNC_LOG} l
-      where l.organization_id = list_scim_sync_log.tenant
-      order by l.created_at desc, l.id desc
+      select l.${c("id")} as id, l.${c("tenant")} as organization_id, l.${c("operation")} as operation,
+        l.${c("resourceType")} as resource_type, l.${c("resourceId")} as resource_id, l.${c("status")} as status,
+        l.${c("error")} as error, l.${c("requestId")} as request_id, l.${c("createdAt")} as created_at
+      from ${log} l
+      where l.${c("tenant")} = list_scim_sync_log.tenant
+      order by l.${c("createdAt")} desc, l.${c("id")} desc
       limit least(greatest(coalesce(list_scim_sync_log.max, 100), 1), 1000)
     ) x
   );
@@ -392,9 +396,9 @@ declare
   v_count integer;
 begin
   ${serviceOnly("purges the SCIM log")}
-  delete from ${SCIM_SYNC_LOG} l where l.id in (
-    select x.id from ${SCIM_SYNC_LOG} x
-    where ${ctx.expired("scim_sync_log", { at: "x.created_at", tenant: "x.organization_id", fallback: "coalesce(older_than, interval '90 days')" })}
+  delete from ${log} l where l.${c("id")} in (
+    select x.${c("id")} from ${log} x
+    where ${ctx.expired("scim_sync_log", { at: `x.${c("createdAt")}`, tenant: `x.${c("tenant")}`, fallback: "coalesce(older_than, interval '90 days')" })}
     limit greatest(coalesce(batch, 10000), 1)
   );
   get diagnostics v_count = row_count;

@@ -390,6 +390,8 @@ export function leaveLedgerUpgrade(ctx: BlockSqlContext): string {
   const types = ctx.table("types");
   const ty = (column: string): string => ctx.col("types", column);
   const old = `${ctx.schema}.leave_ledger`;
+  // The old table took the tenant column the block names on its other tables.
+  const mt = ctx.col("types", "tenant");
 
   const counter = (row: string): string =>
     `'leave:' || ${row}.type_id::text || case when ${row}.kind = 'taken' then ':taken' else ':pool' end`;
@@ -401,26 +403,26 @@ begin
     return;
   end if;
   insert into ${accounts} (${la("tenant")}, ${la("kind")}, ${la("code")}, ${la("name")}, ${la("unit")}, ${la("scale")}, ${la("holderType")}, ${la("holderId")}, ${la("owner")}, ${la("allowNegative")}, ${la("readPermission")}, ${la("managedBy")}, ${la("metadata")})
-  select distinct m.tenant_id, 'leave', ${userCode("m.type_id", "m.user_id", "m.period")}, 'Leave', t.${ty("unit")}, 2, 'leave-types', m.type_id::text, m.user_id, true, ${read}, 'leave',
+  select distinct m.${mt}, 'leave', ${userCode("m.type_id", "m.user_id", "m.period")}, 'Leave', t.${ty("unit")}, 2, 'leave-types', m.type_id::text, m.user_id, true, ${read}, 'leave',
     jsonb_build_object('userId', m.user_id, 'typeId', m.type_id, 'period', m.period)
   from ${old} m join ${types} t on t.${ty("id")} = m.type_id
   on conflict do nothing;
   insert into ${accounts} (${la("tenant")}, ${la("kind")}, ${la("code")}, ${la("name")}, ${la("unit")}, ${la("scale")}, ${la("holderType")}, ${la("holderId")}, ${la("allowNegative")}, ${la("readPermission")}, ${la("managedBy")})
-  select distinct m.tenant_id, 'leave_pool', ${counter("m")}, case when m.kind = 'taken' then 'Leave taken' else 'Leave pool' end, t.${ty("unit")}, 2, 'leave-types', m.type_id::text, true, ${read}, 'leave'
+  select distinct m.${mt}, 'leave_pool', ${counter("m")}, case when m.kind = 'taken' then 'Leave taken' else 'Leave pool' end, t.${ty("unit")}, 2, 'leave-types', m.type_id::text, true, ${read}, 'leave'
   from ${old} m join ${types} t on t.${ty("id")} = m.type_id
   on conflict do nothing;
   insert into ${ledger.table("transactions")} (${lt("id")}, ${lt("tenant")}, ${lt("kind")}, ${lt("referenceType")}, ${lt("referenceId")}, ${memo ? `${lt("memo")}, ` : ""}${lt("key")}, ${lt("metadata")}, ${lt("effectiveAt")}, ${lt("actor")}, ${lt("createdAt")})
-  select m.id, m.tenant_id, 'leave.' || m.kind, case when m.request_id is not null then 'leave-requests' end, m.request_id::text,${memo ? " m.note," : ""}
+  select m.id, m.${mt}, 'leave.' || m.kind, case when m.request_id is not null then 'leave-requests' end, m.request_id::text,${memo ? " m.note," : ""}
     case when m.idempotency_key is not null then 'leave:' || m.user_id::text || ':' || m.type_id::text || ':' || m.idempotency_key end,
     jsonb_build_object('userId', m.user_id, 'typeId', m.type_id, 'period', m.period, 'kind', m.kind), m.created_at, m.created_by, m.created_at
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("entries")} (${le("tenant")}, ${le("transaction")}, ${le("account")}, ${le("amount")}, ${le("unit")}, ${le("createdAt")})
-  select m.tenant_id, m.id, x.${la("id")}, round(m.amount * ${SCALE})::bigint, x.${la("unit")}, m.created_at
-  from ${old} m join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${userCode("m.type_id", "m.user_id", "m.period")}
+  select m.${mt}, m.id, x.${la("id")}, round(m.amount * ${SCALE})::bigint, x.${la("unit")}, m.created_at
+  from ${old} m join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${userCode("m.type_id", "m.user_id", "m.period")}
   union all
-  select m.tenant_id, m.id, x.${la("id")}, -round(m.amount * ${SCALE})::bigint, x.${la("unit")}, m.created_at
-  from ${old} m join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${counter("m")};
+  select m.${mt}, m.id, x.${la("id")}, -round(m.amount * ${SCALE})::bigint, x.${la("unit")}, m.created_at
+  from ${old} m join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${counter("m")};
   ${ledgerRebalance(ledger)}
   drop table ${old};
 end;

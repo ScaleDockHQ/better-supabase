@@ -158,14 +158,46 @@ export function registeredSubjects(
   });
 }
 
-/** Every column a registry entry names, keyed by the config path that names it. */
+/**
+ * The tenant column of `table` (`schema.table`, or a table in `public`): the
+ * `tenant` of the `config.records` entry for that table, else the tenant column
+ * `naming` names. `undefined` when the entry says the table has no tenant.
+ */
+export function tenantColumnOf(
+  table: string,
+  subjects: SubjectsConfig,
+  naming: EntityNames = tenantNames(),
+): string | undefined {
+  const qualify = (name: string): string =>
+    name.includes(".") ? name : `public.${name}`;
+
+  const entry = Object.values(subjects).find(
+    (candidate) => qualify(candidate.table) === qualify(table),
+  );
+
+  if (entry?.tenant === false) {
+    return undefined;
+  }
+
+  return entry?.tenant ?? naming.rename("organization_id");
+}
+
+/**
+ * Every column a registry entry names, keyed by the config path that names it.
+ * A subject without `tenant` gets the tenant column of `tenant`, the noun
+ * `blocks.memberships.entities.organization` renames the tenant to.
+ */
 export function subjectColumns(
   entry: SubjectConfig,
+  tenant?: string,
 ): readonly (readonly [path: string, column: string])[] {
   const columns: [string, string][] = [["id", entry.id ?? "id"]];
 
   if (entry.tenant !== false) {
-    columns.push(["tenant", entry.tenant ?? "organization_id"]);
+    columns.push([
+      "tenant",
+      entry.tenant ?? tenantNames(tenant).rename("organization_id"),
+    ]);
   }
 
   if (entry.title !== undefined) {

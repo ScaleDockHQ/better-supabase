@@ -1593,6 +1593,7 @@ export interface BlockNameRegistry {
       readonly "scimUsers": "id" | "tenant" | "user" | "externalId" | "userName" | "displayName" | "givenName" | "familyName" | "email" | "emails" | "active" | "version" | "createdAt" | "updatedAt";
       readonly "scimGroups": "id" | "tenant" | "displayName" | "externalId" | "role" | "version" | "createdAt" | "updatedAt";
       readonly "scimMembers": "group" | "member";
+      readonly "syncLog": "id" | "tenant" | "operation" | "resourceType" | "resourceId" | "status" | "error" | "requestId" | "createdAt";
     };
     readonly functions: "add_organization_domain" | "check_sso_provider" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "register_sso_provider" | "remove_organization_domain" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
     readonly actions: "manage";

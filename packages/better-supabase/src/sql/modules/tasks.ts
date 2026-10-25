@@ -521,6 +521,7 @@ const CONTRIBUTES: BlockContributes = {
       {
         type: own.resolved.entityNaming.rename("work_item"),
         table: `${schema}.${name}`,
+        tenant: own.colName("items", "tenant"),
         entry: workItemPipeline(own),
       },
     ];

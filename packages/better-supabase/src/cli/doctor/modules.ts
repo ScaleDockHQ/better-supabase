@@ -1,6 +1,7 @@
 import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { tenantNameOf } from "../../config/blocks.ts";
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   adoptedTables,
@@ -1087,7 +1088,7 @@ function missingSubjectColumns(context: DoctorContext): FindingInput[] {
 
       const present = new Set(table.columns.map((column) => column.name));
 
-      return subjectColumns(entry)
+      return subjectColumns(entry, tenantNameOf(context.config.blocks))
         .filter(([, column]) => !present.has(column))
         .map(([path, column]) => ({
           message: `subjects.${type}.${path} names ${target}.${column}, but the table has no such column. Map it to the column that holds the value, or add the column.`,
