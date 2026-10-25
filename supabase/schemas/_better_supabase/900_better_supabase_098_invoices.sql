@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:3223dc31e3d91c9676c6851200536c21d8bf2e5124cf76cdb3b05b4a0b00e8f7
+-- @bsb-hash sha256:4c232c930b3cd7de0bffb23962e54f644a78bf4131542039ddd9f7bd013f0b65
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -385,10 +385,17 @@ begin
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_invoice_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';

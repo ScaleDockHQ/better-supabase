@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:37441317b86834aa3ff5f624de6362cb98316a1bfa0b3dbf389861417895125e
+-- @bsb-hash sha256:07648ccbd402e2c79874123470fe97e4911e25ccb00c4a2daf56992794fa9aab
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -184,7 +184,7 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'subjectType', v_row."subject_type", 'strategy', v_row."strategy", 'conditions', v_row."conditions", 'rank', v_row."rank", 'enabled', v_row."enabled", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'members', coalesce((
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'subjectType', v_row."subject_type", 'strategy', v_row."strategy"::text, 'conditions', v_row."conditions", 'rank', v_row."rank", 'enabled', v_row."enabled", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'members', coalesce((
       select jsonb_agg(jsonb_build_object('userId', z."user_id", 'weight', z."weight", 'active', z."active", 'assignedCount', z."assigned_count", 'lastAssignedAt', z."last_assigned_at") order by z."user_id")
       from "better_supabase"."assignment_queue_members" z where z."queue_id" = v_row."id"
     ), '[]'::jsonb));
@@ -236,7 +236,7 @@ begin
       "active" = excluded."active";
   end loop;
   delete from "better_supabase"."assignment_queue_members" z where z."queue_id" = v_queue."id" and not (z."user_id" = any (v_users));
-  return jsonb_build_object('id', v_queue."id", 'organizationId', v_queue."tenant_id", 'name', v_queue."name", 'subjectType', v_queue."subject_type", 'strategy', v_queue."strategy", 'conditions', v_queue."conditions", 'rank', v_queue."rank", 'enabled', v_queue."enabled", 'createdAt', v_queue."created_at", 'updatedAt', v_queue."updated_at", 'members', coalesce((
+  return jsonb_build_object('id', v_queue."id", 'organizationId', v_queue."tenant_id", 'name', v_queue."name", 'subjectType', v_queue."subject_type", 'strategy', v_queue."strategy"::text, 'conditions', v_queue."conditions", 'rank', v_queue."rank", 'enabled', v_queue."enabled", 'createdAt', v_queue."created_at", 'updatedAt', v_queue."updated_at", 'members', coalesce((
       select jsonb_agg(jsonb_build_object('userId', z."user_id", 'weight', z."weight", 'active', z."active", 'assignedCount', z."assigned_count", 'lastAssignedAt', z."last_assigned_at") order by z."user_id")
       from "better_supabase"."assignment_queue_members" z where z."queue_id" = v_queue."id"
     ), '[]'::jsonb));
@@ -287,7 +287,7 @@ begin
     raise exception 'You need assignment.read to list assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'subjectType', x."subject_type", 'strategy', x."strategy", 'conditions', x."conditions", 'rank', x."rank", 'enabled', x."enabled", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'members', coalesce((
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'subjectType', x."subject_type", 'strategy', x."strategy"::text, 'conditions', x."conditions", 'rank', x."rank", 'enabled', x."enabled", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'members', coalesce((
       select jsonb_agg(jsonb_build_object('userId', z."user_id", 'weight', z."weight", 'active', z."active", 'assignedCount', z."assigned_count", 'lastAssignedAt', z."last_assigned_at") order by z."user_id")
       from "better_supabase"."assignment_queue_members" z where z."queue_id" = x."id"
     ), '[]'::jsonb)) order by x."subject_type", x."rank", x."name")
@@ -339,7 +339,7 @@ begin
       continue;
     end if;
     perform 1 from "better_supabase"."assignment_queues" x where x."id" = v_queue."id" for update;
-    if v_queue."strategy" = 'weighted' then
+    if v_queue."strategy"::text = 'weighted' then
       select coalesce(sum(z."weight"), 0) into v_total from "better_supabase"."assignment_queue_members" z
       where z."queue_id" = v_queue."id" and z."active" and exists (select 1 from "public"."memberships" mw where mw."organization_id" = v_queue."tenant_id" and mw."user_id" = z."user_id");
       if v_total = 0 then
@@ -367,8 +367,8 @@ begin
     insert into "better_supabase"."assignments" ("tenant_id", "queue_id", "subject_type", "subject_id", "user_id")
     values (v_queue."tenant_id", v_queue."id", v_queue."subject_type", assign_subject.subject_id, v_user)
     returning "id" into v_log;
-    perform "better_supabase".emit_event('subject.assigned', jsonb_build_object('organizationId', v_queue."tenant_id", 'queueId', v_queue."id", 'subjectType', v_queue."subject_type", 'subjectId', assign_subject.subject_id, 'userId', v_user, 'strategy', v_queue."strategy"), 'assignment-queues/' || v_queue."id"::text, (v_queue."tenant_id"::text)::text, 'subject.assigned:' || v_log::text, 'better-supabase/assignment');
-    return jsonb_build_object('queueId', v_queue."id", 'userId', v_user, 'strategy', v_queue."strategy");
+    perform "better_supabase".emit_event('subject.assigned', jsonb_build_object('organizationId', v_queue."tenant_id", 'queueId', v_queue."id", 'subjectType', v_queue."subject_type", 'subjectId', assign_subject.subject_id, 'userId', v_user, 'strategy', v_queue."strategy"::text), 'assignment-queues/' || v_queue."id"::text, (v_queue."tenant_id"::text)::text, 'subject.assigned:' || v_log::text, 'better-supabase/assignment');
+    return jsonb_build_object('queueId', v_queue."id", 'userId', v_user, 'strategy', v_queue."strategy"::text);
   end loop;
   return null;
 end;

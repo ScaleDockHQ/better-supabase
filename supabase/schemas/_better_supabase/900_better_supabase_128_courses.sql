@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:f74be5cbae987a4a9170668ec634e4e8caceaf9404979697462d04829e3c1612
+-- @bsb-hash sha256:8545b618ab5f8df7246a4fcff10e8a2dea8246a04d7e80f70314f0f5791a4ff7
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -655,8 +655,7 @@ begin
     returning * into v_row;
   else
     update "better_supabase"."course_lessons" x
-    set "module_id" = v_new.module, "title" = v_new.title, "kind" = v_new.kind, "body" = v_new.body,
-      "media_url" = v_new.media, "form_id" = v_new.form, "required" = v_new.required, "duration_minutes" = v_new.minutes,
+    set "module_id" = v_new.module, "title" = v_new.title, "kind" = v_new.kind, "body" = v_new.body, "media_url" = v_new.media, "form_id" = v_new.form, "required" = v_new.required, "duration_minutes" = v_new.minutes,
       "rank" = v_last, "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -1145,11 +1144,9 @@ begin
   select x."completed_at" into v_before from "better_supabase"."course_lesson_progress" x
   where x."enrollment_id" = v_row."id" and x."lesson_id" = v_lesson."id";
   insert into "better_supabase"."course_lesson_progress" ("enrollment_id", "lesson_id", "tenant_id", "course_id", "user_id", "completed_at", "attempts", "submission_id", "score", "max_score", "passed")
-  values (v_row."id", v_lesson."id", v_lesson."tenant_id", v_lesson."course_id", auth.uid(), case when v_passes then now() end, 1,
-    (v_submission ->> 'id')::uuid, (v_submission ->> 'score')::numeric, (v_submission ->> 'maxScore')::numeric, (v_submission ->> 'passed')::boolean)
+  values (v_row."id", v_lesson."id", v_lesson."tenant_id", v_lesson."course_id", auth.uid(), case when v_passes then now() end, 1, (v_submission ->> 'id')::uuid, (v_submission ->> 'score')::numeric, (v_submission ->> 'maxScore')::numeric, (v_submission ->> 'passed')::boolean)
   on conflict on constraint "course_lesson_progress_pkey" do update
-  set "attempts" = "better_supabase"."course_lesson_progress"."attempts" + 1, "submission_id" = excluded."submission_id", "score" = excluded."score",
-    "max_score" = excluded."max_score", "passed" = excluded."passed",
+  set "attempts" = "better_supabase"."course_lesson_progress"."attempts" + 1, "submission_id" = excluded."submission_id", "score" = excluded."score", "max_score" = excluded."max_score", "passed" = excluded."passed",
     "completed_at" = coalesce("better_supabase"."course_lesson_progress"."completed_at", excluded."completed_at"), "updated_at" = now();
   if v_passes then
     perform "better_supabase"."course_lesson_done"(v_row."id", v_lesson."id", v_before is null);

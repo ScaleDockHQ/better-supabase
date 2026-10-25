@@ -1,6 +1,6 @@
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:7b6c90d148c759c4eb7f681919f4e5d84eda16fb14dde7f43a2aeceeb0acbb34
+-- @bsb-hash sha256:2e0d0a1d62352fafc998124ea28ce6283b97d810de9a37853f73fce762b444d2
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,6 +474,7 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."organization_sso_providers";
 begin

@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:924fa844827dc4fd457b1fb7a7cc59808366e4b66179365405557b35e4ec8e5c
+-- @bsb-hash sha256:bcfbb4dbd52186b8facf6214c2f0fcd12c95082ee9bae84c1e42457a7d3a3cac
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,10 +516,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', coalesce(x.value ->> 'description', (select coalesce(v."title", (select p."title" from "better_supabase"."products" p where p."id" = v."product_id")) from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
-      coalesce((x.value ->> 'quantity')::numeric, 1), coalesce((x.value ->> 'unitAmount')::bigint, (select ("better_supabase"."variant_price"(v."id", v_currency) ->> 'amount')::bigint from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      coalesce(x.value ->> 'description', (select coalesce(v."title", (select p."title" from "better_supabase"."products" p where p."id" = v."product_id")) from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      coalesce((x.value ->> 'unitAmount')::bigint, (select ("better_supabase"."variant_price"(v."id", v_currency) ->> 'amount')::bigint from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';

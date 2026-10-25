@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:6f9914661073204b31e0f617003e3328aa01ee40d7601491d9b8084a6c3fa7b0
+-- @bsb-hash sha256:c695c155bb097d444846e93703f4f036fc2a88a5c656b25b50faa06f5c97e309
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -873,7 +873,7 @@ begin
   from better_supabase.hit_rate_limit(
     'bookings.public',
     v_link::text || ':' || coalesce(nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''), ',', 1)), ''), 'unknown'),
-    case when exists (select 1 from better_supabase.rate_limit_rules q where q.scope = 'bookings.public') then null else 30 end,
+    case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'bookings.public') then null else 30 end,
     interval '1 minute'
   ) l;
   if not v_allowed then
@@ -931,7 +931,7 @@ begin
   from better_supabase.hit_rate_limit(
     'bookings.public',
     v_link::text || ':' || coalesce(nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''), ',', 1)), ''), 'unknown'),
-    case when exists (select 1 from better_supabase.rate_limit_rules q where q.scope = 'bookings.public') then null else 30 end,
+    case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'bookings.public') then null else 30 end,
     interval '1 minute'
   ) l;
   if not v_allowed then
@@ -988,7 +988,7 @@ begin
   from better_supabase.hit_rate_limit(
     'bookings.public',
     v_link::text || ':' || coalesce(nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''), ',', 1)), ''), 'unknown'),
-    case when exists (select 1 from better_supabase.rate_limit_rules q where q.scope = 'bookings.public') then null else 30 end,
+    case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'bookings.public') then null else 30 end,
     interval '1 minute'
   ) l;
   if not v_allowed then
@@ -1022,7 +1022,7 @@ begin
   from better_supabase.hit_rate_limit(
     'bookings.public',
     public_change_booking.booking::text || ':' || coalesce(nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''), ',', 1)), ''), 'unknown'),
-    case when exists (select 1 from better_supabase.rate_limit_rules q where q.scope = 'bookings.public') then null else 30 end,
+    case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'bookings.public') then null else 30 end,
     interval '1 minute'
   ) l;
   if not v_allowed then
