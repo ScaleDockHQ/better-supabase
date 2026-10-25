@@ -15,6 +15,7 @@ import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
 import { canBeAppTable } from "./app-owned.ts";
 import { blockNamesOnAppTables } from "./app-table-names.ts";
+import { clientFunctions } from "./client-functions.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
 import {
   entityTableClash,
@@ -346,6 +347,7 @@ function moduleFiles(
         ctx.config.api,
         module.name,
         module.internal,
+        clientFunctions(module.name).map((name) => renames.get(name) ?? name),
       )
     : "";
 

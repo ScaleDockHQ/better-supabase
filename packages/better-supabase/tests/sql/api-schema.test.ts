@@ -1,8 +1,12 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { BlockConfig } from "../../src/config/blocks.ts";
 
+import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { apiWrappers } from "../../src/sql/api-schema.ts";
+import { clientFunctions } from "../../src/sql/client-functions.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
@@ -10,6 +14,118 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
   renderBlocks([name], { modules: { [name]: { api } } }).find(
     (file) => file.module === name && file.kind === "schema",
   )!.contents;
+
+/** The schema file, with `billing` for a module that needs its customer column. */
+const schemaFileWith = (
+  name: string,
+  api: NonNullable<BlockConfig["api"]>,
+): string => {
+  try {
+    return schemaFile(name, api);
+  } catch {
+    return renderBlocks(["billing", name], {
+      modules: { [name]: { api } },
+    }).find((file) => file.module === name && file.kind === "schema")!.contents;
+  }
+};
+
+const SRC_DIR = join(import.meta.dirname, "../../src");
+const BLOCKS_DIR = join(SRC_DIR, "blocks");
+
+const withoutComments = (source: string): string =>
+  source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/^\s*\/\/.*$/gm, "");
+
+const literals = (sources: readonly string[]): Set<string> =>
+  new Set(
+    sources.flatMap((source) =>
+      [...withoutComments(source).matchAll(/"([a-z_][a-z0-9_]*)"/g)].map(
+        (match) => match[1]!,
+      ),
+    ),
+  );
+
+const read = (dir: string, files: readonly string[]): string[] =>
+  files.map((file) => readFileSync(join(dir, file), "utf-8"));
+
+/**
+ * The wrapped functions whose names the TypeScript side spells out: each
+ * block's own files for its modules, and the transport code outside the blocks
+ * (credentials, streams, the Chat SDK state) for every module.
+ */
+function clientCalls(): Record<string, string[]> {
+  const shared = literals(
+    read(
+      SRC_DIR,
+      readdirSync(SRC_DIR, { recursive: true, encoding: "utf-8" }).filter(
+        (file) =>
+          file.endsWith(".ts") &&
+          !["blocks", "cli", "sql"].some((dir) => file.startsWith(`${dir}/`)),
+      ),
+    ).filter((source) =>
+      /\bBlock(?:Transport|Call)\b|\bblockCall\(/.test(source),
+    ),
+  );
+
+  const own = new Map<string, Set<string>>();
+
+  for (const dir of readdirSync(BLOCKS_DIR)) {
+    const path = join(BLOCKS_DIR, dir);
+
+    if (!existsSync(join(path, "manifest.ts"))) {
+      continue;
+    }
+
+    const names = literals(
+      read(
+        path,
+        readdirSync(path).filter((file) => file.endsWith(".ts")),
+      ),
+    );
+
+    for (const block of BLOCK_MANIFESTS) {
+      if (
+        readFileSync(join(path, "manifest.ts"), "utf-8").includes(
+          `name: "${block.name}"`,
+        )
+      ) {
+        for (const module of block.sql) {
+          own.set(module, names);
+        }
+      }
+    }
+  }
+
+  const calls: Record<string, string[]> = {};
+
+  for (const module of Object.values(SQL_MODULES)) {
+    if (module.target !== "schema") {
+      continue;
+    }
+
+    const file = schemaFileWith(module.name, "api");
+    const names = own.get(module.name) ?? new Set<string>();
+
+    const called = [
+      ...new Set(
+        [
+          ...file.matchAll(
+            /create or replace function "api"\."([a-z_0-9]+)"\(/g,
+          ),
+        ].map((match) => match[1]!),
+      ),
+    ]
+      .filter((name) => names.has(name) || shared.has(name))
+      .toSorted();
+
+    if (called.length > 0) {
+      calls[module.name] = called;
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(calls).toSorted(([a], [b]) => a.localeCompare(b)),
+  );
+}
 
 describe("blocks.<module>.api", () => {
   it("wraps every function a module grants to anon, authenticated or service_role", () => {
@@ -56,15 +172,36 @@ describe("blocks.<module>.api", () => {
       `drop function if exists "api"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
     );
 
-    const listed = renderBlocks(["notifications"], {
-      modules: {
-        notifications: {
-          api: { schema: "api", functions: ["notification_counts"] },
-        },
-      },
-    }).find((file) => file.module === "notifications")!.contents;
+    const dropping = `create or replace function better_supabase.counts(tenant uuid)
+returns integer
+language sql
+as $$ select 1 $$;
+drop function if exists better_supabase.mark_read(uuid[]);
+create or replace function better_supabase.mark_read(ids uuid[], tenant uuid)
+returns integer
+language sql
+as $$ select 1 $$;
+grant execute on function better_supabase.counts(uuid) to authenticated;
+grant execute on function better_supabase.mark_read(uuid[], uuid) to authenticated;`;
 
-    expect(listed).not.toContain(`drop function if exists "api".`);
+    expect(
+      apiWrappers(
+        dropping,
+        "better_supabase",
+        { schema: "api", functions: ["counts"] },
+        "x",
+      ),
+    ).not.toContain(`drop function if exists "api".`);
+    expect(
+      apiWrappers(
+        dropping,
+        "better_supabase",
+        { schema: "api", functions: ["counts"] },
+        "x",
+        [],
+        ["mark_read"],
+      ),
+    ).toContain(`drop function if exists "api"."mark_read"(uuid[]);`);
   });
 
   it("writes no entry point for the helpers policies and triggers call", () => {
@@ -160,7 +297,7 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
   it("writes security invoker wrappers with the same arguments and grants", () => {
     const file = schemaFile("settings", {
       schema: "api",
-      functions: ["set_user_setting", "get_user_settings"],
+      functions: ["set_user_setting"],
     });
 
     expect(file).toContain(`create schema if not exists "api";`);
@@ -174,7 +311,81 @@ as $$ select "better_supabase"."set_user_setting"($1, $2) $$;
 revoke execute on function "api"."set_user_setting"(text, jsonb) from public, anon;
 grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated, service_role;`);
     expect(file).toContain(`"api"."get_user_settings"()`);
-    expect(file).not.toContain(`"api"."reset_user_setting"`);
+
+    const sql = `create or replace function better_supabase.listed()
+returns integer
+language sql
+as $$ select 1 $$;
+create or replace function better_supabase.left_out()
+returns integer
+language sql
+as $$ select 1 $$;
+grant execute on function better_supabase.listed() to authenticated;
+grant execute on function better_supabase.left_out() to authenticated;`;
+
+    const narrowed = apiWrappers(
+      sql,
+      "better_supabase",
+      { schema: "api", functions: ["listed"] },
+      "x",
+    );
+
+    expect(narrowed).toContain(`"api"."listed"()`);
+    expect(narrowed).not.toContain(`"api"."left_out"()`);
+  });
+
+  it("wraps every function the client calls when functions lists fewer", () => {
+    const file = schemaFile("rate-limit", {
+      schema: "api",
+      functions: ["check_rate_limit"],
+    });
+
+    for (const [name, types] of [
+      ["check_rate_limit", "text, text, integer, interval"],
+      ["check_rate_limits", "jsonb"],
+      ["purge_rate_limits", "integer"],
+    ] as const) {
+      expect(file).toContain(`create or replace function "api"."${name}"(`);
+      expect(file).toContain(
+        `revoke execute on function "api"."${name}"(${types}) from public, anon, authenticated;
+grant execute on function "api"."${name}"(${types}) to service_role;`,
+      );
+    }
+
+    expect(file).toMatch(
+      /create or replace function "api"\."check_rate_limits"\(hits jsonb\)\nreturns jsonb\nlanguage sql\nsecurity invoker\n/,
+    );
+    expect(file).not.toContain(`"api"."set_rate_limit"`);
+
+    const missing = Object.keys(SQL_MODULES).flatMap((module) => {
+      const names = clientFunctions(module);
+
+      if (names.length === 0) {
+        return [];
+      }
+
+      const narrowed = schemaFileWith(module, { schema: "api", functions: [] });
+
+      return names
+        .filter(
+          (name) =>
+            !narrowed.includes(`create or replace function "api"."${name}"(`),
+        )
+        .map((name) => `${module}: ${name}`);
+    });
+
+    expect(missing).toEqual([]);
+  });
+
+  it("lists every function a client calls over a transport", () => {
+    const listed = Object.fromEntries(
+      Object.keys(SQL_MODULES)
+        .map((module) => [module, [...clientFunctions(module)]] as const)
+        .filter(([, names]) => names.length > 0)
+        .toSorted(([a], [b]) => a.localeCompare(b)),
+    );
+
+    expect(clientCalls()).toEqual(listed);
   });
 
   it("revokes execute from anon on every function it does not grant to anon", () => {
