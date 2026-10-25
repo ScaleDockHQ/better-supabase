@@ -12,10 +12,13 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
+  asText,
   COMPONENT_STATUSES,
+  componentOrder,
   INCIDENT_RESERVED,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
+  optionalField,
 } from "./incidents-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -47,6 +50,28 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
   const extra = extraFieldsArg(extras);
   const ranks = `array[${list(COMPONENT_STATUSES)}]`;
 
+  const field = (table: string, row: string, column: string): string =>
+    optionalField(ctx, table, row, column);
+
+  const has = (table: string, column: string): boolean =>
+    ctx.has(table, column);
+
+  const insertCol = (table: string, column: string): string =>
+    has(table, column) ? `, ${ctx.col(table, column)}` : "";
+
+  const insertVal = (table: string, column: string, value: string): string =>
+    has(table, column) ? `, ${value}` : "";
+
+  // An incident's status written into the timeline, whose column may be
+  // another enum than the incident's on the app's tables.
+  const incidentStatus = (row: string): string =>
+    ctx.owns("incidents") && ctx.owns("updates")
+      ? `${row}.${i("status")}`
+      : ctx.cast("updates", "status", `${row}.${i("status")}::text`);
+
+  const touch = (table: string): string =>
+    has(table, "updatedAt") ? `, ${ctx.col(table, "updatedAt")} = now()` : "";
+
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
@@ -72,16 +97,16 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
     `exists (select 1 from ${members.table("memberships")} mm where mm.${members.col("memberships", "tenant")} = ${tenant} and mm.${members.col("memberships", "user")} = ${user})`;
 
   const componentJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'name', ${row}.${c("name")}, 'description', ${row}.${c("description")}, 'group', ${row}.${c("group")}, 'public', ${row}.${c("public")}, 'status', ${row}.${c("status")}, 'position', ${row}.${c("position")}, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'name', ${row}.${c("name")}, 'description', ${field("components", row, "description")}, 'group', ${field("components", row, "group")}, 'public', ${row}.${c("public")}, 'status', ${row}.${c("status")}, 'position', ${has("components", "position") ? `${row}.${c("position")}` : "0"}, 'createdAt', ${field("components", row, "createdAt")}, 'updatedAt', ${field("components", row, "updatedAt")})`;
 
   const incidentJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${i("id")}, 'organizationId', ${row}.${i("tenant")}, 'title', ${row}.${i("title")}, 'description', ${row}.${i("description")}, 'severity', ${row}.${i("severity")}, 'status', ${row}.${i("status")}, 'public', ${row}.${i("public")}, 'commanderId', ${row}.${i("commander")}, 'startedAt', ${row}.${i("startedAt")}, 'resolvedAt', ${row}.${i("resolvedAt")}, 'createdBy', ${row}.${i("createdBy")}, 'createdAt', ${row}.${i("createdAt")}, 'updatedAt', ${row}.${i("updatedAt")}, 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im.${m("component")}, 'name', ic.${c("name")}, 'impact', im.${m("impact")}) order by ic.${c("position")}, ic.${c("name")}), '[]'::jsonb) from ${impacts} im join ${components} ic on ic.${c("id")} = im.${m("component")} where im.${m("incident")} = ${row}.${i("id")})${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${i("id")}, 'organizationId', ${row}.${i("tenant")}, 'title', ${row}.${i("title")}, 'description', ${field("incidents", row, "description")}, 'severity', ${row}.${i("severity")}, 'status', ${row}.${i("status")}, 'public', ${row}.${i("public")}, 'commanderId', ${field("incidents", row, "commander")}, 'startedAt', ${row}.${i("startedAt")}, 'resolvedAt', ${row}.${i("resolvedAt")}, 'createdBy', ${field("incidents", row, "createdBy")}, 'createdAt', ${field("incidents", row, "createdAt")}, 'updatedAt', ${field("incidents", row, "updatedAt")}, 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im.${m("component")}, 'name', ic.${c("name")}, 'impact', im.${m("impact")}) order by ${componentOrder(ctx, "ic")}), '[]'::jsonb) from ${impacts} im join ${components} ic on ic.${c("id")} = im.${m("component")} where im.${m("incident")} = ${row}.${i("id")})${extraFieldsJson(row, extras)})`;
 
   const updateJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${u("id")}, 'incidentId', ${row}.${u("incident")}, 'status', ${row}.${u("status")}, 'body', ${row}.${u("body")}, 'public', ${row}.${u("public")}, 'authorId', ${row}.${u("author")}, 'createdAt', ${row}.${u("createdAt")})`;
 
   const postmortemJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${row}.${pm("impact")}, 'rootCause', ${row}.${pm("rootCause")}, 'resolution', ${row}.${pm("resolution")}, 'actionItems', ${row}.${pm("actionItems")}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${row}.${pm("author")}, 'createdAt', ${row}.${pm("createdAt")}, 'updatedAt', ${row}.${pm("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${field("postmortems", row, "impact")}, 'rootCause', ${field("postmortems", row, "rootCause")}, 'resolution', ${field("postmortems", row, "resolution")}, 'actionItems', ${has("postmortems", "actionItems") ? `${row}.${pm("actionItems")}` : "'[]'::jsonb"}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${field("postmortems", row, "author")}, 'createdAt', ${field("postmortems", row, "createdAt")}, 'updatedAt', ${field("postmortems", row, "updatedAt")})`;
 
   const incidentRecord = (
     type: string,
@@ -101,6 +126,43 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
       },
     });
 
+  const postmortemSets = [
+    ...[
+      { column: "summary", read: "->>" },
+      { column: "impact", read: "->>" },
+      { column: "rootCause", read: "->>" },
+      { column: "resolution", read: "->>" },
+      { column: "actionItems", read: "->" },
+    ]
+      .filter(({ column }) => has("postmortems", column))
+      .map(
+        ({ column, read }) =>
+          `${pm(column)} = case when save_postmortem.attrs ? '${column}' then save_postmortem.attrs ${read} '${column}' else x.${pm(column)} end`,
+      ),
+    ...(has("postmortems", "updatedAt") ? [`${pm("updatedAt")} = now()`] : []),
+  ].join(",\n    ");
+
+  // The commander hears about an incident opened by someone else.
+  const commanderNotice = has("incidents", "commander")
+    ? `  if v_row.${i("commander")} is not null and v_row.${i("commander")} is distinct from auth.uid() then
+    ${ctx.notify(
+      `jsonb_build_object(
+      'type', 'incident.opened',
+      'tenant', v_row.${i("tenant")},
+      'actor', auth.uid(),
+      'subject_type', ${incidentType},
+      'subject_id', v_row.${i("id")}::text,
+      'summary', v_row.${i("title")},
+      'recipients', to_jsonb(array[v_row.${i("commander")}]),
+      'key', 'incident.opened:' || v_row.${i("id")}::text,
+      'data', jsonb_build_object('incidentId', v_row.${i("id")}, 'severity', v_row.${i("severity")})
+    )`,
+      { indent: "    " },
+    )}
+  end if;
+`
+    : "";
+
   return `
 -- Sets each component's status to the worst impact of the open incidents on
 -- it, and keeps the uptime history in step.
@@ -118,19 +180,19 @@ begin
     select * from ${components} x where x.${c("id")} = any(incident_refresh_components.component_ids) for update
   loop
     select coalesce(
-      (${ranks})[max(array_position(${ranks}, im.${m("impact")}))],
+      (${ranks})[max(array_position(${ranks}, ${asText(ctx, "impacts", `im.${m("impact")}`)}))],
       'operational'
     ) into v_status
     from ${impacts} im
     join ${incidents} ii on ii.${i("id")} = im.${m("incident")}
     where im.${m("component")} = v_component.${c("id")} and ii.${i("status")} <> 'resolved';
-    continue when v_status = v_component.${c("status")};
-    update ${components} x set ${c("status")} = v_status, ${c("updatedAt")} = now()
+    continue when v_status = ${asText(ctx, "components", `v_component.${c("status")}`)};
+    update ${components} x set ${c("status")} = ${ctx.cast("components", "status", "v_status")}${touch("components")}
       where x.${c("id")} = v_component.${c("id")};
     update ${history} x set ${h("endedAt")} = now()
       where x.${h("component")} = v_component.${c("id")} and x.${h("endedAt")} is null;
     insert into ${history} (${h("tenant")}, ${h("component")}, ${h("status")})
-    values (v_component.${c("tenant")}, v_component.${c("id")}, v_status);
+    values (v_component.${c("tenant")}, v_component.${c("id")}, ${ctx.cast("history", "status", "v_status")});
     ${ctx.record({
       type: "status_component.changed",
       payload: `jsonb_build_object('organizationId', v_component.${c("tenant")}, 'statusComponentId', v_component.${c("id")}, 'status', v_status, 'previousStatus', v_component.${c("status")})`,
@@ -182,7 +244,7 @@ begin
       ${invalid("impact must be degraded, partial_outage, major_outage or maintenance")}
     end if;
     insert into ${impacts} (${m("tenant")}, ${m("incident")}, ${m("component")}, ${m("impact")})
-    values (v_row.${i("tenant")}, v_row.${i("id")}, v_component, v_item ->> 'impact')
+    values (v_row.${i("tenant")}, v_row.${i("id")}, v_component, ${ctx.cast("impacts", "impact", "v_item ->> 'impact'")})
     on conflict (${m("incident")}, ${m("component")}) do update set ${m("impact")} = excluded.${m("impact")};
   end loop;
   perform ${fn("incident_refresh_components")}(
@@ -209,16 +271,20 @@ begin
     ${invalid("a component needs a name")}
   end if;
   if save_status_component.component_id is null then
-    insert into ${components} (${c("tenant")}, ${c("name")}, ${c("description")}, ${c("group")}, ${c("public")}, ${c("position")})
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    insert into ${components} (${c("tenant")}, ${c("name")}${insertCol("components", "description")}${insertCol("components", "group")}, ${c("public")}${insertCol("components", "position")})
+    values (save_status_component.tenant, trim(save_status_component.name)${insertVal("components", "description", "save_status_component.description")},
+      ${has("components", "group") ? "nullif(trim(save_status_component.group_name), ''), " : ""}coalesce(save_status_component.is_public, true)${insertVal("components", "position", "coalesce(save_status_component.sort_position, 0)")})
     returning * into v_row;
     insert into ${history} (${h("tenant")}, ${h("component")}, ${h("status")})
-    values (v_row.${c("tenant")}, v_row.${c("id")}, v_row.${c("status")});
+    values (v_row.${c("tenant")}, v_row.${c("id")}, ${ctx.cast("history", "status", asText(ctx, "components", `v_row.${c("status")}`))});
   else
-    update ${components} x set ${c("name")} = trim(save_status_component.name), ${c("description")} = save_status_component.description,
-      ${c("group")} = nullif(trim(save_status_component.group_name), ''), ${c("public")} = coalesce(save_status_component.is_public, true),
-      ${c("position")} = coalesce(save_status_component.sort_position, 0), ${c("updatedAt")} = now()
+    update ${components} x set ${c("name")} = trim(save_status_component.name)${has("components", "description") ? `, ${c("description")} = save_status_component.description` : ""},
+      ${has("components", "group") ? `${c("group")} = nullif(trim(save_status_component.group_name), ''), ` : ""}${c("public")} = coalesce(save_status_component.is_public, true)${
+        has("components", "position")
+          ? `,
+      ${c("position")} = coalesce(save_status_component.sort_position, 0)`
+          : ""
+      }${touch("components")}
       where x.${c("id")} = save_status_component.component_id and x.${c("tenant")} = save_status_component.tenant
       returning * into v_row;
     if not found then
@@ -259,7 +325,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${componentJson("x")} order by x.${c("position")}, x.${c("name")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${componentJson("x")} order by ${componentOrder(ctx, "x")}), '[]'::jsonb)
   from ${components} x
   where x.${c("tenant")} = list_status_components.tenant
 $$;
@@ -291,18 +357,21 @@ begin
   if coalesce(open_incident.attrs ->> 'severity', 'sev3') not in (${list(INCIDENT_SEVERITIES)}) then
     ${invalid("severity must be sev1, sev2, sev3 or sev4")}
   end if;
-  if open_incident.attrs ? 'commanderId' and open_incident.attrs ->> 'commanderId' is not null
+${
+  has("incidents", "commander")
+    ? `  if open_incident.attrs ? 'commanderId' and open_incident.attrs ->> 'commanderId' is not null
     and not ${isMember("open_incident.tenant", "(open_incident.attrs ->> 'commanderId')::uuid")} then
     ${invalid("the commander must be a member of the organization")}
   end if;
-  insert into ${incidents} (${i("tenant")}, ${i("title")}, ${i("description")}, ${i("severity")}, ${i("public")}, ${i("commander")}, ${i("createdBy")})
-  values (open_incident.tenant, trim(open_incident.attrs ->> 'title'), open_incident.attrs ->> 'description',
-    coalesce(open_incident.attrs ->> 'severity', 'sev3'), coalesce((open_incident.attrs ->> 'public')::boolean, false),
-    (open_incident.attrs ->> 'commanderId')::uuid, auth.uid())
+`
+    : ""
+}  insert into ${incidents} (${i("tenant")}, ${i("title")}${insertCol("incidents", "description")}, ${i("severity")}, ${i("public")}${insertCol("incidents", "commander")}${insertCol("incidents", "createdBy")})
+  values (open_incident.tenant, trim(open_incident.attrs ->> 'title')${insertVal("incidents", "description", "open_incident.attrs ->> 'description'")},
+    ${ctx.cast("incidents", "severity", "coalesce(open_incident.attrs ->> 'severity', 'sev3')")}, coalesce((open_incident.attrs ->> 'public')::boolean, false)${has("incidents", "commander") || has("incidents", "createdBy") ? ",\n    " : ""}${[has("incidents", "commander") ? "(open_incident.attrs ->> 'commanderId')::uuid" : "", has("incidents", "createdBy") ? "auth.uid()" : ""].filter(Boolean).join(", ")})
   returning * into v_row;${writeExtraColumns(incidents, extras, "open_incident.fields", `x.${i("id")} = v_row.${i("id")}`, "v_row")}
   if nullif(trim(open_incident.attrs ->> 'message'), '') is not null then
     insert into ${updates} (${u("tenant")}, ${u("incident")}, ${u("status")}, ${u("body")}, ${u("public")}, ${u("author")})
-    values (v_row.${i("tenant")}, v_row.${i("id")}, v_row.${i("status")}, trim(open_incident.attrs ->> 'message'), v_row.${i("public")}, auth.uid());
+    values (v_row.${i("tenant")}, v_row.${i("id")}, ${incidentStatus("v_row")}, trim(open_incident.attrs ->> 'message'), v_row.${i("public")}, auth.uid());
   end if;
   perform ${fn("incident_apply_impacts")}(v_row.${i("id")}, open_incident.attrs -> 'impacts');
   ${incidentRecord(
@@ -310,23 +379,7 @@ begin
     `jsonb_build_object('organizationId', v_row.${i("tenant")}, 'incidentId', v_row.${i("id")}, 'title', v_row.${i("title")}, 'severity', v_row.${i("severity")}, 'status', v_row.${i("status")}, 'public', v_row.${i("public")})`,
     `'opened incident ' || v_row.${i("title")}`,
   )}
-  if v_row.${i("commander")} is not null and v_row.${i("commander")} is distinct from auth.uid() then
-    ${ctx.notify(
-      `jsonb_build_object(
-      'type', 'incident.opened',
-      'tenant', v_row.${i("tenant")},
-      'actor', auth.uid(),
-      'subject_type', ${incidentType},
-      'subject_id', v_row.${i("id")}::text,
-      'summary', v_row.${i("title")},
-      'recipients', to_jsonb(array[v_row.${i("commander")}]),
-      'key', 'incident.opened:' || v_row.${i("id")}::text,
-      'data', jsonb_build_object('incidentId', v_row.${i("id")}, 'severity', v_row.${i("severity")})
-    )`,
-      { indent: "    " },
-    )}
-  end if;
-  return ${incidentJson("v_row")};
+${commanderNotice}  return ${incidentJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("open_incident")}(${idType}, jsonb${extra.type})`)}
@@ -360,17 +413,33 @@ begin
   if update_incident.attrs ? 'severity' and coalesce(update_incident.attrs ->> 'severity', '') not in (${list(INCIDENT_SEVERITIES)}) then
     ${invalid("severity must be sev1, sev2, sev3 or sev4")}
   end if;
-  if update_incident.attrs ->> 'commanderId' is not null
+${
+  has("incidents", "commander")
+    ? `  if update_incident.attrs ->> 'commanderId' is not null
     and not ${isMember(`v_row.${i("tenant")}`, "(update_incident.attrs ->> 'commanderId')::uuid")} then
     ${invalid("the commander must be a member of the organization")}
   end if;
-  update ${incidents} x set
-    ${i("title")} = case when update_incident.attrs ? 'title' then trim(update_incident.attrs ->> 'title') else x.${i("title")} end,
-    ${i("description")} = case when update_incident.attrs ? 'description' then update_incident.attrs ->> 'description' else x.${i("description")} end,
-    ${i("severity")} = case when update_incident.attrs ? 'severity' then update_incident.attrs ->> 'severity' else x.${i("severity")} end,
-    ${i("public")} = case when update_incident.attrs ? 'public' then coalesce((update_incident.attrs ->> 'public')::boolean, false) else x.${i("public")} end,
-    ${i("commander")} = case when update_incident.attrs ? 'commanderId' then (update_incident.attrs ->> 'commanderId')::uuid else x.${i("commander")} end,
-    ${i("updatedAt")} = now()
+`
+    : ""
+}  update ${incidents} x set
+    ${i("title")} = case when update_incident.attrs ? 'title' then trim(update_incident.attrs ->> 'title') else x.${i("title")} end,${
+      has("incidents", "description")
+        ? `
+    ${i("description")} = case when update_incident.attrs ? 'description' then update_incident.attrs ->> 'description' else x.${i("description")} end,`
+        : ""
+    }
+    ${i("severity")} = case when update_incident.attrs ? 'severity' then ${ctx.cast("incidents", "severity", "update_incident.attrs ->> 'severity'")} else x.${i("severity")} end,
+    ${i("public")} = case when update_incident.attrs ? 'public' then coalesce((update_incident.attrs ->> 'public')::boolean, false) else x.${i("public")} end${
+      has("incidents", "commander")
+        ? `,
+    ${i("commander")} = case when update_incident.attrs ? 'commanderId' then (update_incident.attrs ->> 'commanderId')::uuid else x.${i("commander")} end`
+        : ""
+    }${
+      has("incidents", "updatedAt")
+        ? `,
+    ${i("updatedAt")} = now()`
+        : ""
+    }
     where x.${i("id")} = v_row.${i("id")}
     returning * into v_row;${writeExtraColumns(incidents, extras, "update_incident.fields", `x.${i("id")} = v_row.${i("id")}`, "v_row")}
   return ${incidentJson("v_row")};
@@ -407,19 +476,23 @@ begin
   end if;
   v_from := v_row.${i("status")};
   update ${incidents} x set
-    ${i("status")} = coalesce(post_incident_update.status, x.${i("status")}),
+    ${i("status")} = coalesce(${ctx.cast("incidents", "status", "post_incident_update.status")}, x.${i("status")}),
     ${i("resolvedAt")} = case
-      when coalesce(post_incident_update.status, x.${i("status")}) <> 'resolved' then null
+      when coalesce(post_incident_update.status, ${asText(ctx, "incidents", `x.${i("status")}`)}) <> 'resolved' then null
       else coalesce(x.${i("resolvedAt")}, now())
-    end,
-    ${i("updatedAt")} = now()
+    end${
+      has("incidents", "updatedAt")
+        ? `,
+    ${i("updatedAt")} = now()`
+        : ""
+    }
     where x.${i("id")} = v_row.${i("id")}
     returning * into v_row;
   insert into ${updates} (${u("tenant")}, ${u("incident")}, ${u("status")}, ${u("body")}, ${u("public")}, ${u("author")})
-  values (v_row.${i("tenant")}, v_row.${i("id")}, v_row.${i("status")}, trim(post_incident_update.body),
+  values (v_row.${i("tenant")}, v_row.${i("id")}, ${incidentStatus("v_row")}, trim(post_incident_update.body),
     coalesce(post_incident_update.is_public, v_row.${i("public")}), auth.uid())
   returning * into v_update;
-  if v_from is distinct from v_row.${i("status")} then
+  if v_from is distinct from ${asText(ctx, "incidents", `v_row.${i("status")}`)} then
     perform ${fn("incident_refresh_components")}(
       array(select x.${m("component")} from ${impacts} x where x.${m("incident")} = v_row.${i("id")})
     );
@@ -496,7 +569,7 @@ as $$
       and (list_incidents.status is null
         or (list_incidents.status = 'open' and x.${i("status")} <> 'resolved')
         or (list_incidents.status = 'resolved' and x.${i("status")} = 'resolved'))
-      and (list_incidents.severity is null or x.${i("severity")} = list_incidents.severity)
+      and (list_incidents.severity is null or ${asText(ctx, "incidents", `x.${i("severity")}`)} = list_incidents.severity)
       and (list_incidents.component_id is null or exists (
         select 1 from ${impacts} y where y.${m("incident")} = x.${i("id")} and y.${m("component")} = list_incidents.component_id
       ))
@@ -534,16 +607,11 @@ begin
   if save_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_postmortem.attrs -> 'actionItems') is distinct from 'array' then
     ${invalid("actionItems must be an array")}
   end if;
-  insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}, ${pm("author")})
-  values (v_row.${i("tenant")}, v_row.${i("id")}, auth.uid())
+  insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}${insertCol("postmortems", "author")})
+  values (v_row.${i("tenant")}, v_row.${i("id")}${insertVal("postmortems", "author", "auth.uid()")})
   on conflict (${pm("incident")}) do nothing;
   update ${postmortems} x set
-    ${pm("summary")} = case when save_postmortem.attrs ? 'summary' then save_postmortem.attrs ->> 'summary' else x.${pm("summary")} end,
-    ${pm("impact")} = case when save_postmortem.attrs ? 'impact' then save_postmortem.attrs ->> 'impact' else x.${pm("impact")} end,
-    ${pm("rootCause")} = case when save_postmortem.attrs ? 'rootCause' then save_postmortem.attrs ->> 'rootCause' else x.${pm("rootCause")} end,
-    ${pm("resolution")} = case when save_postmortem.attrs ? 'resolution' then save_postmortem.attrs ->> 'resolution' else x.${pm("resolution")} end,
-    ${pm("actionItems")} = case when save_postmortem.attrs ? 'actionItems' then save_postmortem.attrs -> 'actionItems' else x.${pm("actionItems")} end,
-    ${pm("updatedAt")} = now()
+    ${postmortemSets}
     where x.${pm("incident")} = v_row.${i("id")}
     returning * into v_post;
   return ${postmortemJson("v_post")};
@@ -573,7 +641,7 @@ begin
   if v_row.${i("status")} <> 'resolved' then
     ${fail("INCIDENT_NOT_RESOLVED", "only a resolved incident's postmortem can be published", "55000")}
   end if;
-  update ${postmortems} x set ${pm("status")} = 'published', ${pm("publishedAt")} = coalesce(x.${pm("publishedAt")}, now()), ${pm("updatedAt")} = now()
+  update ${postmortems} x set ${pm("status")} = 'published', ${pm("publishedAt")} = coalesce(x.${pm("publishedAt")}, now())${touch("postmortems")}
     where x.${pm("incident")} = v_row.${i("id")}
     returning * into v_post;
   if not found then

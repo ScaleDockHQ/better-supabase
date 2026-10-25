@@ -10,6 +10,16 @@ import {
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
+/**
+ * `, updated_at = now()` for a write to the balances, when they have the
+ * column.
+ */
+export function ledgerTouch(ctx: BlockSqlContext): string {
+  return ctx.has("balances", "updatedAt")
+    ? `, ${ctx.col("balances", "updatedAt")} = now()`
+    : "";
+}
+
 /** The ledger's functions: the internal posting core and the public API. */
 export function ledgerFunctions(ctx: BlockSqlContext): string {
   const accounts = ctx.table("accounts");
@@ -55,8 +65,30 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
   const transactionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'referenceType', ${row}.${t("referenceType")}, 'referenceId', ${row}.${t("referenceId")}, 'memo', ${memo(row)}, 'idempotencyKey', ${row}.${t("key")}, 'reverses', ${row}.${t("reverses")}, 'metadata', ${row}.${t("metadata")}, 'effectiveAt', ${row}.${t("effectiveAt")}, 'actorId', ${row}.${t("actor")}, 'createdAt', ${row}.${t("createdAt")}, 'entries', ${entriesOf(`${row}.${t("id")}`)})`;
 
+  // A hold row's column, or null when the app's holds table lacks it.
+  const held = (row: string, column: string, type: string): string =>
+    ctx.has("holds", column) ? `${row}.${h(column)}` : `null::${type}`;
+
   const holdJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}, 'accountId', ${row}.${h("account")}, 'amount', ${row}.${h("amount")}::text, 'status', ${row}.${h("status")}, 'referenceType', ${row}.${h("referenceType")}, 'referenceId', ${row}.${h("referenceId")}, 'expiresAt', ${row}.${h("expiresAt")}, 'transactionId', ${row}.${h("transaction")}, 'createdBy', ${row}.${h("createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}, 'accountId', ${row}.${h("account")}, 'amount', ${row}.${h("amount")}::text, 'status', ${row}.${h("status")}, 'referenceType', ${held(row, "referenceType", "text")}, 'referenceId', ${held(row, "referenceId", "text")}, 'expiresAt', ${held(row, "expiresAt", "timestamptz")}, 'transactionId', ${row}.${h("transaction")}, 'createdBy', ${held(row, "createdBy", "uuid")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${held(row, "updatedAt", "timestamptz")})`;
+
+  // Over the app's holds table, the status column's default may not be active.
+  const statusWrite: readonly (readonly [string, string])[] = ctx.owns("holds")
+    ? []
+    : [["status", ctx.cast("holds", "status", "'active'")]];
+
+  const holdWrites: readonly (readonly [string, string])[] = (
+    [
+      ["tenant", `v_account.${a("tenant")}`],
+      ["account", `v_account.${a("id")}`],
+      ["amount", "ledger_hold.amount"],
+      ...statusWrite,
+      ["referenceType", "ledger_hold.reference_type"],
+      ["referenceId", "ledger_hold.reference_id"],
+      ["expiresAt", "ledger_hold.expires_at"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("holds", column));
 
   const accountRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -381,10 +413,10 @@ begin
   if not v_account.${a("allowNegative")} and v_balance.${b("balance")} - v_balance.${b("held")} < ledger_hold.amount then
     ${fail("LEDGER_INSUFFICIENT", "the account doesn't have enough available", "23514")}
   end if;
-  update ${balances} x set ${b("held")} = x.${b("held")} + ledger_hold.amount, ${b("updatedAt")} = now()
+  update ${balances} x set ${b("held")} = x.${b("held")} + ledger_hold.amount${ledgerTouch(ctx)}
     where x.${b("account")} = v_account.${a("id")};
-  insert into ${holds} (${h("tenant")}, ${h("account")}, ${h("amount")}, ${h("referenceType")}, ${h("referenceId")}, ${h("expiresAt")}, ${h("createdBy")})
-  values (v_account.${a("tenant")}, v_account.${a("id")}, ledger_hold.amount, ledger_hold.reference_type, ledger_hold.reference_id, ledger_hold.expires_at, auth.uid())
+  insert into ${holds} (${holdWrites.map(([column]) => h(column)).join(", ")})
+  values (${holdWrites.map(([, value]) => value).join(", ")})
   returning * into v_row;
   ${holdRecord("ledger_hold.placed", "v_row")}
   return v_row;
@@ -437,9 +469,9 @@ begin
   if v_row.${h("status")} <> 'active' then
     ${fail("LEDGER_HOLD_CLOSED", "this hold is no longer active", "55000")}
   end if;
-  update ${balances} x set ${b("held")} = x.${b("held")} - v_row.${h("amount")}, ${b("updatedAt")} = now()
+  update ${balances} x set ${b("held")} = x.${b("held")} - v_row.${h("amount")}${ledgerTouch(ctx)}
     where x.${b("account")} = v_row.${h("account")};
-  update ${holds} x set ${h("status")} = ledger_unhold.status, ${h("updatedAt")} = now()
+  update ${holds} x set ${h("status")} = ${ctx.cast("holds", "status", "ledger_unhold.status")}${ctx.has("holds", "updatedAt") ? `, ${h("updatedAt")} = now()` : ""}
     where x.${h("id")} = v_row.${h("id")}
     returning * into v_row;
   return v_row;
@@ -474,7 +506,7 @@ begin
       jsonb_build_array(
         jsonb_build_object('account', v_row.${h("account")}, 'amount', (-v_amount)::text),
         jsonb_build_object('account', ledger_capture.to_account, 'amount', v_amount::text)),
-      v_row.${h("referenceType")}, v_row.${h("referenceId")}, ledger_capture.memo)
+      ${held("v_row", "referenceType", "text")}, ${held("v_row", "referenceId", "text")}, ledger_capture.memo)
     where x.${h("id")} = v_row.${h("id")}
     returning * into v_row;
   ${holdRecord("ledger_hold.captured", "v_row")}
@@ -564,7 +596,9 @@ declare
   v_row ${holds}%rowtype;
   v_count integer := 0;
 begin
-  for v_id in
+${
+  ctx.has("holds", "expiresAt")
+    ? `  for v_id in
     select x.${h("id")} from ${holds} x
     where x.${h("status")} = 'active' and x.${h("expiresAt")} <= now()
     order by x.${h("expiresAt")}
@@ -575,7 +609,9 @@ begin
     ${holdRecord("ledger_hold.released", "v_row")}
     v_count := v_count + 1;
   end loop;
-  return v_count;
+`
+    : ""
+}  return v_count;
 end;
 $$;
 ${serviceGrant(`${fn("expire_ledger_holds")}(integer)`)}

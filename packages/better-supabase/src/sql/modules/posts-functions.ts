@@ -7,6 +7,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { asText } from "./over-app.ts";
 import { postsSql } from "./posts-sql.ts";
 
 const KEY = "^[a-z0-9][a-z0-9_-]{0,62}$";
@@ -14,6 +15,40 @@ const KEY = "^[a-z0-9][a-z0-9_-]{0,62}$";
 function boardFunctions(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
   const { fn, b, boards, invalid, forbidden, boardMissing, boardJson } = q;
+
+  const description =
+    "nullif(trim(save_post_board.board ->> 'description'), '')";
+
+  const archived =
+    "case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end";
+
+  const inserted = (
+    [
+      ["tenant", "save_post_board.tenant"],
+      ["key", "v_key"],
+      ["name", "v_name"],
+      ["description", description],
+      ["kind", ctx.cast("boards", "kind", "v_kind")],
+      ["archivedAt", archived],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("boards", column));
+
+  const updated = [
+    `${b("name")} = v_name`,
+    ...(q.hasBoard("description")
+      ? [
+          `${b("description")} = case when save_post_board.board ? 'description' then ${description} else x.${b("description")} end`,
+        ]
+      : []),
+    `${b("kind")} = ${ctx.cast("boards", "kind", "v_kind")}`,
+    ...(q.hasBoard("archivedAt")
+      ? [
+          `${b("archivedAt")} = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x.${b("archivedAt")}, now()) end else x.${b("archivedAt")} end`,
+        ]
+      : []),
+    ...(q.hasBoard("updatedAt") ? [`${b("updatedAt")} = now()`] : []),
+  ];
 
   const saved = ctx.record({
     type: "post_board.saved",
@@ -64,7 +99,7 @@ begin
   end if;
   v_key := coalesce(v_old.${b("key")}, save_post_board.board ->> 'key');
   v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old.${b("name")});
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old.${b("kind")}, 'forum');
+  v_kind := coalesce(save_post_board.board ->> 'kind', ${asText(ctx, "boards", `v_old.${b("kind")}`)}, 'forum');
   if v_key is null or v_key !~ ${sqlString(KEY)} then
     ${invalid("a board needs a key of lowercase letters, digits, dashes and underscores")}
   end if;
@@ -75,17 +110,12 @@ begin
     ${invalid("a board's kind is forum or feedback")}
   end if;
   if v_old.${b("id")} is null then
-    insert into ${boards} (${b("tenant")}, ${b("key")}, ${b("name")}, ${b("description")}, ${b("kind")}, ${b("archivedAt")}, ${b("createdBy")})
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    insert into ${boards} (${inserted.map(([column]) => b(column)).join(", ")})
+    values (${inserted.map(([column, value], index) => `${index === 0 ? "" : column === "archivedAt" ? ",\n      " : ", "}${value}`).join("")})
     returning * into v_row;
   else
     update ${boards} x set
-      ${b("name")} = v_name,
-      ${b("description")} = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x.${b("description")} end,
-      ${b("kind")} = v_kind,
-      ${b("archivedAt")} = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x.${b("archivedAt")}, now()) end else x.${b("archivedAt")} end,
-      ${b("updatedAt")} = now()
+      ${updated.join(",\n      ")}
     where x.${b("id")} = v_old.${b("id")}
     returning * into v_row;
   end if;
@@ -105,8 +135,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${boardJson("x")} order by x.${b("name")}, x.${b("id")}), '[]'::jsonb)
   from ${boards} x
-  where x.${b("tenant")} = list_post_boards.tenant
-    and (coalesce(list_post_boards.archived, false) or x.${b("archivedAt")} is null)
+  where x.${b("tenant")} = list_post_boards.tenant${q.hasBoard("archivedAt") ? `\n    and (coalesce(list_post_boards.archived, false) or x.${b("archivedAt")} is null)` : ""}
 $$;
 ${userGrant(`${fn("list_post_boards")}(${ctx.idType}, boolean)`)}
 `;
@@ -121,6 +150,25 @@ function postWrites(ctx: BlockSqlContext): string {
   const track = q.moderation.fn("moderation_track");
   const banned = q.moderation.fn("moderation_banned");
   const initial = q.mode === "pre" ? "'pending'" : "'visible'";
+  const touched = q.hasPost("updatedAt") ? `, ${p("updatedAt")} = now()` : "";
+
+  const stamp = (column: string, flag: string): readonly string[] =>
+    q.hasPost(column)
+      ? [
+          `${p(column)} = case when set_post_state.attrs ? '${flag}' then case when (set_post_state.attrs ->> '${flag}')::boolean then coalesce(x.${p(column)}, now()) end else x.${p(column)} end`,
+        ]
+      : [];
+
+  const state = [
+    `${p("status")} = coalesce(${ctx.cast("posts", "status", "set_post_state.attrs ->> 'status'")}, x.${p("status")})`,
+    ...stamp("pinnedAt", "pinned"),
+    ...stamp("lockedAt", "locked"),
+    ...(q.hasPost("updatedAt") ? [`${p("updatedAt")} = now()`] : []),
+  ];
+
+  const stampChanged = ["pinnedAt", "lockedAt"]
+    .filter((column) => q.hasPost(column))
+    .map((column) => `v_row.${p(column)} is distinct from v_old.${p(column)}`);
 
   const json = (row: string): string =>
     `${q.postJson(row)} || jsonb_build_object('votes', ${q.reactions.fn("vote_tally")}(${row}.${p("tenant")}, ${subject}, ${row}.${p("id")}::text))`;
@@ -160,10 +208,14 @@ begin
   if not ${q.allowed(`v_board.${b("tenant")}`, q.write)} or (v_me is null and not (${SERVICE_CALLER})) then
     ${forbidden("not allowed to post on this board")}
   end if;
-  if v_board.${b("archivedAt")} is not null then
+${
+  q.hasBoard("archivedAt")
+    ? `  if v_board.${b("archivedAt")} is not null then
     ${invalid("the board is archived")}
   end if;
-  if ${banned}(v_board.${b("tenant")}, v_me) then
+`
+    : ""
+}  if ${banned}(v_board.${b("tenant")}, v_me) then
     ${forbidden("you are banned from posting in this organization")}
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -173,7 +225,7 @@ begin
     ${invalid(`a post's body is at most ${String(q.maxBody)} characters`)}
   end if;
   insert into ${posts} (${p("tenant")}, ${p("board")}, ${p("author")}, ${p("title")}, ${p("body")}, ${p("moderation")})
-  values (v_board.${b("tenant")}, v_board.${b("id")}, v_me, v_title, v_body, ${initial})
+  values (v_board.${b("tenant")}, v_board.${b("id")}, v_me, v_title, v_body, ${ctx.cast("posts", "moderation", initial)})
   returning * into v_row;${writeExtraColumns(posts, q.extras, "(create_post.post -> 'fields')", `x.${p("id")} = v_row.${p("id")}`, "v_row")}
   perform ${track}(v_row.${p("tenant")}, ${subject}, v_row.${p("id")}::text, v_me, ${initial});
   ${q.record("post.created", "v_row", false)}
@@ -199,7 +251,7 @@ declare
 begin
   ${load("update_post", "post_id")}
   v_moderator := ${moderator("v_row")};
-  if not v_moderator and (v_row.${p("author")} is distinct from auth.uid() or v_row.${p("lockedAt")} is not null) then
+  if not v_moderator and (v_row.${p("author")} is distinct from auth.uid()${q.hasPost("lockedAt") ? ` or v_row.${p("lockedAt")} is not null` : ""}) then
     ${forbidden("not allowed to change this post")}
   end if;
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
@@ -213,7 +265,7 @@ begin
   if length(v_body) > ${String(q.maxBody)} then
     ${invalid(`a post's body is at most ${String(q.maxBody)} characters`)}
   end if;
-  update ${posts} x set ${p("title")} = v_title, ${p("body")} = v_body, ${p("updatedAt")} = now()
+  update ${posts} x set ${p("title")} = v_title, ${p("body")} = v_body${touched}
   where x.${p("id")} = v_row.${p("id")}
   returning * into v_row;${writeExtraColumns(posts, q.extras, "(update_post.attrs -> 'fields')", `x.${p("id")} = v_row.${p("id")}`, "v_row")}${
     q.mode === "pre"
@@ -253,19 +305,20 @@ begin
   end if;
   v_old := v_row;
   update ${posts} x set
-    ${p("status")} = coalesce(set_post_state.attrs ->> 'status', x.${p("status")}),
-    ${p("pinnedAt")} = case when set_post_state.attrs ? 'pinned' then case when (set_post_state.attrs ->> 'pinned')::boolean then coalesce(x.${p("pinnedAt")}, now()) end else x.${p("pinnedAt")} end,
-    ${p("lockedAt")} = case when set_post_state.attrs ? 'locked' then case when (set_post_state.attrs ->> 'locked')::boolean then coalesce(x.${p("lockedAt")}, now()) end else x.${p("lockedAt")} end,
-    ${p("updatedAt")} = now()
+    ${state.join(",\n    ")}
   where x.${p("id")} = v_row.${p("id")}
   returning * into v_row;
   if v_row.${p("status")} is distinct from v_old.${p("status")} then
     ${q.record("post.status_changed", "v_row", "changed a post's status")}
-  elsif v_row.${p("pinnedAt")} is distinct from v_old.${p("pinnedAt")} or v_row.${p("lockedAt")} is distinct from v_old.${p("lockedAt")} then
+  ${
+    stampChanged.length === 0
+      ? "end if;"
+      : `elsif ${stampChanged.join(" or ")} then
     ${q.record("post.updated", "v_row", "pinned or locked a post")}
-  end if;
+  end if;`
+  }
   return ${json("v_row")};
-exception when check_violation then
+exception when check_violation${ctx.owns("posts") ? "" : " or invalid_text_representation"} then
   ${invalid("unknown post status")}
 end;
 $$;
@@ -297,10 +350,10 @@ begin
     ${invalid("merge into another post that wasn't merged itself")}
   end if;
   ${mergeVotes(ctx, "v_row", "v_target")}
-  update ${posts} x set ${p("mergedInto")} = v_target.${p("id")}, ${p("status")} = 'closed', ${p("updatedAt")} = now()
+  update ${posts} x set ${p("mergedInto")} = v_target.${p("id")}, ${p("status")} = ${ctx.cast("posts", "status", "'closed'")}${touched}
   where x.${p("id")} = v_row.${p("id")}
   returning * into v_row;
-  update ${posts} x set ${p("mergedInto")} = v_target.${p("id")}, ${p("updatedAt")} = now()
+  update ${posts} x set ${p("mergedInto")} = v_target.${p("id")}${touched}
   where x.${p("mergedInto")} = v_row.${p("id")};
   ${q.record("post.merged", "v_row", "merged a post")}
   return ${json("v_target")};
@@ -422,15 +475,13 @@ begin
     from (
       select ${q.postJson("x")} || ${votes("x", "s")} as row,
         row_number() over (order by
-          case when v_sort = 'active' then x.${p("pinnedAt")} end desc nulls last,
-          case when v_sort = 'top' then coalesce(s.${sc("score")}, 0) end desc,
-          case when v_sort = 'active' then x.${p("lastActivityAt")} end desc,
+${q.hasPost("pinnedAt") ? `          case when v_sort = 'active' then x.${p("pinnedAt")} end desc nulls last,\n` : ""}          case when v_sort = 'top' then coalesce(s.${sc("score")}, 0) end desc,${q.hasPost("lastActivityAt") ? `\n          case when v_sort = 'active' then x.${p("lastActivityAt")} end desc,` : ""}
           x.${p("createdAt")} desc, x.${p("id")}) as n
       from ${posts} x
       ${scoreJoin("x")}
       where x.${p("tenant")} = list_posts.tenant
         and (v_filter ->> 'boardId' is null or x.${p("board")} = (v_filter ->> 'boardId')::uuid)
-        and (v_filter ->> 'status' is null or x.${p("status")} = v_filter ->> 'status')
+        and (v_filter ->> 'status' is null or ${asText(ctx, "posts", `x.${p("status")}`)} = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x.${p("author")} = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x.${p("mergedInto")} is null)
       order by n

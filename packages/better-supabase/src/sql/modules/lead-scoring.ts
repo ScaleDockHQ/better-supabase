@@ -23,6 +23,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     checks: {
       name: "lead_score_checks",
+      app: {},
       lifecycle: { tenant: "tenant", export: false },
       columns: {
         tenant: "tenant_id",
@@ -113,7 +114,11 @@ function tables(ctx: BlockSqlContext, n: LeadNames): string {
   constraint ${checksKey(ctx)} primary key (${c("subjectType")}, ${c("subjectId")})
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("checks").name}_tenant_idx`)} on ${checks} (${c("tenant")});
-create index if not exists ${sqlIdent(`${ctx.tableName("checks").name}_due_idx`)} on ${checks} (${c("checkedAt")} nulls first) where ${c("stale")};
+create index if not exists ${sqlIdent(`${ctx.tableName("checks").name}_due_idx`)} on ${checks} (${c("checkedAt")} nulls first) where ${c("stale")};${
+    ctx.owns("checks")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("checks").name}_subject_key`)} on ${checks} (${c("subjectType")}, ${c("subjectId")});`
+  }
 
 ${lockTable(checks, { read: true })}
 drop policy if exists ${policy} on ${checks};
@@ -278,8 +283,16 @@ begin
   v_result := ${computeScore}(score_lead.tenant, ${modelOf(n, "score_lead.subject_type")}, score_lead.subject_type, score_lead.subject_id, v_fields);
   insert into ${checks} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("stale")}, ${c("checkedAt")})
   values (score_lead.tenant, score_lead.subject_type, score_lead.subject_id, false, now())
-  on conflict on constraint ${checksKey(ctx)} do update
-    set ${c("stale")} = false, ${c("checkedAt")} = now();
+  ${
+    // The app's table has no named key, and a column target here would read
+    // the parameters of the same names.
+    ctx.owns("checks")
+      ? `on conflict on constraint ${checksKey(ctx)} do update
+    set ${c("stale")} = false, ${c("checkedAt")} = now();`
+      : `on conflict do nothing;
+  update ${checks} k set ${c("stale")} = false, ${c("checkedAt")} = now()
+  where k.${c("subjectType")} = score_lead.subject_type and k.${c("subjectId")} = score_lead.subject_id;`
+  }
   return v_result;
 end;
 $$;

@@ -122,12 +122,12 @@ export interface IncomingWebhook {
   readonly enabled: boolean;
   readonly maxBodyBytes: number;
   readonly receiveCount: number;
-  readonly lastReceivedAt: string | null;
+  readonly lastReceivedAt: Temporal.Instant | null;
   readonly lastStatus: number | null;
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly subject: { readonly type: string; readonly id: string } | null;
   readonly createdBy: string | null;
-  readonly createdAt: string;
+  readonly createdAt: Temporal.Instant;
 }
 
 /** A new endpoint: its token (for the URL) and secret are shown once. */

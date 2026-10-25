@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, raise } from "../shared.ts";
+import { columnOf } from "./automations-tables.ts";
 
 /** What the default rule functions share with the rest of the module. */
 export interface DefaultRulesSqlHelpers {
@@ -14,6 +15,20 @@ export interface DefaultRulesSqlHelpers {
 }
 
 /**
+ * Stores the version of rule row `v_row` (the module's `rules` names); a
+ * version already stored stays.
+ */
+export function saveVersionSql(ctx: BlockSqlContext): string {
+  const r = columnOf(ctx, "rules");
+  const rv = columnOf(ctx, "versions");
+  const saver = ctx.has("versions", "savedBy");
+
+  return `insert into ${ctx.table("versions")} (${rv("rule")}, ${rv("version")}, ${rv("tenant")}, ${rv("name")}, ${rv("conditions")}, ${rv("actions")}${saver ? `, ${rv("savedBy")}` : ""})
+  values (v_row.${r("id")}, v_row.${r("version")}, v_row.${r("tenant")}, v_row.${r("name")}, v_row.${r("conditions")}, v_row.${r("actions")}${saver ? ", auth.uid()" : ""})
+  on conflict do nothing;`;
+}
+
+/**
  * `install_default_rules`, which copies the default automations into an
  * organization's rules, and `reset_default_rule`, which restores one.
  */
@@ -22,11 +37,57 @@ export function defaultRulesSql(helpers: DefaultRulesSqlHelpers): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const t = ctx.table("rules");
-  const v = ctx.table("versions");
   const d = ctx.table("defaults");
-  const r = (column: string): string => ctx.col("rules", column);
-  const rv = (column: string): string => ctx.col("versions", column);
-  const rd = (column: string): string => ctx.col("defaults", column);
+  const r = columnOf(ctx, "rules");
+  const rd = columnOf(ctx, "defaults");
+
+  const copied = [
+    ["tenant", "install_default_rules.tenant"],
+    ["subjectType", `x.${rd("subjectType")}`],
+    ["trigger", `x.${rd("trigger")}`],
+    ["name", `x.${rd("name")}`],
+    ["description", `x.${rd("description")}`],
+    ["conditions", `x.${rd("conditions")}`],
+    ["actions", `x.${rd("actions")}`],
+    ["enabled", `x.${rd("enabled")}`],
+    ["defaultKey", `x.${rd("key")}`],
+    ["createdBy", "null"],
+    ["updatedBy", "null"],
+  ].filter(([column = ""]) => ctx.has("rules", column));
+
+  // Without a default key column a copy can't be told apart from the
+  // organization's own rules, so no defaults are copied.
+  const install = ctx.has("rules", "defaultKey")
+    ? `  insert into ${t} (${copied.map(([column = ""]) => r(column)).join(", ")})
+  select ${copied.map(([, value]) => value).join(", ")}
+  from ${d} x
+  where not exists (
+    select 1 from ${t} y where y.${r("tenant")} = install_default_rules.tenant and y.${r("defaultKey")} = x.${rd("key")}
+  )
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;`
+    : "  v_count := 0;\n  return v_count;";
+
+  const reset = [
+    ["trigger", `v_default.${rd("trigger")}`],
+    ["name", `v_default.${rd("name")}`],
+    ["description", `v_default.${rd("description")}`],
+    ["conditions", `v_default.${rd("conditions")}`],
+    ["actions", `v_default.${rd("actions")}`],
+    ["enabled", `v_default.${rd("enabled")}`],
+    ["stopProcessing", "false"],
+    ["version", `x.${r("version")} + 1`],
+    ["updatedBy", "auth.uid()"],
+    ["updatedAt", "now()"],
+  ]
+    .filter(([column = ""]) => ctx.has("rules", column))
+    .map(([column = "", value]) => `${r(column)} = ${value}`)
+    .join(",\n    ");
+
+  const defaultKey = ctx.has("rules", "defaultKey")
+    ? `v_row.${r("defaultKey")}`
+    : "null::text";
 
   return `-- Copies the default automations an organization doesn't have yet into its
 -- rules (service role); returns how many it copied.
@@ -39,15 +100,7 @@ as $$
 declare
   v_count integer;
 begin
-  insert into ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("name")}, ${r("description")}, ${r("conditions")}, ${r("actions")}, ${r("enabled")}, ${r("defaultKey")}, ${r("createdBy")}, ${r("updatedBy")})
-  select install_default_rules.tenant, x.${rd("subjectType")}, x.${rd("trigger")}, x.${rd("name")}, x.${rd("description")}, x.${rd("conditions")}, x.${rd("actions")}, x.${rd("enabled")}, x.${rd("key")}, null, null
-  from ${d} x
-  where not exists (
-    select 1 from ${t} y where y.${r("tenant")} = install_default_rules.tenant and y.${r("defaultKey")} = x.${rd("key")}
-  )
-  on conflict do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
+${install}
 end;
 $$;
 
@@ -68,7 +121,7 @@ begin
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, read)} then
     ${fail("RULE_NOT_FOUND", "No rule you can read has this id", "P0002")}
   end if;
-  select * into v_default from ${d} x where x.${rd("key")} = v_row.${r("defaultKey")};
+  select * into v_default from ${d} x where x.${rd("key")} = ${defaultKey};
   if v_default.${rd("key")} is null then
     ${fail("RULE_NOT_DEFAULT", "No block ships this rule", "22023")}
   end if;
@@ -76,21 +129,10 @@ begin
     ${raise("You need % to reset this rule", "42501", "RULE_FORBIDDEN", keyFor(`(v_row.${r("enabled")} or v_default.${rd("enabled")})`))}
   end if;
   update ${t} x set
-    ${r("trigger")} = v_default.${rd("trigger")},
-    ${r("name")} = v_default.${rd("name")},
-    ${r("description")} = v_default.${rd("description")},
-    ${r("conditions")} = v_default.${rd("conditions")},
-    ${r("actions")} = v_default.${rd("actions")},
-    ${r("enabled")} = v_default.${rd("enabled")},
-    ${r("stopProcessing")} = false,
-    ${r("version")} = x.${r("version")} + 1,
-    ${r("updatedBy")} = auth.uid(),
-    ${r("updatedAt")} = now()
+    ${reset}
   where x.${r("id")} = v_row.${r("id")}
   returning * into v_row;
-  insert into ${v} (${rv("rule")}, ${rv("version")}, ${rv("tenant")}, ${rv("name")}, ${rv("conditions")}, ${rv("actions")}, ${rv("savedBy")})
-  values (v_row.${r("id")}, v_row.${r("version")}, v_row.${r("tenant")}, v_row.${r("name")}, v_row.${r("conditions")}, v_row.${r("actions")}, auth.uid())
-  on conflict do nothing;
+  ${saveVersionSql(ctx)}
   ${ruleEvent("rule.saved", "v_row")}
   return ${ruleJson("v_row")};
 end;

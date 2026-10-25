@@ -53,6 +53,8 @@ export interface EntityTable {
   readonly name: string;
   /** Whether `blocks.<module>.entities` gave the table its name. */
   readonly renamed: boolean;
+  /** Whether `blocks.<module>.tables` gave the table its name. */
+  readonly mapped?: boolean;
 }
 
 /**
@@ -60,6 +62,38 @@ export interface EntityTable {
  * already has in the same schema, as an error message, or undefined.
  */
 export function entityTableClash(
+  tables: readonly EntityTable[],
+): string | undefined {
+  const byName = new Map<string, EntityTable>();
+
+  for (const table of tables.filter((each) => each.mapped !== true)) {
+    const key = `${table.schema}.${table.name}`;
+    const other = byName.get(key);
+
+    if (other === undefined) {
+      byName.set(key, table);
+      continue;
+    }
+
+    const [renamed, kept] = table.renamed ? [table, other] : [other, table];
+
+    if (renamed.renamed && renamed.module !== kept.module) {
+      return `blocks.${renamed.module}.entities: the ${renamed.module} block's ${renamed.logical} table would be named ${renamed.name}, which the ${kept.module} block already uses. Choose another name.`;
+    }
+  }
+
+  return undefined;
+}
+
+const configKey = (table: EntityTable): string =>
+  `blocks.${table.module}.tables.${table.logical}`;
+
+/**
+ * The first table two installed blocks would both create, as an error message
+ * that names the config key of each, or undefined. Each block creates its table
+ * with its own columns, so they can't share one.
+ */
+export function sharedTableClash(
   tables: readonly EntityTable[],
 ): string | undefined {
   const byName = new Map<string, EntityTable>();
@@ -73,10 +107,8 @@ export function entityTableClash(
       continue;
     }
 
-    const [renamed, kept] = table.renamed ? [table, other] : [other, table];
-
-    if (renamed.renamed && renamed.module !== kept.module) {
-      return `blocks.${renamed.module}.entities: the ${renamed.module} block's ${renamed.logical} table would be named ${renamed.name}, which the ${kept.module} block already uses. Choose another name.`;
+    if (other.module !== table.module) {
+      return `${configKey(other)} and ${configKey(table)} both name ${key}, and each block creates its own table there. Set one of them to another table name.`;
     }
   }
 

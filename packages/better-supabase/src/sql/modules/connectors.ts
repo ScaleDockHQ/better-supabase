@@ -5,7 +5,9 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { Columns } from "./module-columns.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   addExtraColumns,
   raise,
@@ -18,7 +20,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { tenantRefGuard } from "./credentials.ts";
-import { columnsOf, rowJson } from "./module-columns.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const SERVERS = {
@@ -102,11 +104,24 @@ const NAMES: BlockSqlNames = {
     servers: {
       name: "connector_servers",
       columns: SERVERS,
+      optional: [
+        "transport",
+        "scopes",
+        "clientMetadata",
+        "enabled",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["transport", "authType"],
+      app: {},
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
     },
     grants: {
       name: "connector_grants",
       columns: GRANTS,
+      optional: ["scopes", "expiresAt", "grantedAt"],
+      app: {},
       lifecycle: {
         user: "user",
         tenant: "tenant",
@@ -117,11 +132,16 @@ const NAMES: BlockSqlNames = {
     sessions: {
       name: "connector_sessions",
       columns: SESSIONS,
+      optional: ["initializeResult", "lastUsedAt"],
+      app: {},
       lifecycle: { user: "user" },
     },
     fingerprints: {
       name: "connector_tool_fingerprints",
       columns: FINGERPRINTS,
+      optional: ["tools", "approvedBy", "approvedAt", "createdAt"],
+      typed: ["status"],
+      app: {},
     },
   },
 };
@@ -134,13 +154,77 @@ const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
  */
 const RESERVED = ["fields", "grant"] as const;
 
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: T,
+): Columns<T> {
+  // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
+  return Object.fromEntries(
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
+  ) as Columns<T>;
+}
+
+/** `jsonb_build_object` over a spec's columns, `missing` for the ones absent. */
+function presentJson(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: Readonly<Record<string, string>>,
+  row: string,
+  missing?: Readonly<Record<string, string>>,
+): string {
+  const pairs = Object.entries(spec).map(
+    ([key, name]) =>
+      `'${name}', ${ctx.has(table, key) ? `${row}.${ctx.col(table, key)}` : (missing?.[key] ?? "null")}`,
+  );
+
+  return `jsonb_build_object(${pairs.join(", ")})`;
+}
+
+const SERVER_DEFAULTS = {
+  transport: "'http'",
+  scopes: "'{}'::text[]",
+  clientMetadata: "'{}'::jsonb",
+  enabled: "true",
+};
+
+const GRANT_DEFAULTS = { scopes: "'{}'::text[]" };
+
 function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const v = columnsOf(ctx, "servers", SERVERS);
-  const g = columnsOf(ctx, "grants", GRANTS);
-  const n = columnsOf(ctx, "sessions", SESSIONS);
-  const f = columnsOf(ctx, "fingerprints", FINGERPRINTS);
+  const v = presentColumns(ctx, "servers", SERVERS);
+  const g = presentColumns(ctx, "grants", GRANTS);
+  const n = presentColumns(ctx, "sessions", SESSIONS);
+  const f = presentColumns(ctx, "fingerprints", FINGERPRINTS);
+
+  const server = (column: keyof typeof SERVERS): boolean =>
+    ctx.has("servers", column);
+
+  const grant = (column: keyof typeof GRANTS): boolean =>
+    ctx.has("grants", column);
+
+  const session = (column: keyof typeof SESSIONS): boolean =>
+    ctx.has("sessions", column);
+
+  const print = (column: keyof typeof FINGERPRINTS): boolean =>
+    ctx.has("fingerprints", column);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns});`;
+
   const servers = ctx.table("servers");
   const grants = ctx.table("grants");
   const sessions = ctx.table("sessions");
@@ -166,9 +250,89 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("servers", RESERVED);
 
   const serverJson = (row: string): string =>
-    withExtraFields(rowJson(SERVERS, v, row), row, extras);
+    withExtraFields(
+      presentJson(ctx, "servers", SERVERS, row, SERVER_DEFAULTS),
+      row,
+      extras,
+    );
 
-  const grantJson = (row: string): string => rowJson(GRANTS, g, row);
+  const grantJson = (row: string): string =>
+    presentJson(ctx, "grants", GRANTS, row, GRANT_DEFAULTS);
+
+  const serverUpdate = [
+    `${v.name} = coalesce(save_connector_server.fields ->> 'name', x.${v.name})`,
+    `${v.url} = coalesce(save_connector_server.fields ->> 'url', x.${v.url})`,
+    ...(server("transport")
+      ? [
+          `${v.transport} = ${ctx.cast("servers", "transport", `coalesce(save_connector_server.fields ->> 'transport', ${asText(ctx, "servers", `x.${v.transport}`)})`)}`,
+        ]
+      : []),
+    `${v.authType} = ${ctx.cast("servers", "authType", `coalesce(save_connector_server.fields ->> 'auth_type', ${asText(ctx, "servers", `x.${v.authType}`)})`)}`,
+    `${v.credentialRef} = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x.${v.credentialRef} end`,
+    ...(server("scopes")
+      ? [
+          `${v.scopes} = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x.${v.scopes} end`,
+        ]
+      : []),
+    ...(server("clientMetadata")
+      ? [
+          `${v.clientMetadata} = coalesce(save_connector_server.fields -> 'client_metadata', x.${v.clientMetadata})`,
+        ]
+      : []),
+    ...(server("enabled")
+      ? [
+          `${v.enabled} = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x.${v.enabled})`,
+        ]
+      : []),
+    ...(server("updatedAt") ? [`${v.updatedAt} = now()`] : []),
+  ];
+
+  const sessionUpdate = [
+    [
+      `${n.session} = excluded.${n.session}`,
+      ...(session("initializeResult")
+        ? [`${n.initializeResult} = excluded.${n.initializeResult}`]
+        : []),
+    ],
+    [
+      ...(session("lastUsedAt") ? [`${n.lastUsedAt} = now()`] : []),
+      `${n.expiresAt} = excluded.${n.expiresAt}`,
+    ],
+  ]
+    .map((group) => group.join(", "))
+    .join(",\n    ");
+
+  const expiringGrants = grant("expiresAt")
+    ? `  select coalesce(jsonb_agg(${grantJson("y")} order by y.${g.expiresAt}), '[]')
+  from (
+    select * from ${grants} y0
+    where y0.${g.revokedAt} is null and y0.${g.expiresAt} is not null and y0.${g.expiresAt} < expiring_connector_grants.before
+    order by y0.${g.expiresAt}
+    limit least(greatest(expiring_connector_grants.max_rows, 1), 1000)
+  ) y`
+    : "  select '[]'::jsonb";
+
+  const renewGrant = grant("expiresAt")
+    ? `  with updated as (
+    update ${grants} y set ${g.expiresAt} = renew_connector_grant.expires_at
+    where y.${g.id} = renew_connector_grant.id and y.${g.revokedAt} is null
+    returning 1
+  )
+  select exists (select 1 from updated)`
+    : "  select false";
+
+  const printDecision = [
+    [
+      `${f.status} = ${ctx.cast("fingerprints", "status", "case when decide_connector_fingerprint.approved then 'approved' else 'rejected' end")}`,
+    ],
+    [
+      ...(print("approvedBy") ? [`${f.approvedBy} = auth.uid()`] : []),
+      ...(print("approvedAt") ? [`${f.approvedAt} = now()`] : []),
+    ],
+  ]
+    .filter((group) => group.length > 0)
+    .map((group) => group.join(", "))
+    .join(",\n    ");
 
   const isAdmin = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.scope.can(tenant, manage)})`;
@@ -211,21 +375,18 @@ create table if not exists ${servers} (
   ${v.id} uuid primary key default gen_random_uuid(),
   ${v.tenant} ${id} not null,
   ${v.name} text not null check (length(${v.name}) between 1 and 200),
-  ${v.url} text not null check (${v.url} ~ '${urlPattern}' and length(${v.url}) <= 2000),
-  ${v.transport} text not null default 'http' check (${v.transport} in ('http', 'sse')),
+  ${v.url} text not null check (${v.url} ~ '${urlPattern}' and length(${v.url}) <= 2000),${line(server("transport"), `${v.transport} text not null default 'http' check (${v.transport} in ('http', 'sse'))`)}
   ${v.authType} text not null default 'oauth' check (${v.authType} in ('none', 'oauth', 'header')),
-  ${v.credentialRef} jsonb check (${v.credentialRef} is null or (jsonb_typeof(${v.credentialRef}) = 'object' and ${v.credentialRef} ? 'provider')),
-  ${v.scopes} text[] not null default '{}',
-  ${v.clientMetadata} jsonb not null default '{}' check (jsonb_typeof(${v.clientMetadata}) = 'object'),
-  ${v.enabled} boolean not null default true,
-  ${v.createdBy} uuid references auth.users (id) on delete set null,
-  ${v.createdAt} timestamptz not null default now(),
-  ${v.updatedAt} timestamptz not null default now(),
+  ${v.credentialRef} jsonb check (${v.credentialRef} is null or (jsonb_typeof(${v.credentialRef}) = 'object' and ${v.credentialRef} ? 'provider')),${line(server("scopes"), `${v.scopes} text[] not null default '{}'`)}${line(server("clientMetadata"), `${v.clientMetadata} jsonb not null default '{}' check (jsonb_typeof(${v.clientMetadata}) = 'object')`)}${line(server("enabled"), `${v.enabled} boolean not null default true`)}${line(server("createdBy"), `${v.createdBy} uuid references auth.users (id) on delete set null`)}${line(server("createdAt"), `${v.createdAt} timestamptz not null default now()`)}${line(server("updatedAt"), `${v.updatedAt} timestamptz not null default now()`)}
   check ((${v.authType} = 'header') = (${v.credentialRef} is not null))
 );${addExtraColumns(servers, extras)}
 create index if not exists ${ctx.naming.rename("connector_servers_tenant_idx")} on ${servers} (${v.tenant});
-create index if not exists ${ctx.naming.rename("connector_servers_created_by_idx")} on ${servers} (${v.createdBy});
-alter table ${servers} enable row level security;
+${
+  server("createdBy")
+    ? `create index if not exists ${ctx.naming.rename("connector_servers_created_by_idx")} on ${servers} (${v.createdBy});
+`
+    : ""
+}alter table ${servers} enable row level security;
 ${revokeTable(servers)}
 grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
@@ -240,10 +401,7 @@ create table if not exists ${grants} (
   ${g.user} uuid not null references auth.users (id) on delete cascade,
   ${g.server} uuid not null references ${servers} (${v.id}) on delete cascade,
   ${g.tenant} ${id} not null,
-  ${g.credentialRef} jsonb not null check (jsonb_typeof(${g.credentialRef}) = 'object' and ${g.credentialRef} ? 'provider'),
-  ${g.scopes} text[] not null default '{}',
-  ${g.expiresAt} timestamptz,
-  ${g.grantedAt} timestamptz not null default now(),
+  ${g.credentialRef} jsonb not null check (jsonb_typeof(${g.credentialRef}) = 'object' and ${g.credentialRef} ? 'provider'),${line(grant("scopes"), `${g.scopes} text[] not null default '{}'`)}${line(grant("expiresAt"), `${g.expiresAt} timestamptz`)}${line(grant("grantedAt"), `${g.grantedAt} timestamptz not null default now()`)}
   ${g.revokedAt} timestamptz
 );
 create unique index if not exists connector_grants_active_idx on ${grants} (${g.user}, ${g.server}) where ${g.revokedAt} is null;
@@ -263,12 +421,10 @@ create table if not exists ${sessions} (
   ${n.server} uuid not null references ${servers} (${v.id}) on delete cascade,
   ${n.user} uuid not null references auth.users (id) on delete cascade,
   ${n.chat} text not null default '',
-  ${n.session} text,
-  ${n.initializeResult} jsonb,
-  ${n.lastUsedAt} timestamptz not null default now(),
+  ${n.session} text,${line(session("initializeResult"), `${n.initializeResult} jsonb`)}${line(session("lastUsedAt"), `${n.lastUsedAt} timestamptz not null default now()`)}
   ${n.expiresAt} timestamptz not null,
   primary key (${n.server}, ${n.user}, ${n.chat})
-);
+);${unique("sessions", "chat", `${n.server}, ${n.user}, ${n.chat}`)}
 create index if not exists connector_sessions_expires_idx on ${sessions} (${n.expiresAt});
 create index if not exists connector_sessions_user_idx on ${sessions} (${n.user});
 alter table ${sessions} enable row level security;
@@ -283,16 +439,16 @@ create policy connector_sessions_read on ${sessions} for select to authenticated
 -- admin before an assistant may call it.
 create table if not exists ${fingerprints} (
   ${f.server} uuid not null references ${servers} (${v.id}) on delete cascade,
-  ${f.fingerprint} text not null check (length(${f.fingerprint}) between 1 and 200),
-  ${f.tools} jsonb not null default '{}' check (jsonb_typeof(${f.tools}) = 'object'),
-  ${f.status} text not null default 'pending' check (${f.status} in ('pending', 'approved', 'rejected')),
-  ${f.approvedBy} uuid references auth.users (id) on delete set null,
-  ${f.approvedAt} timestamptz,
-  ${f.createdAt} timestamptz not null default now(),
+  ${f.fingerprint} text not null check (length(${f.fingerprint}) between 1 and 200),${line(print("tools"), `${f.tools} jsonb not null default '{}' check (jsonb_typeof(${f.tools}) = 'object')`)}
+  ${f.status} text not null default 'pending' check (${f.status} in ('pending', 'approved', 'rejected')),${line(print("approvedBy"), `${f.approvedBy} uuid references auth.users (id) on delete set null`)}${line(print("approvedAt"), `${f.approvedAt} timestamptz`)}${line(print("createdAt"), `${f.createdAt} timestamptz not null default now()`)}
   primary key (${f.server}, ${f.fingerprint})
-);
-create index if not exists connector_tool_fingerprints_approved_by_idx on ${fingerprints} (${f.approvedBy});
-alter table ${fingerprints} enable row level security;
+);${unique("fingerprints", "fingerprint", `${f.server}, ${f.fingerprint}`)}
+${
+  print("approvedBy")
+    ? `create index if not exists connector_tool_fingerprints_approved_by_idx on ${fingerprints} (${f.approvedBy});
+`
+    : ""
+}alter table ${fingerprints} enable row level security;
 ${revokeTable(fingerprints)}
 grant select on ${fingerprints} to authenticated;
 grant all on ${fingerprints} to service_role;
@@ -318,9 +474,9 @@ begin
   end if;
   ${tenantRefGuard("save_connector_server.fields -> 'credential_ref'", "save_connector_server.tenant")}
   if save_connector_server.id is null then
-    insert into ${servers} (${v.tenant}, ${v.name}, ${v.url}, ${v.authType}, ${v.credentialRef}, ${v.createdBy})
+    insert into ${servers} (${v.tenant}, ${v.name}, ${v.url}, ${v.authType}, ${v.credentialRef}${server("createdBy") ? `, ${v.createdBy}` : ""})
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+      ${ctx.cast("servers", "authType", "coalesce(save_connector_server.fields ->> 'auth_type', 'oauth')")}, save_connector_server.fields -> 'credential_ref'${server("createdBy") ? ", auth.uid()" : ""})
     returning * into v_row;
   else
     select * into v_row from ${servers} x where x.${v.id} = save_connector_server.id and x.${v.tenant} = save_connector_server.tenant for update;
@@ -329,15 +485,7 @@ begin
     end if;
   end if;
   update ${servers} x set
-    ${v.name} = coalesce(save_connector_server.fields ->> 'name', x.${v.name}),
-    ${v.url} = coalesce(save_connector_server.fields ->> 'url', x.${v.url}),
-    ${v.transport} = coalesce(save_connector_server.fields ->> 'transport', x.${v.transport}),
-    ${v.authType} = coalesce(save_connector_server.fields ->> 'auth_type', x.${v.authType}),
-    ${v.credentialRef} = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x.${v.credentialRef} end,
-    ${v.scopes} = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x.${v.scopes} end,
-    ${v.clientMetadata} = coalesce(save_connector_server.fields -> 'client_metadata', x.${v.clientMetadata}),
-    ${v.enabled} = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x.${v.enabled}),
-    ${v.updatedAt} = now()
+    ${serverUpdate.join(",\n    ")}
   where x.${v.id} = v_row.${v.id}
   returning * into v_row;${writeExtraColumns(servers, extras, "save_connector_server.fields", `x.${v.id} = v_row.${v.id}`, "v_row")}
   ${serverEvent("connector.saved", "v_row")}
@@ -435,9 +583,8 @@ begin
   update ${grants} y set ${g.revokedAt} = now()
   where y.${g.server} = v_server.${v.id} and y.${g.user} = record_connector_grant.owner and y.${g.revokedAt} is null
   returning * into v_old;
-  insert into ${grants} (${g.user}, ${g.server}, ${g.tenant}, ${g.credentialRef}, ${g.scopes}, ${g.expiresAt})
-  values (record_connector_grant.owner, v_server.${v.id}, v_server.${v.tenant}, record_connector_grant.credential_ref,
-    coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
+  insert into ${grants} (${g.user}, ${g.server}, ${g.tenant}, ${g.credentialRef}${grant("scopes") ? `, ${g.scopes}` : ""}${grant("expiresAt") ? `, ${g.expiresAt}` : ""})
+  values (record_connector_grant.owner, v_server.${v.id}, v_server.${v.tenant}, record_connector_grant.credential_ref${grant("scopes") ? ",\n    coalesce(record_connector_grant.scopes, '{}')" : ""}${grant("expiresAt") ? `${grant("scopes") ? ", " : ",\n    "}record_connector_grant.expires_at` : ""})
   returning * into v_row;
   ${grantEvent("connector_grant.created", "v_row")}
   return jsonb_build_object('grant', ${grantJson("v_row")}, 'replaced', case when v_old.${g.id} is null then null else ${grantJson("v_old")} end);
@@ -478,13 +625,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${grantJson("y")} order by y.${g.expiresAt}), '[]')
-  from (
-    select * from ${grants} y0
-    where y0.${g.revokedAt} is null and y0.${g.expiresAt} is not null and y0.${g.expiresAt} < expiring_connector_grants.before
-    order by y0.${g.expiresAt}
-    limit least(greatest(expiring_connector_grants.max_rows, 1), 1000)
-  ) y
+${expiringGrants}
 $$;
 ${serviceGrant(`${fn("expiring_connector_grants")}(timestamptz, integer)`)}
 
@@ -495,12 +636,7 @@ language sql
 security definer
 set search_path = ''
 as $$
-  with updated as (
-    update ${grants} y set ${g.expiresAt} = renew_connector_grant.expires_at
-    where y.${g.id} = renew_connector_grant.id and y.${g.revokedAt} is null
-    returning 1
-  )
-  select exists (select 1 from updated)
+${renewGrant}
 $$;
 ${serviceGrant(`${fn("renew_connector_grant")}(uuid, timestamptz)`)}
 
@@ -512,7 +648,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('session_id', z.${n.session}, 'initialize_result', z.${n.initializeResult}, 'expires_at', z.${n.expiresAt})
+  select jsonb_build_object('session_id', z.${n.session}, 'initialize_result', ${session("initializeResult") ? `z.${n.initializeResult}` : "null::jsonb"}, 'expires_at', z.${n.expiresAt})
   from ${sessions} z
   where z.${n.server} = get_connector_session.server_id and z.${n.user} = auth.uid()
     and z.${n.chat} = coalesce(get_connector_session.chat_key, '') and z.${n.expiresAt} > now()
@@ -540,12 +676,11 @@ begin
     and not exists (select 1 from ${servers} x where x.${v.id} = save_connector_session.server_id and x.${v.authType} <> 'oauth' and ${ctx.scope.can(`x.${v.tenant}`, use)}) then
     return false;
   end if;
-  insert into ${sessions} (${n.server}, ${n.user}, ${n.chat}, ${n.session}, ${n.initializeResult}, ${n.expiresAt})
+  insert into ${sessions} (${n.server}, ${n.user}, ${n.chat}, ${n.session}${session("initializeResult") ? `, ${n.initializeResult}` : ""}, ${n.expiresAt})
   values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '${sessionTtl}')
+    ${session("initializeResult") ? "save_connector_session.initialize_result, " : ""}now() + interval '${sessionTtl}')
   on conflict (${n.server}, ${n.user}, ${n.chat}) do update set
-    ${n.session} = excluded.${n.session}, ${n.initializeResult} = excluded.${n.initializeResult},
-    ${n.lastUsedAt} = now(), ${n.expiresAt} = excluded.${n.expiresAt};
+    ${sessionUpdate};
   return true;
 end;
 $$;
@@ -567,15 +702,14 @@ begin
   if not found or not (${SERVICE_CALLER} or ${ctx.scope.can(`v_server.${v.tenant}`, use)}) then
     ${notFound("check_connector_fingerprint.server_id")}
   end if;
-  select p.${f.status} into v_status from ${fingerprints} p
+  select ${asText(ctx, "fingerprints", `p.${f.status}`)} into v_status from ${fingerprints} p
   where p.${f.server} = v_server.${v.id} and p.${f.fingerprint} = check_connector_fingerprint.fingerprint;
   if found then
     return v_status;
   end if;
   v_status := ${trustFirstUse ? `case when exists (select 1 from ${fingerprints} p where p.${f.server} = v_server.${v.id}) then 'pending' else 'approved' end` : "'pending'"};
-  insert into ${fingerprints} (${f.server}, ${f.fingerprint}, ${f.tools}, ${f.status}, ${f.approvedAt})
-  values (v_server.${v.id}, check_connector_fingerprint.fingerprint, coalesce(check_connector_fingerprint.tools, '{}'), v_status,
-    case when v_status = 'approved' then now() end)
+  insert into ${fingerprints} (${f.server}, ${f.fingerprint}${print("tools") ? `, ${f.tools}` : ""}, ${f.status}${print("approvedAt") ? `, ${f.approvedAt}` : ""})
+  values (v_server.${v.id}, check_connector_fingerprint.fingerprint${print("tools") ? ", coalesce(check_connector_fingerprint.tools, '{}')" : ""}, ${ctx.cast("fingerprints", "status", "v_status")}${print("approvedAt") ? ",\n    case when v_status = 'approved' then now() end" : ""})
   on conflict do nothing;
   return v_status;
 end;
@@ -597,8 +731,7 @@ begin
     ${notFound("decide_connector_fingerprint.server_id")}
   end if;
   update ${fingerprints} p set
-    ${f.status} = case when decide_connector_fingerprint.approved then 'approved' else 'rejected' end,
-    ${f.approvedBy} = auth.uid(), ${f.approvedAt} = now()
+    ${printDecision}
   where p.${f.server} = v_server.${v.id} and p.${f.fingerprint} = decide_connector_fingerprint.fingerprint;
   if not found then
     return false;

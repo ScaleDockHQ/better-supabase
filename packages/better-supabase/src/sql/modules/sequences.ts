@@ -65,6 +65,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     sequences: {
       name: "sequences",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -81,9 +82,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description"],
+      typed: ["status"],
     },
     members: {
       name: "sequence_enrollments",
+      app: {},
       lifecycle: { tenant: "tenant", user: "enrolledBy", export: true },
       columns: {
         enrollment: "enrollment_id",
@@ -106,6 +110,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["lastError"],
+      typed: ["status", "exitReason"],
     },
   },
 };
@@ -134,8 +140,7 @@ function sequenceTables(ctx: BlockSqlContext): string {
   ${s("tenant")} ${ctx.idType} not null,
   ${s("key")} text not null check (${s("key")} ~ '^[a-z][a-z0-9-]{0,62}$'),
   ${s("name")} text not null check (length(${s("name")}) between 1 and 200),
-  ${s("description")} text check (${s("description")} is null or length(${s("description")}) <= 2000),
-  ${s("status")} text not null default 'draft' check (${s("status")} in ('draft', 'active', 'paused', 'archived')),
+${q.has("sequences", "description") ? `  ${s("description")} text check (${s("description")} is null or length(${s("description")}) <= 2000),\n` : ""}  ${s("status")} text not null default 'draft' check (${s("status")} in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
   -- the recipient's run.
   ${s("exitOnReply")} boolean not null default true,
@@ -171,14 +176,17 @@ create table if not exists ${members} (
   ${r("status")} text not null default 'active' check (${r("status")} in ('active', 'paused', 'completed', 'exited')),
   ${r("exitReason")} text check (${r("exitReason")} is null or ${r("exitReason")} in ('replied', 'manual', 'failed', 'archived')),
   ${r("attempts")} integer not null default 0 check (${r("attempts")} >= 0),
-  ${r("lastError")} text check (${r("lastError")} is null or length(${r("lastError")}) <= 2000),
-  -- Values for the {{key}} placeholders of the email steps.
+${q.has("members", "lastError") ? `  ${r("lastError")} text check (${r("lastError")} is null or length(${r("lastError")}) <= 2000),\n` : ""}  -- Values for the {{key}} placeholders of the email steps.
   ${r("variables")} jsonb not null default '{}' check (jsonb_typeof(${r("variables")}) = 'object'),
   ${r("enrolledBy")} uuid,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now(),
   check ((${r("status")} = 'exited') = (${r("exitReason")} is not null))
-);
+);${
+    ctx.owns("members")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("members").name}_enrollment_key`)} on ${members} (${r("enrollment")});`
+  }
 create index if not exists ${name("members", "parent_idx")} on ${members} (${r("sequence")}, ${r("status")});
 create index if not exists ${name("members", "due_idx")} on ${members} (${r("nextRunAt")}) where ${r("status")} = 'active';
 create index if not exists ${name("members", "subject_idx")} on ${members} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});

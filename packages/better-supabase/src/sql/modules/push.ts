@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -37,6 +38,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     devices: {
       name: "push_devices",
+      app: {},
       lifecycle: { user: "user" },
       columns: {
         id: "id",
@@ -49,9 +51,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         lastSeenAt: "last_seen_at",
       },
+      optional: ["deviceName", "appVersion", "createdAt", "lastSeenAt"],
+      typed: ["platform", "provider"],
     },
     tickets: {
       name: "push_tickets",
+      app: {},
       columns: {
         id: "id",
         delivery: "delivery_id",
@@ -62,6 +67,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         checkedAt: "checked_at",
       },
+      optional: ["error"],
+      typed: ["status"],
       optionalTable: true,
     },
   },
@@ -81,10 +88,50 @@ function build(ctx: BlockSqlContext): string {
   const d = ctx.table("devices");
   const c = (logical: string): string => ctx.col("devices", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const has = (logical: string): boolean => ctx.has("devices", logical);
   const extras = extrasOf(ctx);
+  const name = ctx.tableName("devices").name;
 
   const list = (values: readonly string[]): string =>
     values.map((value) => `'${value}'`).join(", ");
+
+  const optional = (
+    logical: string,
+    definition: (column: string) => string,
+  ): string =>
+    has(logical) ? `,\n  ${c(logical)} ${definition(c(logical))}` : "";
+
+  const written = (
+    [
+      ["user", "v_user"],
+      ["token", "register_push_device.token"],
+      [
+        "platform",
+        ctx.cast("devices", "platform", "register_push_device.platform"),
+      ],
+      [
+        "provider",
+        ctx.cast("devices", "provider", "register_push_device.provider"),
+      ],
+      ["deviceName", "left(register_push_device.device_name, 200)"],
+      ["appVersion", "left(register_push_device.app_version, 50)"],
+    ] as const
+  ).filter(([logical]) => has(logical));
+
+  const refreshed = [
+    `${c("user")} = excluded.${c("user")}`,
+    `${c("platform")} = excluded.${c("platform")}`,
+    `${c("provider")} = excluded.${c("provider")}`,
+    ...["deviceName", "appVersion"]
+      .filter(has)
+      .map(
+        (logical) =>
+          `${c(logical)} = coalesce(excluded.${c(logical)}, x.${c(logical)})`,
+      ),
+    ...(has("lastSeenAt") ? [`${c("lastSeenAt")} = now()`] : []),
+  ];
+
+  const recent = has("lastSeenAt") ? `, x.${c("lastSeenAt")} desc` : "";
 
   const registered = ctx.record({
     type: "push.device_registered",
@@ -127,13 +174,9 @@ create table if not exists ${d} (
   ${c("user")} uuid not null references auth.users (id) on delete cascade,
   ${c("token")} text not null unique check (length(${c("token")}) between 1 and 4096),
   ${c("platform")} text not null check (${c("platform")} in (${list(PLATFORMS)})),
-  ${c("provider")} text not null default 'expo' check (${c("provider")} in (${list(PROVIDERS)})),
-  ${c("deviceName")} text check (length(${c("deviceName")}) <= 200),
-  ${c("appVersion")} text check (length(${c("appVersion")}) <= 50),
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("lastSeenAt")} timestamptz not null default now()
+  ${c("provider")} text not null default 'expo' check (${c("provider")} in (${list(PROVIDERS)}))${optional("deviceName", (column) => `text check (length(${column}) <= 200)`)}${optional("appVersion", (column) => `text check (length(${column}) <= 50)`)}${optional("createdAt", () => "timestamptz not null default now()")}${optional("lastSeenAt", () => "timestamptz not null default now()")}
 );
-create index if not exists push_devices_user_idx on ${d} (${c("user")});${addExtraColumns(d, extras)}
+create index if not exists push_devices_user_idx on ${d} (${c("user")});${ctx.owns("devices") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_token_key`)} on ${d} (${c("token")});`}${addExtraColumns(d, extras)}
 alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
@@ -177,22 +220,12 @@ begin
   if register_push_device.token is null or length(register_push_device.token) not between 1 and 4096 then
     ${fail("PUSH_TOKEN", "A push token is 1 to 4096 characters", "22023")}
   end if;
-  insert into ${d} as x (${c("user")}, ${c("token")}, ${c("platform")}, ${c("provider")}, ${c("deviceName")}, ${c("appVersion")})
+  insert into ${d} as x (${written.map(([logical]) => c(logical)).join(", ")})
   values (
-    v_user,
-    register_push_device.token,
-    register_push_device.platform,
-    register_push_device.provider,
-    left(register_push_device.device_name, 200),
-    left(register_push_device.app_version, 50)
+    ${written.map(([, value]) => value).join(",\n    ")}
   )
   on conflict (${c("token")}) do update set
-    ${c("user")} = excluded.${c("user")},
-    ${c("platform")} = excluded.${c("platform")},
-    ${c("provider")} = excluded.${c("provider")},
-    ${c("deviceName")} = coalesce(excluded.${c("deviceName")}, x.${c("deviceName")}),
-    ${c("appVersion")} = coalesce(excluded.${c("appVersion")}, x.${c("appVersion")}),
-    ${c("lastSeenAt")} = now()
+    ${refreshed.join(",\n    ")}
   returning x.${c("id")}, (x.xmax = 0) into v_id, v_new;${writeExtraColumns(d, extras, "register_push_device.fields", `x.${c("id")} = v_id`)}
   if v_new then
     ${registered}
@@ -244,7 +277,7 @@ begin${serviceOnly("push_tokens_for.users")}
       'token', x.${c("token")},
       'platform', x.${c("platform")},
       'provider', x.${c("provider")}${extraFieldsJson("x", extras)}
-    ) order by x.${c("user")}, x.${c("lastSeenAt")} desc), '[]'::jsonb)
+    ) order by x.${c("user")}${recent}), '[]'::jsonb)
     from ${d} x
     where x.${c("user")} = any (push_tokens_for.users)
   );

@@ -55,11 +55,59 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
     "P0002",
   );
 
+  /** Column `column` of row `row` in `table`, or null when the table lacks it. */
+  const field = (table: string, row: string, column: string): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : "null";
+
+  const hasDescription = ctx.has("models", "description");
+  const hasBreakdown = ctx.has("scores", "breakdown");
+
   const modelJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'key', ${row}.${m("key")}, 'name', ${row}.${m("name")}, 'description', ${row}.${m("description")}, 'subjectType', ${row}.${m("subjectType")}, 'rules', ${row}.${m("rules")}, 'metrics', ${row}.${m("metrics")}, 'bands', ${row}.${m("bands")}, 'enabled', ${row}.${m("enabled")}, 'version', ${row}.${m("version")}, 'createdBy', ${row}.${m("createdBy")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'key', ${row}.${m("key")}, 'name', ${row}.${m("name")}, 'description', ${field("models", row, "description")}, 'subjectType', ${row}.${m("subjectType")}, 'rules', ${row}.${m("rules")}, 'metrics', ${row}.${m("metrics")}, 'bands', ${row}.${m("bands")}, 'enabled', ${row}.${m("enabled")}, 'version', ${row}.${m("version")}, 'createdBy', ${field("models", row, "createdBy")}, 'createdAt', ${field("models", row, "createdAt")}, 'updatedAt', ${field("models", row, "updatedAt")})`;
 
   const scoreJson = (row: string, key: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'modelId', ${row}.${s("model")}, 'modelKey', ${key}, 'modelVersion', ${row}.${s("modelVersion")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'score', ${row}.${s("score")}, 'band', ${row}.${s("band")}, 'breakdown', ${row}.${s("breakdown")}, 'current', ${row}.${s("current")}, 'computedAt', ${row}.${s("computedAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'modelId', ${row}.${s("model")}, 'modelKey', ${key}, 'modelVersion', ${row}.${s("modelVersion")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'score', ${row}.${s("score")}, 'band', ${row}.${s("band")}, 'breakdown', ${field("scores", row, "breakdown")}, 'current', ${row}.${s("current")}, 'computedAt', ${row}.${s("computedAt")})`;
+
+  const modelInsert = (
+    [
+      ["tenant", "save_score_model.tenant"],
+      ["key", "v_key"],
+      ["name", "v_name"],
+      ["description", "v_description"],
+      ["subjectType", "v_subject_type"],
+      ["rules", "v_rules"],
+      ["metrics", "v_metrics"],
+      ["bands", "v_bands"],
+      ["enabled", "v_enabled"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("models", column));
+
+  const versionInsert = (
+    [
+      ["model", `v_row.${m("id")}`],
+      ["version", `v_row.${m("version")}`],
+      ["tenant", `v_row.${m("tenant")}`],
+      ["rules", `v_row.${m("rules")}`],
+      ["metrics", `v_row.${m("metrics")}`],
+      ["bands", `v_row.${m("bands")}`],
+      ["savedBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("versions", column));
+
+  const scoreInsert = (
+    [
+      ["tenant", "compute_score.tenant"],
+      ["model", `v_model.${m("id")}`],
+      ["modelVersion", `v_model.${m("version")}`],
+      ["subjectType", "compute_score.subject_type"],
+      ["subjectId", "compute_score.subject_id"],
+      ["score", "v_total"],
+      ["band", "v_band"],
+      ["breakdown", "v_breakdown"],
+      ["computedAt", "clock_timestamp()"],
+    ] as const
+  ).filter(([column]) => ctx.has("scores", column));
 
   const modelRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -129,7 +177,7 @@ begin
   end if;
   v_key := coalesce(v_old.${m("key")}, model ->> 'key');
   v_name := coalesce(nullif(trim(model ->> 'name'), ''), v_old.${m("name")});
-  v_description := case when model ? 'description' then nullif(trim(model ->> 'description'), '') else v_old.${m("description")} end;
+  v_description := ${hasDescription ? `case when model ? 'description' then nullif(trim(model ->> 'description'), '') else v_old.${m("description")} end` : "null"};
   v_subject_type := coalesce(v_old.${m("subjectType")}, model ->> 'subjectType');
   v_rules := coalesce(model -> 'rules', v_old.${m("rules")}, '[]'::jsonb);
   v_metrics := coalesce(model -> 'metrics', v_old.${m("metrics")}, '[]'::jsonb);
@@ -191,28 +239,36 @@ begin
     if exists (select 1 from ${models} x where x.${m("tenant")} = save_score_model.tenant and x.${m("key")} = v_key) then
       ${fail("SCORES_MODEL_KEY_TAKEN", "a score model with this key already exists", "23505")}
     end if;
-    insert into ${models} (${m("tenant")}, ${m("key")}, ${m("name")}, ${m("description")}, ${m("subjectType")}, ${m("rules")}, ${m("metrics")}, ${m("bands")}, ${m("enabled")}, ${m("createdBy")})
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    insert into ${models} (${modelInsert.map(([column]) => m(column)).join(", ")})
+    values (${modelInsert.map(([, value]) => value).join(", ")})
     returning * into v_row;
-  elsif v_old.${m("name")} = v_name and v_old.${m("description")} is not distinct from v_description
+  elsif v_old.${m("name")} = v_name${hasDescription ? ` and v_old.${m("description")} is not distinct from v_description` : ""}
     and v_old.${m("rules")} = v_rules and v_old.${m("metrics")} = v_metrics
     and v_old.${m("bands")} = v_bands and v_old.${m("enabled")} = v_enabled then
     return ${modelJson("v_old")};
   else
     update ${models} x set
-      ${m("name")} = v_name,
-      ${m("description")} = v_description,
+      ${m("name")} = v_name,${
+        hasDescription
+          ? `
+      ${m("description")} = v_description,`
+          : ""
+      }
       ${m("rules")} = v_rules,
       ${m("metrics")} = v_metrics,
       ${m("bands")} = v_bands,
       ${m("enabled")} = v_enabled,
-      ${m("version")} = x.${m("version")} + case when x.${m("rules")} = v_rules and x.${m("metrics")} = v_metrics and x.${m("bands")} = v_bands then 0 else 1 end,
-      ${m("updatedAt")} = now()
+      ${m("version")} = x.${m("version")} + case when x.${m("rules")} = v_rules and x.${m("metrics")} = v_metrics and x.${m("bands")} = v_bands then 0 else 1 end${
+        ctx.has("models", "updatedAt")
+          ? `,
+      ${m("updatedAt")} = now()`
+          : ""
+      }
     where x.${m("id")} = v_old.${m("id")}
     returning * into v_row;
   end if;
-  insert into ${versions} (${v("model")}, ${v("version")}, ${v("tenant")}, ${v("rules")}, ${v("metrics")}, ${v("bands")}, ${v("savedBy")})
-  values (v_row.${m("id")}, v_row.${m("version")}, v_row.${m("tenant")}, v_row.${m("rules")}, v_row.${m("metrics")}, v_row.${m("bands")}, auth.uid())
+  insert into ${versions} (${versionInsert.map(([column]) => v(column)).join(", ")})
+  values (${versionInsert.map(([, value]) => value).join(", ")})
   on conflict do nothing;
   ${modelRecord("score_model.saved", "v_row", "saved score model")}
   return ${modelJson("v_row")};
@@ -258,7 +314,7 @@ begin
     return null;
   end if;
   return ${modelJson("v_row")} || jsonb_build_object('versions', coalesce((
-    select jsonb_agg(jsonb_build_object('version', y.${v("version")}, 'rules', y.${v("rules")}, 'metrics', y.${v("metrics")}, 'bands', y.${v("bands")}, 'savedBy', y.${v("savedBy")}, 'savedAt', y.${v("savedAt")}) order by y.${v("version")} desc)
+    select jsonb_agg(jsonb_build_object('version', y.${v("version")}, 'rules', y.${v("rules")}, 'metrics', y.${v("metrics")}, 'bands', y.${v("bands")}, 'savedBy', ${field("versions", "y", "savedBy")}, 'savedAt', ${field("versions", "y", "savedAt")}) order by y.${v("version")} desc)
     from ${versions} y where y.${v("model")} = v_row.${m("id")}
   ), '[]'::jsonb));
 end;
@@ -368,12 +424,12 @@ begin
     and x.${s("subjectId")} = compute_score.subject_id and x.${s("current")}
   for update;
   if found and v_current.${s("score")} = v_total and v_current.${s("band")} is not distinct from v_band
-    and v_current.${s("modelVersion")} = v_model.${m("version")} and v_current.${s("breakdown")} = v_breakdown then
+    and v_current.${s("modelVersion")} = v_model.${m("version")}${hasBreakdown ? ` and v_current.${s("breakdown")} = v_breakdown` : ""} then
     return ${scoreJson("v_current", `v_model.${m("key")}`)} || jsonb_build_object('changed', false);
   end if;
   update ${scores} x set ${s("current")} = false where x.${s("id")} = v_current.${s("id")};
-  insert into ${scores} (${s("tenant")}, ${s("model")}, ${s("modelVersion")}, ${s("subjectType")}, ${s("subjectId")}, ${s("score")}, ${s("band")}, ${s("breakdown")}, ${s("computedAt")})
-  values (compute_score.tenant, v_model.${m("id")}, v_model.${m("version")}, compute_score.subject_type, compute_score.subject_id, v_total, v_band, v_breakdown, clock_timestamp())
+  insert into ${scores} (${scoreInsert.map(([column]) => s(column)).join(", ")})
+  values (${scoreInsert.map(([, value]) => value).join(", ")})
   returning * into v_row;
   ${ctx.emit({
     type: "score.changed",

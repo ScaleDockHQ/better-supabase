@@ -1,6 +1,6 @@
 import type { InboxSql } from "./inbox-names.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { updatedAt, lockTable } from "../shared.ts";
 import { topics } from "./inbox-names.ts";
 
@@ -28,6 +28,38 @@ const policy = (table: string, name: string, using: string): string =>
 create policy ${name} on ${table} for select to authenticated
   using (${using});`;
 
+/** An optional column's line, followed by a comma, or nothing. */
+const line = (
+  q: InboxSql,
+  table: string,
+  column: string,
+  type: () => string,
+): string =>
+  q.has(table, column) ? `\n  ${q.cols(table)(column)} ${type()},` : "";
+
+/** An optional last column's line, after the comma it needs, or nothing. */
+const tail = (
+  q: InboxSql,
+  table: string,
+  column: string,
+  type: () => string,
+): string =>
+  q.has(table, column) ? `,\n  ${q.cols(table)(column)} ${type()}` : "";
+
+/**
+ * The unique index an `on conflict` target needs on the app's table, where the
+ * render drops the module's primary key and unique constraints.
+ */
+const unique = (
+  q: InboxSql,
+  table: string,
+  what: string,
+  columns: readonly string[],
+): string =>
+  q.ctx.owns(table)
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${q.ctx.tableName(table).name}_${what}_key`)} on ${q.t(table)} (${columns.map(q.cols(table)).join(", ")});`;
+
 /**
  * The inbox's own fields of a core message: its direction, who wrote it and the
  * channel's id for it. The message itself lives in the messaging core.
@@ -42,15 +74,12 @@ export function inboxDetailsDdl(q: InboxSql): string {
   ${dt("tenant")} ${q.id} not null,
   ${dt("conversation")} uuid not null references ${q.t("conversations")} (${cv("id")}) on delete cascade,
   ${dt("direction")} text not null check (${dt("direction")} in ('inbound', 'outbound')),
-  ${dt("authorType")} text not null check (${dt("authorType")} in ('contact', 'agent', 'bot', 'system')),
-  ${dt("format")} text not null default 'text' check (${dt("format")} in ('text', 'markdown')),
-  ${dt("externalId")} text,
-  ${dt("replyTo")} uuid,
-  ${dt("metadata")} jsonb not null default '{}'::jsonb
+  ${dt("authorType")} text not null check (${dt("authorType")} in ('contact', 'agent', 'bot', 'system')),${line(q, "details", "format", () => `text not null default 'text' check (${dt("format")} in ('text', 'markdown'))`)}
+  ${dt("externalId")} text${tail(q, "details", "replyTo", () => "uuid")}${tail(q, "details", "metadata", () => "jsonb not null default '{}'::jsonb")}
 );
 create unique index if not exists ${q.ctx.naming.rename("inbox_message_details_external_idx")} on ${table} (${dt("conversation")}, ${dt("externalId")}) where ${dt("externalId")} is not null;
 create index if not exists ${q.ctx.naming.rename("inbox_message_details_conversation_idx")} on ${table} (${dt("conversation")});
-create index if not exists ${q.ctx.naming.rename("inbox_message_details_reply_idx")} on ${table} (${dt("replyTo")}) where ${dt("replyTo")} is not null;`;
+${q.has("details", "replyTo") ? `create index if not exists ${q.ctx.naming.rename("inbox_message_details_reply_idx")} on ${table} (${dt("replyTo")}) where ${dt("replyTo")} is not null;` : ""}`;
 }
 
 /** Tables, indexes, grants and read policies. Writes go through functions. */
@@ -95,27 +124,20 @@ create table if not exists ${T.inboxes} (
   ${ib("id")} uuid primary key default gen_random_uuid(),
   ${ib("tenant")} ${id} not null,
   ${ib("name")} text not null check (length(${ib("name")}) between 1 and 200),
-  ${ib("channel")} text not null default 'in_app' check (${ib("channel")} in (${list(CHANNELS)})),
-  ${ib("address")} text,
-  ${ib("installation")} uuid,
-  ${ib("botMode")} text not null default 'human' check (${ib("botMode")} in (${botModes})),
-  ${ib("settings")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${ib("settings")}) = 'object'),
-  ${ib("createdAt")} timestamptz not null default now(),
-  ${ib("archivedAt")} timestamptz
+  ${ib("channel")} text not null default 'in_app' check (${ib("channel")} in (${list(CHANNELS)})),${line(q, "inboxes", "address", () => "text")}${line(q, "inboxes", "installation", () => "uuid")}
+  ${ib("botMode")} text not null default 'human' check (${ib("botMode")} in (${botModes}))${tail(q, "inboxes", "settings", () => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${ib("settings")}) = 'object')`)}${tail(q, "inboxes", "createdAt", () => "timestamptz not null default now()")}${tail(q, "inboxes", "archivedAt", () => "timestamptz")}
 );
 create index if not exists ${q.ctx.naming.rename("inboxes_tenant_idx")} on ${T.inboxes} (${ib("tenant")});
-create unique index if not exists ${q.ctx.naming.rename("inboxes_address_idx")} on ${T.inboxes} (${ib("channel")}, ${ib("address")}) where ${ib("address")} is not null and ${ib("archivedAt")} is null;
-${updatedAt(T.inboxes, ib("updatedAt"))}
+${q.has("inboxes", "address") ? `create unique index if not exists ${q.ctx.naming.rename("inboxes_address_idx")} on ${T.inboxes} (${ib("channel")}, ${ib("address")}) where ${ib("address")} is not null${q.has("inboxes", "archivedAt") ? ` and ${ib("archivedAt")} is null` : ""};\n` : ""}${updatedAt(T.inboxes, ib("updatedAt"))}
 ${lockTable(T.inboxes, { read: true })}
 ${policy(T.inboxes, q.ctx.naming.rename("inboxes_staff_read"), q.staff(ib("tenant")))}
 
 create table if not exists ${T.members} (
   ${mb("inbox")} uuid not null references ${T.inboxes} (${ib("id")}) on delete cascade,
   ${mb("user")} uuid not null references auth.users (id) on delete cascade,
-  ${mb("role")} text not null default 'agent' check (${mb("role")} in ('agent', 'lead')),
-  ${mb("createdAt")} timestamptz not null default now(),
+  ${mb("role")} text not null default 'agent' check (${mb("role")} in ('agent', 'lead')),${line(q, "members", "createdAt", () => "timestamptz not null default now()")}
   primary key (${mb("inbox")}, ${mb("user")})
-);
+);${unique(q, "members", "user", ["inbox", "user"])}
 create index if not exists ${q.ctx.naming.rename("inbox_members_user_idx")} on ${T.members} (${mb("user")});
 ${lockTable(T.members, { read: true })}
 ${policy(T.members, q.ctx.naming.rename("inbox_members_staff_read"), `exists (select 1 from ${T.inboxes} i where i.${ib("id")} = ${mb("inbox")} and ${q.staff(`i.${ib("tenant")}`)})`)}
@@ -126,8 +148,7 @@ ${
     : `create table if not exists ${T.teams} (
   ${tm("id")} uuid primary key default gen_random_uuid(),
   ${tm("tenant")} ${id} not null,
-  ${tm("name")} text not null check (length(${tm("name")}) between 1 and 200),
-  ${tm("createdAt")} timestamptz not null default now(),
+  ${tm("name")} text not null check (length(${tm("name")}) between 1 and 200),${line(q, "teams", "createdAt", () => "timestamptz not null default now()")}
   unique (${tm("tenant")}, ${tm("name")})
 );
 ${lockTable(T.teams, { read: true })}
@@ -135,10 +156,9 @@ ${policy(T.teams, q.ctx.naming.rename("inbox_teams_staff_read"), q.staff(tm("ten
 
 create table if not exists ${T.teamMembers} (
   ${tmm("team")} uuid not null references ${T.teams} (${tm("id")}) on delete cascade,
-  ${tmm("user")} uuid not null references auth.users (id) on delete cascade,
-  ${tmm("createdAt")} timestamptz not null default now(),
+  ${tmm("user")} uuid not null references auth.users (id) on delete cascade,${line(q, "teamMembers", "createdAt", () => "timestamptz not null default now()")}
   primary key (${tmm("team")}, ${tmm("user")})
-);
+);${unique(q, "teamMembers", "user", ["team", "user"])}
 create index if not exists inbox_team_members_user_idx on ${T.teamMembers} (${tmm("user")});
 ${lockTable(T.teamMembers, { read: true })}
 ${policy(T.teamMembers, q.ctx.naming.rename("inbox_team_members_staff_read"), `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}`
@@ -149,17 +169,10 @@ ${policy(T.teamMembers, q.ctx.naming.rename("inbox_team_members_staff_read"), `e
 create table if not exists ${T.contacts} (
   ${ct("id")} uuid primary key default gen_random_uuid(),
   ${ct("tenant")} ${id} not null,
-  ${ct("user")} uuid references auth.users (id) on delete set null,
-  ${ct("name")} text check (length(${ct("name")}) <= 200),
-  ${ct("email")} text check (length(${ct("email")}) <= 320),
-  ${ct("phone")} text check (length(${ct("phone")}) <= 50),
-  ${ct("avatarUrl")} text,
-  ${ct("metadata")} jsonb not null default '{}'::jsonb,
-  ${ct("createdAt")} timestamptz not null default now()
+  ${ct("user")} uuid references auth.users (id) on delete set null${tail(q, "contacts", "name", () => `text check (length(${ct("name")}) <= 200)`)}${tail(q, "contacts", "email", () => `text check (length(${ct("email")}) <= 320)`)}${tail(q, "contacts", "phone", () => `text check (length(${ct("phone")}) <= 50)`)}${tail(q, "contacts", "avatarUrl", () => "text")}${tail(q, "contacts", "metadata", () => "jsonb not null default '{}'::jsonb")}${tail(q, "contacts", "createdAt", () => "timestamptz not null default now()")}
 );
 create unique index if not exists contacts_user_idx on ${T.contacts} (${ct("tenant")}, ${ct("user")}) where ${ct("user")} is not null;
-create index if not exists contacts_email_idx on ${T.contacts} (${ct("tenant")}, lower(${ct("email")}));
-create index if not exists contacts_user_id_idx on ${T.contacts} (${ct("user")});
+${q.has("contacts", "email") ? `create index if not exists contacts_email_idx on ${T.contacts} (${ct("tenant")}, lower(${ct("email")}));\n` : ""}create index if not exists contacts_user_id_idx on ${T.contacts} (${ct("user")});
 ${updatedAt(T.contacts, ct("updatedAt"))}
 ${lockTable(T.contacts, { read: true })}
 ${policy(T.contacts, q.ctx.naming.rename("contacts_read"), `${q.staff(ct("tenant"))} or ${ct("user")} = (select auth.uid())`)}
@@ -170,10 +183,9 @@ create table if not exists ${T.identities} (
   ${ci("tenant")} ${id} not null,
   ${ci("contact")} uuid not null references ${T.contacts} (${ct("id")}) on delete cascade,
   ${ci("channel")} text not null check (length(${ci("channel")}) between 1 and 50),
-  ${ci("externalId")} text not null check (length(${ci("externalId")}) between 1 and 500),
-  ${ci("createdAt")} timestamptz not null default now(),
+  ${ci("externalId")} text not null check (length(${ci("externalId")}) between 1 and 500),${line(q, "identities", "createdAt", () => "timestamptz not null default now()")}
   unique (${ci("tenant")}, ${ci("channel")}, ${ci("externalId")})
-);
+);${unique(q, "identities", "external", ["tenant", "channel", "externalId"])}
 create index if not exists contact_identities_contact_idx on ${T.identities} (${ci("contact")});
 ${lockTable(T.identities, { read: true })}
 ${policy(T.identities, q.ctx.naming.rename("contact_identities_staff_read"), q.staff(ci("tenant")))}
@@ -186,20 +198,14 @@ create table if not exists ${T.conversations} (
   ${cv("id")} uuid primary key,
   ${cv("tenant")} ${id} not null,
   ${cv("inbox")} uuid not null references ${T.inboxes} (${ib("id")}) on delete cascade,
-  ${cv("contact")} uuid not null references ${T.contacts} (${ct("id")}) on delete cascade,
-  ${cv("subject")} text check (length(${cv("subject")}) <= 500),
-  ${cv("status")} text not null default 'open' check (${cv("status")} in ('open', 'pending', 'snoozed', 'resolved')),
-  ${cv("priority")} text not null default 'normal' check (${cv("priority")} in ('low', 'normal', 'high', 'urgent')),
+  ${cv("contact")} uuid not null references ${T.contacts} (${ct("id")}) on delete cascade,${line(q, "conversations", "subject", () => `text check (length(${cv("subject")}) <= 500)`)}
+  ${cv("status")} text not null default 'open' check (${cv("status")} in ('open', 'pending', 'snoozed', 'resolved')),${line(q, "conversations", "priority", () => `text not null default 'normal' check (${cv("priority")} in ('low', 'normal', 'high', 'urgent'))`)}
   ${cv("assignee")} uuid references auth.users (id) on delete set null,
   ${cv("team")} uuid${sharedTeams ? "" : ` references ${T.teams} (${tm("id")}) on delete set null`},
   ${cv("botMode")} text not null default 'human' check (${cv("botMode")} in (${botModes})),
   ${cv("thread")} text,
   ${cv("snoozedUntil")} timestamptz,
-  ${cv("lastMessageAt")} timestamptz not null default now(),
-  ${cv("preview")} text,
-  ${cv("firstResponseAt")} timestamptz,
-  ${cv("resolvedAt")} timestamptz,
-  ${cv("metadata")} jsonb not null default '{}'::jsonb,
+  ${cv("lastMessageAt")} timestamptz not null default now(),${line(q, "conversations", "preview", () => "text")}${line(q, "conversations", "firstResponseAt", () => "timestamptz")}${line(q, "conversations", "resolvedAt", () => "timestamptz")}${line(q, "conversations", "metadata", () => "jsonb not null default '{}'::jsonb")}
   ${cv("createdAt")} timestamptz not null default now()
 );
 create unique index if not exists conversations_thread_idx on ${T.conversations} (${cv("inbox")}, ${cv("thread")}) where ${cv("thread")} is not null;
@@ -216,14 +222,11 @@ create table if not exists ${T.events} (
   ${ev("id")} bigint generated always as identity primary key,
   ${ev("tenant")} ${id} not null,
   ${ev("conversation")} uuid not null references ${T.conversations} (${cv("id")}) on delete cascade,
-  ${ev("type")} text not null check (${ev("type")} ~ '^[a-z][a-z0-9_]{0,40}$'),
-  ${ev("actor")} uuid references auth.users (id) on delete set null,
-  ${ev("data")} jsonb not null default '{}'::jsonb,
+  ${ev("type")} text not null check (${ev("type")} ~ '^[a-z][a-z0-9_]{0,40}$'),${line(q, "events", "actor", () => "uuid references auth.users (id) on delete set null")}${line(q, "events", "data", () => "jsonb not null default '{}'::jsonb")}
   ${ev("createdAt")} timestamptz not null default clock_timestamp()
 );
 create index if not exists conversation_events_conversation_idx on ${T.events} (${ev("conversation")}, ${ev("id")});
-create index if not exists conversation_events_actor_idx on ${T.events} (${ev("actor")});
-${lockTable(T.events, { read: true })}
+${q.has("events", "actor") ? `create index if not exists conversation_events_actor_idx on ${T.events} (${ev("actor")});\n` : ""}${lockTable(T.events, { read: true })}
 ${policy(T.events, q.ctx.naming.rename("conversation_events_staff_read"), q.staff(ev("tenant")))}
 
 ${inboxDetailsDdl(q)}
@@ -238,12 +241,10 @@ create table if not exists ${T.deliveries} (
   ${dl("message")} uuid not null references ${T.details} (${dt("message")}) on delete cascade,
   ${dl("channel")} text not null,
   ${dl("status")} text not null default 'queued' check (${dl("status")} in ('queued', 'sent', 'delivered', 'read', 'failed')),
-  ${dl("externalId")} text,
-  ${dl("error")} text,
-  ${dl("attempts")} integer not null default 0,
+  ${dl("externalId")} text,${line(q, "deliveries", "error", () => "text")}${line(q, "deliveries", "attempts", () => "integer not null default 0")}
   ${dl("createdAt")} timestamptz not null default now(),
   unique (${dl("message")}, ${dl("channel")})
-);
+);${unique(q, "deliveries", "channel", ["message", "channel"])}
 create index if not exists message_deliveries_external_idx on ${T.deliveries} (${dl("channel")}, ${dl("externalId")}) where ${dl("externalId")} is not null;
 ${updatedAt(T.deliveries, dl("updatedAt"))}
 ${lockTable(T.deliveries, { read: true })}
@@ -259,11 +260,9 @@ create table if not exists ${T.inbound} (
   ${ie("inbox")} uuid references ${T.inboxes} (${ib("id")}) on delete set null,
   ${ie("headers")} jsonb not null default '{}'::jsonb,
   ${ie("body")} text not null,
-  ${ie("status")} text not null default 'received' check (${ie("status")} in ('received', 'processed', 'ignored', 'failed')),
-  ${ie("error")} text,
+  ${ie("status")} text not null default 'received' check (${ie("status")} in ('received', 'processed', 'ignored', 'failed')),${line(q, "inbound", "error", () => "text")}
   ${ie("attempts")} integer not null default 0,
-  ${ie("receivedAt")} timestamptz not null default now(),
-  ${ie("processedAt")} timestamptz
+  ${ie("receivedAt")} timestamptz not null default now()${tail(q, "inbound", "processedAt", () => "timestamptz")}
 );
 create unique index if not exists inbound_events_external_idx on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
 create index if not exists inbound_events_status_idx on ${T.inbound} (${ie("status")}, ${ie("receivedAt")});
@@ -279,12 +278,10 @@ create table if not exists ${T.templates} (
   ${tp("name")} text not null check (length(${tp("name")}) between 1 and 200),
   ${tp("channel")} text not null,
   ${tp("language")} text not null default 'en',
-  ${tp("body")} text not null,
-  ${tp("variables")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${tp("variables")}) = 'array'),
-  ${tp("externalId")} text,
+  ${tp("body")} text not null,${line(q, "templates", "variables", () => `jsonb not null default '[]'::jsonb check (jsonb_typeof(${tp("variables")}) = 'array')`)}${line(q, "templates", "externalId", () => "text")}
   ${tp("createdAt")} timestamptz not null default now(),
   unique (${tp("tenant")}, ${tp("channel")}, ${tp("name")}, ${tp("language")})
-);
+);${unique(q, "templates", "name", ["tenant", "channel", "name", "language"])}
 create index if not exists ${q.ctx.naming.rename("message_templates_inbox_idx")} on ${T.templates} (${tp("inbox")});
 ${updatedAt(T.templates, tp("updatedAt"))}
 ${lockTable(T.templates, { read: true })}
@@ -299,8 +296,7 @@ create table if not exists ${T.scheduled} (
   ${sm("conversation")} uuid not null references ${T.conversations} (${cv("id")}) on delete cascade,
   ${sm("author")} uuid not null references auth.users (id) on delete cascade,
   ${sm("input")} jsonb not null check (jsonb_typeof(${sm("input")}) = 'object'),
-  ${sm("scheduledFor")} timestamptz not null,
-  ${sm("createdAt")} timestamptz not null default now()
+  ${sm("scheduledFor")} timestamptz not null${tail(q, "scheduled", "createdAt", () => "timestamptz not null default now()")}
 );
 create index if not exists ${q.ctx.naming.rename("scheduled_inbox_messages_due_idx")} on ${T.scheduled} (${sm("scheduledFor")});
 create index if not exists ${q.ctx.naming.rename("scheduled_inbox_messages_conversation_idx")} on ${T.scheduled} (${sm("conversation")});

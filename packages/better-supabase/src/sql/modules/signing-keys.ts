@@ -46,6 +46,9 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         retiredAt: "retired_at",
       },
+      app: {},
+      optional: ["createdAt", "retiredAt"],
+      typed: ["alg", "state"],
     },
   },
 };
@@ -85,6 +88,11 @@ function build(ctx: BlockSqlContext): string {
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);
   const grace = ctx.text("jwksGrace", "5 minutes");
+  const created = ctx.has("keys", "createdAt");
+
+  const retire = `${c("state")} = ${ctx.cast("keys", "state", "'retired'")}${
+    ctx.has("keys", "retiredAt") ? `, ${c("retiredAt")} = now()` : ""
+  }`;
 
   const published = (alias: string): string =>
     `(${alias}.${c("state")} = 'active' or ${alias}.${c("publishUntil")} + coalesce(grace, ${sqlString(grace)}::interval) > now())`;
@@ -102,12 +110,10 @@ create table if not exists ${t} (
   ${c("publicJwk")} jsonb not null check (not (${c("publicJwk")} ? 'd')),
   ${c("vaultId")} uuid not null,
   ${c("state")} text not null default 'active' check (${c("state")} in ('active', 'retired')),
-  ${c("publishUntil")} timestamptz,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("retiredAt")} timestamptz
+  ${c("publishUntil")} timestamptz${created ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${ctx.has("keys", "retiredAt") ? `,\n  ${c("retiredAt")} timestamptz` : ""}
 );
 create unique index if not exists signing_keys_active_idx on ${t} (${c("ownerType")}, ${c("ownerId")}) where ${c("state")} = 'active';
-create index if not exists signing_keys_owner_idx on ${t} (${c("ownerType")}, ${c("ownerId")}, ${c("createdAt")} desc);
+create index if not exists signing_keys_owner_idx on ${t} (${c("ownerType")}, ${c("ownerId")}${created ? `, ${c("createdAt")} desc` : ""});
 ${lockTable(t)}
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
@@ -128,7 +134,7 @@ begin${guard}
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     'bs:signing:' || add_signing_key.owner_type || ':' || add_signing_key.owner_id, 0));
-  update ${t} k set ${c("state")} = 'retired', ${c("retiredAt")} = now()
+  update ${t} k set ${retire}
   where k.${c("ownerType")} = add_signing_key.owner_type
     and k.${c("ownerId")} = add_signing_key.owner_id
     and k.${c("state")} = 'active'
@@ -139,7 +145,7 @@ begin${guard}
     'better-supabase signing key'
   );
   insert into ${t} (${c("ownerType")}, ${c("ownerId")}, ${c("kid")}, ${c("alg")}, ${c("publicJwk")}, ${c("vaultId")})
-  values (add_signing_key.owner_type, add_signing_key.owner_id, add_signing_key.kid, add_signing_key.alg,
+  values (add_signing_key.owner_type, add_signing_key.owner_id, add_signing_key.kid, ${ctx.cast("keys", "alg", "add_signing_key.alg")},
     add_signing_key.public_jwk, v_vault)
   returning * into v_row;
   if v_old.${c("kid")} is not null then
@@ -198,7 +204,7 @@ as $$
 declare
   v_row ${t};
 begin${guard}
-  update ${t} k set ${c("state")} = 'retired', ${c("retiredAt")} = now()
+  update ${t} k set ${retire}
   where k.${c("kid")} = retire_signing_key.kid and k.${c("state")} = 'active'
   returning k.* into v_row;
   if v_row.${c("kid")} is null then
@@ -220,8 +226,9 @@ set search_path = ''
 as $$
 begin${guard}
   return jsonb_build_object('keys', coalesce((
-    select jsonb_agg(k.${c("publicJwk")} || jsonb_build_object('kid', k.${c("kid")}, 'use', 'sig')
-      order by k.${c("createdAt")} desc)
+    select jsonb_agg(k.${c("publicJwk")} || jsonb_build_object('kid', k.${c("kid")}, 'use', 'sig')${
+      created ? `\n      order by k.${c("createdAt")} desc` : ""
+    })
     from ${t} k
     where k.${c("ownerType")} = signing_jwks.owner_type
       and k.${c("ownerId")} = signing_jwks.owner_id

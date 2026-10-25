@@ -8,15 +8,11 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const LEASE_PAYLOAD = [
@@ -72,6 +68,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     leases: {
       name: "lease_agreements",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -96,9 +93,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["renewedAt", "terminationReason", "metadata"],
+      typed: ["status", "frequency"],
     },
     charges: {
       name: "lease_charges",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -111,6 +111,7 @@ const NAMES: BlockSqlNames = {
         transaction: "transaction_id",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
   },
 };
@@ -132,6 +133,16 @@ function tables(ctx: BlockSqlContext): string {
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
   return `
 create table if not exists ${leases} (
   ${l("id")} uuid primary key default gen_random_uuid(),
@@ -151,11 +162,8 @@ create table if not exists ${leases} (
   ${l("frequency")} text not null default 'monthly' check (${l("frequency")} in ('weekly', 'monthly', 'quarterly', 'yearly')),
   ${l("deposit")} bigint not null default 0 check (${l("deposit")} >= 0),
   -- The ledger hold that keeps the deposit aside while the lease runs.
-  ${l("depositHold")} uuid,
-  ${l("renewedAt")} timestamptz,
-  ${l("terminatedOn")} date,
-  ${l("terminationReason")} text check (${l("terminationReason")} is null or length(${l("terminationReason")}) <= 2000),
-  ${l("metadata")} jsonb not null default '{}'::jsonb,
+  ${l("depositHold")} uuid,${column("leases", "renewedAt", (name) => `${name} timestamptz`)}
+  ${l("terminatedOn")} date,${column("leases", "terminationReason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}${column("leases", "metadata", (name) => `${name} jsonb not null default '{}'::jsonb`)}
   ${l("createdBy")} uuid,
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
@@ -165,7 +173,7 @@ create index if not exists ${index("leases", "tenant_idx")} on ${leases} (${l("t
 create index if not exists ${index("leases", "unit_idx")} on ${leases} (${l("unit")});
 create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("tenant")}, ${l("partyType")}, ${l("partyId")});
 create index if not exists ${index("leases", "deposit_hold_idx")} on ${leases} (${l("depositHold")}) where ${l("depositHold")} is not null;
-${lockTable(leases, { read: true })}
+${lockModuleTable(ctx, "leases", { read: true })}
 drop policy if exists ${index("leases", "read")} on ${leases};
 create policy ${index("leases", "read")} on ${leases} for select to authenticated
   using (${ctx.scope.check(l("tenant"), read)});
@@ -179,14 +187,13 @@ create table if not exists ${charges} (
   ${c("periodEnd")} date not null,
   ${c("amount")} bigint not null check (${c("amount")} > 0),
   ${c("currency")} char(3) not null,
-  ${c("transaction")} uuid not null,
-  ${c("createdAt")} timestamptz not null default now(),
+  ${c("transaction")} uuid not null,${column("charges", "createdAt", (name) => `${name} timestamptz not null default now()`)}
   unique (${c("lease")}, ${c("periodStart")}),
   check (${c("periodEnd")} > ${c("periodStart")})
-);
+);${appUniqueIndex(ctx, "charges", ["lease", "periodStart"])}
 create index if not exists ${index("charges", "tenant_idx")} on ${charges} (${c("tenant")}, ${c("periodStart")} desc);
 create index if not exists ${index("charges", "transaction_idx")} on ${charges} (${c("transaction")});
-${lockTable(charges, { read: true })}
+${lockModuleTable(ctx, "charges", { read: true })}
 drop policy if exists ${index("charges", "read")} on ${charges};
 create policy ${index("charges", "read")} on ${charges} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});

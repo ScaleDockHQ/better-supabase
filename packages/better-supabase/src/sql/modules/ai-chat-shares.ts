@@ -5,17 +5,60 @@ import { fail, sha256Hex, userGrant } from "../shared.ts";
 import { AI_TOOL_SUBJECT } from "./ai-chat-extras.ts";
 import { liveShareLink } from "./share-links.ts";
 
+/** The chats table as the share-links SQL in `target` reads it. */
+interface ChatsRef {
+  readonly table: string;
+  readonly id: string;
+  readonly tenant: string;
+  readonly owner: string;
+  readonly leaf: string;
+  readonly title: string;
+  readonly model: string;
+  readonly createdAt: string;
+}
+
+function chatsRef(own: BlockSqlContext, target: BlockSqlContext): ChatsRef {
+  if (own.owns("chats")) {
+    return {
+      table: `${target.schema}.ai_chats`,
+      id: "id",
+      tenant: target.naming.rename("organization_id"),
+      owner: "owner_id",
+      leaf: "current_leaf_id",
+      title: "title",
+      model: "model",
+      createdAt: "created_at",
+    };
+  }
+
+  const col = (column: string): string => own.col("chats", column);
+
+  return {
+    table: own.table("chats"),
+    id: col("id"),
+    tenant: col("tenant"),
+    owner: col("owner"),
+    leaf: col("leaf"),
+    title: col("title"),
+    model: col("model"),
+    createdAt: own.has("chats", "createdAt") ? col("createdAt") : "null",
+  };
+}
+
 /**
  * Ai-chat sharing on the share-links block in `ctx`: the old functions stay
  * callable and write share links instead of ai_chat_shares.
  */
-function aiChatShareSql(ctx: BlockSqlContext): string {
+function aiChatShareSql(ctx: BlockSqlContext, own: BlockSqlContext): string {
   const links = ctx.table("links");
+  const c = chatsRef(own, ctx);
 
   return `
 -- ai-chat sharing is this block. The old functions stay callable and write
 -- share_links instead of ai_chat_shares.
-do $$
+${
+  own.owns("chats") && own.owns("shares")
+    ? `do $$
 begin
   if to_regclass('${ctx.schema}.ai_chat_shares') is not null then
     insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
@@ -26,7 +69,9 @@ begin
   end if;
 end;
 $$;
-create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
+`
+    : ""
+}create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
 returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -36,8 +81,8 @@ declare
   v_token text := encode(extensions.gen_random_bytes(32), 'hex');
   v_id uuid;
 begin
-  select ${ctx.naming.rename("organization_id")}, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
-  from ${ctx.schema}.ai_chats where id = share_ai_chat.chat;
+  select ${c.tenant}, ${c.owner}, ${c.leaf} into v_tenant, v_owner, v_leaf
+  from ${c.table} where ${c.id} = share_ai_chat.chat;
   if not found or v_owner is distinct from auth.uid() then
     ${fail("AI_CHAT_NOT_FOUND", "no chat", "P0002")}
   end if;
@@ -82,11 +127,11 @@ begin
   end if;
   v_chat_id := v_subject::uuid;
   -- The chat must still live in the tenant the link was created in.
-  if not exists (select 1 from ${ctx.schema}.ai_chats where id = v_chat_id and ${ctx.naming.rename("organization_id")}::text = v_tenant) then
+  if not exists (select 1 from ${c.table} where ${c.id} = v_chat_id and ${c.tenant}::text = v_tenant) then
     return null;
   end if;
   return jsonb_build_object(
-    'chat', (select jsonb_build_object('id', id, 'title', title, 'model', model, 'created_at', created_at) from ${ctx.schema}.ai_chats where id = v_chat_id),
+    'chat', (select jsonb_build_object('id', ${c.id}, 'title', ${c.title}, 'model', ${c.model}, 'created_at', ${c.createdAt}) from ${c.table} where ${c.id} = v_chat_id),
     'leaf_id', v_leaf,
     'messages', ${ctx.fn("ai_message_path_of")}(v_chat_id, v_leaf, false)
   );
@@ -97,14 +142,18 @@ $$;
 
 /** What ai-chat adds to approvals and share-links. */
 export const AI_CHAT_CONTRIBUTES: BlockContributes = {
-  "share-links": (_own, target) => [
-    {
-      subject: "ai-chat",
-      exists: ({ id, tenant }) =>
-        `exists (select 1 from ${target.schema}.ai_chats s where s.id::text = ${id} and s.${target.naming.rename("organization_id")}::text = ${tenant}::text and s.owner_id = auth.uid())`,
-      sql: aiChatShareSql(target),
-    },
-  ],
+  "share-links": (own, target) => {
+    const c = chatsRef(own, target);
+
+    return [
+      {
+        subject: "ai-chat",
+        exists: ({ id, tenant }) =>
+          `exists (select 1 from ${c.table} s where s.${c.id}::text = ${id} and s.${c.tenant}::text = ${tenant}::text and s.${c.owner} = auth.uid())`,
+        sql: aiChatShareSql(target, own),
+      },
+    ];
+  },
   approvals: (own) => [
     {
       subject: AI_TOOL_SUBJECT,

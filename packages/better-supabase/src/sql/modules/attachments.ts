@@ -1,9 +1,4 @@
-import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
@@ -27,6 +22,13 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import {
+  attachmentInsertDefaults,
+  columnOrNull,
+  namedRowJson,
+  scanColumns,
+  statusFrom,
+} from "./attachments-app.ts";
+import {
   BUCKET,
   bucketInsert,
   bucketOptions,
@@ -36,6 +38,7 @@ import {
   ATTACHMENTS_CONTRIBUTES,
   attachmentsContract,
 } from "./attachments-contract.ts";
+import { NAMES, RESERVED } from "./attachments-names.ts";
 import {
   attachmentsOfflineSql,
   attachmentsOnlineSql,
@@ -44,143 +47,6 @@ import { pathExpression, pathTemplate } from "./attachments-path.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 import { moduleOperations } from "./permissions-model.ts";
-
-const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
-  "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
-  "attachment.uploaded": {
-    subject: "attachments",
-    payload: [
-      "attachmentId",
-      "organizationId",
-      "subjectType",
-      "subjectId",
-      "uploadedBy",
-      "mimeType",
-      "size",
-    ],
-  },
-  "attachment.scanned": {
-    subject: "attachments",
-    payload: ["attachmentId", "organizationId", "status", "uploadedBy"],
-    retries: true,
-  },
-  "attachment.replaced": {
-    subject: "attachments",
-    payload: [
-      "attachmentId",
-      "organizationId",
-      "subjectType",
-      "subjectId",
-      "uploadedBy",
-      "version",
-    ],
-  },
-  "attachment.restored": {
-    subject: "attachments",
-    payload: [
-      "attachmentId",
-      "organizationId",
-      "subjectType",
-      "subjectId",
-      "version",
-    ],
-  },
-};
-
-/** The keys the attachment reads return next to the extra columns. */
-const RESERVED = ["fields"] as const;
-
-const NAMES: BlockSqlNames = {
-  entities: {
-    attachment: { table: "attachments", singular: "attachment", primary: true },
-  },
-  events: EVENTS,
-  options: [
-    "bucket",
-    "requireScan",
-    "maxSize",
-    "allowedMimeTypes",
-    "path",
-    "scanBuckets",
-    "publicBuckets",
-    "offline",
-    "extraColumns",
-  ],
-  tables: {
-    attachments: {
-      name: "attachments",
-      lifecycle: { user: "uploadedBy", tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        subjectType: "subject_type",
-        subjectId: "subject_id",
-        bucket: "bucket",
-        path: "object_path",
-        name: "name",
-        mimeType: "mime_type",
-        size: "size",
-        status: "status",
-        detail: "scan_detail",
-        uploadedBy: "uploaded_by",
-        createdAt: "created_at",
-        uploadedAt: "uploaded_at",
-        scannedAt: "scanned_at",
-        metadata: "metadata",
-        version: "version",
-        width: "width",
-        height: "height",
-        pages: "pages",
-      },
-      optional: ["metadata"],
-    },
-    versions: {
-      name: "attachment_versions",
-      lifecycle: { user: "uploadedBy", tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        attachment: "attachment_id",
-        version: "version",
-        bucket: "bucket",
-        path: "object_path",
-        name: "name",
-        mimeType: "mime_type",
-        size: "size",
-        width: "width",
-        height: "height",
-        pages: "pages",
-        status: "status",
-        detail: "scan_detail",
-        uploadedBy: "uploaded_by",
-        uploadedAt: "uploaded_at",
-        scannedAt: "scanned_at",
-        archivedAt: "archived_at",
-      },
-    },
-    scans: {
-      name: "scanned_objects",
-      columns: {
-        bucket: "bucket",
-        path: "object_path",
-        status: "status",
-        detail: "scan_detail",
-        createdAt: "created_at",
-        scannedAt: "scanned_at",
-      },
-    },
-    cleanup: {
-      name: "attachment_cleanup",
-      columns: {
-        bucket: "bucket",
-        path: "path",
-        queuedBy: "queued_by",
-        queuedAt: "queued_at",
-        attempts: "attempts",
-      },
-    },
-  },
-};
 
 const isText = (value: unknown): value is string => typeof value === "string";
 
@@ -265,7 +131,15 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   // The row as JSON, with object_path set to the current version's path.
   const rowJson = (row: string): string =>
-    `(to_jsonb(${row}) || jsonb_build_object(${pathKey}, ${current(row)}))`;
+    ctx.owns("attachments")
+      ? `(to_jsonb(${row}) || jsonb_build_object(${pathKey}, ${current(row)}))`
+      : namedRowJson(ctx, "attachments", row, { path: current(row) });
+
+  const has = (logical: string): boolean => ctx.has("attachments", logical);
+  const sizes = ["width", "height", "pages"].filter(has);
+
+  const or = (logical: string, row: string): string =>
+    columnOrNull(ctx, "attachments", row, logical);
 
   const permissions = moduleOperations("attachments");
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
@@ -389,9 +263,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     c("subjectType"),
     c("subjectId"),
     ...(metadata ? [c("metadata")] : []),
-    c("width"),
-    c("height"),
-    c("pages"),
+    ...sizes.map(c),
   ];
 
   const createWithExtras = `
@@ -411,10 +283,7 @@ begin
   v_row.${c("size")} := create_attachment.size;
   v_row.${c("subjectType")} := create_attachment.subject_type;
   v_row.${c("subjectId")} := create_attachment.subject_id;${metadata ? `\n  v_row.${c("metadata")} := coalesce(create_attachment.metadata, '{}');` : ""}
-  v_row.${c("width")} := create_attachment.width;
-  v_row.${c("height")} := create_attachment.height;
-  v_row.${c("pages")} := create_attachment.pages;
-  select string_agg(column_name, ', ')
+${sizes.map((logical) => `  v_row.${c(logical)} := create_attachment.${logical};\n`).join("")}  select string_agg(column_name, ', ')
   into v_columns
   from unnest(array[${insertColumns.map((column) => sqlString(column)).join(", ")}]
     || array(select quote_ident(k) from jsonb_object_keys(coalesce(create_attachment.fields, '{}'::jsonb)) as k
@@ -464,6 +333,15 @@ end;`;
   const scans = ctx.table("scans");
   const sc = (logical: string): string => ctx.col("scans", logical);
   const scanBuckets = scanBucketsOf(ctx);
+
+  const {
+    detail: scanDetail,
+    set: scanSet,
+    pending: scanPending,
+    json: scanJson,
+  } = scanColumns(ctx);
+
+  const insertDefaults = attachmentInsertDefaults(ctx);
 
   const objectUploaded = ctx.record({
     type: "object.uploaded",
@@ -541,20 +419,20 @@ create table if not exists ${t} (
   ${c("name")} text not null check (length(${c("name")}) between 1 and 255),
   ${c("mimeType")} text not null check (${c("mimeType")} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   ${c("size")} bigint not null,
-  ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'clean', 'infected', 'failed')),
-  ${c("detail")} text,
+  ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'clean', 'infected', 'failed')),${has("detail") ? `\n  ${c("detail")} text,` : ""}
   ${c("uploadedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
   ${c("createdAt")} timestamptz not null default clock_timestamp(),
-  ${c("uploadedAt")} timestamptz,
-  ${c("scannedAt")} timestamptz,
+  ${c("uploadedAt")} timestamptz,${has("scannedAt") ? `\n  ${c("scannedAt")} timestamptz,` : ""}
   check ((${c("subjectType")} is null) = (${c("subjectId")} is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table ${t} add column if not exists ${c("version")} integer not null default 1 check (${c("version")} >= 1);
-alter table ${t} add column if not exists ${c("width")} integer check (${c("width")} > 0);
-alter table ${t} add column if not exists ${c("height")} integer check (${c("height")} > 0);
-alter table ${t} add column if not exists ${c("pages")} integer check (${c("pages")} > 0);${
+alter table ${t} add column if not exists ${c("version")} integer not null default 1 check (${c("version")} >= 1);${sizes
+    .map(
+      (logical) =>
+        `\nalter table ${t} add column if not exists ${c(logical)} integer check (${c(logical)} > 0);`,
+    )
+    .join("")}${
     metadata
       ? `
 -- App data about the file (a caption, the source, a page count), set on create.
@@ -562,7 +440,9 @@ alter table ${t} add column if not exists ${c("metadata")} jsonb not null defaul
       : ""
   }
 -- The bucket, size limit and MIME types come from the module options, so a
--- re-run applies changed options to an existing table.
+-- re-run applies changed options to an existing table.${
+    ctx.owns("attachments")
+      ? `
 -- options.path: the column comment records the template the expression was
 -- built from, so a changed template rewrites the column (Postgres 17+).
 do $$
@@ -579,15 +459,16 @@ begin
     execute ${sqlString(`alter table ${t} alter column ${c("path")} set expression as (${pathExpression(ctx, tenantless.length > 0)})`)};
   end if;
 end;
-$$;
+$$;`
+      : ""
+  }
 ${
   tenantless.length === 0
     ? ""
     : `alter table ${t} alter column ${c("tenant")} drop not null;
 ${ensureCheck(t, "bsb_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
 `
-}comment on column ${t}.${c("path")} is ${sqlString(pathComment)};
-alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
+}${ctx.owns("attachments") ? `comment on column ${t}.${c("path")} is ${sqlString(pathComment)};\n` : ""}alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
 ${ensureCheck(t, "bsb_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
 ${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
 ${mimeCheck}
@@ -597,9 +478,9 @@ create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} o
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
-grant insert (${[...(offline ? [c("id")] : []), c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), c("width"), c("height"), c("pages"), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
+grant insert (${[...(offline ? [c("id")] : []), c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), ...sizes.map(c), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
--- Whether the caller may read a subject: its row is visible to them (the
+${insertDefaults}-- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
 -- without a subject pass; with on, an unlisted type fails.
 -- plpgsql, so a subject table a later module creates (messages) binds late.
@@ -732,7 +613,7 @@ as $$${
     extras.length === 0
       ? `
   insert into ${t} as x (${insertColumns.join(", ")})
-  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""}, create_attachment.width, create_attachment.height, create_attachment.pages)
+  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""}${sizes.map((logical) => `, create_attachment.${logical}`).join("")})
   returning ${rowJson("x")}`
       : createWithExtras
   }
@@ -791,9 +672,13 @@ begin
     ${fail("ATTACHMENT_STATUS_UNKNOWN", "status must be clean, infected or failed", "22023")}
   end if;
   update ${t} a set
-    ${c("status")} = set_attachment_status.status,
-    ${c("detail")} = set_attachment_status.detail,
-    ${c("scannedAt")} = now()
+    ${[
+      `${c("status")} = ${ctx.cast("attachments", "status", "set_attachment_status.status")}`,
+      ...(has("detail")
+        ? [`${c("detail")} = set_attachment_status.detail`]
+        : []),
+      ...(has("scannedAt") ? [`${c("scannedAt")} = now()`] : []),
+    ].join(",\n    ")}
   where a.${c("id")} = set_attachment_status.id
     and a.${c("uploadedAt")} is not null
     and a.${c("status")} in ('pending', 'failed')
@@ -802,10 +687,10 @@ begin
     select * into v_row from ${t} a where a.${c("id")} = set_attachment_status.id;
     return case when v_row.${c("id")} is null then null else ${json("v_row")} end;
   end if;
-  insert into ${scans} (${sc("bucket")}, ${sc("path")}, ${sc("status")}, ${sc("detail")}, ${sc("scannedAt")})
-  values (v_row.${c("bucket")}, ${current("v_row")}, v_row.${c("status")}, v_row.${c("detail")}, now())
+  insert into ${scans} (${sc("bucket")}, ${sc("path")}, ${sc("status")}${scanDetail ? `, ${sc("detail")}` : ""}, ${sc("scannedAt")})
+  values (v_row.${c("bucket")}, ${current("v_row")}, ${statusFrom(ctx, "scans", "attachments", `v_row.${c("status")}`)}${scanDetail ? `, ${or("detail", "v_row")}` : ""}, now())
   on conflict (${sc("bucket")}, ${sc("path")}) do update
-    set ${sc("status")} = excluded.${sc("status")}, ${sc("detail")} = excluded.${sc("detail")}, ${sc("scannedAt")} = excluded.${sc("scannedAt")};
+    set ${scanSet};
   ${scanned}
   return ${json("v_row")};
 end;
@@ -864,12 +749,10 @@ $$;
 create table if not exists ${scans} (
   ${sc("bucket")} text not null,
   ${sc("path")} text not null,
-  ${sc("status")} text not null default 'pending' check (${sc("status")} in ('pending', 'clean', 'infected', 'failed')),
-  ${sc("detail")} text,
-  ${sc("createdAt")} timestamptz not null default now(),
+  ${sc("status")} text not null default 'pending' check (${sc("status")} in ('pending', 'clean', 'infected', 'failed')),${scanDetail ? `\n  ${sc("detail")} text,` : ""}${ctx.has("scans", "createdAt") ? `\n  ${sc("createdAt")} timestamptz not null default now(),` : ""}
   ${sc("scannedAt")} timestamptz,
   primary key (${sc("bucket")}, ${sc("path")})
-);
+);${ctx.owns("scans") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("scans").name}_object_key`)} on ${scans} (${sc("bucket")}, ${sc("path")});`}
 ${lockTable(scans)}
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -895,7 +778,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(s.*) from ${scans} s
+  select ${ctx.owns("scans") ? "to_jsonb(s.*)" : scanJson("s")} from ${scans} s
   where s.${sc("bucket")} = object_scan.bucket and s.${sc("path")} = object_scan.path
 $$;
 
@@ -917,17 +800,17 @@ begin
   if set_object_scan.status not in ('pending', 'clean', 'infected', 'failed') then
     ${fail("ATTACHMENT_STATUS_UNKNOWN", "status must be pending, clean, infected or failed", "22023")}
   end if;
-  insert into ${scans} as s (${sc("bucket")}, ${sc("path")}, ${sc("status")}, ${sc("detail")}, ${sc("scannedAt")})
-  values (set_object_scan.bucket, set_object_scan.path, set_object_scan.status, set_object_scan.detail,
+  insert into ${scans} as s (${sc("bucket")}, ${sc("path")}, ${sc("status")}${scanDetail ? `, ${sc("detail")}` : ""}, ${sc("scannedAt")})
+  values (set_object_scan.bucket, set_object_scan.path, ${ctx.cast("scans", "status", "set_object_scan.status")}${scanDetail ? ", set_object_scan.detail" : ""},
     case when set_object_scan.status = 'pending' then null else now() end)
   on conflict (${sc("bucket")}, ${sc("path")}) do update
-    set ${sc("status")} = excluded.${sc("status")}, ${sc("detail")} = excluded.${sc("detail")}, ${sc("scannedAt")} = excluded.${sc("scannedAt")}
+    set ${scanSet}
     where s.${sc("status")} in ('pending', 'failed')
   returning * into v_row;
   if v_row.${sc("bucket")} is null then
     select * into v_row from ${scans} s where s.${sc("bucket")} = set_object_scan.bucket and s.${sc("path")} = set_object_scan.path;
   end if;
-  return to_jsonb(v_row);
+  return ${scanJson("v_row")};
 end;
 $$;
 ${
@@ -943,7 +826,7 @@ as $$
 begin
   insert into ${scans} (${sc("bucket")}, ${sc("path")}) values (new.bucket_id, new.name)
   on conflict (${sc("bucket")}, ${sc("path")}) do update
-    set ${sc("status")} = 'pending', ${sc("detail")} = null, ${sc("scannedAt")} = null, ${sc("createdAt")} = now();
+    set ${scanPending};
   ${objectUploaded}
   return null;
 end;

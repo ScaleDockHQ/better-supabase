@@ -8,16 +8,12 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { donationsFunctions, GIFT_RESERVED } from "./donations-functions.ts";
 import { sequencesTable } from "./numbering.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const GIFT_PAYLOAD = [
@@ -90,6 +86,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     funds: {
       name: "donation_funds",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -105,9 +102,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["goal", "startsOn", "endsOn"],
+      typed: ["kind"],
     },
     pledges: {
       name: "pledges",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -128,9 +128,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["note"],
+      typed: ["frequency", "status"],
     },
     receipts: {
       name: "donation_receipts",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -147,9 +150,12 @@ const NAMES: BlockSqlNames = {
         voidedAt: "voided_at",
         voidReason: "void_reason",
       },
+      optional: ["voidReason"],
+      typed: ["kind"],
     },
     donations: {
       name: "donations",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -174,6 +180,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["method", "refundTransaction", "note"],
+      typed: ["status"],
     },
   },
 };
@@ -197,8 +205,29 @@ function tables(ctx: BlockSqlContext): string {
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
+  const fundChecks = [
+    ...(ctx.has("funds", "goal")
+      ? [`check (${f("goal")} is null or ${f("currency")} is not null)`]
+      : []),
+    ...(ctx.has("funds", "startsOn") && ctx.has("funds", "endsOn")
+      ? [
+          `check (${f("endsOn")} is null or ${f("startsOn")} is null or ${f("endsOn")} >= ${f("startsOn")})`,
+        ]
+      : []),
+  ].map((check) => `,\n  ${check}`);
+
   const policy = (logical: string, table: string, tenant: string): string => `
-${lockTable(table, { read: true })}
+${lockModuleTable(ctx, logical, { read: true })}
 drop policy if exists ${index(logical, "read")} on ${table};
 create policy ${index(logical, "read")} on ${table} for select to authenticated
   using (${ctx.scope.check(tenant, read)});`;
@@ -210,19 +239,14 @@ create table if not exists ${funds} (
   ${f("tenant")} ${ctx.idType} not null,
   ${f("key")} text not null check (${f("key")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${f("name")} text not null check (length(${f("name")}) between 1 and 200),
-  ${f("kind")} text not null default 'fund' check (${f("kind")} in ('fund', 'campaign')),
-  ${f("goal")} bigint check (${f("goal")} is null or ${f("goal")} > 0),
-  ${f("currency")} char(3) check (${f("currency")} is null or ${f("currency")} ~ '^[A-Z]{3}$'),
-  ${f("startsOn")} date,
-  ${f("endsOn")} date,
+  ${f("kind")} text not null default 'fund' check (${f("kind")} in ('fund', 'campaign')),${column("funds", "goal", (name) => `${name} bigint check (${name} is null or ${name} > 0)`)}
+  ${f("currency")} char(3) check (${f("currency")} is null or ${f("currency")} ~ '^[A-Z]{3}$'),${column("funds", "startsOn", (name) => `${name} date`)}${column("funds", "endsOn", (name) => `${name} date`)}
   ${f("archivedAt")} timestamptz,
   ${f("createdAt")} timestamptz not null default now(),
   ${f("updatedAt")} timestamptz not null default now(),
   unique (${f("tenant")}, ${f("key")}),
-  unique (${f("tenant")}, ${f("id")}),
-  check (${f("goal")} is null or ${f("currency")} is not null),
-  check (${f("endsOn")} is null or ${f("startsOn")} is null or ${f("endsOn")} >= ${f("startsOn")})
-);${policy("funds", funds, f("tenant"))}
+  unique (${f("tenant")}, ${f("id")})${fundChecks.join("")}
+);${appUniqueIndex(ctx, "funds", ["tenant", "key"])}${appUniqueIndex(ctx, "funds", ["tenant", "id"])}${policy("funds", funds, f("tenant"))}
 
 -- A recurring gift: amount every period of frequency, charged through the
 -- payments provider when provider is set, recorded by hand otherwise.
@@ -239,8 +263,7 @@ create table if not exists ${pledges} (
   ${p("endsOn")} date,
   ${p("status")} text not null default 'active' check (${p("status")} in ('active', 'paused', 'ended')),
   ${p("provider")} text,
-  ${p("providerCustomer")} text,
-  ${p("note")} text check (${p("note")} is null or length(${p("note")}) <= 2000),
+  ${p("providerCustomer")} text,${column("pledges", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
   ${p("createdBy")} uuid,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
@@ -264,8 +287,7 @@ create table if not exists ${receipts} (
   ${r("amount")} bigint not null check (${r("amount")} > 0),
   ${r("currency")} char(3) not null,
   ${r("issuedAt")} timestamptz not null default now(),
-  ${r("voidedAt")} timestamptz,
-  ${r("voidReason")} text check (${r("voidReason")} is null or length(${r("voidReason")}) <= 2000),
+  ${r("voidedAt")} timestamptz,${column("receipts", "voidReason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
   unique (${r("tenant")}, ${r("number")})
 );
 create index if not exists ${index("receipts", "donor_idx")} on ${receipts} (${r("tenant")}, ${r("donorType")}, ${r("donorId")}, ${r("year")});
@@ -283,28 +305,24 @@ create table if not exists ${donations} (
   ${d("periodStart")} date,
   ${d("amount")} bigint not null check (${d("amount")} > 0),
   ${d("currency")} char(3) not null check (${d("currency")} ~ '^[A-Z]{3}$'),
-  ${d("receivedOn")} date not null default current_date,
-  ${d("method")} text check (${d("method")} is null or length(${d("method")}) <= 40),
+  ${d("receivedOn")} date not null default current_date,${column("donations", "method", (name) => `${name} text check (${name} is null or length(${name}) <= 40)`)}
   ${d("status")} text not null default 'pending' check (${d("status")} in ('pending', 'posted', 'failed', 'refunded')),
   ${d("provider")} text,
   ${d("paymentReference")} text,
-  ${d("transaction")} uuid,
-  ${d("refundTransaction")} uuid,
-  ${d("receipt")} uuid references ${receipts} (${r("id")}) on delete set null,
-  ${d("note")} text check (${d("note")} is null or length(${d("note")}) <= 2000),
+  ${d("transaction")} uuid,${column("donations", "refundTransaction", (name) => `${name} uuid`)}
+  ${d("receipt")} uuid references ${receipts} (${r("id")}) on delete set null,${column("donations", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
   ${d("createdBy")} uuid,
   ${d("createdAt")} timestamptz not null default now(),
   ${d("updatedAt")} timestamptz not null default now(),
   foreign key (${d("tenant")}, ${d("fund")}) references ${funds} (${f("tenant")}, ${f("id")}) on delete restrict,
   unique (${d("pledge")}, ${d("periodStart")})
-);${addExtraColumns(donations, ctx.extraColumns("donations", GIFT_RESERVED))}
+);${appUniqueIndex(ctx, "donations", ["pledge", "periodStart"])}${addExtraColumns(donations, ctx.extraColumns("donations", GIFT_RESERVED))}
 create index if not exists ${index("donations", "tenant_idx")} on ${donations} (${d("tenant")}, ${d("receivedOn")} desc);
 create index if not exists ${index("donations", "donor_idx")} on ${donations} (${d("tenant")}, ${d("donorType")}, ${d("donorId")}, ${d("receivedOn")});
 create index if not exists ${index("donations", "fund_idx")} on ${donations} (${d("tenant")}, ${d("fund")}) where ${d("fund")} is not null;
 create index if not exists ${index("donations", "receipt_idx")} on ${donations} (${d("receipt")}) where ${d("receipt")} is not null;
 create index if not exists ${index("donations", "transaction_idx")} on ${donations} (${d("transaction")}) where ${d("transaction")} is not null;
-create index if not exists ${index("donations", "refund_idx")} on ${donations} (${d("refundTransaction")}) where ${d("refundTransaction")} is not null;
-create unique index if not exists ${index("donations", "payment_key")} on ${donations} (${d("provider")}, ${d("paymentReference")})
+${ctx.has("donations", "refundTransaction") ? `create index if not exists ${index("donations", "refund_idx")} on ${donations} (${d("refundTransaction")}) where ${d("refundTransaction")} is not null;\n` : ""}create unique index if not exists ${index("donations", "payment_key")} on ${donations} (${d("provider")}, ${d("paymentReference")})
   where ${d("paymentReference")} is not null;${policy("donations", donations, d("tenant"))}
 `;
 }

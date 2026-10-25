@@ -37,7 +37,7 @@ import {
   metadataColumns,
   storedMetadata,
 } from "./audit-metadata.ts";
-import { REGISTER } from "./audit-register.ts";
+import { REGISTRY_TABLE, forgetDropped, register } from "./audit-register.ts";
 import {
   correlationIdSql,
   REQUEST_ID_OR_NULL,
@@ -190,6 +190,7 @@ const NAMES: BlockSqlNames = {
       optionalTable: true,
       app: { onlyWhenMapped: true },
     },
+    registry: REGISTRY_TABLE,
   },
   hooks: ["audit_retention"],
 };
@@ -388,21 +389,26 @@ grant select on ${log} to service_role;${restrictedTable}${
   }`;
 }
 
-const REGISTRY = `create table if not exists better_supabase.audited_tables (
-  target regclass primary key,
-  ignore text[] not null default '{}'
-);
--- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table better_supabase.audited_tables add column if not exists key_columns text[] not null default '{id}';
--- Per-table event naming and redaction.
-alter table better_supabase.audited_tables add column if not exists redact text[] not null default '{}';
-alter table better_supabase.audited_tables add column if not exists category text;
-alter table better_supabase.audited_tables add column if not exists event_prefix text;
-alter table better_supabase.audited_tables add column if not exists target_type text;
-alter table better_supabase.audited_tables add column if not exists tenant_column text;
-alter table better_supabase.audited_tables add column if not exists label_column text;
-alter table better_supabase.audited_tables enable row level security;
-${revokeTable("better_supabase.audited_tables")}
+function registry(ctx: BlockSqlContext): string {
+  const table = ctx.table("registry");
+  const r = (logical: string) => ctx.col("registry", logical);
+
+  const add = (logical: string, definition: string) =>
+    ctx.has("registry", logical)
+      ? `\nalter table ${table} add column if not exists ${r(logical)} ${definition};`
+      : "";
+
+  return `create table if not exists ${table} (
+  ${r("target")} regclass primary key${ctx.has("registry", "ignore") ? `,\n  ${r("ignore")} text[] not null default '{}'` : ""}
+);${
+    ctx.has("registry", "keyColumns")
+      ? `
+-- The primary key columns, read when the table is registered; composite keys are joined with ','.${add("keyColumns", "text[] not null default '{id}'")}`
+      : ""
+  }
+-- Per-table event naming and redaction.${add("redact", "text[] not null default '{}'")}${add("category", "text")}${add("eventPrefix", "text")}${add("targetType", "text")}${add("tenantColumn", "text")}${add("labelColumn", "text")}
+alter table ${table} enable row level security;
+${revokeTable(table)}
 
 ${ACTING_MEMBER}
 
@@ -435,6 +441,7 @@ end;
 $$;
 
 ${REQUEST_ID_OR_NULL}`;
+}
 
 /**
  * SQL that writes the restricted details of `entry_id`, when the table is in
@@ -598,7 +605,7 @@ declare
   path_value text;
   path_step jsonb;
 begin
-${entrySql()}
+${entrySql(ctx)}
   row_tenant := ${tenantValue};
 ${tenantFallbackSql(ctx.idType)}
   old_row := old_row - entry.ignore;
@@ -952,12 +959,12 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   return [
     SCHEMA,
-    REGISTRY,
+    registry(ctx),
     requestIpSql(ctx),
     ctx.manages ? managedTables(ctx, restricted) : "",
     triggerFunction(ctx, tenantColumn, restricted),
     EQUIVALENT_TRIGGERS.trim(),
-    REGISTER,
+    register(ctx),
     auditEvent(ctx, restricted),
     appendOnly(ctx),
     chainSql(ctx),
@@ -1058,9 +1065,10 @@ export const AUDIT: BlockSqlDefinition = {
     },
   ],
   build: auditSql,
-  data: () => `-- Registrations of tables dropped before bsb_audit_forget_dropped existed.
-delete from better_supabase.audited_tables a
-where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);`,
+  data: (
+    ctx,
+  ) => `-- Registrations of tables dropped before bsb_audit_forget_dropped existed.
+${forgetDropped(ctx)}`,
   tests: (ctx, layout) =>
     auditTests(ctx, layout.auditedTables ?? [], restrictedOn(ctx)),
 };

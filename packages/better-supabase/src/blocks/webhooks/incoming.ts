@@ -24,7 +24,9 @@ import {
 import { hitRateLimit } from "../queue/rate-limit.ts";
 import {
   applyTemporal,
+  instantOf,
   isRecord,
+  nullableInstant,
   optionalText,
   readBodyCapped,
   recordOf,
@@ -353,7 +355,7 @@ export function createIncomingWebhooks(
               enabled: row["enabled"] === true,
               maxBodyBytes: Number(row["max_body_bytes"]),
               receiveCount: Number(row["receive_count"]),
-              lastReceivedAt: optionalText(row["last_received_at"]) ?? null,
+              lastReceivedAt: nullableInstant(row["last_received_at"]),
               lastStatus:
                 row["last_status"] === null ? null : Number(row["last_status"]),
               metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
@@ -363,7 +365,7 @@ export function createIncomingWebhooks(
                   ? { type: row["subject_type"], id: row["subject_id"] }
                   : null,
               createdBy: optionalText(row["created_by"]) ?? null,
-              createdAt: String(row["created_at"]),
+              createdAt: instantOf(row["created_at"]),
             }),
           ),
       ),

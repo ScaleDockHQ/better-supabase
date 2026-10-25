@@ -76,13 +76,16 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      app: {},
+      optional: ["summary", "cover", "approval", "createdBy"],
+      typed: ["type", "locale", "status"],
     },
   },
 };
 
 function tables(ctx: BlockSqlContext): string {
   const q = contentSql(ctx);
-  const { e, entries } = q;
+  const { e, entries, has } = q;
 
   const name = (suffix: string): string =>
     sqlIdent(`${ctx.tableName("entries").name}_${suffix}`);
@@ -102,19 +105,14 @@ function tables(ctx: BlockSqlContext): string {
   ${e("locale")} text not null,
   ${e("slug")} text not null check (length(${e("slug")}) <= 200 and ${e("slug")} ~ ${sqlString(SLUG)}),
   ${e("title")} text not null check (length(${e("title")}) between 1 and 300),
-  ${e("summary")} text check (${e("summary")} is null or length(${e("summary")}) <= 2000),
-  ${e("body")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${e("body")}) in ('object', 'array')),
+${has("summary") ? `  ${e("summary")} text check (${e("summary")} is null or length(${e("summary")}) <= 2000),\n` : ""}  ${e("body")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${e("body")}) in ('object', 'array')),
   ${e("status")} text not null default 'draft' check (${e("status")} in (${statuses})),
   ${e("publishAt")} timestamptz,
   ${e("publishedAt")} timestamptz,
   ${e("author")} uuid references auth.users (id) on delete set null,
   -- Entries in one group translate each other, one per locale.
   ${e("translationGroup")} uuid not null default gen_random_uuid(),
-  ${e("cover")} uuid${cover},
-  -- The latest publish request, when options.requireApproval is on.
-  ${e("approval")} uuid,
-  ${e("createdBy")} uuid,
-  ${e("createdAt")} timestamptz not null default now(),
+${has("cover") ? `  ${e("cover")} uuid${cover},\n` : ""}${has("approval") ? `  -- The latest publish request, when options.requireApproval is on.\n  ${e("approval")} uuid,\n` : ""}${has("createdBy") ? `  ${e("createdBy")} uuid,\n` : ""}  ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now(),
   unique (${e("tenant")}, ${e("type")}, ${e("locale")}, ${e("slug")}),
   unique (${e("tenant")}, ${e("translationGroup")}, ${e("locale")}),
@@ -125,8 +123,7 @@ create index if not exists ${name("published_idx")} on ${entries} (${e("tenant")
 create index if not exists ${name("due_idx")} on ${entries} (${e("publishAt")}) where ${e("status")} = 'scheduled';
 create index if not exists ${name("updated_idx")} on ${entries} (${e("tenant")}, ${e("updatedAt")} desc);
 create index if not exists ${name("author_idx")} on ${entries} (${e("author")});
-create index if not exists ${name("cover_idx")} on ${entries} (${e("cover")});
-
+${has("cover") ? `create index if not exists ${name("cover_idx")} on ${entries} (${e("cover")});\n` : ""}
 ${lockTable(entries, { read: true })}
 drop policy if exists ${name("read")} on ${entries};
 create policy ${name("read")} on ${entries} for select to authenticated
@@ -182,7 +179,9 @@ const CONTRIBUTES: BlockContributes = {
       approve: ({ subjectId }) =>
         `perform ${own.fn("content_entry_approved")}((${subjectId})::uuid);`,
       approvable: ({ subjectId }) =>
-        `exists (select 1 from ${own.table("entries")} x where x.${own.col("entries", "id")} = (${subjectId})::uuid and x.${own.col("entries", "status")} = 'draft' and x.${own.col("entries", "approval")} is not null)`,
+        own.has("entries", "approval")
+          ? `exists (select 1 from ${own.table("entries")} x where x.${own.col("entries", "id")} = (${subjectId})::uuid and x.${own.col("entries", "status")} = 'draft' and x.${own.col("entries", "approval")} is not null)`
+          : "false",
     },
   ],
 };

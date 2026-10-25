@@ -13,6 +13,7 @@ import { registeredSubjects } from "../subject-registry.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
+import { messagingRowJson } from "./messaging-names.ts";
 import { summaryFunctions } from "./messaging-summaries.ts";
 import { MESSAGE_RESERVED, conversationReadable } from "./messaging-tables.ts";
 
@@ -293,6 +294,18 @@ function messageFunctions(q: MessagingSql): string {
   const cv = q.cols("conversations");
   const ms = q.cols("messages");
   const ed = q.cols("edits");
+
+  const editWrites = (
+    [
+      ["tenant", `v_msg.${ms("tenant")}`],
+      ["message", `v_msg.${ms("id")}`],
+      ["body", `v_msg.${ms("body")}`],
+      ["document", `v_msg.${ms("document")}`],
+      ["editor", "auth.uid()"],
+      ["editedAt", ctx.owns("edits") ? "" : "now()"],
+    ] as const
+  ).filter(([column, value]) => value !== "" && ctx.has("edits", column));
+
   const extras = ctx.extraColumns("messages", MESSAGE_RESERVED);
   const message = sqlString(q.e("message"));
   const conversation = sqlString(q.e("conversation"));
@@ -677,8 +690,8 @@ begin
     ["uuid", "edit_message.message"],
     ["text", "edit_message.body"],
   ])}
-  insert into ${t("edits")} (${ed("tenant")}, ${ed("message")}, ${ed("body")}, ${ed("document")}, ${ed("editor")})
-  values (v_msg.${ms("tenant")}, v_msg.${ms("id")}, v_msg.${ms("body")}, v_msg.${ms("document")}, auth.uid());
+  insert into ${t("edits")} (${editWrites.map(([column]) => ed(column)).join(", ")})
+  values (${editWrites.map(([, value]) => value).join(", ")});
   begin
     update ${t("messages")} m set
       ${ms("body")} = edit_message.body,
@@ -903,7 +916,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x) order by x.${ed("editedAt")} desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(${messagingRowJson(ctx, "edits", "x")} order by x.${ed("editedAt")} desc), '[]'::jsonb)
   from ${t("edits")} x where x.${ed("message")} = list_message_edits.message
 $$;
 ${userGrant(`${fn("list_message_edits")}(uuid)`)}

@@ -1,7 +1,11 @@
 import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
+import {
+  tenantClaimPaths,
+  tenantNameOf,
+  DEFAULT_ACTIVE_TENANT,
+} from "../../config/index.ts";
 import {
   adoptedTables,
   SQL_MODULES,
@@ -30,6 +34,7 @@ import { accessModule, entitlementsModule } from "./authorization.ts";
 import { onUnknownRecordTypes } from "./block-on.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
+import { unpartitionedTables } from "./partitioned-tables.ts";
 import { reservedRoles } from "./reserved-roles.ts";
 import {
   catalogOf,
@@ -999,54 +1004,6 @@ export const MODULE_RULES: readonly Rule[] = [
   },
 ];
 
-/**
- * The table each block's `options.partitioned` partitions, and the option it
- * also needs.
- */
-const PARTITIONED_TABLES: readonly {
-  readonly block: string;
-  readonly table: string;
-  readonly requires?: string;
-}[] = [
-  { block: "audit", table: "audit_events" },
-  { block: "outbox", table: "outbox_events" },
-  { block: "usage", table: "usage_history", requires: "history" },
-  { block: "webhooks", table: "webhook_deliveries" },
-  { block: "notifications", table: "notification_delivery_events" },
-];
-
-function unpartitionedTables(context: DoctorContext): FindingInput[] {
-  const { tables } = catalogOf(context);
-
-  return PARTITIONED_TABLES.flatMap(({ block, table, requires }) => {
-    const options = context.config.blocks[block]?.options ?? {};
-
-    if (
-      !context.config.blockNames.includes(block) ||
-      options["partitioned"] !== true ||
-      (requires !== undefined && options[requires] !== true)
-    ) {
-      return [];
-    }
-
-    const found = tables.find(
-      (candidate) =>
-        candidate.schema === "better_supabase" && candidate.name === table,
-    );
-
-    if (found?.primaryKey.length !== 1) {
-      return [];
-    }
-
-    return [
-      {
-        message: `better_supabase.${table} isn't partitioned, so blocks.${block}.options.partitioned has no effect on it. Postgres can't convert it in place: copy the rows into a partitioned table in a maintenance window, or turn the option off.`,
-        target: `better_supabase.${table}`,
-      },
-    ];
-  });
-}
-
 function subjectTables(context: DoctorContext) {
   const catalog = catalogOf(context);
 
@@ -1087,7 +1044,7 @@ function missingSubjectColumns(context: DoctorContext): FindingInput[] {
 
       const present = new Set(table.columns.map((column) => column.name));
 
-      return subjectColumns(entry)
+      return subjectColumns(entry, tenantNameOf(context.config.blocks))
         .filter(([, column]) => !present.has(column))
         .map(([path, column]) => ({
           message: `subjects.${type}.${path} names ${target}.${column}, but the table has no such column. Map it to the column that holds the value, or add the column.`,

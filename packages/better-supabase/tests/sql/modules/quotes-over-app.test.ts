@@ -87,10 +87,61 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
+// The app's own line table: no discount, tax or creation columns, an enum
+// product type, and a note table that points at line ids.
+const APP_LINES = `
+create type public.line_product as enum ('product_variant', 'service');
+
+create table public.proposal_lines (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  proposal_id uuid not null references public.proposals (id) on delete cascade,
+  product_type public.line_product,
+  product_id text,
+  label text not null,
+  qty numeric(18, 4) not null,
+  unit_amount bigint not null,
+  position integer not null
+);
+
+create table public.line_notes (
+  line_id uuid primary key references public.proposal_lines (id),
+  body text not null
+);
+`;
+
+const LINE_BLOCKS: AnyBlocksConfig = {
+  quotes: {
+    ...BLOCKS["quotes"],
+    tables: { quotes: "public.proposals", lines: "public.proposal_lines" },
+    columns: {
+      ...BLOCKS["quotes"]?.columns,
+      lines: {
+        tenant: "org_id",
+        parent: "proposal_id",
+        description: "label",
+        quantity: "qty",
+        discountBps: null,
+        taxRateBps: null,
+        taxCode: null,
+        createdAt: null,
+      },
+    },
+  },
+};
+
+interface Over {
+  readonly app: string;
+  readonly blocks: AnyBlocksConfig;
+  readonly own: Record<string, string>;
+}
+
+const QUOTES: Over = { app: APP, blocks: BLOCKS, own: OWN_TABLES };
+
+async function run(check: string, over: Over = QUOTES): Promise<void> {
   const files = renderBlocks(["quotes"], {
-    modules: BLOCKS,
-    ownTables: OWN_TABLES,
+    modules: over.blocks,
+    ownTables: over.own,
   });
 
   await using stack = await liteStack({
@@ -98,7 +149,7 @@ async function run(check: string): Promise<void> {
     migrations: [
       ROLES,
       PGCRYPTO,
-      APP,
+      over.app,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -150,6 +201,42 @@ begin
   end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps the ids of the app's lines when it sets them again", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_quote jsonb;
+  v_id uuid;
+  v_first uuid;
+begin
+  ${SERVICE}
+  v_quote := better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 2, "unitAmount": "5000", "product": {"type": "service", "id": "s1"}}, {"description": "Build", "quantity": 1, "unitAmount": "100"}]'::jsonb);
+  v_id := (v_quote ->> 'id')::uuid;
+  select id into v_first from public.proposal_lines where proposal_id = v_id and position = 1;
+  insert into public.line_notes (line_id, body) values (v_first, 'kept');
+  if (v_quote ->> 'total')::bigint <> 10100 then
+    raise exception 'created %', v_quote;
+  end if;
+  perform better_supabase.set_quote_lines(v_id, '[{"description": "Design work", "quantity": 3, "unitAmount": "5000"}]'::jsonb);
+  if (select count(*) from public.proposal_lines where proposal_id = v_id) <> 1
+    or (select id from public.proposal_lines where proposal_id = v_id) <> v_first
+    or (select label from public.proposal_lines where id = v_first) <> 'Design work'
+    or (select total from public.proposals where id = v_id) <> 15000 then
+    raise exception 'lines %', (select jsonb_agg(l) from public.proposal_lines l);
+  end if;
+end;
+$$;`,
+        {
+          app: `${APP}${APP_LINES}`,
+          blocks: LINE_BLOCKS,
+          own: { ...OWN_TABLES, "public.proposal_lines": "app.sql" },
+        },
+      ),
     ).resolves.toBeUndefined();
   });
 

@@ -10,7 +10,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 import type { CollectionNames } from "./collections-functions.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -103,6 +103,9 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      app: {},
+      optional: ["description", "createdBy", "updatedAt"],
+      typed: ["scope"],
     },
     entries: {
       name: "subject_collection_entries",
@@ -116,6 +119,8 @@ const NAMES: BlockSqlNames = {
         addedBy: "added_by",
         addedAt: "added_at",
       },
+      app: {},
+      optional: ["addedBy", "addedAt"],
     },
     favorites: {
       name: "favorites",
@@ -128,6 +133,8 @@ const NAMES: BlockSqlNames = {
         rank: "rank",
         createdAt: "created_at",
       },
+      app: {},
+      optional: ["createdAt"],
     },
     savedItems: {
       name: "saved_items",
@@ -144,6 +151,8 @@ const NAMES: BlockSqlNames = {
         completedAt: "completed_at",
         createdAt: "created_at",
       },
+      app: {},
+      optional: ["note"],
     },
   },
 };
@@ -162,6 +171,15 @@ function tables(ctx: BlockSqlContext, names: CollectionNames): string {
   const fa = (column: string): string => names.c("favorites", column);
   const sv = (column: string): string => names.c("savedItems", column);
 
+  // The column line of an optional column, empty when the table lacks it.
+  const line = (table: string, column: string, sql: () => string): string =>
+    ctx.has(table, column) ? `\n  ${sql()},` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${t(table)} (${columns});`;
+
   return `
 create table if not exists ${t("collections")} (
   ${co("id")} uuid primary key default gen_random_uuid(),
@@ -170,12 +188,9 @@ create table if not exists ${t("collections")} (
   ${co("scope")} text not null default 'user' check (${co("scope")} in (${textList(COLLECTION_SCOPES)})),
   ${co("owner")} uuid references auth.users (id) on delete cascade,
   ${co("team")} text,
-  ${co("name")} text not null check (length(${co("name")}) between 1 and 120),
-  ${co("description")} text check (length(${co("description")}) <= 2000),
-  ${co("archivedAt")} timestamptz,
-  ${co("createdBy")} uuid,
-  ${co("createdAt")} timestamptz not null default now(),
-  ${co("updatedAt")} timestamptz not null default now(),
+  ${co("name")} text not null check (length(${co("name")}) between 1 and 120),${line("collections", "description", () => `${co("description")} text check (length(${co("description")}) <= 2000)`)}
+  ${co("archivedAt")} timestamptz,${line("collections", "createdBy", () => `${co("createdBy")} uuid`)}
+  ${co("createdAt")} timestamptz not null default now(),${line("collections", "updatedAt", () => `${co("updatedAt")} timestamptz not null default now()`)}
   check (${co("scope")} <> 'user' or ${co("owner")} is not null),
   check (${co("scope")} <> 'team' or ${co("team")} is not null)
 );
@@ -188,11 +203,9 @@ create table if not exists ${t("entries")} (
   ${en("tenant")} ${ctx.idType} not null,
   ${en("subjectType")} text not null,
   ${en("subjectId")} text not null,
-  ${en("rank")} text collate "C" not null,
-  ${en("addedBy")} uuid,
-  ${en("addedAt")} timestamptz not null default now(),
+  ${en("rank")} text collate "C" not null,${line("entries", "addedBy", () => `${en("addedBy")} uuid`)}${line("entries", "addedAt", () => `${en("addedAt")} timestamptz not null default now()`)}
   primary key (${en("collection")}, ${en("subjectId")})
-);
+);${unique("entries", "subject", `${en("collection")}, ${en("subjectId")}`)}
 create index if not exists ${ctx.naming.rename("subject_collection_entries_rank_idx")} on ${t("entries")} (${en("collection")}, ${en("rank")}, ${en("subjectId")});
 create index if not exists ${ctx.naming.rename("subject_collection_entries_subject_idx")} on ${t("entries")} (${en("subjectType")}, ${en("subjectId")});
 ${lockTable(t("entries"), { read: true })}
@@ -202,10 +215,9 @@ create table if not exists ${t("favorites")} (
   ${fa("tenant")} ${ctx.idType} not null,
   ${fa("subjectType")} text not null,
   ${fa("subjectId")} text not null,
-  ${fa("rank")} text collate "C" not null,
-  ${fa("createdAt")} timestamptz not null default now(),
+  ${fa("rank")} text collate "C" not null,${line("favorites", "createdAt", () => `${fa("createdAt")} timestamptz not null default now()`)}
   primary key (${fa("user")}, ${fa("subjectType")}, ${fa("subjectId")})
-);
+);${unique("favorites", "subject", `${fa("user")}, ${fa("subjectType")}, ${fa("subjectId")}`)}
 create index if not exists favorites_user_rank_idx on ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("rank")});
 create index if not exists favorites_subject_idx on ${t("favorites")} (${fa("subjectType")}, ${fa("subjectId")});
 ${lockTable(t("favorites"), { read: true })}
@@ -215,14 +227,13 @@ create table if not exists ${t("savedItems")} (
   ${sv("user")} uuid not null references auth.users (id) on delete cascade,
   ${sv("tenant")} ${ctx.idType} not null,
   ${sv("subjectType")} text not null,
-  ${sv("subjectId")} text not null,
-  ${sv("note")} text check (length(${sv("note")}) <= 1000),
+  ${sv("subjectId")} text not null,${line("savedItems", "note", () => `${sv("note")} text check (length(${sv("note")}) <= 1000)`)}
   ${sv("remindAt")} timestamptz,
   ${sv("remindedAt")} timestamptz,
   ${sv("completedAt")} timestamptz,
   ${sv("createdAt")} timestamptz not null default now(),
   unique (${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")})
-);
+);${unique("savedItems", "subject", `${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")}`)}
 create index if not exists saved_items_user_idx on ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("createdAt")} desc, ${sv("id")} desc);
 create index if not exists saved_items_subject_idx on ${t("savedItems")} (${sv("subjectType")}, ${sv("subjectId")});
 create index if not exists saved_items_due_idx on ${t("savedItems")} (${sv("remindAt")}) where ${sv("remindedAt")} is null and ${sv("completedAt")} is null;

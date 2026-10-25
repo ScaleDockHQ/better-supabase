@@ -103,6 +103,11 @@ revoke execute on function ${fn("sequence_steps_check")}(jsonb, boolean) from pu
 
 function placement(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
+
+  const clearError = q.has("members", "lastError")
+    ? `${q.r("lastError")} = null, `
+    : "";
+
   const { fn, s, r, e, d } = q;
 
   return `-- A recipient in a sequence with their completed steps.
@@ -116,7 +121,7 @@ as $$
   select jsonb_build_object('id', x.${r("enrollment")}, 'organizationId', x.${r("tenant")}, 'sequenceId', x.${r("sequence")},
     'subjectType', x.${r("subjectType")}, 'subjectId', x.${r("subjectId")}, 'address', x.${r("address")}, 'name', x.${r("name")},
     'accountId', x.${r("account")}, 'threadId', x.${r("thread")}, 'step', x.${r("step")}, 'nextRunAt', x.${r("nextRunAt")},
-    'status', x.${r("status")}, 'exitReason', x.${r("exitReason")}, 'attempts', x.${r("attempts")}, 'lastError', x.${r("lastError")},
+    'status', x.${r("status")}, 'exitReason', x.${r("exitReason")}, 'attempts', x.${r("attempts")}, 'lastError', ${q.opt("x", "members", "lastError")},
     'variables', x.${r("variables")}, 'enrolledBy', x.${r("enrolledBy")}, 'createdAt', x.${r("createdAt")}, 'updatedAt', x.${r("updatedAt")},
     'completedSteps', coalesce((select jsonb_agg(y.${d("step")} order by y.${d("completedAt")}, y.${d("step")}) from ${q.done} y where y.${d("enrollment")} = x.${r("enrollment")}), '[]'::jsonb))
   from ${q.members} x
@@ -151,7 +156,7 @@ begin
   limit 1;
   if v_next is null then
     update ${q.members} x
-    set ${r("status")} = 'completed', ${r("step")} = null, ${r("nextRunAt")} = null, ${r("attempts")} = 0, ${r("lastError")} = null, ${r("updatedAt")} = now()
+    set ${r("status")} = 'completed', ${r("step")} = null, ${r("nextRunAt")} = null, ${r("attempts")} = 0, ${clearError}${r("updatedAt")} = now()
     where x.${r("enrollment")} = v_member.${r("enrollment")}
     returning * into v_member;
     ${q.memberRecord("sequence_enrollment.completed", false)}
@@ -163,7 +168,7 @@ begin
   update ${q.members} x
   set ${r("step")} = v_next ->> 'id',
     ${r("nextRunAt")} = case when v_next ->> 'kind' = 'wait' then now() + make_interval(mins => (v_next ->> 'minutes')::integer) else now() end,
-    ${r("attempts")} = 0, ${r("lastError")} = null, ${r("updatedAt")} = now()
+    ${r("attempts")} = 0, ${clearError}${r("updatedAt")} = now()
   where x.${r("enrollment")} = v_member.${r("enrollment")};
 end;
 $$;
@@ -182,7 +187,7 @@ declare
   v_member ${q.members};
 begin
   update ${q.members} x
-  set ${r("status")} = 'exited', ${r("exitReason")} = sequence_exit.reason, ${r("nextRunAt")} = null, ${r("updatedAt")} = now()
+  set ${r("status")} = 'exited', ${r("exitReason")} = ${q.cast("members", "exitReason", "sequence_exit.reason")}, ${r("nextRunAt")} = null, ${r("updatedAt")} = now()
   where x.${r("enrollment")} = sequence_exit.enrollment_id and x.${r("status")} in ('active', 'paused')
   returning * into v_member;
   if v_member.${r("enrollment")} is null then
@@ -250,6 +255,12 @@ revoke execute on function ${fn("sequence_resync")}(uuid) from public, anon, aut
 
 function authoring(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
+
+  const description = q.has("sequences", "description")
+    ? `${q.s("description")}, `
+    : "";
+
+  const status = q.cast("sequences", "status", "v_status");
   const { fn, s, r, mail } = q;
 
   const counts = (id: string): string =>
@@ -328,8 +339,15 @@ begin
   v_key := coalesce(save_sequence.sequence ->> 'key', v_old.${s("key")});
   v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old.${s("name")}));
   v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old.${s("description")} end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old.${s("status")}, 'draft');
+    then nullif(trim(save_sequence.sequence ->> 'description'), '') else ${q.opt("v_old", "sequences", "description")} end;${
+      q.has("sequences", "description")
+        ? ""
+        : `
+  if v_description is not null then
+    ${fail("SEQUENCE_DESCRIPTION_UNSUPPORTED", "this sequences table has no description column", "22023")}
+  end if;`
+    }
+  v_status := coalesce(save_sequence.sequence ->> 'status', v_old.${s("status")}::text, 'draft');
   v_exit := case when save_sequence.sequence ? 'exitOnReply'
     then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old.${s("exitOnReply")}, true) end;
   v_account := case when save_sequence.sequence ? 'accountId'
@@ -360,12 +378,12 @@ begin
   end if;
   ${mailboxCheck}
   if v_old.${s("id")} is null then
-    insert into ${q.sequences} (${s("tenant")}, ${s("key")}, ${s("name")}, ${s("description")}, ${s("status")}, ${s("exitOnReply")}, ${s("account")}, ${s("steps")}, ${s("createdBy")})
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, auth.uid())
+    insert into ${q.sequences} (${s("tenant")}, ${s("key")}, ${s("name")}, ${description}${s("status")}, ${s("exitOnReply")}, ${s("account")}, ${s("steps")}, ${s("version")}, ${s("createdBy")})
+    values (save_sequence.tenant, v_key, v_name, ${q.has("sequences", "description") ? "v_description, " : ""}${status}, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update ${q.sequences} x
-    set ${s("name")} = v_name, ${s("description")} = v_description, ${s("status")} = v_status, ${s("exitOnReply")} = v_exit,
+    set ${s("name")} = v_name, ${q.has("sequences", "description") ? `${s("description")} = v_description, ` : ""}${s("status")} = ${status}, ${s("exitOnReply")} = v_exit,
       ${s("account")} = v_account, ${s("steps")} = v_steps,
       ${s("version")} = x.${s("version")} + case when x.${s("steps")} is distinct from v_steps then 1 else 0 end,
       ${s("updatedAt")} = now()
@@ -407,7 +425,7 @@ begin
     select jsonb_agg(${q.sequenceJson("x")} || jsonb_build_object('counts', ${counts(`x.${s("id")}`)}) order by x.${s("name")}, x.${s("id")})
     from ${q.sequences} x
     where x.${s("tenant")} = list_sequences.tenant
-      and (case when list_sequences.status is null then x.${s("status")} <> 'archived' else x.${s("status")} = list_sequences.status end)
+      and (case when list_sequences.status is null then x.${s("status")} <> 'archived' else x.${s("status")}::text = list_sequences.status end)
   ), '[]'::jsonb);
 end;
 $$;
@@ -464,6 +482,11 @@ ${userGrant(`${fn("delete_sequence")}(uuid)`)}
 
 function enrolling(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
+
+  const clearError = q.has("members", "lastError")
+    ? `${q.r("lastError")} = null, `
+    : "";
+
   const { fn, s, r, e, d, mail, parties } = q;
   const a = (column: string): string => mail!.col("accounts", column);
 
@@ -588,14 +611,14 @@ begin
   v_id := ${fn("enrollment_ensure")}(v_sequence.${s("tenant")}, ${q.program(`v_sequence.${s("id")}`)}, v_sequence.${s("version")}, ${stepIds(`v_sequence.${s("steps")}`)},
     enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
   insert into ${q.members} (${r("enrollment")}, ${r("tenant")}, ${r("sequence")}, ${r("subjectType")}, ${r("subjectId")}, ${r("address")}, ${r("name")},
-    ${r("account")}, ${r("variables")}, ${r("enrolledBy")})
+    ${r("account")}, ${r("variables")}, ${r("status")}, ${r("enrolledBy")})
   values (v_id, v_sequence.${s("tenant")}, v_sequence.${s("id")}, enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, auth.uid())
+    v_account, v_variables, 'active', auth.uid())
   on conflict (${r("enrollment")}) do update
   set ${r("address")} = excluded.${r("address")}, ${r("name")} = excluded.${r("name")}, ${r("account")} = excluded.${r("account")},
     ${r("variables")} = excluded.${r("variables")}, ${r("enrolledBy")} = excluded.${r("enrolledBy")}, ${r("status")} = 'active',
     ${r("exitReason")} = null, ${r("step")} = null, ${r("nextRunAt")} = null, ${r("thread")} = null, ${r("attempts")} = 0,
-    ${r("lastError")} = null, ${r("updatedAt")} = now();
+    ${clearError}${r("updatedAt")} = now();
   perform ${fn("sequence_place")}(v_id);
   select * into v_member from ${q.members} x where x.${r("enrollment")} = v_id;
   ${q.memberRecord("sequence_enrollment.created", "enrolled in a sequence")}
@@ -682,7 +705,7 @@ begin
         and (v_parent is null or x.${r("sequence")} = v_parent)
         and (v_filter ->> 'subjectType' is null or x.${r("subjectType")} = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x.${r("subjectId")} = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x.${r("status")} = v_filter ->> 'status')
+        and (v_filter ->> 'status' is null or x.${r("status")}::text = v_filter ->> 'status')
         and (v_filter ->> 'before' is null or x.${r("createdAt")} < (v_filter ->> 'before')::timestamptz)
       order by x.${r("createdAt")} desc, x.${r("enrollment")} desc
       limit ${pageSize("(v_filter ->> 'limit')::integer", 50, 200)}

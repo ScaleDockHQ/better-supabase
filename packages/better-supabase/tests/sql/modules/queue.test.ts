@@ -27,7 +27,7 @@ describe("queue block", () => {
     expect(sql).not.toContain("create extension if not exists pgmq");
     expect(sql).not.toMatch(/pgmq\.\w/);
     expect(sql).toContain(
-      "create table if not exists better_supabase.job_messages",
+      'create table if not exists "better_supabase"."job_messages"',
     );
     expect(sql).toContain("for update skip locked");
     expect(sql).not.toContain("ensure_job_queue");
@@ -36,7 +36,7 @@ describe("queue block", () => {
   it("renders the drain scheduler with a schedules table", () => {
     const sql = jobs({ scheduler: "drain" });
     expect(sql).toContain(
-      "create table if not exists better_supabase.job_schedules",
+      'create table if not exists "better_supabase"."job_schedules"',
     );
     expect(sql).toContain("pg_timezone_names");
     expect(sql).not.toContain("cron.schedule(");
@@ -80,31 +80,31 @@ describe("queue block", () => {
   it("claims table-backend jobs through indexable conditions", () => {
     const sql = jobs({ backend: "table" });
     expect(sql).toContain(
-      "generated always as (coalesce((message ->> 'max_attempts')::integer, 5)) stored;",
+      `generated always as (coalesce(("message" ->> 'max_attempts')::integer, 5)) stored;`,
     );
     expect(sql).toContain(
-      "where archived_at is null and attempts >= max_attempts;",
+      'where "archived_at" is null and "attempts" >= "max_attempts";',
     );
     expect(sql).toContain(
-      "m.visible_at <= v_now\n    and m.attempts >= m.max_attempts;",
+      'm."visible_at" <= v_now\n    and m."attempts" >= m."max_attempts";',
     );
     expect(sql).not.toContain(
-      "archived_at is null and m.visible_at <= clock_timestamp()\n",
+      '"archived_at" is null and m."visible_at" <= clock_timestamp()\n',
     );
     expect(sql).toContain(
-      "m.archived_at < now() - least(older_than, dead_older_than)",
+      'm."archived_at" < now() - least(older_than, dead_older_than)',
     );
   });
 
   it("keeps a tenant per drain schedule and refuses one under pg_cron", () => {
     const drain = jobs({ scheduler: "drain" });
     expect(drain).toContain(
-      "alter table better_supabase.job_schedules add column if not exists tenant text;",
+      'alter table "better_supabase"."job_schedules" add column if not exists "tenant" text;',
     );
     expect(drain).toContain(
       "create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)",
     );
-    expect(drain).toContain("where s.tenant = unschedule_tenant.tenant");
+    expect(drain).toContain('where s."tenant" = unschedule_tenant.tenant');
     const cron = jobs();
     expect(cron).toContain("pg_cron schedules have no tenant");
     expect(cron).toContain("to_regclass('cron.job')");

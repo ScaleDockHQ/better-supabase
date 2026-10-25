@@ -11,8 +11,6 @@ import {
   addExtraColumns,
   extraFieldsArg,
   fail,
-  lockTable,
-  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   writeExtraColumns,
@@ -113,6 +111,7 @@ const NAMES: BlockSqlNames = {
     },
     versions: {
       name: "workflow_versions",
+      app: {},
       columns: {
         id: "id",
         definition: "definition_id",
@@ -128,9 +127,11 @@ const NAMES: BlockSqlNames = {
         permissions: "permissions",
         inputSchema: "input_schema",
       },
+      typed: ["status", "owner"],
     },
     triggers: {
       name: "workflow_triggers",
+      app: {},
       columns: {
         id: "id",
         definition: "definition_id",
@@ -140,9 +141,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["kind"],
     },
     webhookTokens: {
       name: "workflow_webhook_tokens",
+      app: {},
       columns: {
         tokenHash: "token_hash",
         trigger: "trigger_id",
@@ -151,6 +154,7 @@ const NAMES: BlockSqlNames = {
     },
     credentials: {
       name: "workflow_credentials",
+      app: {},
       lifecycle: { tenant: "tenant", credentials: ["ref"] },
       columns: {
         id: "id",
@@ -165,6 +169,7 @@ const NAMES: BlockSqlNames = {
     },
     steps: {
       name: "workflow_step_library",
+      app: {},
       columns: {
         name: "name",
         title: "title",
@@ -175,6 +180,7 @@ const NAMES: BlockSqlNames = {
         operation: "operation",
         updatedAt: "updated_at",
       },
+      optional: ["description"],
     },
     nodeRuns: {
       name: "workflow_node_runs",
@@ -193,6 +199,7 @@ const NAMES: BlockSqlNames = {
     },
     alerts: {
       name: "workflow_alerts",
+      app: {},
       columns: {
         id: "id",
         definition: "definition_id",
@@ -202,9 +209,11 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      typed: ["onEvent"],
     },
     alertFires: {
       name: "workflow_alert_fires",
+      app: {},
       columns: { alert: "alert_id", run: "run_id", firedAt: "fired_at" },
     },
   },
@@ -278,6 +287,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     definitionReadable,
     definitionJson,
     versionJson,
+    draftColumn,
+    draftValue,
     scoped,
     forked,
     subjectTyped,
@@ -379,10 +390,7 @@ create index if not exists workflow_versions_published_by_idx on ${v} (${cv("pub
 create unique index if not exists workflow_versions_one_draft_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'draft';
 create unique index if not exists workflow_versions_one_published_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'published';
 create index if not exists workflow_versions_created_by_idx on ${v} (${cv("createdBy")});
-alter table ${v} enable row level security;
-${revokeTable(v)}
-grant select on ${v} to authenticated;
-grant all on ${v} to service_role;
+${lockModuleTable(ctx, "versions", { read: true })}
 drop policy if exists workflow_versions_read on ${v};
 create policy workflow_versions_read on ${v} for select to authenticated
   using (${definitionReadable(cv("definition"))});
@@ -399,13 +407,8 @@ create table if not exists ${t} (
   ${ct("createdAt")} timestamptz not null default now(),
   ${ct("updatedAt")} timestamptz not null default now()
 );
-create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});
-create index if not exists workflow_triggers_event_type_idx on ${t} ((${ct("config")} ->> 'type'))
-  where ${ct("kind")} = 'event' and ${ct("enabled")};
-alter table ${t} enable row level security;
-${revokeTable(t)}
-grant select on ${t} to authenticated;
-grant all on ${t} to service_role;
+create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});${s.tableExtras.triggers}
+${lockModuleTable(ctx, "triggers", { read: true })}
 drop policy if exists workflow_triggers_read on ${t};
 create policy workflow_triggers_read on ${t} for select to authenticated
   using (${definitionReadable(ct("definition"))});
@@ -415,7 +418,7 @@ create table if not exists ${w} (
   ${cw("trigger")} uuid not null unique references ${t} (${ct("id")}) on delete cascade,
   ${cw("createdAt")} timestamptz not null default now()
 );
-${lockTable(w)}
+${lockModuleTable(ctx, "webhookTokens")}
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
 -- with a credential_ref that a CredentialProvider resolves; it never holds
@@ -430,12 +433,9 @@ create table if not exists ${c} (
   ${cc("createdBy")} uuid references auth.users (id) on delete set null,
   ${cc("createdAt")} timestamptz not null default now(),
   constraint workflow_credentials_tenant_name_key unique nulls not distinct (${cc("tenant")}, ${cc("name")})
-);
+);${s.tableExtras.credentials}
 create index if not exists workflow_credentials_created_by_idx on ${c} (${cc("createdBy")});
-alter table ${c} enable row level security;
-${revokeTable(c)}
-grant select on ${c} to authenticated;
-grant all on ${c} to service_role;
+${lockModuleTable(ctx, "credentials", { read: true })}
 drop policy if exists workflow_credentials_read on ${c};
 create policy workflow_credentials_read on ${c} for select to authenticated
   using (${readable(cc("tenant"))});
@@ -444,19 +444,20 @@ create policy workflow_credentials_read on ${c} for select to authenticated
 -- builder and the names a published graph may use.
 create table if not exists ${l} (
   ${cl("name")} text primary key check (${cl("name")} ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  ${cl("title")} text not null check (length(${cl("title")}) between 1 and 200),
-  ${cl("description")} text,
+  ${cl("title")} text not null check (length(${cl("title")}) between 1 and 200),${
+    ctx.has("steps", "description")
+      ? `
+  ${cl("description")} text,`
+      : ""
+  }
   ${cl("inputSchema")} jsonb not null default '{}'::jsonb,
   ${cl("outputSchema")} jsonb not null default '{}'::jsonb,
   ${cl("credentialKind")} text,
   ${cl("updatedAt")} timestamptz not null default now()
-);
+);${appUniqueIndex(ctx, "steps", ["name"])}
 alter table ${l} add column if not exists ${cl("operation")} text
   check (length(${cl("operation")}) between 1 and 200);
-alter table ${l} enable row level security;
-${revokeTable(l)}
-grant select on ${l} to authenticated;
-grant all on ${l} to service_role;
+${lockModuleTable(ctx, "steps", { read: true })}
 drop policy if exists workflow_step_library_read on ${l};
 create policy workflow_step_library_read on ${l} for select to authenticated using (true);
 
@@ -492,10 +493,7 @@ create table if not exists ${a} (
 );
 create index if not exists workflow_alerts_definition_idx on ${a} (${ca("definition")});
 create index if not exists workflow_alerts_created_by_idx on ${a} (${ca("createdBy")});
-alter table ${a} enable row level security;
-${revokeTable(a)}
-grant select on ${a} to authenticated;
-grant all on ${a} to service_role;
+${lockModuleTable(ctx, "alerts", { read: true })}
 drop policy if exists workflow_alerts_read on ${a};
 create policy workflow_alerts_read on ${a} for select to authenticated
   using (${definitionReadable(ca("definition"))});
@@ -505,9 +503,9 @@ create table if not exists ${f} (
   ${cf("run")} uuid not null references ${r} (${cr("id")}) on delete cascade,
   ${cf("firedAt")} timestamptz not null default now(),
   primary key (${cf("alert")}, ${cf("run")})
-);
+);${appUniqueIndex(ctx, "alertFires", ["alert", "run"])}
 create index if not exists workflow_alert_fires_run_idx on ${f} (${cf("run")});
-${lockTable(f)}
+${lockModuleTable(ctx, "alertFires")}
 
 -- Problems that keep a graph from being published, as messages; empty when
 -- it may be. The step names must be in the step library.
@@ -759,14 +757,14 @@ begin
   where x.${cv("definition")} = definition and x.${cv("status")} = 'draft'
   returning * into v_row;
   if not found then
-    insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")})
+    insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")}${draftColumn})
     values (
       definition,
       coalesce((select max(y.${cv("version")}) from ${v} y where y.${cv("definition")} = definition), 0) + 1,
       graph,
       coalesce(input_schema, (select y.${cv("inputSchema")} from ${v} y
         where y.${cv("definition")} = definition order by y.${cv("version")} desc limit 1)),
-      (select auth.uid())
+      (select auth.uid())${draftValue}
     )
     returning * into v_row;
   end if;
@@ -835,14 +833,14 @@ begin
           detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
-  update ${v} x set ${cv("status")} = 'archived'
+  update ${v} x set ${cv("status")} = ${ctx.cast("versions", "status", "'archived'")}
   where x.${cv("definition")} = v_row.${cv("definition")} and x.${cv("status")} = 'published';
   update ${v} x set
-    ${cv("status")} = 'published',
+    ${cv("status")} = ${ctx.cast("versions", "status", "'published'")},
     ${cv("compiled")} = compiled,
     ${cv("publishedAt")} = now(),
     ${cv("publishedBy")} = case when v_service then null else (select auth.uid()) end,
-    ${cv("owner")} = case when v_service then 'organization' else 'user' end,
+    ${cv("owner")} = ${ctx.cast("versions", "owner", "case when v_service then 'organization' else 'user' end")},
     ${cv("permissions")} = v_permissions
   where x.${cv("id")} = v_row.${cv("id")}
   returning * into v_row;
@@ -1027,7 +1025,7 @@ export const WORKFLOW_BUILDER: BlockSqlDefinition = {
         "Event triggers go: an automation with a workflow action starts a definition on an outbox event. Triggers of kind event are deleted and workflow_event_targets is dropped.",
       sql: (ctx) =>
         ctx.manages
-          ? `delete from ${ctx.table("triggers")} where ${ctx.col("triggers", "kind")} = 'event';\ndrop function if exists ${ctx.fn("workflow_event_targets")}(text, ${ctx.idType});`
+          ? `${ctx.owns("triggers") ? `delete from ${ctx.table("triggers")} where ${ctx.col("triggers", "kind")} = 'event';\n` : ""}drop function if exists ${ctx.fn("workflow_event_targets")}(text, ${ctx.idType});`
           : "",
     },
   ],

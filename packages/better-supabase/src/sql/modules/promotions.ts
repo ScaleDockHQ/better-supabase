@@ -8,13 +8,9 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PromotionsNames } from "./promotions-functions.ts";
 
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { columns } from "./orders-shared.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import {
   codeFunctions,
@@ -54,6 +50,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     promotions: {
       name: "promotions",
+      app: {},
+      optional: ["description"],
+      typed: ["kind", "scope"],
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -82,6 +81,7 @@ const NAMES: BlockSqlNames = {
     },
     codes: {
       name: "promotion_codes",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -95,6 +95,7 @@ const NAMES: BlockSqlNames = {
     },
     cartCodes: {
       name: "cart_promotion_codes",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         tenant: "tenant_id",
@@ -105,6 +106,9 @@ const NAMES: BlockSqlNames = {
     },
     redemptions: {
       name: "promotion_redemptions",
+      app: {},
+      optional: ["email", "releasedAt"],
+      typed: ["status"],
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -144,6 +148,16 @@ function tables(ctx: BlockSqlContext, names: PromotionsNames): string {
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${using});`;
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
   const currency = (column: string, nullable: boolean): string =>
     `${column} char(3) ${nullable ? "" : "not null "}check (${column} ~ '^[A-Z]{3}$')`;
 
@@ -151,8 +165,7 @@ using (${using});`;
 create table if not exists ${t("promotions")} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
-  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),
-  ${p("description")} text check (length(${p("description")}) <= 2000),
+  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),${column("promotions", "description", (name) => `${name} text check (length(${name}) <= 2000)`)}
   ${p("kind")} text not null check (${p("kind")} in ('percentage', 'fixed', 'free_shipping')),
   ${p("percent")} numeric(5, 2) check (${p("percent")} > 0 and ${p("percent")} <= 100),
   ${currency(p("currency"), true)},
@@ -177,7 +190,7 @@ create table if not exists ${t("promotions")} (
   check (${p("endsAt")} is null or ${p("startsAt")} is null or ${p("endsAt")} > ${p("startsAt")})
 );
 create index if not exists ${ctx.naming.rename("promotions_tenant_idx")} on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});${addExtraColumns(t("promotions"), promotionExtras(ctx))}
-${lockTable(t("promotions"), { read: true })}
+${lockModuleTable(ctx, "promotions", { read: true })}
 ${policy("promotions", tenantRead("promotions"))}
 
 create table if not exists ${t("codes")} (
@@ -189,9 +202,9 @@ create table if not exists ${t("codes")} (
   ${k("redemptions")} integer not null default 0 check (${k("redemptions")} >= 0),
   ${k("createdAt")} timestamptz not null default now(),
   unique (${k("tenant")}, ${k("code")})
-);
+);${appUniqueIndex(ctx, "codes", ["tenant", "code"])}
 create index if not exists ${ctx.naming.rename("promotion_codes_promotion_idx")} on ${t("codes")} (${k("promotion")});
-${lockTable(t("codes"), { read: true })}
+${lockModuleTable(ctx, "codes", { read: true })}
 ${policy("codes", tenantRead("codes"))}
 
 create table if not exists ${t("cartCodes")} (
@@ -200,9 +213,9 @@ create table if not exists ${t("cartCodes")} (
   ${cc("code")} uuid not null references ${t("codes")} (${k("id")}) on delete cascade,
   ${cc("createdAt")} timestamptz not null default now(),
   primary key (${cc("cart")}, ${cc("code")})
-);
+);${appUniqueIndex(ctx, "cartCodes", ["cart", "code"])}
 create index if not exists ${ctx.naming.rename("cart_promotion_codes_code_idx")} on ${t("cartCodes")} (${cc("code")});
-${lockTable(t("cartCodes"), { read: true })}
+${lockModuleTable(ctx, "cartCodes", { read: true })}
 ${policy("cartCodes", `${tenantRead("cartCodes")} or exists (select 1 from ${orders.table("carts")} x where x.${cart("id")} = ${cc("cart")} and x.${cart("user")} = (select auth.uid()))`)}
 
 create table if not exists ${t("redemptions")} (
@@ -211,19 +224,17 @@ create table if not exists ${t("redemptions")} (
   ${r("promotion")} uuid not null references ${t("promotions")} (${p("id")}),
   ${r("code")} uuid references ${t("codes")} (${k("id")}) on delete set null,
   ${r("order")} uuid not null references ${orders.table("orders")} (${order("id")}) on delete cascade,
-  ${r("customer")} uuid references auth.users (id) on delete set null,
-  ${r("email")} text,
+  ${r("customer")} uuid references auth.users (id) on delete set null,${column("redemptions", "email", (name) => `${name} text`)}
   ${currency(r("currency"), false)},
   ${r("amount")} bigint not null check (${r("amount")} >= 0),
   ${r("status")} text not null default 'redeemed' check (${r("status")} in ('redeemed', 'released')),
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("releasedAt")} timestamptz,
+  ${r("createdAt")} timestamptz not null default now(),${column("redemptions", "releasedAt", (name) => `${name} timestamptz`)}
   unique (${r("order")}, ${r("promotion")})
-);
+);${appUniqueIndex(ctx, "redemptions", ["order", "promotion"])}
 create index if not exists ${ctx.naming.rename("promotion_redemptions_promotion_idx")} on ${t("redemptions")} (${r("promotion")}, ${r("status")});
 create index if not exists ${ctx.naming.rename("promotion_redemptions_customer_idx")} on ${t("redemptions")} (${r("customer")});
 create index if not exists ${ctx.naming.rename("promotion_redemptions_code_idx")} on ${t("redemptions")} (${r("code")});
-${lockTable(t("redemptions"), { read: true })}
+${lockModuleTable(ctx, "redemptions", { read: true })}
 ${policy("redemptions", `${tenantRead("redemptions")} or ${r("customer")} = (select auth.uid())`)}
 `;
 }

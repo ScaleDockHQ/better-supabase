@@ -177,19 +177,6 @@ export interface PublicBookingDay {
   readonly slots: readonly PublicSlot[];
 }
 
-/**
- * Minutes in a Postgres interval as it prints, such as `00:30:00` or `1 day
- * 02:00:00`.
- */
-function intervalMinutes(interval: string): number {
-  const days = /(\d+) days?/.exec(interval)?.[1];
-
-  const [hours = "0", minutes = "0"] =
-    /(\d+):(\d+):\d+/.exec(interval)?.slice(1) ?? [];
-
-  return Number(days ?? 0) * 24 * 60 + Number(hours) * 60 + Number(minutes);
-}
-
 export interface PublicBookingPage {
   readonly serviceName: string;
   readonly hostName: string;
@@ -262,7 +249,7 @@ export async function loadPublicBooking(
   return {
     serviceName: service.data.name,
     hostName: resource?.name ?? service.data.name,
-    minutes: intervalMinutes(service.data.duration),
+    minutes: service.data.duration.total({ unit: "minutes" }),
     tz,
     from: start.toString(),
     days: [...days].map(([date, items]) => ({ date, slots: items })),

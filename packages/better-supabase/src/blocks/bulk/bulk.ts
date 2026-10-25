@@ -8,7 +8,9 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
+  instantOf,
   isRecord,
+  optionalInstant,
   optionalText,
   recordOf,
   textOf,
@@ -118,8 +120,8 @@ export interface BulkRun extends BulkResult {
   readonly action: string;
   readonly status: BulkStatus;
   readonly position: number;
-  readonly createdAt: string;
-  readonly finishedAt: string | undefined;
+  readonly createdAt: Temporal.Instant;
+  readonly finishedAt: Temporal.Instant | undefined;
 }
 
 /** What `apply` did: ran the rows now, or started a background run. */
@@ -255,8 +257,8 @@ function runOf(value: unknown): BulkRun | null {
     action: textOf(value["action"]),
     status: statusOf(value["status"]),
     position: count(value["position"]),
-    createdAt: textOf(value["createdAt"]),
-    finishedAt: optionalText(value["finishedAt"]),
+    createdAt: instantOf(value["createdAt"]),
+    finishedAt: optionalInstant(value["finishedAt"]),
   };
 }
 

@@ -1,7 +1,11 @@
 import type { MessagingSql } from "./messaging-names.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { messagingRowJson } from "./messaging-names.ts";
 import { MAX_SUMMARY_LENGTH } from "./messaging-tables.ts";
+
+/** A column and the value `save_thread_summary` writes to it. */
+type Write = readonly [string, string];
 
 /** `thread_summary` and the service role's `save_thread_summary`. */
 export function summaryFunctions(q: MessagingSql): string {
@@ -9,6 +13,43 @@ export function summaryFunctions(q: MessagingSql): string {
   const ms = q.cols("messages");
   const cv = q.cols("conversations");
   const su = q.cols("summaries");
+  const has = (column: string): boolean => q.ctx.has("summaries", column);
+  // Without updatedAt, an edit or delete after throughAt makes it stale.
+  const savedAt = has("updatedAt") ? su("updatedAt") : su("throughAt");
+
+  const model: readonly Write[] = has("model")
+    ? [["model", "save_thread_summary.attrs ->> 'model'"]]
+    : [];
+
+  const stamped: readonly Write[] =
+    has("updatedAt") && !q.ctx.owns("summaries")
+      ? [["updatedAt", "now()"]]
+      : [];
+
+  const writes: readonly Write[] = [
+    ["tenant", "v_tenant"],
+    ["conversation", "v_conversation"],
+    ["thread", "save_thread_summary.thread"],
+    ["summary", "btrim(save_thread_summary.summary)"],
+    ...model,
+    ["messageCount", "v_count"],
+    ["throughAt", "(save_thread_summary.attrs ->> 'throughAt')::timestamptz"],
+    ...stamped,
+  ];
+
+  const values = (list: readonly Write[]): string =>
+    list.map(([, value]) => value).join(", ");
+
+  const updates = [
+    "summary",
+    ...(has("model") ? ["model"] : []),
+    "messageCount",
+    "throughAt",
+  ].map((column) => `${su(column)} = excluded.${su(column)}`);
+
+  if (has("updatedAt")) {
+    updates.push(`${su("updatedAt")} = now()`);
+  }
 
   return `
 -- The summary of a thread (by its root message) or of a conversation's
@@ -23,7 +64,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(s) || jsonb_build_object(
+  select ${messagingRowJson(q.ctx, "summaries", "s")} || jsonb_build_object(
     'stale', exists (
       select 1 from ${t("messages")} m
       where m.${ms("conversation")} = s.${su("conversation")}
@@ -31,8 +72,8 @@ as $$
         and case when s.${su("thread")} is null then m.${ms("thread")} is null
           else m.${ms("id")} = s.${su("thread")} or m.${ms("thread")} = s.${su("thread")} end
         and (m.${ms("sentAt")} > s.${su("throughAt")}
-          or m.${ms("editedAt")} > s.${su("updatedAt")}
-          or m.${ms("deletedAt")} > s.${su("updatedAt")})
+          or m.${ms("editedAt")} > s.${savedAt}
+          or m.${ms("deletedAt")} > s.${savedAt})
     )
   )
   from ${t("summaries")} s
@@ -85,15 +126,11 @@ begin
     or save_thread_summary.attrs ->> 'throughAt' is null then
     ${fail("MESSAGING_SUMMARY_INVALID", `a summary needs 1 to ${String(MAX_SUMMARY_LENGTH)} characters, a message count and throughAt`, "22023")}
   end if;
-  insert into ${t("summaries")} (${su("tenant")}, ${su("conversation")}, ${su("thread")}, ${su("summary")}, ${su("model")}, ${su("messageCount")}, ${su("throughAt")})
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  insert into ${t("summaries")} (${writes.map(([column]) => su(column)).join(", ")})
+  values (${values(writes.slice(0, 4))},
+    ${values(writes.slice(4))})
   on conflict (${su("conversation")}, ${su("thread")}) do update
-  set ${su("summary")} = excluded.${su("summary")},
-    ${su("model")} = excluded.${su("model")},
-    ${su("messageCount")} = excluded.${su("messageCount")},
-    ${su("throughAt")} = excluded.${su("throughAt")},
-    ${su("updatedAt")} = now();
+  set ${updates.join(",\n    ")};
   return ${fn("thread_summary")}(v_conversation, save_thread_summary.thread);
 end;
 $$;

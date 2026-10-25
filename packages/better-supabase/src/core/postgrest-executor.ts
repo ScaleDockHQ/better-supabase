@@ -9,6 +9,7 @@ import type { Result } from "./result.ts";
 
 import { compilePostgrest } from "../compile/postgrest.ts";
 import { invalidRequest } from "../ir/build.ts";
+import { encodeArguments } from "../ir/wire.ts";
 import { dbError, mapDbError, withMaxAffected } from "./errors.ts";
 import { chunkRead, queryLength, tooLong } from "./in-chunks.ts";
 import { err, ok, toDbError } from "./result.ts";
@@ -635,12 +636,14 @@ export function postgrestExecutor(
         return err(aborted());
       }
 
+      const encoded = encodeArguments(args);
+
       // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
       // builder with these methods.
       const called = (
         context.get
-          ? scoped.rpc(name, queryArgs(args), { get: true })
-          : scoped.rpc(name, args)
+          ? scoped.rpc(name, queryArgs(encoded), { get: true })
+          : scoped.rpc(name, encoded)
       ) as BuilderLike;
 
       const built = context.select
@@ -683,6 +686,8 @@ export function postgrestExecutor(
 /**
  * GET arguments travel in the query string, where supabase-js would print an
  * object as `[object Object]`; json and jsonb parameters take it as JSON.
+ * `args` are already in wire form, so Temporal values arrive as plain text and
+ * are not quoted a second time.
  */
 function queryArgs(
   args: Readonly<Record<string, unknown>>,

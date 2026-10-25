@@ -210,6 +210,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "log": "id" | "table" | "record" | "op" | "old" | "new" | "changed" | "actor" | "actorRole" | "tenant" | "occurredAt" | "impersonatedBy" | "impersonationReason" | "supportSession" | "eventType" | "category" | "outcome" | "source" | "targetType" | "metadata" | "idempotencyKey" | "actorKind" | "actorLabel" | "tenantLabel" | "targetLabel" | "summary" | "requestId" | "correlationId" | "scope";
       readonly "restricted": "entry" | "old" | "new" | "ip" | "userAgent" | "metadata" | "sessionId" | "changedValues";
+      readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
     readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "list_audit_events" | "purge_audit_log";
     readonly actions: "view" | "viewAll" | "revert";
@@ -795,7 +796,10 @@ export interface BlockNameRegistry {
     readonly primary: "job";
   };
   readonly "idempotency": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "keys": "scope" | "key" | "requestHash" | "status" | "statusCode" | "response" | "lockedUntil" | "createdAt" | "expiresAt" | "holder";
+      readonly "leases": "scope" | "key" | "holder" | "expiresAt";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1293,7 +1297,10 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "queue": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "messages": "id" | "queue" | "message" | "attempts" | "enqueuedAt" | "visibleAt" | "archivedAt" | "dead" | "dedupeKey" | "maxAttempts";
+      readonly "schedules": "jobName" | "schedule" | "timezone" | "queue" | "payload" | "nextRun" | "lastRun" | "lockedUntil" | "createdAt" | "tenant" | "firstAfter";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1322,7 +1329,10 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "rate-limit": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "rules": "scope" | "maxRequests" | "period" | "keyClaim";
+      readonly "counters": "scope" | "key" | "windowStart" | "hits" | "period";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1386,7 +1396,9 @@ export interface BlockNameRegistry {
     readonly primary: "reminder";
   };
   readonly "reserved-slugs": {
-    readonly tables: {};
+    readonly tables: {
+      readonly "slugs": "slug" | "reason";
+    };
     readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
@@ -1593,6 +1605,7 @@ export interface BlockNameRegistry {
       readonly "scimUsers": "id" | "tenant" | "user" | "externalId" | "userName" | "displayName" | "givenName" | "familyName" | "email" | "emails" | "active" | "version" | "createdAt" | "updatedAt";
       readonly "scimGroups": "id" | "tenant" | "displayName" | "externalId" | "role" | "version" | "createdAt" | "updatedAt";
       readonly "scimMembers": "group" | "member";
+      readonly "syncLog": "id" | "tenant" | "operation" | "resourceType" | "resourceId" | "status" | "error" | "requestId" | "createdAt";
     };
     readonly functions: "add_organization_domain" | "check_sso_provider" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "register_sso_provider" | "remove_organization_domain" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
     readonly actions: "manage";

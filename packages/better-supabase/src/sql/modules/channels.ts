@@ -30,13 +30,21 @@ function channelJson(q: ChannelsSql, ch: string, c: string): string {
     )`;
 }
 
+/** Whether the channels table has the columns that link a channel to a record. */
+function links(q: ChannelsSql): boolean {
+  return (
+    q.ctx.has("channels", "subjectType") && q.ctx.has("channels", "subjectId")
+  );
+}
+
 /** `ctx.record` of a channel event over the channel row variable `row`. */
 function channelRecord(q: ChannelsSql, type: string, row: string): string {
   const { ch } = q;
+  const linked = links(q);
 
   return q.ctx.record({
     type,
-    payload: `jsonb_build_object('organizationId', ${row}.${ch("tenant")}::text, 'channelId', ${row}.${ch("id")}, 'name', ${row}.${ch("name")}, 'visibility', ${row}.${ch("visibility")}, 'recordType', ${row}.${ch("subjectType")}, 'recordId', ${row}.${ch("subjectId")}, 'subjectType', ${sqlString(q.e("channel"))}, 'subjectId', ${row}.${ch("id")}::text)`,
+    payload: `jsonb_build_object('organizationId', ${row}.${ch("tenant")}::text, 'channelId', ${row}.${ch("id")}, 'name', ${row}.${ch("name")}, 'visibility', ${row}.${ch("visibility")}, 'recordType', ${linked ? `${row}.${ch("subjectType")}` : "null::text"}, 'recordId', ${linked ? `${row}.${ch("subjectId")}` : "null::text"}, 'subjectType', ${sqlString(q.e("channel"))}, 'subjectId', ${row}.${ch("id")}::text)`,
     subject: `'channels/' || ${row}.${ch("id")}::text`,
     tenant: `${row}.${ch("tenant")}::text`,
     audit: {
@@ -57,6 +65,16 @@ function channelsTable(q: ChannelsSql): string {
     return "";
   }
 
+  const linked = links(q);
+
+  const optional = (column: string, definition: string): string =>
+    ctx.has("channels", column) ? `\n  ${ch(column)} ${definition},` : "";
+
+  const stamp = (column: string): string =>
+    ctx.has("channels", column)
+      ? `,\n  ${ch(column)} timestamptz not null default now()`
+      : "";
+
   return `
 create table if not exists ${t("channels")} (
   ${ch("id")} uuid primary key references ${conversations} (${cv("id")}) on delete cascade,
@@ -64,16 +82,14 @@ create table if not exists ${t("channels")} (
   ${ch("name")} text not null check (${ch("name")} ~ ${NAME}),
   ${ch("visibility")} text not null default 'public' check (${ch("visibility")} in ('public', 'private')),
   ${ch("topic")} text check (${ch("topic")} is null or length(${ch("topic")}) <= 250),
-  ${ch("purpose")} text check (${ch("purpose")} is null or length(${ch("purpose")}) <= 250),
-  ${ch("subjectType")} text,
-  ${ch("subjectId")} text,
-  ${ch("createdBy")} uuid,
-  ${ch("createdAt")} timestamptz not null default now(),
-  ${ch("updatedAt")} timestamptz not null default now(),
-  check ((${ch("subjectType")} is null) = (${ch("subjectId")} is null))
+  ${ch("purpose")} text check (${ch("purpose")} is null or length(${ch("purpose")}) <= 250),${optional("subjectType", "text")}${optional("subjectId", "text")}
+  ${ch("createdBy")} uuid${stamp("createdAt")}${stamp("updatedAt")}${linked ? `,\n  check ((${ch("subjectType")} is null) = (${ch("subjectId")} is null))` : ""}
 );
-create unique index if not exists ${idx("channels_name_idx")} on ${t("channels")} (${ch("tenant")}, ${ch("name")});
-create index if not exists ${idx("channels_subject_idx")} on ${t("channels")} (${ch("tenant")}, ${ch("subjectType")}, ${ch("subjectId")}) where ${ch("subjectType")} is not null;
+create unique index if not exists ${idx("channels_name_idx")} on ${t("channels")} (${ch("tenant")}, ${ch("name")});${
+    linked
+      ? `\ncreate index if not exists ${idx("channels_subject_idx")} on ${t("channels")} (${ch("tenant")}, ${ch("subjectType")}, ${ch("subjectId")}) where ${ch("subjectType")} is not null;`
+      : ""
+  }
 ${lockTable(t("channels"), { read: true })}
 
 -- A channel is visible when its conversation is: a public one to the tenant,
@@ -89,6 +105,25 @@ function channelsFunctions(q: ChannelsSql): string {
   const { ctx, t, fn, ch, cv, cvCast, mb, mfn, conversations, members } = q;
   const id = ctx.idType;
   const subjects = ctx.of("subjects");
+  const linked = links(q);
+  const has = (column: string): boolean => ctx.has("channels", column);
+
+  const subjectCheck = linked
+    ? `
+  if (nullif(create_channel.attrs ->> 'subjectType', '') is null) <> (nullif(create_channel.attrs ->> 'subjectId', '') is null) then
+    ${fail("CHANNELS_SUBJECT_INVALID", "a linked record needs subjectType and subjectId", "22023")}
+  end if;
+  if nullif(create_channel.attrs ->> 'subjectType', '') is not null
+    and not (${SERVICE_CALLER} or coalesce(${subjects.fn("can_subject")}(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
+    ${fail("CHANNELS_NOT_FOUND", "no such record you can read", "P0002")}
+  end if;
+  if coalesce(${subjectTenant(ctx, "(create_channel.attrs ->> 'subjectType')", "(create_channel.attrs ->> 'subjectId')")} <> create_channel.tenant::text, false) then
+    ${fail("CHANNELS_NOT_FOUND", "no such record in this organization", "P0002")}
+  end if;`
+    : `
+  if nullif(create_channel.attrs ->> 'subjectType', '') is not null or nullif(create_channel.attrs ->> 'subjectId', '') is not null then
+    ${fail("CHANNELS_SUBJECT_INVALID", "channels here don't link records", "22023")}
+  end if;`;
 
   const manage = (row: string): string =>
     `(${q.ctx.scope.can(`${row}.${ch("tenant")}`, q.key("manage"))}
@@ -120,17 +155,7 @@ begin
   end if;
   if v_visibility not in ('public', 'private') then
     ${fail("CHANNELS_VISIBILITY_INVALID", "a channel is public or private", "22023")}
-  end if;
-  if (nullif(create_channel.attrs ->> 'subjectType', '') is null) <> (nullif(create_channel.attrs ->> 'subjectId', '') is null) then
-    ${fail("CHANNELS_SUBJECT_INVALID", "a linked record needs subjectType and subjectId", "22023")}
-  end if;
-  if nullif(create_channel.attrs ->> 'subjectType', '') is not null
-    and not (${SERVICE_CALLER} or coalesce(${subjects.fn("can_subject")}(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
-    ${fail("CHANNELS_NOT_FOUND", "no such record you can read", "P0002")}
-  end if;
-  if coalesce(${subjectTenant(ctx, "(create_channel.attrs ->> 'subjectType')", "(create_channel.attrs ->> 'subjectId')")} <> create_channel.tenant::text, false) then
-    ${fail("CHANNELS_NOT_FOUND", "no such record in this organization", "P0002")}
-  end if;
+  end if;${subjectCheck}
   if exists (select 1 from ${t("channels")} x where x.${ch("tenant")} = create_channel.tenant and x.${ch("name")} = v_name) then
     ${fail("CHANNELS_NAME_TAKEN", "a channel with this name exists", "23505")}
   end if;
@@ -141,10 +166,10 @@ begin
     create_channel.members
   );
   begin
-    insert into ${t("channels")} (${ch("id")}, ${ch("tenant")}, ${ch("name")}, ${ch("visibility")}, ${ch("topic")}, ${ch("purpose")}, ${ch("subjectType")}, ${ch("subjectId")}, ${ch("createdBy")})
+    insert into ${t("channels")} (${ch("id")}, ${ch("tenant")}, ${ch("name")}, ${ch("visibility")}, ${ch("topic")}, ${ch("purpose")}, ${linked ? `${ch("subjectType")}, ${ch("subjectId")}, ` : ""}${ch("createdBy")})
     values ((v_conv ->> 'id')::uuid, create_channel.tenant, v_name, ${ctx.cast("channels", "visibility", "v_visibility")},
       nullif(trim(create_channel.attrs ->> 'topic'), ''), nullif(trim(create_channel.attrs ->> 'purpose'), ''),
-      nullif(create_channel.attrs ->> 'subjectType', ''), nullif(create_channel.attrs ->> 'subjectId', ''), auth.uid())
+      ${linked ? "nullif(create_channel.attrs ->> 'subjectType', ''), nullif(create_channel.attrs ->> 'subjectId', ''), " : ""}auth.uid())
     returning * into v_ch;
   exception
     when unique_violation then
@@ -194,8 +219,7 @@ begin
       ${ch("name")} = v_name,
       ${ch("visibility")} = ${ctx.cast("channels", "visibility", "v_visibility")},
       ${ch("topic")} = case when update_channel.attrs ? 'topic' then nullif(trim(update_channel.attrs ->> 'topic'), '') else x.${ch("topic")} end,
-      ${ch("purpose")} = case when update_channel.attrs ? 'purpose' then nullif(trim(update_channel.attrs ->> 'purpose'), '') else x.${ch("purpose")} end,
-      ${ch("updatedAt")} = now()
+      ${ch("purpose")} = case when update_channel.attrs ? 'purpose' then nullif(trim(update_channel.attrs ->> 'purpose'), '') else x.${ch("purpose")} end${has("updatedAt") ? `,\n      ${ch("updatedAt")} = now()` : ""}
     where x.${ch("id")} = v_ch.${ch("id")}
     returning * into v_ch;
   exception
@@ -342,10 +366,14 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${channelJson(q, "x", "c")} order by x.${ch("name")}), '[]'::jsonb)
+${
+  linked
+    ? `  select coalesce(jsonb_agg(${channelJson(q, "x", "c")} order by x.${ch("name")}), '[]'::jsonb)
   from ${t("channels")} x
   join ${conversations} c on c.${cv("id")} = x.${ch("id")}
-  where x.${ch("subjectType")} = channels_for_record.subject_type and x.${ch("subjectId")} = channels_for_record.subject_id
+  where x.${ch("subjectType")} = channels_for_record.subject_type and x.${ch("subjectId")} = channels_for_record.subject_id`
+    : "  select '[]'::jsonb"
+}
 $$;
 ${userGrant(`${fn("channels_for_record")}(text, text)`)}
 `;

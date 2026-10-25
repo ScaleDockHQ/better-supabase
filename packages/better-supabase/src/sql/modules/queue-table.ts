@@ -1,43 +1,72 @@
+import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
+
+import { sqlIdent } from "../../core/template.ts";
 import { revokeTable } from "../shared.ts";
 
+/** `names.tables.messages`: the table backend's messages. */
+export const MESSAGES_TABLE: BlockSqlTableSpec = {
+  name: "job_messages",
+  app: { writes: false },
+  columns: {
+    id: "id",
+    queue: "queue",
+    message: "message",
+    attempts: "attempts",
+    enqueuedAt: "enqueued_at",
+    visibleAt: "visible_at",
+    archivedAt: "archived_at",
+    dead: "dead",
+    dedupeKey: "dedupe_key",
+    maxAttempts: "max_attempts",
+  },
+};
+
 /** The table backend; `guard` opens `purge_job_archive` (see `archiveGuard`). */
-export const table = (
-  guard: string,
-): string => `-- Jobs in a plain table, for projects without pgmq. Messages have the same
+export function table(ctx: BlockSqlContext, guard: string): string {
+  const messages = ctx.table("messages");
+  const c = (column: string): string => ctx.col("messages", column);
+  const { schema, name } = ctx.tableName("messages");
+  const index = (what: string): string => sqlIdent(`${name}_${what}`);
+
+  // The dedupe index before it allowed a follow-up behind a claimed message.
+  const legacy = ctx.owns("messages")
+    ? `\ndrop index if exists ${sqlIdent(schema)}.${index("dedupe_idx")};`
+    : "";
+
+  return `-- Jobs in a plain table, for projects without pgmq. Messages have the same
 -- {payload, max_attempts, dedupe_key?, last_error?} body as on pgmq; claims
 -- take rows with for update skip locked, and attempts is the lease token.
-create table if not exists better_supabase.job_messages (
-  id bigint generated always as identity primary key,
-  queue text not null check (queue ~ '^[a-z_][a-z0-9_]{0,46}$'),
-  message jsonb not null,
-  attempts integer not null default 0,
-  enqueued_at timestamptz not null default now(),
-  visible_at timestamptz not null default now(),
-  archived_at timestamptz,
-  dead boolean not null default false,
-  dedupe_key text generated always as (message ->> 'dedupe_key') stored
+create table if not exists ${messages} (
+  ${c("id")} bigint generated always as identity primary key,
+  ${c("queue")} text not null check (${c("queue")} ~ '^[a-z_][a-z0-9_]{0,46}$'),
+  ${c("message")} jsonb not null,
+  ${c("attempts")} integer not null default 0,
+  ${c("enqueuedAt")} timestamptz not null default now(),
+  ${c("visibleAt")} timestamptz not null default now(),
+  ${c("archivedAt")} timestamptz,
+  ${c("dead")} boolean not null default false,
+  ${c("dedupeKey")} text generated always as (${c("message")} ->> 'dedupe_key') stored
 );
-create index if not exists job_messages_ready_idx
-  on better_supabase.job_messages (queue, visible_at) where archived_at is null;
+create index if not exists ${index("ready_idx")}
+  on ${messages} (${c("queue")}, ${c("visibleAt")}) where ${c("archivedAt")} is null;
 -- One waiting message per dedupe key; a claimed one can have a follow-up
--- queued behind it (enqueue_job with dedupe_running false).
-drop index if exists better_supabase.job_messages_dedupe_idx;
-create unique index if not exists job_messages_waiting_dedupe_idx
-  on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null and attempts = 0;
-create index if not exists job_messages_dedupe_lookup_idx
-  on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null;
-create index if not exists job_messages_dedupe_once_idx
-  on better_supabase.job_messages (queue, dedupe_key) where dedupe_key is not null;
-create index if not exists job_messages_archived_idx
-  on better_supabase.job_messages (queue, archived_at) where archived_at is not null;
+-- queued behind it (enqueue_job with dedupe_running false).${legacy}
+create unique index if not exists ${index("waiting_dedupe_idx")}
+  on ${messages} (${c("queue")}, ${c("dedupeKey")}) where ${c("archivedAt")} is null and ${c("dedupeKey")} is not null and ${c("attempts")} = 0;
+create index if not exists ${index("dedupe_lookup_idx")}
+  on ${messages} (${c("queue")}, ${c("dedupeKey")}) where ${c("archivedAt")} is null and ${c("dedupeKey")} is not null;
+create index if not exists ${index("dedupe_once_idx")}
+  on ${messages} (${c("queue")}, ${c("dedupeKey")}) where ${c("dedupeKey")} is not null;
+create index if not exists ${index("archived_idx")}
+  on ${messages} (${c("queue")}, ${c("archivedAt")}) where ${c("archivedAt")} is not null;
 -- The message's attempt limit as a column, so claims find messages whose
 -- lease ran out on the last attempt through an index.
-alter table better_supabase.job_messages add column if not exists max_attempts integer
-  generated always as (coalesce((message ->> 'max_attempts')::integer, 5)) stored;
-create index if not exists job_messages_exhausted_idx
-  on better_supabase.job_messages (queue, visible_at) where archived_at is null and attempts >= max_attempts;
-alter table better_supabase.job_messages enable row level security;
-${revokeTable("better_supabase.job_messages")}
+alter table ${messages} add column if not exists ${c("maxAttempts")} integer
+  generated always as (coalesce((${c("message")} ->> 'max_attempts')::integer, 5)) stored;
+create index if not exists ${index("exhausted_idx")}
+  on ${messages} (${c("queue")}, ${c("visibleAt")}) where ${c("archivedAt")} is null and ${c("attempts")} >= ${c("maxAttempts")};
+alter table ${messages} enable row level security;
+${revokeTable(messages)}
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
 -- returns its id. With dedupe_running false only a message no worker has
@@ -61,23 +90,23 @@ declare
 begin
   if dedupe_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-    select m.id into existing
-    from better_supabase.job_messages m
-    where m.queue = enqueue_job.queue and m.dedupe_key = enqueue_job.dedupe_key and m.archived_at is null
-      and (enqueue_job.dedupe_running or m.attempts = 0)
+    select m.${c("id")} into existing
+    from ${messages} m
+    where m.${c("queue")} = enqueue_job.queue and m.${c("dedupeKey")} = enqueue_job.dedupe_key and m.${c("archivedAt")} is null
+      and (enqueue_job.dedupe_running or m.${c("attempts")} = 0)
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into better_supabase.job_messages (queue, message, visible_at)
+  insert into ${messages} (${c("queue")}, ${c("message")}, ${c("visibleAt")})
   values (
     queue,
     jsonb_build_object('payload', payload, 'max_attempts', max_attempts)
       || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,
     clock_timestamp() + make_interval(secs => greatest(delay, 0))
   )
-  returning id into created;
+  returning ${c("id")} into created;
   return created;
 end;
 $$;
@@ -104,9 +133,9 @@ begin
     raise exception 'enqueue_job_once needs a dedupe_key' using errcode = '22004';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-  select m.id into existing
-  from better_supabase.job_messages m
-  where m.queue = enqueue_job_once.queue and m.dedupe_key = enqueue_job_once.dedupe_key
+  select m.${c("id")} into existing
+  from ${messages} m
+  where m.${c("queue")} = enqueue_job_once.queue and m.${c("dedupeKey")} = enqueue_job_once.dedupe_key
   limit 1;
   if existing is not null then
     id := existing;
@@ -133,27 +162,27 @@ declare
 begin
   -- A visible message at max_attempts lost its worker on the last attempt
   -- (fail_job archives it otherwise).
-  update better_supabase.job_messages m
-  set message = m.message || jsonb_build_object('last_error', 'The lease ran out on the last attempt', 'dead', true),
-      dead = true,
-      archived_at = now()
-  where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= v_now
-    and m.attempts >= m.max_attempts;
+  update ${messages} m
+  set ${c("message")} = m.${c("message")} || jsonb_build_object('last_error', 'The lease ran out on the last attempt', 'dead', true),
+      ${c("dead")} = true,
+      ${c("archivedAt")} = now()
+  where m.${c("queue")} = claim_jobs.queue and m.${c("archivedAt")} is null and m.${c("visibleAt")} <= v_now
+    and m.${c("attempts")} >= m.${c("maxAttempts")};
   return query
     with picked as (
-      select m.id
-      from better_supabase.job_messages m
-      where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= v_now
-      order by m.visible_at, m.id
+      select m.${c("id")} as id
+      from ${messages} m
+      where m.${c("queue")} = claim_jobs.queue and m.${c("archivedAt")} is null and m.${c("visibleAt")} <= v_now
+      order by m.${c("visibleAt")}, m.${c("id")}
       limit greatest(batch, 1)
       for update skip locked
     )
-    update better_supabase.job_messages m
-    set attempts = m.attempts + 1,
-        visible_at = v_now + make_interval(secs => lease)
+    update ${messages} m
+    set ${c("attempts")} = m.${c("attempts")} + 1,
+        ${c("visibleAt")} = v_now + make_interval(secs => lease)
     from picked
-    where m.id = picked.id
-    returning m.id, m.attempts, m.enqueued_at, m.visible_at, m.message;
+    where m.${c("id")} = picked.id
+    returning m.${c("id")}, m.${c("attempts")}, m.${c("enqueuedAt")}, m.${c("visibleAt")}, m.${c("message")};
 end;
 $$;
 
@@ -166,9 +195,9 @@ security definer
 set search_path = ''
 as $$
   with done as (
-    update better_supabase.job_messages m
-    set archived_at = now()
-    where m.id = job_id and m.queue = complete_job.queue and m.attempts = attempt and m.archived_at is null
+    update ${messages} m
+    set ${c("archivedAt")} = now()
+    where m.${c("id")} = complete_job.job_id and m.${c("queue")} = complete_job.queue and m.${c("attempts")} = complete_job.attempt and m.${c("archivedAt")} is null
     returning 1
   )
   select exists (select 1 from done);
@@ -192,25 +221,25 @@ as $$
 declare
   msg jsonb;
 begin
-  select m.message into msg
-  from better_supabase.job_messages m
-  where m.id = job_id and m.queue = fail_job.queue and m.attempts = attempt and m.archived_at is null
+  select m.${c("message")} into msg
+  from ${messages} m
+  where m.${c("id")} = fail_job.job_id and m.${c("queue")} = fail_job.queue and m.${c("attempts")} = fail_job.attempt and m.${c("archivedAt")} is null
   for update;
   if msg is null then
     return null;
   end if;
   if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then
-    update better_supabase.job_messages m
-    set message = m.message || jsonb_build_object('last_error', left(error, 4000), 'dead', true),
-        dead = true,
-        archived_at = now()
-    where m.id = job_id;
+    update ${messages} m
+    set ${c("message")} = m.${c("message")} || jsonb_build_object('last_error', left(error, 4000), 'dead', true),
+        ${c("dead")} = true,
+        ${c("archivedAt")} = now()
+    where m.${c("id")} = fail_job.job_id;
     return 'dead';
   end if;
-  update better_supabase.job_messages m
-  set message = m.message || jsonb_build_object('last_error', left(error, 4000)),
-      visible_at = clock_timestamp() + make_interval(secs => coalesce(retry_in, 1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer))
-  where m.id = job_id;
+  update ${messages} m
+  set ${c("message")} = m.${c("message")} || jsonb_build_object('last_error', left(error, 4000)),
+      ${c("visibleAt")} = clock_timestamp() + make_interval(secs => coalesce(retry_in, 1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer))
+  where m.${c("id")} = fail_job.job_id;
   return 'queued';
 end;
 $$;
@@ -222,9 +251,9 @@ security definer
 set search_path = ''
 as $$
   with extended as (
-    update better_supabase.job_messages m
-    set visible_at = clock_timestamp() + make_interval(secs => lease)
-    where m.id = job_id and m.queue = extend_job_lease.queue and m.attempts = attempt and m.archived_at is null
+    update ${messages} m
+    set ${c("visibleAt")} = clock_timestamp() + make_interval(secs => lease)
+    where m.${c("id")} = extend_job_lease.job_id and m.${c("queue")} = extend_job_lease.queue and m.${c("attempts")} = extend_job_lease.attempt and m.${c("archivedAt")} is null
     returning 1
   )
   select exists (select 1 from extended);
@@ -249,13 +278,13 @@ declare
 begin
   ${guard}
   with purged as (
-    delete from better_supabase.job_messages
-    where id in (
-      select m.id from better_supabase.job_messages m
-      where m.queue = purge_job_archive.queue
-        and m.archived_at < now() - least(older_than, dead_older_than)
-        and m.archived_at < now() - case when m.dead then dead_older_than else older_than end
-      order by m.id
+    delete from ${messages}
+    where ${c("id")} in (
+      select m.${c("id")} from ${messages} m
+      where m.${c("queue")} = purge_job_archive.queue
+        and m.${c("archivedAt")} < now() - least(older_than, dead_older_than)
+        and m.${c("archivedAt")} < now() - case when m.${c("dead")} then dead_older_than else older_than end
+      order by m.${c("id")}
       limit batch
     )
     returning 1
@@ -277,9 +306,9 @@ as $$
 declare
   msg jsonb;
 begin
-  delete from better_supabase.job_messages m
-  where m.id = job_id and m.queue = replay_dead_job.queue and m.dead
-  returning m.message into msg;
+  delete from ${messages} m
+  where m.${c("id")} = replay_dead_job.job_id and m.${c("queue")} = replay_dead_job.queue and m.${c("dead")}
+  returning m.${c("message")} into msg;
   if msg is null then
     return null;
   end if;
@@ -304,13 +333,13 @@ security definer
 set search_path = ''
 as $$
   select
-    count(*) filter (where m.archived_at is null and m.visible_at <= clock_timestamp()),
-    count(*) filter (where m.archived_at is null and m.visible_at > clock_timestamp() and m.attempts > 0),
-    count(*) filter (where m.archived_at is null and m.visible_at > clock_timestamp() and m.attempts = 0),
-    count(*) filter (where m.dead),
-    extract(epoch from clock_timestamp() - min(m.enqueued_at) filter (where m.archived_at is null))::double precision
-  from better_supabase.job_messages m
-  where m.queue = job_queue_stats.queue;
+    count(*) filter (where m.${c("archivedAt")} is null and m.${c("visibleAt")} <= clock_timestamp()),
+    count(*) filter (where m.${c("archivedAt")} is null and m.${c("visibleAt")} > clock_timestamp() and m.${c("attempts")} > 0),
+    count(*) filter (where m.${c("archivedAt")} is null and m.${c("visibleAt")} > clock_timestamp() and m.${c("attempts")} = 0),
+    count(*) filter (where m.${c("dead")}),
+    extract(epoch from clock_timestamp() - min(m.${c("enqueuedAt")}) filter (where m.${c("archivedAt")} is null))::double precision
+  from ${messages} m
+  where m.${c("queue")} = job_queue_stats.queue;
 $$;
 
 -- A queue's dead letters, newest first, before before_id when given.
@@ -321,11 +350,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select m.id, m.attempts, m.enqueued_at, m.archived_at, m.message
-  from better_supabase.job_messages m
-  where m.queue = list_dead_jobs.queue and m.dead
-    and (before_id is null or m.id < before_id)
-  order by m.id desc
+  select m.${c("id")}, m.${c("attempts")}, m.${c("enqueuedAt")}, m.${c("archivedAt")}, m.${c("message")}
+  from ${messages} m
+  where m.${c("queue")} = list_dead_jobs.queue and m.${c("dead")}
+    and (before_id is null or m.${c("id")} < before_id)
+  order by m.${c("id")} desc
   limit least(greatest(max_rows, 1), 1000);
 $$;
 
@@ -353,3 +382,4 @@ begin
   return retried;
 end;
 $$;`;
+}

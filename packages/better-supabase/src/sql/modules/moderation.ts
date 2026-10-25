@@ -61,6 +61,8 @@ const NAMES: BlockSqlNames = {
   tables: {
     items: {
       name: "moderation_items",
+      app: {},
+      typed: ["status"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -79,6 +81,9 @@ const NAMES: BlockSqlNames = {
     },
     reports: {
       name: "moderation_reports",
+      app: {},
+      optional: ["note", "resolvedBy", "resolvedAt"],
+      typed: ["status"],
       lifecycle: { tenant: "tenant", user: "reporter", export: true },
       columns: {
         id: "id",
@@ -95,6 +100,8 @@ const NAMES: BlockSqlNames = {
     },
     actions: {
       name: "moderation_actions",
+      app: {},
+      typed: ["action", "fromStatus", "toStatus"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -110,6 +117,8 @@ const NAMES: BlockSqlNames = {
     },
     bans: {
       name: "moderation_bans",
+      app: {},
+      optional: ["reason", "bannedBy", "liftedBy"],
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -174,6 +183,19 @@ export function moderationTables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  const line = (
+    logical: string,
+    column: string,
+    definition: (quoted: string) => string,
+  ): string =>
+    ctx.has(logical, column)
+      ? `\n  ${ctx.col(logical, column)} ${definition(ctx.col(logical, column))},`
+      : "";
+
+  const subjectKey = ctx.owns("items")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("items").name}_subject_key`)} on ${items} (${i("tenant")}, ${i("subjectType")}, ${i("subjectId")});`;
+
   return `create table if not exists ${items} (
   ${i("id")} uuid primary key default gen_random_uuid(),
   ${i("tenant")} ${ctx.idType} not null,
@@ -191,18 +213,15 @@ export function moderationTables(ctx: BlockSqlContext): string {
 );
 create index if not exists ${name("items", "queue_idx")} on ${items} (${i("tenant")}, ${i("updatedAt")} desc) where ${i("status")} = 'pending' or ${i("openReports")} > 0;
 create index if not exists ${name("items", "status_idx")} on ${items} (${i("tenant")}, ${i("status")}, ${i("updatedAt")} desc);
-create index if not exists ${name("items", "author_idx")} on ${items} (${i("author")});
+create index if not exists ${name("items", "author_idx")} on ${items} (${i("author")});${subjectKey}
 
 create table if not exists ${reports} (
   ${r("id")} uuid primary key default gen_random_uuid(),
   ${r("tenant")} ${ctx.idType} not null,
   ${r("item")} uuid not null references ${items} (${i("id")}) on delete cascade,
   ${r("reporter")} uuid references auth.users (id) on delete cascade,
-  ${r("reason")} text not null check (${r("reason")} ~ '^[a-z][a-z0-9_]{0,62}$'),
-  ${r("note")} text check (${r("note")} is null or length(${r("note")}) <= 1000),
-  ${r("status")} text not null default 'open' check (${r("status")} in ('open', 'resolved', 'dismissed')),
-  ${r("resolvedBy")} uuid,
-  ${r("resolvedAt")} timestamptz,
+  ${r("reason")} text not null check (${r("reason")} ~ '^[a-z][a-z0-9_]{0,62}$'),${line("reports", "note", (note) => `text check (${note} is null or length(${note}) <= 1000)`)}
+  ${r("status")} text not null default 'open' check (${r("status")} in ('open', 'resolved', 'dismissed')),${line("reports", "resolvedBy", () => "uuid")}${line("reports", "resolvedAt", () => "timestamptz")}
   ${r("createdAt")} timestamptz not null default now()
 );
 create unique index if not exists ${name("reports", "open_idx")} on ${reports} (${r("item")}, ${r("reporter")}) where ${r("status")} = 'open';
@@ -225,11 +244,8 @@ create index if not exists ${name("actions", "item_idx")} on ${actions} (${a("it
 create table if not exists ${bans} (
   ${b("id")} uuid primary key default gen_random_uuid(),
   ${b("tenant")} ${ctx.idType} not null,
-  ${b("user")} uuid not null references auth.users (id) on delete cascade,
-  ${b("reason")} text check (${b("reason")} is null or length(${b("reason")}) <= 1000),
-  ${b("bannedBy")} uuid,
-  ${b("expiresAt")} timestamptz,
-  ${b("liftedBy")} uuid,
+  ${b("user")} uuid not null references auth.users (id) on delete cascade,${line("bans", "reason", (reason) => `text check (${reason} is null or length(${reason}) <= 1000)`)}${line("bans", "bannedBy", () => "uuid")}
+  ${b("expiresAt")} timestamptz,${line("bans", "liftedBy", () => "uuid")}
   ${b("liftedAt")} timestamptz,
   ${b("createdAt")} timestamptz not null default now()
 );

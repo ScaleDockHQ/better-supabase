@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:c97fb7bebcae709812da43139c2653968eb69a58269760a35faf79e7a398ecd0
+-- @bsb-hash sha256:005580a43e78ba8ae1f3b88902f4e108577ae5cfd776979764feb3c3963e0776
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,10 +347,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';

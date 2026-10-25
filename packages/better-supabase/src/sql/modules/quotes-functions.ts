@@ -3,6 +3,8 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   catalogLineFallback,
+  lineColumn,
+  lineCopyColumns,
   lineFieldsJson,
   lineItemsSql,
   TOTAL_COLUMNS,
@@ -146,7 +148,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
 
   const lines = (alias: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "ql", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "ql", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "ql", "taxCode")}, 'product', case when ${lineColumn(ctx, "lines", "ql", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(ctx, "lines", "ql", "productType")}, 'id', ${lineColumn(ctx, "lines", "ql", "productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const int8 = ["number", ...Object.keys(TOTAL_COLUMNS)].map(q);
 
@@ -236,8 +238,8 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
           const fromDealBody = `select x.${dk("contactType")} as type, x.${dk("contactId")} as id into v_contact
   from ${deals.table("contacts")} x where x.${dk("deal")} = v_deal.${d("id")} order by x.${dk("isPrimary")} desc limit 1;
   select coalesce(jsonb_agg(jsonb_build_object('description', x.${dl("description")}, 'quantity', x.${dl("quantity")}, 'unitAmount', x.${dl("unitAmount")}::text,
-      'discountBps', x.${dl("discountBps")}, 'taxRateBps', x.${dl("taxRateBps")}, 'taxCode', x.${dl("taxCode")},
-      'product', case when x.${dl("productType")} is null then null else jsonb_build_object('type', x.${dl("productType")}, 'id', x.${dl("productId")}) end
+      'discountBps', ${lineColumn(deals, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(deals, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(deals, "lines", "x", "taxCode")},
+      'product', case when ${lineColumn(deals, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(deals, "lines", "x", "productType")}, 'id', ${lineColumn(deals, "lines", "x", "productId")}) end
     ) order by x.${dl("position")}), '[]'::jsonb) into v_lines
   from ${deals.table("lines")} x where x.${dl("parent")} = v_deal.${d("id")};
   if jsonb_array_length(v_lines) = 0 and v_deal.${d("amount")} > 0 then
@@ -590,8 +592,12 @@ begin
   update ${t("quotes")} x set ${n.extras.map((extra) => `${extra.ident} = o.${extra.ident}`).join(", ")}
   from ${t("quotes")} o where o.${q("id")} = v_old.${q("id")} and x.${q("id")} = v_row.${q("id")};`
   }
-  insert into ${t("lines")} (${l("tenant")}, ${l("parent")}, ${l("productType")}, ${l("productId")}, ${l("description")}, ${l("quantity")}, ${l("unitAmount")}, ${l("discountBps")}, ${l("taxRateBps")}, ${l("taxCode")}, ${l("position")})
-  select x.${l("tenant")}, v_row.${q("id")}, x.${l("productType")}, x.${l("productId")}, x.${l("description")}, x.${l("quantity")}, x.${l("unitAmount")}, x.${l("discountBps")}, x.${l("taxRateBps")}, x.${l("taxCode")}, x.${l("position")}
+  insert into ${t("lines")} (${lineCopyColumns(ctx, "lines").map(l).join(", ")})
+  select ${lineCopyColumns(ctx, "lines")
+    .map((column) =>
+      column === "parent" ? `v_row.${q("id")}` : `x.${l(column)}`,
+    )
+    .join(", ")}
   from ${t("lines")} x where x.${l("parent")} = v_old.${q("id")};
   if v_old.${q("status")} <> 'accepted' then
     update ${t("quotes")} x set ${q("status")} = 'withdrawn', ${q("tokenHash")} = null, ${q("updatedAt")} = now() where x.${q("id")} = v_old.${q("id")};

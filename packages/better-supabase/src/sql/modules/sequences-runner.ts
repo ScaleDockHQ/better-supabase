@@ -167,8 +167,7 @@ begin
     return ${fn("sequence_member_json")}(v_member.${r("enrollment")});
   end if;
   update ${q.members} x
-  set ${r("lastError")} = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),
-    ${r("nextRunAt")} = now() + make_interval(mins => ${String(retryMinutes)} * greatest(x.${r("attempts")}, 1)),
+  set ${q.has("members", "lastError") ? `${r("lastError")} = left(coalesce(sequence_step_failed.error, 'send failed'), 2000),\n    ` : ""}${r("nextRunAt")} = now() + make_interval(mins => ${String(retryMinutes)} * greatest(x.${r("attempts")}, 1)),
     ${r("updatedAt")} = now()
   where x.${r("enrollment")} = v_member.${r("enrollment")}
   returning * into v_member;

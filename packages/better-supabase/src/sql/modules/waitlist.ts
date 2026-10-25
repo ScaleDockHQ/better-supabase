@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -53,6 +53,33 @@ const EVENTS: BlockSqlEvents<WaitlistEvents> = {
   },
 };
 
+const ENTRY_COLUMNS = {
+  id: "id",
+  email: "email",
+  status: "status",
+  position: "position",
+  referrer: "referrer",
+  metadata: "metadata",
+  user: "user_id",
+  decidedBy: "decided_by",
+  decidedAt: "decided_at",
+  createdAt: "created_at",
+} as const;
+
+const CODE_COLUMNS = {
+  id: "id",
+  hash: "code_hash",
+  prefix: "prefix",
+  maxUses: "max_uses",
+  uses: "uses",
+  expiresAt: "expires_at",
+  tenant: "organization_id",
+  role: "role",
+  createdBy: "created_by",
+  createdAt: "created_at",
+  revokedAt: "revoked_at",
+} as const;
+
 const NAMES: BlockSqlNames = {
   entities: {
     entry: {
@@ -67,41 +94,26 @@ const NAMES: BlockSqlNames = {
   tables: {
     entries: {
       name: "waitlist_entries",
+      app: {},
       lifecycle: { user: "user" },
-      columns: {
-        id: "id",
-        email: "email",
-        status: "status",
-        position: "position",
-        referrer: "referrer",
-        metadata: "metadata",
-        user: "user_id",
-        decidedBy: "decided_by",
-        decidedAt: "decided_at",
-        createdAt: "created_at",
-      },
+      columns: ENTRY_COLUMNS,
+      optional: ["referrer", "metadata", "decidedBy", "decidedAt"],
+      typed: ["status"],
     },
     codes: {
       name: "invite_codes",
+      app: {},
       lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        hash: "code_hash",
-        prefix: "prefix",
-        maxUses: "max_uses",
-        uses: "uses",
-        expiresAt: "expires_at",
-        tenant: "organization_id",
-        role: "role",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        revokedAt: "revoked_at",
-      },
+      columns: CODE_COLUMNS,
+      optional: ["prefix", "expiresAt", "createdBy", "createdAt"],
+      typed: ["role"],
     },
     redemptions: {
       name: "invite_code_redemptions",
+      app: {},
       lifecycle: { user: "user" },
       columns: { code: "code_id", user: "user_id", redeemedAt: "redeemed_at" },
+      optional: ["redeemedAt"],
     },
   },
 };
@@ -153,6 +165,54 @@ function build(ctx: BlockSqlContext): string {
   const ce = (c: string): string => ctx.col("entries", c);
   const ck = (c: string): string => ctx.col("codes", c);
   const cr = (c: string): string => ctx.col("redemptions", c);
+  const hasEntry = (c: string): boolean => ctx.has("entries", c);
+  const hasCode = (c: string): boolean => ctx.has("codes", c);
+  const ownsEntries = ctx.owns("entries");
+  const ownsCodes = ctx.owns("codes");
+
+  const line = (
+    table: string,
+    c: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, c)
+      ? `\n  ${ctx.col(table, c)} ${definition(ctx.col(table, c))},`
+      : "";
+
+  const status = (row: string): string =>
+    ownsEntries ? `${row}.${ce("status")}` : `${row}.${ce("status")}::text`;
+
+  const role = (row: string): string =>
+    ownsCodes ? `${row}.${ck("role")}` : `${row}.${ck("role")}::text`;
+
+  // The app's table has its own column names and columns of its own, so its
+  // rows go out under the module's names.
+  const rowJson = (
+    table: string,
+    columns: Readonly<Record<string, string>>,
+    row: string,
+    omit?: string,
+  ): string =>
+    `jsonb_build_object(${Object.entries(columns)
+      .filter(([logical]) => logical !== omit)
+      .map(
+        ([logical, key]) =>
+          `'${key}', ${ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null"}`,
+      )
+      .join(", ")})`;
+
+  const entryJson = (row: string): string =>
+    ownsEntries ? `to_jsonb(${row})` : rowJson("entries", ENTRY_COLUMNS, row);
+
+  const uniqueOverApp = (
+    table: string,
+    what: string,
+    columns: readonly string[],
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns.map((c) => ctx.col(table, c)).join(", ")});`;
+
   const permissions = moduleOperations("waitlist");
   const manage = ctx.permission("manage", permissions.manage);
   const staff = ctx.staff(manage);
@@ -186,12 +246,36 @@ function build(ctx: BlockSqlContext): string {
   const hash = (code: string): string => sha256Hex(`upper(trim(${code}))`);
 
   const usable = (row: string): string =>
-    `${row}.${ck("revokedAt")} is null
-      and (${row}.${ck("expiresAt")} is null or ${row}.${ck("expiresAt")} > now())
+    `${row}.${ck("revokedAt")} is null${hasCode("expiresAt") ? `\n      and (${row}.${ck("expiresAt")} is null or ${row}.${ck("expiresAt")} > now())` : ""}
       and (${row}.${ck("maxUses")} is null or ${row}.${ck("uses")} < ${row}.${ck("maxUses")})`;
 
   const publicCode = (row: string): string =>
-    `to_jsonb(${row}) - ${sqlString(ck("hash").replaceAll('"', ""))}`;
+    ownsCodes
+      ? `to_jsonb(${row}) - ${sqlString(ck("hash").replaceAll('"', ""))}`
+      : rowJson("codes", CODE_COLUMNS, row, "hash");
+
+  const prefix = (row: string): string =>
+    hasCode("prefix") ? `${row}.${ck("prefix")}` : "null::text";
+
+  const codeWritten = (
+    [
+      ["hash", hash("create_invite_code.code")],
+      ["prefix", "upper(left(trim(create_invite_code.code), 4))"],
+      ["maxUses", "create_invite_code.max_uses"],
+      ["expiresAt", "create_invite_code.expires_at"],
+      ["tenant", "create_invite_code.tenant"],
+      ["role", ctx.cast("codes", "role", "create_invite_code.role")],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([c]) => hasCode(c) && (c !== "createdBy" || !ownsCodes));
+
+  const entryWritten = (
+    [
+      ["email", "v_email"],
+      ["referrer", "join_waitlist.referrer"],
+      ["metadata", "coalesce(join_waitlist.metadata, '{}'::jsonb)"],
+    ] as const
+  ).filter(([c]) => hasEntry(c));
 
   const decided = (type: string): string =>
     ctx.record({
@@ -209,14 +293,14 @@ function build(ctx: BlockSqlContext): string {
   const codeEvent = (type: string, row: string, tenant: string): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('codeId', ${row}.${ck("id")}::text, 'organizationId', ${tenant}::text, 'prefix', ${row}.${ck("prefix")}, 'role', ${row}.${ck("role")})`,
+      payload: `jsonb_build_object('codeId', ${row}.${ck("id")}::text, 'organizationId', ${tenant}::text, 'prefix', ${prefix(row)}, 'role', ${row}.${ck("role")})`,
       subject: `'invite-codes/' || ${row}.${ck("id")}::text`,
       tenant,
       audit: {
         category: "access",
         targetType: "invite_code",
         recordId: `${row}.${ck("id")}::text`,
-        targetLabel: `${row}.${ck("prefix")}`,
+        targetLabel: prefix(row),
       },
     });
 
@@ -238,45 +322,34 @@ create table if not exists ${e} (
   ${ce("id")} uuid primary key default gen_random_uuid(),
   ${ce("email")} text not null unique check (${ce("email")} = lower(${ce("email")}) and ${ce("email")} ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   ${ce("status")} text not null default 'waiting' check (${ce("status")} in ('waiting', 'approved', 'rejected', 'joined')),
-  ${ce("position")} bigint generated always as identity,
-  ${ce("referrer")} text check (length(${ce("referrer")}) <= 200),
-  ${ce("metadata")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${ce("metadata")}) = 'object' and pg_column_size(${ce("metadata")}) <= 4096),
-  ${ce("user")} uuid references auth.users (id) on delete set null,
-  ${ce("decidedBy")} uuid references auth.users (id) on delete set null,
-  ${ce("decidedAt")} timestamptz,
+  ${ce("position")} bigint generated always as identity,${line("entries", "referrer", (name) => `text check (length(${name}) <= 200)`)}${line("entries", "metadata", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object' and pg_column_size(${name}) <= 4096)`)}
+  ${ce("user")} uuid references auth.users (id) on delete set null,${line("entries", "decidedBy", () => "uuid references auth.users (id) on delete set null")}${line("entries", "decidedAt", () => "timestamptz")}
   ${ce("createdAt")} timestamptz not null default now()
 );${addExtraColumns(e, extras)}
 create index if not exists ${ctx.naming.rename("waitlist_entries_status_idx")} on ${e} (${ce("status")}, ${ce("position")});
-create index if not exists ${ctx.naming.rename("waitlist_entries_user_idx")} on ${e} (${ce("user")});
-create index if not exists ${ctx.naming.rename("waitlist_entries_decided_by_idx")} on ${e} (${ce("decidedBy")});
+create index if not exists ${ctx.naming.rename("waitlist_entries_user_idx")} on ${e} (${ce("user")});${hasEntry("decidedBy") ? `\ncreate index if not exists ${ctx.naming.rename("waitlist_entries_decided_by_idx")} on ${e} (${ce("decidedBy")});` : ""}${uniqueOverApp("entries", "email", ["email"])}
 ${lockTable(e)}
 
 -- Invite codes, stored as the SHA-256 of the upper-cased code. One with an
 -- organization also adds the user to it with role (or defaultRole).
 create table if not exists ${k} (
   ${ck("id")} uuid primary key default gen_random_uuid(),
-  ${ck("hash")} text not null unique,
-  ${ck("prefix")} text not null,
+  ${ck("hash")} text not null unique,${line("codes", "prefix", () => "text not null")}
   ${ck("maxUses")} integer check (${ck("maxUses")} > 0),
-  ${ck("uses")} integer not null default 0 check (${ck("uses")} >= 0),
-  ${ck("expiresAt")} timestamptz,
+  ${ck("uses")} integer not null default 0 check (${ck("uses")} >= 0),${line("codes", "expiresAt", () => "timestamptz")}
   ${ck("tenant")} ${id},
-  ${ck("role")} text check (${ck("role")} is null or ${ck("tenant")} is not null),
-  ${ck("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${ck("createdAt")} timestamptz not null default now(),
+  ${ck("role")} text check (${ck("role")} is null or ${ck("tenant")} is not null),${line("codes", "createdBy", () => "uuid references auth.users (id) on delete set null default auth.uid()")}${line("codes", "createdAt", () => "timestamptz not null default now()")}
   ${ck("revokedAt")} timestamptz
 );
-create index if not exists invite_codes_tenant_idx on ${k} (${ck("tenant")});
-create index if not exists invite_codes_created_by_idx on ${k} (${ck("createdBy")});
+create index if not exists invite_codes_tenant_idx on ${k} (${ck("tenant")});${hasCode("createdBy") ? `\ncreate index if not exists invite_codes_created_by_idx on ${k} (${ck("createdBy")});` : ""}${uniqueOverApp("codes", "hash", ["hash"])}
 ${lockTable(k)}
 
 create table if not exists ${r} (
   ${cr("code")} uuid not null references ${k} (${ck("id")}) on delete cascade,
-  ${cr("user")} uuid not null references auth.users (id) on delete cascade,
-  ${cr("redeemedAt")} timestamptz not null default now(),
+  ${cr("user")} uuid not null references auth.users (id) on delete cascade,${line("redemptions", "redeemedAt", () => "timestamptz not null default now()")}
   primary key (${cr("code")}, ${cr("user")})
 );
-create index if not exists invite_code_redemptions_user_idx on ${r} (${cr("user")});
+create index if not exists invite_code_redemptions_user_idx on ${r} (${cr("user")});${uniqueOverApp("redemptions", "redeemer", ["code", "user"])}
 ${lockTable(r)}
 
 -- { position, status } for an address; adding it again changes nothing.
@@ -300,8 +373,8 @@ begin
   if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
     ${fail("WAITLIST_EMAIL_INVALID", "Not an email address", "22023")}
   end if;
-  insert into ${e} as x (${ce("email")}, ${ce("referrer")}, ${ce("metadata")})
-  values (v_email, join_waitlist.referrer, coalesce(join_waitlist.metadata, '{}'::jsonb))
+  insert into ${e} as x (${entryWritten.map(([c]) => ce(c)).join(", ")})
+  values (${entryWritten.map(([, value]) => value).join(", ")})
   on conflict (${ce("email")}) do update set ${ce("email")} = x.${ce("email")}
   returning * into v_row;${writeExtraColumns(e, extras, "join_waitlist.fields", `x.${ce("id")} = v_row.${ce("id")} and x.${ce("createdAt")} = now()`)}
   if ${SERVICE_CALLER} then
@@ -309,7 +382,7 @@ begin
       'position', case when v_row.${ce("status")} = 'waiting' then (
         select count(*) from ${e} w where w.${ce("status")} = 'waiting' and w.${ce("position")} <= v_row.${ce("position")}
       ) end,
-      'status', case when v_row.${ce("status")} = 'rejected' then 'waiting' else v_row.${ce("status")} end
+      'status', case when v_row.${ce("status")} = 'rejected' then 'waiting' else ${status("v_row")} end
     );
   end if;
   return jsonb_build_object(
@@ -335,10 +408,10 @@ begin
     ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   return (
-    select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ce("position")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${withExtraFields(entryJson("x"), "x", extras)} order by x.${ce("position")}), '[]'::jsonb)
     from (
       select * from ${e} w
-      where (list_waitlist.status is null or w.${ce("status")} = list_waitlist.status)
+      where (list_waitlist.status is null or ${status("w")} = list_waitlist.status)
         and (list_waitlist.after_position is null or w.${ce("position")} > list_waitlist.after_position)
       order by w.${ce("position")}
       limit ${pageSize("list_waitlist.page_size", 50, 500)}
@@ -362,9 +435,7 @@ begin
     ${fail("WAITLIST_FORBIDDEN", "You may not manage the waitlist")}
   end if;
   update ${e} x set
-    ${ce("status")} = case when decide_waitlist_entry.approve then 'approved' else 'rejected' end,
-    ${ce("decidedBy")} = auth.uid(),
-    ${ce("decidedAt")} = now()
+    ${ce("status")} = ${ctx.cast("entries", "status", "case when decide_waitlist_entry.approve then 'approved' else 'rejected' end")}${hasEntry("decidedBy") ? `,\n    ${ce("decidedBy")} = auth.uid()` : ""}${hasEntry("decidedAt") ? `,\n    ${ce("decidedAt")} = now()` : ""}
   where x.${ce("id")} = decide_waitlist_entry.id and x.${ce("status")} in ('waiting', 'approved', 'rejected')
   returning * into v_row;
   if v_row.${ce("id")} is null then
@@ -375,7 +446,7 @@ begin
   else
     ${decided("waitlist.rejected")}
   end if;
-  return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
+  return ${withExtraFields(entryJson("v_row"), "v_row", extras)};
 end;
 $$;
 
@@ -404,14 +475,9 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     ${raise("You may not grant role %", "42501", "WAITLIST_ROLE_FORBIDDEN", "create_invite_code.role")}
   end if;
-  insert into ${k} (${ck("hash")}, ${ck("prefix")}, ${ck("maxUses")}, ${ck("expiresAt")}, ${ck("tenant")}, ${ck("role")})
+  insert into ${k} (${codeWritten.map(([c]) => ck(c)).join(", ")})
   values (
-    ${hash("create_invite_code.code")},
-    upper(left(trim(create_invite_code.code), 4)),
-    create_invite_code.max_uses,
-    create_invite_code.expires_at,
-    create_invite_code.tenant,
-    create_invite_code.role
+    ${codeWritten.map(([, value]) => value).join(",\n    ")}
   )
   returning * into v_row;
   ${codeEvent("invite_code.created", "v_row", `v_row.${ck("tenant")}`)}
@@ -433,7 +499,7 @@ begin
     ${fail("WAITLIST_FORBIDDEN", "You may not see these invite codes")}
   end if;
   return (
-    select coalesce(jsonb_agg(${publicCode("x")} order by x.${ck("createdAt")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${publicCode("x")} order by x.${hasCode("createdAt") ? ck("createdAt") : ck("id")} desc), '[]'::jsonb)
     from ${k} x
     where x.${ck("tenant")} is not distinct from list_invite_codes.tenant
   );
@@ -520,7 +586,7 @@ begin
   end if;
   update ${k} x set ${ck("uses")} = x.${ck("uses")} + 1 where x.${ck("id")} = v_code.${ck("id")};
   if v_code.${ck("tenant")} is not null then
-    v_role := coalesce(v_code.${ck("role")}, ${sqlString(defaultRole)});
+    v_role := coalesce(${role("v_code")}, ${sqlString(defaultRole)});
     insert into ${m} (${mt}, ${mu}, ${mr})
     values (v_code.${ck("tenant")}, redeem_for.member, ${roleValue(ctx, "v_role", `v_code.${ck("tenant")}`)})
     on conflict do nothing;
@@ -561,7 +627,7 @@ as $$
 declare
   v_code text := new.raw_user_meta_data ->> ${sqlString(field)};
 begin
-  update ${e} x set ${ce("status")} = 'joined', ${ce("user")} = new.id
+  update ${e} x set ${ce("status")} = ${ctx.cast("entries", "status", "'joined'")}, ${ce("user")} = new.id
   where x.${ce("email")} = lower(new.email) and x.${ce("status")} <> 'joined';
   if v_code is not null then
     begin

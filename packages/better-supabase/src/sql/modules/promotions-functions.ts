@@ -85,10 +85,10 @@ export function promotionFunctions(
 
   const amount = (key: string): string => amountOf(`(data ->> '${key}')`);
 
-  const fields: readonly (readonly [string, string])[] = [
+  const writes: readonly (readonly [string, string])[] = [
     ["name", "data ->> 'name'"],
     ["description", "data ->> 'description'"],
-    ["kind", "v_kind"],
+    ["kind", ctx.cast("promotions", "kind", "v_kind")],
     ["percent", "v_percent"],
     [
       "currency",
@@ -96,7 +96,7 @@ export function promotionFunctions(
     ],
     ["amount", `case when v_kind = 'fixed' then ${amount("amount")} end`],
     ["minSubtotal", amount("minSubtotal")],
-    ["scope", "v_scope"],
+    ["scope", ctx.cast("promotions", "scope", "v_scope")],
     ["targets", "v_targets"],
     ["startsAt", "(data ->> 'startsAt')::timestamptz"],
     ["endsAt", "(data ->> 'endsAt')::timestamptz"],
@@ -107,6 +107,8 @@ export function promotionFunctions(
     ["automatic", "coalesce((data ->> 'automatic')::boolean, false)"],
     ["active", "coalesce((data ->> 'active')::boolean, true)"],
   ];
+
+  const fields = writes.filter(([key]) => ctx.has("promotions", key));
 
   return `
 -- Creates or updates a promotion. data holds name, description, kind
@@ -500,6 +502,7 @@ export function discountFunctions(
   const promotions = ctx.table("promotions");
   const codes = ctx.table("codes");
   const redemptions = ctx.table("redemptions");
+  const hasEmail = ctx.has("redemptions", "email");
 
   const customerUses = (
     promotion: string,
@@ -507,7 +510,7 @@ export function discountFunctions(
     email: string,
   ): string =>
     `(select count(*) from ${redemptions} y where y.${r("promotion")} = ${promotion} and y.${r("status")} = 'redeemed'
-      and (y.${r("customer")} = ${customer} or (${email} is not null and lower(y.${r("email")}) = lower(${email}))))`;
+      and (y.${r("customer")} = ${customer}${hasEmail ? ` or (${email} is not null and lower(y.${r("email")}) = lower(${email}))` : ""}))`;
 
   return `
 -- Rounds half to even, like money everywhere else in the commerce blocks.
@@ -693,9 +696,8 @@ begin
     end if;
     update ${promotions} x set ${p("redemptions")} = x.${p("redemptions")} + 1 where x.${p("id")} = v_promo.id;
     insert into ${redemptions} (${r("tenant")}, ${r("promotion")}, ${r("code")}, ${r("order")}, ${r("customer")},
-      ${r("email")}, ${r("currency")}, ${r("amount")})
-    values (v_order.tenant, v_promo.id, (v_entry ->> 'codeId')::uuid, v_order.id, v_order.customer, v_order.email,
-      v_order.currency, (v_entry ->> 'amount')::bigint)
+      ${hasEmail ? `${r("email")}, ` : ""}${r("currency")}, ${r("amount")})
+    values (v_order.tenant, v_promo.id, (v_entry ->> 'codeId')::uuid, v_order.id, v_order.customer, ${hasEmail ? "v_order.email,\n      " : "\n      "}v_order.currency, (v_entry ->> 'amount')::bigint)
     returning ${r("id")} into v_id;
     ${ctx.record({
       type: "promotion.redeemed",
@@ -724,7 +726,7 @@ declare
   v_count integer := 0;
 begin
   for v_row in
-    update ${redemptions} x set ${r("status")} = 'released', ${r("releasedAt")} = now()
+    update ${redemptions} x set ${r("status")} = 'released'${ctx.has("redemptions", "releasedAt") ? `, ${r("releasedAt")} = now()` : ""}
     where x.${r("order")} = p_order and x.${r("status")} = 'redeemed'
     returning x.${r("promotion")} as promotion, x.${r("code")} as code
   loop

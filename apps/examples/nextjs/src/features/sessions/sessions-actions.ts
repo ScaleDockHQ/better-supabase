@@ -15,7 +15,11 @@ export const endSession = bsb.action(
   async ({ id }, { db, auth }) => {
     const ended = await db.$api("end_my_session", { session: id });
 
-    if (ended !== true) {
+    if (!ended.ok) {
+      return ended;
+    }
+
+    if (ended.data !== true) {
       return err(dbError("not_found", "Session not found"));
     }
 

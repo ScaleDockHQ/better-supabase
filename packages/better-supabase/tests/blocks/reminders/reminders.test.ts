@@ -8,7 +8,7 @@ const ALICE = "00000000-0000-4000-8000-00000000000a";
 
 const DELIVERY = {
   reminderId: "r-1",
-  occurrenceAt: "2026-10-14T09:00:00Z",
+  occurrenceAt: Temporal.Instant.from("2026-10-14T09:00:00Z"),
   organizationId: "org-1",
   userId: ALICE,
   subject: { type: "invoice", id: "7" },

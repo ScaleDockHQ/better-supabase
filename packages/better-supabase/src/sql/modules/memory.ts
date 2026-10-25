@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   raise,
   replaceColumnCheck,
@@ -10,9 +10,9 @@ import {
   serviceGrant,
   userGrant,
   revokeTable,
-  lockTable,
 } from "../shared.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
+import { asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const MEMORIES = {
@@ -70,14 +70,24 @@ const NAMES: BlockSqlNames = {
     memories: {
       name: "memories",
       columns: MEMORIES,
+      optional: ["model", "sourceMessage", "tsv", "createdAt"],
+      typed: ["scope", "kind"],
+      app: {},
       lifecycle: { user: "owner", tenant: "tenant" },
     },
     messageEmbeddings: {
       name: "ai_message_embeddings",
       columns: MESSAGE_EMBEDDINGS,
+      optional: ["model", "createdAt"],
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
     },
-    documents: { name: "memory_documents", columns: DOCUMENTS },
+    documents: {
+      name: "memory_documents",
+      columns: DOCUMENTS,
+      optional: ["expiresAt", "createdAt", "updatedAt"],
+      app: {},
+    },
   },
 };
 
@@ -95,23 +105,70 @@ const DOT_SEGMENT = "(^|/)[.]{1,2}(/|$)";
 
 type Columns<T> = { readonly [K in keyof T]: string };
 
-function columnsOf<T extends Readonly<Record<string, string>>>(
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
   ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
   // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
   return Object.fromEntries(
-    Object.keys(spec).map((key) => [key, ctx.col(table, key)]),
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
   ) as Columns<T>;
 }
+
+/** The memory keys a memory read returns, in order. */
+const MEMORY_JSON = [
+  "id",
+  "tenant",
+  "owner",
+  "scope",
+  "agent",
+  "chat",
+  "project",
+  "kind",
+  "path",
+  "content",
+  "version",
+  "model",
+  "sourceMessage",
+  "createdAt",
+  "updatedAt",
+] as const;
 
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const m = columnsOf(ctx, "memories", MEMORIES);
-  const e = columnsOf(ctx, "messageEmbeddings", MESSAGE_EMBEDDINGS);
-  const d = columnsOf(ctx, "documents", DOCUMENTS);
+  const m = presentColumns(ctx, "memories", MEMORIES);
+  const e = presentColumns(ctx, "messageEmbeddings", MESSAGE_EMBEDDINGS);
+  const d = presentColumns(ctx, "documents", DOCUMENTS);
+
+  const memory = (column: keyof typeof MEMORIES): boolean =>
+    ctx.has("memories", column);
+
+  const message = (column: keyof typeof MESSAGE_EMBEDDINGS): boolean =>
+    ctx.has("messageEmbeddings", column);
+
+  const doc = (column: keyof typeof DOCUMENTS): boolean =>
+    ctx.has("documents", column);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns});`;
+
+  const createdAt = (row: string): string =>
+    `${row}.${memory("createdAt") ? m.createdAt : m.updatedAt}`;
+
   const memories = ctx.table("memories");
   const messageEmbeddings = ctx.table("messageEmbeddings");
   const documents = ctx.table("documents");
@@ -120,6 +177,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const manage = ctx.permission("manage", permissions.manage);
   const embedding = embeddingColumn(ctx, layout);
   const config = sqlString(textSearchConfig(ctx));
+
+  const tsv = (row: string): string =>
+    memory("tsv")
+      ? `${row}.${m.tsv}`
+      : `to_tsvector(${config}::regconfig, ${row}.${m.content})`;
+
   const maxContent = ctx.number("maxContent", 100_000);
 
   if (!Number.isInteger(maxContent) || maxContent < 1) {
@@ -146,7 +209,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     : "";
 
   const memoryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m.id}, 'organization_id', ${row}.${m.tenant}, 'owner_id', ${row}.${m.owner}, 'scope', ${row}.${m.scope}, 'agent_id', ${row}.${m.agent}, 'chat_id', ${row}.${m.chat}, 'project_id', ${row}.${m.project}, 'kind', ${row}.${m.kind}, 'path', ${row}.${m.path}, 'content', ${row}.${m.content}, 'version', ${row}.${m.version}, 'embedding_model', ${row}.${m.model}, 'source_message_id', ${row}.${m.sourceMessage}, 'created_at', ${row}.${m.createdAt}, 'updated_at', ${row}.${m.updatedAt})`;
+    `jsonb_build_object(${MEMORY_JSON.map((key) => `'${MEMORIES[key]}', ${memory(key) ? `${row}.${m[key]}` : key === "createdAt" ? `${row}.${m.updatedAt}` : "null"}`).join(", ")})`;
 
   // Every command names its namespace in ns: {"scope", "agent_id",
   // "chat_id", "project_id"} and, for the service role, "owner_id". Organization memory
@@ -183,7 +246,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   v_owner uuid;`;
 
   const inNamespace = (row: string, tenant: string): string =>
-    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${row}.${m.scope} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project and ${row}.${m.supersededBy} is null`;
+    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${asText(ctx, "memories", `${row}.${m.scope}`)} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project and ${row}.${m.supersededBy} is null`;
 
   const checkPath = (path: string): string => `
   if ${path} is null or length(${path}) > 500 or ${path} !~ ${sqlString(PATH_PATTERN)} or ${path} ~ ${sqlString(DOT_SEGMENT)} then
@@ -219,12 +282,8 @@ create table if not exists ${memories} (
   ${m.path} text check (${m.path} ~ ${sqlString(PATH_PATTERN)} and ${m.path} !~ ${sqlString(DOT_SEGMENT)}),
   ${m.content} text not null check (length(${m.content}) <= ${String(maxContent)}),
   ${m.version} integer not null default 1,
-  ${m.embedding} ${embedding.column},
-  ${m.model} text,
-  ${m.sourceMessage} text,
-  ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,
-  ${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored,
-  ${m.createdAt} timestamptz not null default now(),
+  ${m.embedding} ${embedding.column},${line(memory("model"), `${m.model} text`)}${line(memory("sourceMessage"), `${m.sourceMessage} text`)}
+  ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,${line(memory("tsv"), `${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored`)}${line(memory("createdAt"), `${m.createdAt} timestamptz not null default now()`)}
   ${m.updatedAt} timestamptz not null default now(),
   check ((${m.kind} = 'core') = (${m.path} is not null)),
   check ((${m.scope} = 'organization') = (${m.owner} is null))
@@ -237,8 +296,7 @@ create index if not exists ${ctx.naming.rename("memories_chat_idx")} on ${memori
 create index if not exists ${ctx.naming.rename("memories_project_idx")} on ${memories} (${m.project}) where ${m.project} is not null;
 create index if not exists ${ctx.naming.rename("memories_superseded_idx")} on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
 create index if not exists ${ctx.naming.rename("memories_embedding_idx")} on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
-create index if not exists ${ctx.naming.rename("memories_tsv_idx")} on ${memories} using gin (${m.tsv});
-create index if not exists ${ctx.naming.rename("memories_pending_embedding_idx")} on ${memories} (${m.updatedAt})
+${memory("tsv") ? `create index if not exists ${ctx.naming.rename("memories_tsv_idx")} on ${memories} using gin (${m.tsv});\n` : ""}create index if not exists ${ctx.naming.rename("memories_pending_embedding_idx")} on ${memories} (${m.updatedAt})
   where ${m.embedding} is null and ${m.supersededBy} is null;
 alter table ${memories} enable row level security;
 ${revokeTable(memories)}
@@ -255,11 +313,9 @@ create table if not exists ${messageEmbeddings} (
   ${e.message} text not null,
   ${e.user} uuid not null references auth.users (id) on delete cascade,
   ${e.tenant} ${id} not null,
-  ${e.embedding} ${embedding.column} not null,
-  ${e.model} text,
-  ${e.createdAt} timestamptz not null default now(),
+  ${e.embedding} ${embedding.column} not null,${line(message("model"), `${e.model} text`)}${line(message("createdAt"), `${e.createdAt} timestamptz not null default now()`)}
   primary key (${e.chat}, ${e.message})
-);
+);${unique("messageEmbeddings", "message", `${e.chat}, ${e.message}`)}
 create index if not exists ai_message_embeddings_user_idx on ${messageEmbeddings} (${e.user}, ${e.tenant});
 create index if not exists ai_message_embeddings_embedding_idx on ${messageEmbeddings} using hnsw (${e.embedding} ${embedding.opclass});
 alter table ${messageEmbeddings} enable row level security;
@@ -325,7 +381,7 @@ begin${namespace("memory_create", true)}${checkPath("memory_create.path")}${chec
       ${fileNotFound("memory_create.path")}
     end if;
     insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.path}, ${m.content})
-    values (memory_create.tenant, v_owner, v_scope, v_agent, v_chat, v_project, 'core', memory_create.path, memory_create.content)
+    values (memory_create.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project, 'core', memory_create.path, memory_create.content)
     returning * into v_row;
   end if;
   return ${memoryJson("v_row")};
@@ -466,11 +522,11 @@ as $$
 declare${declare}
   v_rows jsonb;
 begin${namespace("memory_list", false)}
-  select coalesce(jsonb_agg(${memoryJson("x")} order by x.${m.path}, x.${m.createdAt} desc), '[]') into v_rows
+  select coalesce(jsonb_agg(${memoryJson("x")} order by x.${m.path}, ${createdAt("x")} desc), '[]') into v_rows
   from (
     select * from ${memories} y
-    where ${inNamespace("y", "memory_list.tenant")} and y.${m.kind} = memory_list.kind
-    order by y.${m.path}, y.${m.createdAt} desc
+    where ${inNamespace("y", "memory_list.tenant")} and ${asText(ctx, "memories", `y.${m.kind}`)} = memory_list.kind
+    order by y.${m.path}, ${createdAt("y")} desc
     limit least(greatest(memory_list.max_rows, 1), 1000)
   ) x;
   return v_rows;
@@ -498,8 +554,8 @@ begin${namespace("memory_save", true)}
   if coalesce(length(memory_save.content), 0) = 0 then
     ${raise("memory content is empty", "22023", "MEMORY_EMPTY")}
   end if;${checkContent("memory_save.content")}
-  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.content}, ${m.embedding}, ${m.model}, ${m.sourceMessage})
-  values (memory_save.tenant, v_owner, v_scope, v_agent, v_chat, v_project, 'archival', memory_save.content, memory_save.embedding, memory_save.model, memory_save.source_message_id)
+  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.content}, ${m.embedding}${memory("model") ? `, ${m.model}` : ""}${memory("sourceMessage") ? `, ${m.sourceMessage}` : ""})
+  values (memory_save.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project, 'archival', memory_save.content, memory_save.embedding${memory("model") ? ", memory_save.model" : ""}${memory("sourceMessage") ? ", memory_save.source_message_id" : ""})
   returning * into v_row;
   return ${memoryJson("v_row")};
 end;
@@ -544,9 +600,9 @@ begin${namespace("memory_search", false)}
     select h.id, h.distance, row_number() over (order by h.distance) as rank from vector_hits h
   ),
   text_ranked as (
-    select t.${m.id} as id, row_number() over (order by ts_rank_cd(t.${m.tsv}, q) desc) as rank
+    select t.${m.id} as id, row_number() over (order by ts_rank_cd(${tsv("t")}, q) desc) as rank
     from ${memories} t, websearch_to_tsquery(${config}::regconfig, memory_search.query_text) q
-    where memory_search.query_text is not null and t.${m.tsv} @@ q and t.${m.id} in (select scoped.id from scoped)
+    where memory_search.query_text is not null and ${tsv("t")} @@ q and t.${m.id} in (select scoped.id from scoped)
     limit v_candidates
   ),
   fused as (
@@ -599,7 +655,7 @@ language sql
 security definer
 set search_path = ''
 as $$
-  update ${memories} x set ${m.embedding} = set_memory_embedding.embedding, ${m.model} = set_memory_embedding.model
+  update ${memories} x set ${m.embedding} = set_memory_embedding.embedding${memory("model") ? `, ${m.model} = set_memory_embedding.model` : ""}
   where x.${m.id} = set_memory_embedding.memory_id
     and (set_memory_embedding.content_hash is null or md5(x.${m.content}) = set_memory_embedding.content_hash)
   returning true
@@ -620,8 +676,7 @@ declare
   v_count integer;
 begin
   update ${memories} x set
-    ${m.embedding} = (e.value ->> 'embedding')::${embedding.column},
-    ${m.model} = set_memory_embeddings.model
+    ${m.embedding} = (e.value ->> 'embedding')::${embedding.column}${memory("model") ? `,\n    ${m.model} = set_memory_embeddings.model` : ""}
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) e
   where x.${m.id} = (e.value ->> 'id')::uuid and md5(x.${m.content}) = e.value ->> 'hash';
   get diagnostics v_count = row_count;
@@ -664,9 +719,9 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin${temporaryCheck}
-  insert into ${messageEmbeddings} (${e.chat}, ${e.message}, ${e.user}, ${e.tenant}, ${e.embedding}, ${e.model})
-  values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
-  on conflict (${e.chat}, ${e.message}) do update set ${e.embedding} = excluded.${e.embedding}, ${e.model} = excluded.${e.model};
+  insert into ${messageEmbeddings} (${e.chat}, ${e.message}, ${e.user}, ${e.tenant}, ${e.embedding}${message("model") ? `, ${e.model}` : ""})
+  values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding${message("model") ? ", set_ai_message_embedding.model" : ""})
+  on conflict (${e.chat}, ${e.message}) do update set ${e.embedding} = excluded.${e.embedding}${message("model") ? `, ${e.model} = excluded.${e.model}` : ""};
   return true;
 end;
 $$;
@@ -719,14 +774,10 @@ create table if not exists ${documents} (
   ${d.scopeKey} text not null check (length(${d.scopeKey}) <= 4096),
   ${d.path} text not null check (length(${d.path}) <= 1024),
   ${d.content} text not null check (length(${d.content}) <= ${String(maxContent)}),
-  ${d.version} bigint not null default 1,
-  ${d.expiresAt} timestamptz,
-  ${d.createdAt} timestamptz not null default now(),
-  ${d.updatedAt} timestamptz not null default now(),
+  ${d.version} bigint not null default 1,${line(doc("expiresAt"), `${d.expiresAt} timestamptz`)}${line(doc("createdAt"), `${d.createdAt} timestamptz not null default now()`)}${line(doc("updatedAt"), `${d.updatedAt} timestamptz not null default now()`)}
   primary key (${d.scopeKey}, ${d.path})
-);
-create index if not exists ${ctx.naming.rename("memory_documents_expires_idx")} on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;
-${lockTable(documents)}
+);${unique("documents", "path", `${d.scopeKey}, ${d.path}`)}
+${doc("expiresAt") ? `create index if not exists ${ctx.naming.rename("memory_documents_expires_idx")} on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;\n` : ""}${lockModuleTable(ctx, "documents")}
 
 -- A document and its version, or null.
 create or replace function ${fn("memory_document_read")}(scope_key text, path text)
@@ -738,8 +789,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('content', x.${d.content}, 'version', x.${d.version}::text)
   from ${documents} x
-  where x.${d.scopeKey} = memory_document_read.scope_key and x.${d.path} = memory_document_read.path
-    and (x.${d.expiresAt} is null or x.${d.expiresAt} > now())
+  where x.${d.scopeKey} = memory_document_read.scope_key and x.${d.path} = memory_document_read.path${doc("expiresAt") ? `\n    and (x.${d.expiresAt} is null or x.${d.expiresAt} > now())` : ""}
 $$;
 ${serviceGrant(signature("memory_document_read", "text, text"))}
 
@@ -755,18 +805,25 @@ as $$
 declare
   v_row ${documents}%rowtype;
   v_expires timestamptz := case when memory_document_write.expires_in is null then null else now() + make_interval(secs => memory_document_write.expires_in) end;
-begin${checkContent("memory_document_write.content")}
+begin${checkContent("memory_document_write.content")}${
+    doc("expiresAt")
+      ? `
   delete from ${documents} x
   where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
-    and x.${d.expiresAt} <= now();
+    and x.${d.expiresAt} <= now();`
+      : ""
+  }
   if memory_document_write.expected_version is null then
-    insert into ${documents} (${d.scopeKey}, ${d.path}, ${d.content}, ${d.expiresAt})
-    values (memory_document_write.scope_key, memory_document_write.path, memory_document_write.content, v_expires)
+    insert into ${documents} (${d.scopeKey}, ${d.path}, ${d.content}${doc("expiresAt") ? `, ${d.expiresAt}` : ""})
+    values (memory_document_write.scope_key, memory_document_write.path, memory_document_write.content${doc("expiresAt") ? ", v_expires" : ""})
     on conflict (${d.scopeKey}, ${d.path}) do nothing
     returning * into v_row;
   else
-    update ${documents} x set ${d.content} = memory_document_write.content, ${d.version} = x.${d.version} + 1,
-      ${d.expiresAt} = v_expires, ${d.updatedAt} = now()
+    update ${documents} x set ${[`${d.content} = memory_document_write.content`, `${d.version} = x.${d.version} + 1`].join(", ")}${
+      doc("expiresAt") || doc("updatedAt")
+        ? `,\n      ${[...(doc("expiresAt") ? [`${d.expiresAt} = v_expires`] : []), ...(doc("updatedAt") ? [`${d.updatedAt} = now()`] : [])].join(", ")}`
+        : ""
+    }
     where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
       and x.${d.version}::text = memory_document_write.expected_version
     returning * into v_row;
@@ -788,14 +845,19 @@ set search_path = ''
 as $$
 declare
   v_count integer;
-begin
+begin${
+    doc("expiresAt")
+      ? `
   delete from ${documents} x
   where (x.${d.scopeKey}, x.${d.path}) in (
     select y.${d.scopeKey}, y.${d.path} from ${documents} y
     where y.${d.expiresAt} <= now()
     limit least(greatest(purge_memory_documents.batch, 1), 10000)
   );
-  get diagnostics v_count = row_count;
+  get diagnostics v_count = row_count;`
+      : `
+  v_count := 0;`
+  }
   return v_count;
 end;
 $$;
@@ -803,6 +865,10 @@ ${serviceGrant(signature("purge_memory_documents", "integer"))}`;
 }
 
 function upgradeProjectScope(ctx: BlockSqlContext): string {
+  if (!ctx.owns("memories")) {
+    return "";
+  }
+
   const memories = ctx.table("memories");
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
 

@@ -12,6 +12,7 @@ import { compileSql, quoteIdent } from "../compile/sql.ts";
 import { isPlainObject } from "../core/clone.ts";
 import { dbError, mapDbError, withMaxAffected } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
+import { encodeArgument } from "../ir/wire.ts";
 import { fromPgError } from "./pg-error.ts";
 
 /**
@@ -458,7 +459,7 @@ async function callFunction(
         ([key, value]) => value !== undefined && !signature.outputOnly.has(key),
       )
       .map(([key, value]) => {
-        params.push(argValue(value, signature.json.has(key)));
+        params.push(argValue(encodeArgument(value), signature.json.has(key)));
 
         return `${quoteIdent(key)} => $${String(params.length)}`;
       });

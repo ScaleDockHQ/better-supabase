@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -18,6 +19,16 @@ const MAX_SEGMENTS = 20_000;
 export const RECORDING_TABLES = {
   recordings: {
     name: "engagement_recordings",
+    app: {},
+    optional: [
+      "language",
+      "durationSeconds",
+      "error",
+      "model",
+      "createdBy",
+      "transcribedAt",
+    ],
+    typed: ["status"],
     columns: {
       id: "id",
       tenant: "tenant_id",
@@ -37,6 +48,8 @@ export const RECORDING_TABLES = {
   },
   segments: {
     name: "engagement_transcript_segments",
+    app: {},
+    optional: ["speaker", "speakerUser", "confidence"],
     columns: {
       recording: "recording_id",
       tenant: "tenant_id",
@@ -51,6 +64,9 @@ export const RECORDING_TABLES = {
   },
   notes: {
     name: "engagement_notes",
+    app: {},
+    optional: ["model", "createdBy", "createdAt", "updatedAt"],
+    typed: ["source"],
     columns: {
       engagement: "engagement_id",
       tenant: "tenant_id",
@@ -112,17 +128,83 @@ export function recordingsSql(
   const n = (column: string): string => ctx.col("notes", column);
   const { editable, record, loadSubjects, manage, row } = helpers;
 
+  /** Column `column` of row `alias` in `table`, or null when the app lacks it. */
+  const field = (table: string, alias: string, column: string): string =>
+    ctx.has(table, column) ? `${alias}.${ctx.col(table, column)}` : "null";
+
+  const optional = (
+    table: string,
+    column: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
+  /** `,\n <column> = <value>` when `table` has `column`. */
+  const set = (table: string, column: string, value: string): string =>
+    ctx.has(table, column) ? `,\n    ${ctx.col(table, column)} = ${value}` : "";
+
+  // Over the app's table the render drops the inline keys the upserts rely on.
+  const key = (table: string, suffix: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${suffix}`)} on ${t(table)} (${columns});`;
+
+  const attached = (
+    [
+      ["tenant", "v_tenant"],
+      ["engagement", "attach_engagement_recording.engagement"],
+      ["file", `fx.${f("id")}`],
+      ["filename", `fx.${f("filename")}`],
+      ["mediaType", `fx.${f("mediaType")}`],
+      ["language", "nullif(trim(attach_engagement_recording.language), '')"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("recordings", column));
+
+  const segmented = (
+    [
+      ["recording", "v_recording"],
+      ["tenant", "v_tenant"],
+      ["position", "i.ordinality::integer"],
+      ["speaker", "nullif(i.value ->> 'speaker', '')"],
+      ["speakerUser", "nullif(i.value ->> 'speakerUserId', '')::uuid"],
+      ["startsMs", "round((i.value ->> 'startMs')::numeric)::integer"],
+      ["endsMs", "round((i.value ->> 'endMs')::numeric)::integer"],
+      ["text", "i.value ->> 'text'"],
+      ["confidence", "(i.value ->> 'confidence')::real"],
+    ] as const
+  ).filter(([column]) => ctx.has("segments", column));
+
+  const noted = (
+    [
+      ["engagement", "save_engagement_notes.engagement"],
+      ["tenant", "v_tenant"],
+      ["summary", "v_summary"],
+      ["actionItems", "v_items"],
+      ["model", "nullif(save_engagement_notes.notes ->> 'model', '')"],
+      [
+        "source",
+        ctx.cast(
+          "notes",
+          "source",
+          "case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end",
+        ),
+      ],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("notes", column));
+
   const recordingJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'engagementId', ${alias}.${r("engagement")}, 'fileId', ${alias}.${r("file")}, 'filename', ${alias}.${r("filename")}, 'mediaType', ${alias}.${r("mediaType")}, 'status', ${alias}.${r("status")}, 'language', ${alias}.${r("language")}, 'durationSeconds', ${alias}.${r("durationSeconds")}, 'error', ${alias}.${r("error")}, 'model', ${alias}.${r("model")}, 'segmentCount', (select count(*)::integer from ${t("segments")} sc where sc.${s("recording")} = ${alias}.${r("id")}), 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'transcribedAt', ${alias}.${r("transcribedAt")})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'engagementId', ${alias}.${r("engagement")}, 'fileId', ${alias}.${r("file")}, 'filename', ${alias}.${r("filename")}, 'mediaType', ${alias}.${r("mediaType")}, 'status', ${alias}.${r("status")}, 'language', ${field("recordings", alias, "language")}, 'durationSeconds', ${field("recordings", alias, "durationSeconds")}, 'error', ${field("recordings", alias, "error")}, 'model', ${field("recordings", alias, "model")}, 'segmentCount', (select count(*)::integer from ${t("segments")} sc where sc.${s("recording")} = ${alias}.${r("id")}), 'createdBy', ${field("recordings", alias, "createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'transcribedAt', ${field("recordings", alias, "transcribedAt")})`;
 
   const oneRecording = (id: string): string =>
     `(select ${recordingJson("rx")} from ${t("recordings")} rx where rx.${r("id")} = ${id})`;
 
   const segmentJson = (alias: string): string =>
-    `jsonb_build_object('position', ${alias}.${s("position")}, 'speaker', ${alias}.${s("speaker")}, 'speakerUserId', ${alias}.${s("speakerUser")}, 'startMs', ${alias}.${s("startsMs")}, 'endMs', ${alias}.${s("endsMs")}, 'text', ${alias}.${s("text")}, 'confidence', ${alias}.${s("confidence")})`;
+    `jsonb_build_object('position', ${alias}.${s("position")}, 'speaker', ${field("segments", alias, "speaker")}, 'speakerUserId', ${field("segments", alias, "speakerUser")}, 'startMs', ${alias}.${s("startsMs")}, 'endMs', ${alias}.${s("endsMs")}, 'text', ${alias}.${s("text")}, 'confidence', ${field("segments", alias, "confidence")})`;
 
   const notesJson = (alias: string): string =>
-    `jsonb_build_object('engagementId', ${alias}.${n("engagement")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionItems', ${alias}.${n("actionItems")}, 'model', ${alias}.${n("model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${alias}.${n("createdBy")}, 'createdAt', ${alias}.${n("createdAt")}, 'updatedAt', ${alias}.${n("updatedAt")})`;
+    `jsonb_build_object('engagementId', ${alias}.${n("engagement")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionItems', ${alias}.${n("actionItems")}, 'model', ${field("notes", alias, "model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${field("notes", alias, "createdBy")}, 'createdAt', ${field("notes", alias, "createdAt")}, 'updatedAt', ${field("notes", alias, "updatedAt")})`;
 
   const engagementVisible = (column: string): string =>
     `exists (select 1 from ${t("engagements")} ex where ex.${e("id")} = ${column})`;
@@ -146,16 +228,10 @@ create table if not exists ${t("recordings")} (
   ${r("file")} uuid not null references ${fileTable} (${f("id")}) on delete cascade,
   ${r("filename")} text not null,
   ${r("mediaType")} text not null,
-  ${r("status")} text not null default 'pending' check (${r("status")} in ('pending', 'transcribed', 'failed')),
-  ${r("language")} text,
-  ${r("durationSeconds")} integer check (${r("durationSeconds")} >= 0),
-  ${r("error")} text,
-  ${r("model")} text,
-  ${r("createdBy")} uuid,
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("transcribedAt")} timestamptz,
+  ${r("status")} text not null default 'pending' check (${r("status")} in ('pending', 'transcribed', 'failed')),${optional("recordings", "language", (x) => `${x} text`)}${optional("recordings", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("recordings", "error", (x) => `${x} text`)}${optional("recordings", "model", (x) => `${x} text`)}${optional("recordings", "createdBy", (x) => `${x} uuid`)}
+  ${r("createdAt")} timestamptz not null default now(),${optional("recordings", "transcribedAt", (x) => `${x} timestamptz`)}
   unique (${r("engagement")}, ${r("file")})
-);
+);${key("recordings", "file_key", `${r("engagement")}, ${r("file")}`)}
 create index if not exists ${ctx.naming.rename("engagement_recordings_file_idx")} on ${t("recordings")} (${r("file")});
 create index if not exists ${ctx.naming.rename("engagement_recordings_pending_idx")} on ${t("recordings")} (${r("createdAt")}) where ${r("status")} = 'pending';
 ${lockTable(t("recordings"), { read: true })}
@@ -168,13 +244,10 @@ using (${engagementVisible(r("engagement"))});
 create table if not exists ${t("segments")} (
   ${s("recording")} uuid not null references ${t("recordings")} (${r("id")}) on delete cascade,
   ${s("tenant")} ${ctx.idType} not null,
-  ${s("position")} integer not null check (${s("position")} >= 1),
-  ${s("speaker")} text,
-  ${s("speakerUser")} uuid,
+  ${s("position")} integer not null check (${s("position")} >= 1),${optional("segments", "speaker", (x) => `${x} text`)}${optional("segments", "speakerUser", (x) => `${x} uuid`)}
   ${s("startsMs")} integer not null check (${s("startsMs")} >= 0),
   ${s("endsMs")} integer not null,
-  ${s("text")} text not null,
-  ${s("confidence")} real check (${s("confidence")} between 0 and 1),
+  ${s("text")} text not null,${optional("segments", "confidence", (x) => `${x} real check (${x} between 0 and 1)`)}
   primary key (${s("recording")}, ${s("position")}),
   check (${s("endsMs")} >= ${s("startsMs")})
 );
@@ -189,13 +262,19 @@ create table if not exists ${t("notes")} (
   ${n("engagement")} uuid primary key references ${t("engagements")} (${e("id")}) on delete cascade,
   ${n("tenant")} ${ctx.idType} not null,
   ${n("summary")} text not null check (length(${n("summary")}) between 1 and 20000),
-  ${n("actionItems")} jsonb not null default '[]' check (jsonb_typeof(${n("actionItems")}) = 'array'),
-  ${n("model")} text,
-  ${n("source")} text not null default 'ai' check (${n("source")} in ('ai', 'member')),
-  ${n("createdBy")} uuid,
-  ${n("createdAt")} timestamptz not null default now(),
-  ${n("updatedAt")} timestamptz not null default now()
-);
+  ${n("actionItems")} jsonb not null default '[]' check (jsonb_typeof(${n("actionItems")}) = 'array'),${optional("notes", "model", (x) => `${x} text`)}
+  ${n("source")} text not null default 'ai' check (${n("source")} in ('ai', 'member'))${[
+    "createdBy",
+    "createdAt",
+    "updatedAt",
+  ]
+    .filter((column) => ctx.has("notes", column))
+    .map(
+      (column) =>
+        `,\n  ${n(column)} ${column === "createdBy" ? "uuid" : "timestamptz not null default now()"}`,
+    )
+    .join("")}
+);${key("notes", "engagement_key", n("engagement"))}
 ${lockTable(t("notes"), { read: true })}
 drop policy if exists ${ctx.tableName("notes").name}_read on ${t("notes")};
 create policy ${ctx.tableName("notes").name}_read on ${t("notes")} for select to authenticated
@@ -235,8 +314,8 @@ begin
   ) then
     ${fail("AI_FILE_NOT_FOUND", "no such ready file in this organization", "P0002")}
   end if;
-  insert into ${t("recordings")} (${r("tenant")}, ${r("engagement")}, ${r("file")}, ${r("filename")}, ${r("mediaType")}, ${r("language")}, ${r("createdBy")})
-  select v_tenant, attach_engagement_recording.engagement, fx.${f("id")}, fx.${f("filename")}, fx.${f("mediaType")}, nullif(trim(attach_engagement_recording.language), ''), auth.uid()
+  insert into ${t("recordings")} (${attached.map(([column]) => r(column)).join(", ")})
+  select ${attached.map(([, value]) => value).join(", ")}
   from ${fileTable} fx where fx.${f("id")} = attach_engagement_recording.file
   on conflict (${r("engagement")}, ${r("file")}) do nothing
   returning ${r("id")} into v_recording;
@@ -342,17 +421,11 @@ begin
     end if;
   end loop;
   delete from ${t("segments")} sx where sx.${s("recording")} = v_recording;
-  insert into ${t("segments")} (${s("recording")}, ${s("tenant")}, ${s("position")}, ${s("speaker")}, ${s("speakerUser")}, ${s("startsMs")}, ${s("endsMs")}, ${s("text")}, ${s("confidence")})
-  select v_recording, v_tenant, i.ordinality::integer, nullif(i.value ->> 'speaker', ''), nullif(i.value ->> 'speakerUserId', '')::uuid,
-    round((i.value ->> 'startMs')::numeric)::integer, round((i.value ->> 'endMs')::numeric)::integer, i.value ->> 'text', (i.value ->> 'confidence')::real
+  insert into ${t("segments")} (${segmented.map(([column]) => s(column)).join(", ")})
+  select ${segmented.map(([, value]) => value).join(", ")}
   from jsonb_array_elements(save_engagement_transcript.segments) with ordinality i;
   update ${t("recordings")} rx set
-    ${r("status")} = 'transcribed',
-    ${r("error")} = null,
-    ${r("language")} = coalesce(nullif(save_engagement_transcript.attrs ->> 'language', ''), rx.${r("language")}),
-    ${r("durationSeconds")} = coalesce((save_engagement_transcript.attrs ->> 'durationSeconds')::integer, rx.${r("durationSeconds")}),
-    ${r("model")} = coalesce(nullif(save_engagement_transcript.attrs ->> 'model', ''), rx.${r("model")}),
-    ${r("transcribedAt")} = now()
+    ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_engagement_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_engagement_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_engagement_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
   where rx.${r("id")} = v_recording;
   ${loadSubjects("v_engagement")}
   ${record("engagement.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'engagement.transcribed:' || v_recording::text || ':' || md5(save_engagement_transcript.segments::text)")}
@@ -369,7 +442,7 @@ security definer
 set search_path = ''
 as $$
   with failed as (
-    update ${t("recordings")} rx set ${r("status")} = 'failed', ${r("error")} = left(fail_engagement_recording.error, 2000)
+    update ${t("recordings")} rx set ${r("status")} = 'failed'${ctx.has("recordings", "error") ? `, ${r("error")} = left(fail_engagement_recording.error, 2000)` : ""}
     where rx.${r("id")} = fail_engagement_recording.recording and rx.${r("status")} <> 'transcribed'
     returning 1
   )
@@ -427,12 +500,17 @@ begin
   ) then
     ${fail("ENGAGEMENT_NOTES_INVALID", "actionItems must be a list of { text }", "22023")}
   end if;
-  insert into ${t("notes")} (${n("engagement")}, ${n("tenant")}, ${n("summary")}, ${n("actionItems")}, ${n("model")}, ${n("source")}, ${n("createdBy")})
-  values (save_engagement_notes.engagement, v_tenant, v_summary, v_items, nullif(save_engagement_notes.notes ->> 'model', ''),
-    case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
+  insert into ${t("notes")} (${noted.map(([column]) => n(column)).join(", ")})
+  values (${noted.map(([, value]) => value).join(", ")})
   on conflict (${n("engagement")}) do update set
     ${n("summary")} = excluded.${n("summary")}, ${n("actionItems")} = excluded.${n("actionItems")},
-    ${n("model")} = excluded.${n("model")}, ${n("source")} = excluded.${n("source")}, ${n("updatedAt")} = now();
+    ${[
+      ...(ctx.has("notes", "model")
+        ? [`${n("model")} = excluded.${n("model")}`]
+        : []),
+      `${n("source")} = excluded.${n("source")}`,
+      ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
+    ].join(", ")};
   ${loadSubjects("save_engagement_notes.engagement")}
   ${record("engagement.summarized", "save_engagement_notes.engagement", "v_type", "v_tenant", "", "'engagement.summarized:' || save_engagement_notes.engagement::text || ':' || md5(save_engagement_notes.notes::text)")}
   return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_engagement_notes.engagement);

@@ -54,10 +54,9 @@ export async function getOtherSessions(): Promise<readonly OtherSession[]> {
     return [];
   }
 
-  const rows = v.parse(
-    v.array(OtherSession),
-    await db.$api("list_my_sessions", {}),
-  );
+  const rows = await db
+    .$api("list_my_sessions", {}, { returns: v.array(OtherSession) })
+    .orThrow();
 
   return rows.filter((row) => !row.current);
 }

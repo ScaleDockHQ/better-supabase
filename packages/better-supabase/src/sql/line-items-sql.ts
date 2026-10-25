@@ -44,14 +44,74 @@ export const TOTAL_COLUMNS = {
   total: "total",
 } as const;
 
-/** A `NAMES.tables` entry for a line table called `name`. */
+/** What a read gives for a line column the app's table lacks. */
+const LINE_DEFAULTS: Readonly<Record<string, string>> = {
+  productType: "null::text",
+  productId: "null::text",
+  discountBps: "0",
+  taxRateBps: "0",
+  taxCode: "null::text",
+};
+
+/** The line columns an app's line table may lack. */
+const OPTIONAL_LINE_COLUMNS = [
+  "productType",
+  "productId",
+  "discountBps",
+  "taxRateBps",
+  "taxCode",
+  "createdAt",
+] as const;
+
+/**
+ * A `NAMES.tables` entry for a line table called `name`. The app's own line
+ * table can stand in; it may lack the product, discount, tax and creation
+ * columns, and its product type may be an enum.
+ */
 export function lineTableSpec(name: string): BlockSqlTableSpec {
   return {
     name,
     app: {},
     lifecycle: { tenant: "tenant", export: true },
     columns: LINE_COLUMNS,
+    optional: OPTIONAL_LINE_COLUMNS,
+    typed: ["productType"],
   };
+}
+
+/**
+ * Line column `column` of row `alias` in line table `lines`, or what a read
+ * gives when the app's table lacks it.
+ */
+export function lineColumn(
+  ctx: BlockSqlContext,
+  lines: string,
+  alias: string,
+  column: string,
+): string {
+  return ctx.has(lines, column)
+    ? `${alias}.${ctx.col(lines, column)}`
+    : (LINE_DEFAULTS[column] ?? "null");
+}
+
+/** The columns a copy of lines writes, of the ones line table `lines` has. */
+export function lineCopyColumns(
+  ctx: BlockSqlContext,
+  lines: string,
+): readonly string[] {
+  return [
+    "tenant",
+    "parent",
+    "productType",
+    "productId",
+    "description",
+    "quantity",
+    "unitAmount",
+    "discountBps",
+    "taxRateBps",
+    "taxCode",
+    "position",
+  ].filter((column) => ctx.has(lines, column));
 }
 
 const LINE_KEYS = ["unitAmount", "product", "fields"] as const;
@@ -109,36 +169,87 @@ export function lineItemsSql(
   const t = ctx.table(items.lines);
   const p = ctx.table(items.parent);
   const c = (column: string): string => ctx.col(items.lines, column);
+  const has = (column: string): boolean => ctx.has(items.lines, column);
+
+  const l = (column: string): string =>
+    lineColumn(ctx, items.lines, "l", column);
+
   const pc = (column: string): string => ctx.col(items.parent, column);
   const fn = ctx.fn(options.setter);
   const recount = ctx.fn(`${options.setter}_recount`);
   const trigger = `bsb_${ctx.tableName(items.lines).name}_totals`;
   const list = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
-  const discount = `round(${list} * l.${c("discountBps")} / 10000.0)`;
-  const tax = `round((${list} - ${discount}) * l.${c("taxRateBps")} / 10000.0)`;
+
+  const discount = has("discountBps")
+    ? `round(${list} * ${l("discountBps")} / 10000.0)`
+    : "0";
+
+  const tax = has("taxRateBps")
+    ? `round((${list} - ${discount}) * ${l("taxRateBps")} / 10000.0)`
+    : "0";
+
+  const optional = (
+    column: string,
+    definition: (name: string) => string = () => "text",
+  ): string =>
+    has(column) ? `\n  ${c(column)} ${definition(c(column))},` : "";
+
+  const name = ctx.tableName(items.lines).name;
+  // The app's line table keeps its line ids: a line moves in place by position,
+  // so foreign keys to it survive. The block's own table is replaced outright.
+  const replaces = ctx.owns(items.lines);
+
+  const written = (
+    [
+      ["tenant", "v_tenant"],
+      ["parent", "v_parent"],
+      ["productType", "x.value -> 'product' ->> 'type'"],
+      ["productId", "x.value -> 'product' ->> 'id'"],
+      [
+        "description",
+        options.fallback
+          ? `coalesce(x.value ->> 'description', ${options.fallback.description})`
+          : "x.value ->> 'description'",
+      ],
+      ["quantity", "coalesce((x.value ->> 'quantity')::numeric, 1)"],
+      [
+        "unitAmount",
+        options.fallback
+          ? `coalesce((x.value ->> 'unitAmount')::bigint, ${options.fallback.unitAmount})`
+          : "(x.value ->> 'unitAmount')::bigint",
+      ],
+      ["discountBps", "coalesce((x.value ->> 'discountBps')::integer, 0)"],
+      ["taxRateBps", "coalesce((x.value ->> 'taxRateBps')::integer, 0)"],
+      ["taxCode", "x.value ->> 'taxCode'"],
+      ["position", "x.ordinality::integer"],
+    ] as const
+  )
+    .filter(([column]) => has(column))
+    .map(([column, value]): readonly [string, string] => [
+      column,
+      column === "productType" ? ctx.cast(items.lines, column, value) : value,
+    ]);
+
   const extras = items.extras ?? [];
 
   const manages = ctx.manages
     ? `create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${ctx.idType} not null,
-  ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,
-  ${c("productType")} text,
-  ${c("productId")} text,
+  ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,
-  ${c("discountBps")} integer not null default 0 check (${c("discountBps")} >= 0 and ${c("discountBps")} <= 10000),
-  ${c("taxRateBps")} integer not null default 0 check (${c("taxRateBps")} >= 0 and ${c("taxRateBps")} <= 100000),
-  ${c("taxCode")} text,
-  ${c("position")} integer not null,
-  ${c("createdAt")} timestamptz not null default now(),
-  check ((${c("productType")} is null) = (${c("productId")} is null))
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}
+  ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
-create index if not exists ${sqlIdent(`${ctx.tableName(items.lines).name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${addExtraColumns(t, extras)}
+create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
+        ctx.owns(items.lines)
+          ? ""
+          : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
+      }${addExtraColumns(t, extras)}
 ${lockTable(t, { read: true })}
-drop policy if exists ${sqlIdent(`${ctx.tableName(items.lines).name}_read`)} on ${t};
-create policy ${sqlIdent(`${ctx.tableName(items.lines).name}_read`)} on ${t} for select to authenticated
+drop policy if exists ${sqlIdent(`${name}_read`)} on ${t};
+create policy ${sqlIdent(`${name}_read`)} on ${t} for select to authenticated
 using (exists (select 1 from ${p} x where x.${pc("id")} = ${c("parent")}));
 `
     : "";
@@ -236,14 +347,20 @@ begin
   if exists (select 1 from jsonb_array_elements(${options.setter}.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
     ${fail("LINES_CURRENCY", "every line must be in the record's currency", "22023")}
   end if;
-  delete from ${t} l where l.${c("parent")} = v_parent;
+  delete from ${t} l where l.${c("parent")} = v_parent${replaces ? "" : ` and l.${c("position")} > jsonb_array_length(coalesce(${options.setter}.lines, '[]'))`};
   begin
-    insert into ${t} (${c("tenant")}, ${c("parent")}, ${c("productType")}, ${c("productId")}, ${c("description")}, ${c("quantity")}, ${c("unitAmount")}, ${c("discountBps")}, ${c("taxRateBps")}, ${c("taxCode")}, ${c("position")})
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', ${options.fallback ? `coalesce(x.value ->> 'description', ${options.fallback.description})` : "x.value ->> 'description'"},
-      coalesce((x.value ->> 'quantity')::numeric, 1), ${options.fallback ? `coalesce((x.value ->> 'unitAmount')::bigint, ${options.fallback.unitAmount})` : "(x.value ->> 'unitAmount')::bigint"},
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
-    from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x;
+    insert into ${t} (${written.map(([column]) => c(column)).join(", ")})
+    select ${written.map(([, value]) => value).join(",\n      ")}
+    from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x${
+      replaces
+        ? ""
+        : `\n    on conflict (${c("parent")}, ${c("position")}) do update set ${written
+            .filter(
+              ([column]) => !["tenant", "parent", "position"].includes(column),
+            )
+            .map(([column]) => `${c(column)} = excluded.${c(column)}`)
+            .join(", ")}`
+    };
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     ${fail("LINES_INVALID", "every line needs a description, a positive quantity and a unit amount", "22023")}
   end;${

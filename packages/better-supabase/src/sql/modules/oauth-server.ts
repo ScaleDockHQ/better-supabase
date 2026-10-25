@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -54,9 +54,14 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      app: {},
+      optional: ["name", "metadata", "createdBy", "updatedAt"],
+      typed: ["authMethod"],
     },
     grants: {
       name: "oauth_grants",
+      app: {},
+      optional: ["resource", "updatedAt"],
       columns: {
         id: "id",
         userId: "user_id",
@@ -70,6 +75,8 @@ const NAMES: BlockSqlNames = {
     },
     codes: {
       name: "oauth_authorization_codes",
+      app: {},
+      optional: ["nonce", "createdAt"],
       columns: {
         codeHash: "code_hash",
         clientId: "client_id",
@@ -87,6 +94,9 @@ const NAMES: BlockSqlNames = {
     },
     devices: {
       name: "oauth_device_codes",
+      app: {},
+      optional: ["createdAt"],
+      typed: ["status"],
       columns: {
         deviceCodeHash: "device_code_hash",
         userCode: "user_code",
@@ -105,6 +115,8 @@ const NAMES: BlockSqlNames = {
     },
     revocations: {
       name: "oauth_revocations",
+      app: {},
+      optional: ["grantId", "createdAt"],
       columns: {
         jti: "jti",
         grantId: "grant_id",
@@ -180,6 +192,52 @@ function build(ctx: BlockSqlContext): string {
   const dc = (logical: string): string => ctx.col("devices", logical);
   const rc = (logical: string): string => ctx.col("revocations", logical);
   const fn = (name: string): string => ctx.fn(name);
+
+  const has = (table: string, logical: string): boolean =>
+    ctx.has(table, logical);
+
+  const of = (
+    table: string,
+    alias: string,
+    logical: string,
+    absent: string,
+  ): string =>
+    has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : absent;
+
+  const line = (
+    table: string,
+    logical: string,
+    type: (column: string) => string,
+  ): string =>
+    has(table, logical)
+      ? `  ${ctx.col(table, logical)} ${type(ctx.col(table, logical))},\n`
+      : "";
+
+  const named = has("clients", "name");
+  const described = has("clients", "metadata");
+  const creator = has("clients", "createdBy");
+  const resources = has("grants", "resource");
+  const nonce = has("codes", "nonce");
+  const revokedGrant = has("revocations", "grantId");
+
+  const clientTouch = has("clients", "updatedAt")
+    ? `, ${cc("updatedAt")} = now()`
+    : "";
+
+  const grantTouch = has("grants", "updatedAt")
+    ? `, ${gc("updatedAt")} = now()`
+    : "";
+
+  const legacy = (table: string, logical: string): string =>
+    ctx.owns(table) && has(table, logical)
+      ? `alter table ${ctx.table(table)} add column if not exists ${ctx.col(table, logical)} text[] not null default '{}';\n`
+      : "";
+
+  const ownKey = (table: string, name: string, column: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(name)} on ${ctx.table(table)} (${column});`;
+
   const configured = ctx.text("clientIdPattern", DEFAULT_CLIENT_ID_PATTERN);
   const clientIdPattern = CLIENT_ID_PATTERNS[configured] ?? configured;
 
@@ -193,24 +251,24 @@ function build(ctx: BlockSqlContext): string {
 
   const clientJson = (alias: string): string => `jsonb_build_object(
       'clientId', ${alias}.${cc("clientId")},
-      'name', ${alias}.${cc("name")},
+      'name', ${of("clients", alias, "name", "null::text")},
       'redirectUris', to_jsonb(${alias}.${cc("redirectUris")}),
       'grantTypes', to_jsonb(${alias}.${cc("grantTypes")}),
       'tokenEndpointAuthMethod', ${alias}.${cc("authMethod")},
       'scope', ${alias}.${cc("scope")},
-      'metadata', ${alias}.${cc("metadata")},
-      'createdBy', ${alias}.${cc("createdBy")},
+      'metadata', ${of("clients", alias, "metadata", "'{}'::jsonb")},
+      'createdBy', ${of("clients", alias, "createdBy", "null::uuid")},
       'createdAt', ${alias}.${cc("createdAt")},
-      'updatedAt', ${alias}.${cc("updatedAt")})`;
+      'updatedAt', ${of("clients", alias, "updatedAt", `${alias}.${cc("createdAt")}`)})`;
 
   const grantJson = (alias: string): string => `jsonb_build_object(
       'id', ${alias}.${gc("id")},
       'userId', ${alias}.${gc("userId")},
       'clientId', ${alias}.${gc("clientId")},
       'scopes', to_jsonb(${alias}.${gc("scopes")}),
-      'resource', to_jsonb(${alias}.${gc("resource")}),
+      'resource', ${resources ? `to_jsonb(${alias}.${gc("resource")})` : "'[]'::jsonb"},
       'createdAt', ${alias}.${gc("createdAt")},
-      'updatedAt', ${alias}.${gc("updatedAt")},
+      'updatedAt', ${of("grants", alias, "updatedAt", `${alias}.${gc("createdAt")}`)},
       'revokedAt', ${alias}.${gc("revokedAt")})`;
 
   const scopes = (expression: string): string =>
@@ -226,20 +284,15 @@ create table if not exists ${clients} (
   ${cc("clientId")} text not null unique check (${cc("clientId")} ~ ${sqlString(clientIdPattern)}),
   ${cc("secretHash")} text check (${cc("secretHash")} ~ '^[0-9a-f]{64}$'),
   ${cc("registrationTokenHash")} text check (${cc("registrationTokenHash")} ~ '^[0-9a-f]{64}$'),
-  ${cc("name")} text check (length(${cc("name")}) <= 200),
-  ${cc("redirectUris")} text[] not null default '{}',
+${line("clients", "name", (c) => `text check (length(${c}) <= 200)`)}  ${cc("redirectUris")} text[] not null default '{}',
   ${cc("grantTypes")} text[] not null default '{authorization_code}'
     check (${cc("grantTypes")} <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
   ${cc("authMethod")} text not null default 'client_secret_basic'
     check (${cc("authMethod")} in ('none', 'client_secret_basic', 'client_secret_post')),
   ${cc("scope")} text,
-  ${cc("metadata")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${cc("metadata")}) = 'object'),
-  ${cc("createdBy")} uuid references auth.users (id) on delete set null,
-  ${cc("createdAt")} timestamptz not null default now(),
-  ${cc("updatedAt")} timestamptz not null default now(),
-  check ((${cc("authMethod")} = 'none') = (${cc("secretHash")} is null))
-);
-create index if not exists oauth_clients_created_by_idx on ${clients} (${cc("createdBy")});
+${line("clients", "metadata", (c) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${c}) = 'object')`)}${line("clients", "createdBy", () => "uuid references auth.users (id) on delete set null")}  ${cc("createdAt")} timestamptz not null default now(),
+${line("clients", "updatedAt", () => "timestamptz not null default now()")}  check ((${cc("authMethod")} = 'none') = (${cc("secretHash")} is null))
+);${creator ? `\ncreate index if not exists oauth_clients_created_by_idx on ${clients} (${cc("createdBy")});` : ""}${ownKey("clients", "bsb_oauth_clients_client_id_key", cc("clientId"))}
 ${lockTable(clients)}
 
 create table if not exists ${grants} (
@@ -247,15 +300,12 @@ create table if not exists ${grants} (
   ${gc("userId")} uuid not null references auth.users (id) on delete cascade,
   ${gc("clientId")} text not null references ${clients} (${cc("clientId")}) on delete cascade on update cascade,
   ${gc("scopes")} text[] not null default '{}',
-  ${gc("resource")} text[] not null default '{}',
-  ${gc("createdAt")} timestamptz not null default now(),
-  ${gc("updatedAt")} timestamptz not null default now(),
-  ${gc("revokedAt")} timestamptz
+${line("grants", "resource", () => "text[] not null default '{}'")}  ${gc("createdAt")} timestamptz not null default now(),
+${line("grants", "updatedAt", () => "timestamptz not null default now()")}  ${gc("revokedAt")} timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on ${grants} (${gc("userId")}, ${gc("clientId")}) where ${gc("revokedAt")} is null;
 create index if not exists oauth_grants_client_idx on ${grants} (${gc("clientId")});
-alter table ${grants} add column if not exists ${gc("resource")} text[] not null default '{}';
-create index if not exists oauth_grants_user_idx on ${grants} (${gc("userId")});
+${legacy("grants", "resource")}create index if not exists oauth_grants_user_idx on ${grants} (${gc("userId")});
 ${lockTable(grants)}
 
 create table if not exists ${codes} (
@@ -267,16 +317,13 @@ create table if not exists ${codes} (
   ${ac("scope")} text not null default '',
   ${ac("resource")} text[] not null default '{}',
   ${ac("codeChallenge")} text not null check (${ac("codeChallenge")} ~ '^[A-Za-z0-9_-]{43}$'),
-  ${ac("nonce")} text,
-  ${ac("expiresAt")} timestamptz not null,
-  ${ac("consumedAt")} timestamptz,
-  ${ac("createdAt")} timestamptz not null default now()
+${line("codes", "nonce", () => "text")}  ${ac("expiresAt")} timestamptz not null,
+  ${ac("consumedAt")} timestamptz${has("codes", "createdAt") ? `,\n  ${ac("createdAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists oauth_authorization_codes_expires_idx on ${codes} (${ac("expiresAt")});
 create index if not exists oauth_authorization_codes_grant_idx on ${codes} (${ac("grantId")});
 create index if not exists oauth_authorization_codes_client_idx on ${codes} (${ac("clientId")});
-alter table ${codes} add column if not exists ${ac("resource")} text[] not null default '{}';
-create index if not exists oauth_authorization_codes_user_idx on ${codes} (${ac("userId")});
+${legacy("codes", "resource")}create index if not exists oauth_authorization_codes_user_idx on ${codes} (${ac("userId")});
 ${lockTable(codes)}
 
 create table if not exists ${devices} (
@@ -292,24 +339,20 @@ create table if not exists ${devices} (
   ${dc("lastPolledAt")} timestamptz,
   ${dc("expiresAt")} timestamptz not null,
   ${dc("consumedAt")} timestamptz,
-  ${dc("createdAt")} timestamptz not null default now(),
-  check ((${dc("status")} = 'approved') = (${dc("grantId")} is not null))
+${line("devices", "createdAt", () => "timestamptz not null default now()")}  check ((${dc("status")} = 'approved') = (${dc("grantId")} is not null))
 );
 create unique index if not exists oauth_device_codes_user_code_idx on ${devices} (${dc("userCode")}) where ${dc("status")} = 'pending';
 create index if not exists oauth_device_codes_expires_idx on ${devices} (${dc("expiresAt")});
 create index if not exists oauth_device_codes_grant_idx on ${devices} (${dc("grantId")});
 create index if not exists oauth_device_codes_client_idx on ${devices} (${dc("clientId")});
-alter table ${devices} add column if not exists ${dc("resource")} text[] not null default '{}';
-create index if not exists oauth_device_codes_user_idx on ${devices} (${dc("userId")});
+${legacy("devices", "resource")}create index if not exists oauth_device_codes_user_idx on ${devices} (${dc("userId")});
 ${lockTable(devices)}
 
 create table if not exists ${revocations} (
   ${rc("jti")} text primary key check (length(${rc("jti")}) between 1 and 256),
-  ${rc("grantId")} uuid,
-  ${rc("expiresAt")} timestamptz not null,
-  ${rc("createdAt")} timestamptz not null default now()
+${line("revocations", "grantId", () => "uuid")}  ${rc("expiresAt")} timestamptz not null${has("revocations", "createdAt") ? `,\n  ${rc("createdAt")} timestamptz not null default now()` : ""}
 );
-create index if not exists oauth_revocations_expires_idx on ${revocations} (${rc("expiresAt")});
+create index if not exists oauth_revocations_expires_idx on ${revocations} (${rc("expiresAt")});${ownKey("revocations", "bsb_oauth_revocations_jti_key", rc("jti"))}
 ${lockTable(revocations)}
 
 -- The user's active grant for the client, widened to the scopes; a new one
@@ -325,18 +368,23 @@ declare
   v_row ${grants};
 begin${guard}
   update ${grants} g
-  set ${gc("scopes")} = array(select distinct s from unnest(g.${gc("scopes")} || oauth_grant_for.scopes) s order by s),
-    ${gc("resource")} = array(select distinct r from unnest(g.${gc("resource")} || coalesce(oauth_grant_for.resource, '{}')) r order by r),
-    ${gc("updatedAt")} = now()
+  set ${[
+    `${gc("scopes")} = array(select distinct s from unnest(g.${gc("scopes")} || oauth_grant_for.scopes) s order by s)`,
+    ...(resources
+      ? [
+          `${gc("resource")} = array(select distinct r from unnest(g.${gc("resource")} || coalesce(oauth_grant_for.resource, '{}')) r order by r)`,
+        ]
+      : []),
+    ...(has("grants", "updatedAt") ? [`${gc("updatedAt")} = now()`] : []),
+  ].join(",\n    ")}
   where g.${gc("userId")} = oauth_grant_for.user_id
     and g.${gc("clientId")} = oauth_grant_for.client_id
     and g.${gc("revokedAt")} is null
   returning g.* into v_row;
   if v_row.${gc("id")} is null then
-    insert into ${grants} (${gc("userId")}, ${gc("clientId")}, ${gc("scopes")}, ${gc("resource")})
+    insert into ${grants} (${gc("userId")}, ${gc("clientId")}, ${gc("scopes")}${resources ? `, ${gc("resource")}` : ""})
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
-      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s)${resources ? ",\n      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r)" : ""})
     returning * into v_row;
     ${grantEvent(ctx, "oauth_grant.created", "v_row")}
   end if;
@@ -358,15 +406,14 @@ as $$
 declare
   v_row ${clients};
 begin${guard}
-  insert into ${clients} (${cc("clientId")}, ${cc("secretHash")}, ${cc("registrationTokenHash")}, ${cc("name")},
-    ${cc("redirectUris")}, ${cc("grantTypes")}, ${cc("authMethod")}, ${cc("scope")}, ${cc("metadata")}, ${cc("createdBy")})
+  insert into ${clients} (${cc("clientId")}, ${cc("secretHash")}, ${cc("registrationTokenHash")}${named ? `, ${cc("name")}` : ""},
+    ${cc("redirectUris")}, ${cc("grantTypes")}, ${cc("authMethod")}, ${cc("scope")}${described ? `, ${cc("metadata")}` : ""}${creator ? `, ${cc("createdBy")}` : ""})
   values (register_oauth_client.client_id, register_oauth_client.secret_hash,
-    register_oauth_client.registration_token_hash, register_oauth_client.client_name,
+    register_oauth_client.registration_token_hash${named ? ", register_oauth_client.client_name" : ""},
     coalesce(register_oauth_client.redirect_uris, '{}'),
     coalesce(register_oauth_client.grant_types, '{authorization_code}'),
-    coalesce(register_oauth_client.token_endpoint_auth_method, 'client_secret_basic'),
-    register_oauth_client.scope, coalesce(register_oauth_client.metadata, '{}'::jsonb),
-    register_oauth_client.created_by)
+    ${ctx.cast("clients", "authMethod", "coalesce(register_oauth_client.token_endpoint_auth_method, 'client_secret_basic')")},
+    register_oauth_client.scope${described ? ", coalesce(register_oauth_client.metadata, '{}'::jsonb)" : ""}${creator ? ",\n    register_oauth_client.created_by" : ""})
   returning * into v_row;
   ${clientEvent(ctx, "oauth_client.registered", `v_row.${cc("clientId")}`)}
   return ${clientJson("v_row")};
@@ -437,12 +484,22 @@ declare
   v_row ${clients};
 begin${guard}
   update ${clients} c set
-    ${cc("name")} = coalesce(update_oauth_client.client_name, c.${cc("name")}),
-    ${cc("redirectUris")} = coalesce(update_oauth_client.redirect_uris, c.${cc("redirectUris")}),
-    ${cc("grantTypes")} = coalesce(update_oauth_client.grant_types, c.${cc("grantTypes")}),
-    ${cc("scope")} = coalesce(update_oauth_client.scope, c.${cc("scope")}),
-    ${cc("metadata")} = coalesce(update_oauth_client.metadata, c.${cc("metadata")}),
-    ${cc("updatedAt")} = now()
+    ${[
+      ...(named
+        ? [
+            `${cc("name")} = coalesce(update_oauth_client.client_name, c.${cc("name")})`,
+          ]
+        : []),
+      `${cc("redirectUris")} = coalesce(update_oauth_client.redirect_uris, c.${cc("redirectUris")})`,
+      `${cc("grantTypes")} = coalesce(update_oauth_client.grant_types, c.${cc("grantTypes")})`,
+      `${cc("scope")} = coalesce(update_oauth_client.scope, c.${cc("scope")})`,
+      ...(described
+        ? [
+            `${cc("metadata")} = coalesce(update_oauth_client.metadata, c.${cc("metadata")})`,
+          ]
+        : []),
+      ...(has("clients", "updatedAt") ? [`${cc("updatedAt")} = now()`] : []),
+    ].join(",\n    ")}
   where c.${cc("clientId")} = update_oauth_client.client_id
   returning c.* into v_row;
   return case when v_row.${cc("id")} is null then null else ${clientJson("v_row")} end;
@@ -458,7 +515,7 @@ security definer
 set search_path = ''
 as $$
 begin${guard}
-  update ${clients} c set ${cc("secretHash")} = rotate_oauth_client_secret.secret_hash, ${cc("updatedAt")} = now()
+  update ${clients} c set ${cc("secretHash")} = rotate_oauth_client_secret.secret_hash${clientTouch}
   where c.${cc("clientId")} = rotate_oauth_client_secret.client_id and c.${cc("authMethod")} <> 'none';
   return found;
 end;
@@ -509,12 +566,12 @@ begin${guard}
     create_oauth_authorization_code.client_id, ${scopes("create_oauth_authorization_code.scope")},
     coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into ${codes} (${ac("codeHash")}, ${ac("clientId")}, ${ac("userId")}, ${ac("grantId")}, ${ac("redirectUri")},
-    ${ac("scope")}, ${ac("resource")}, ${ac("codeChallenge")}, ${ac("nonce")}, ${ac("expiresAt")})
+    ${ac("scope")}, ${ac("resource")}, ${ac("codeChallenge")}${nonce ? `, ${ac("nonce")}` : ""}, ${ac("expiresAt")})
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
     coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
     create_oauth_authorization_code.code_challenge,
-    create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
+    ${nonce ? "create_oauth_authorization_code.nonce, " : ""}now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
@@ -541,7 +598,7 @@ begin${guard}
     return jsonb_build_object('status', 'invalid');
   end if;
   if v_code.${ac("consumedAt")} is not null then
-    update ${grants} g set ${gc("revokedAt")} = now(), ${gc("updatedAt")} = now()
+    update ${grants} g set ${gc("revokedAt")} = now()${grantTouch}
     where g.${gc("id")} = v_code.${ac("grantId")} and g.${gc("revokedAt")} is null
     returning g.* into v_grant;
     if v_grant.${gc("id")} is not null then
@@ -568,7 +625,7 @@ begin${guard}
     return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
   end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code.${ac("userId")}, 'clientId', v_code.${ac("clientId")},
-    'grantId', v_code.${ac("grantId")}, 'scope', v_code.${ac("scope")}, 'nonce', v_code.${ac("nonce")},
+    'grantId', v_code.${ac("grantId")}, 'scope', v_code.${ac("scope")}, 'nonce', ${of("codes", "v_code", "nonce", "null::text")},
     'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code.${ac("resource")})));
 end;
 $$;
@@ -648,7 +705,7 @@ begin${guard}
       ${scopes(`v_device.${dc("scope")}`)}, v_device.${dc("resource")});
   end if;
   update ${devices} d set
-    ${dc("status")} = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
+    ${dc("status")} = ${ctx.cast("devices", "status", "case when decide_oauth_device_code.approve then 'approved' else 'denied' end")},
     ${dc("userId")} = decide_oauth_device_code.user_id,
     ${dc("grantId")} = v_grant
   where d.${dc("deviceCodeHash")} = v_device.${dc("deviceCodeHash")};
@@ -725,7 +782,7 @@ set search_path = ''
 as $$
 begin${guard}
   return coalesce((
-    select jsonb_agg(${grantJson("g")} || jsonb_build_object('clientName', c.${cc("name")}) order by g.${gc("createdAt")} desc)
+    select jsonb_agg(${grantJson("g")} || jsonb_build_object('clientName', ${of("clients", "c", "name", "null::text")}) order by g.${gc("createdAt")} desc)
     from ${grants} g
     join ${clients} c on c.${cc("clientId")} = g.${gc("clientId")}
     where g.${gc("userId")} = list_oauth_grants.user_id
@@ -745,7 +802,7 @@ as $$
 declare
   v_row ${grants};
 begin${guard}
-  update ${grants} g set ${gc("revokedAt")} = now(), ${gc("updatedAt")} = now()
+  update ${grants} g set ${gc("revokedAt")} = now()${grantTouch}
   where g.${gc("id")} = revoke_oauth_grant.grant_id and g.${gc("revokedAt")} is null
   returning g.* into v_row;
   if v_row.${gc("id")} is null then
@@ -767,7 +824,7 @@ set search_path = ''
 as $$
 begin
   return coalesce((
-    select jsonb_agg(${grantJson("g")} || jsonb_build_object('clientName', c.${cc("name")}) order by g.${gc("createdAt")} desc)
+    select jsonb_agg(${grantJson("g")} || jsonb_build_object('clientName', ${of("clients", "c", "name", "null::text")}) order by g.${gc("createdAt")} desc)
     from ${grants} g
     join ${clients} c on c.${cc("clientId")} = g.${gc("clientId")}
     where g.${gc("userId")} = (select auth.uid())
@@ -787,7 +844,7 @@ as $$
 declare
   v_row ${grants};
 begin
-  update ${grants} g set ${gc("revokedAt")} = now(), ${gc("updatedAt")} = now()
+  update ${grants} g set ${gc("revokedAt")} = now()${grantTouch}
   where g.${gc("id")} = revoke_my_oauth_grant.grant_id
     and g.${gc("userId")} = (select auth.uid())
     and g.${gc("revokedAt")} is null
@@ -810,8 +867,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin${guard}
-  insert into ${revocations} (${rc("jti")}, ${rc("grantId")}, ${rc("expiresAt")})
-  values (revoke_oauth_token.jti, revoke_oauth_token.grant_id, revoke_oauth_token.expires_at)
+  insert into ${revocations} (${rc("jti")}${revokedGrant ? `, ${rc("grantId")}` : ""}, ${rc("expiresAt")})
+  values (revoke_oauth_token.jti${revokedGrant ? ", revoke_oauth_token.grant_id" : ""}, revoke_oauth_token.expires_at)
   on conflict (${rc("jti")}) do update
     set ${rc("expiresAt")} = greatest(${revocations}.${rc("expiresAt")}, excluded.${rc("expiresAt")});
   return true;

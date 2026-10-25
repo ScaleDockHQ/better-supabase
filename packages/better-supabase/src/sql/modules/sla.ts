@@ -15,7 +15,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   fail,
-  lockTable,
   schemaPreamble,
   serviceGrant,
   userGrant,
@@ -25,6 +24,7 @@ import {
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { onSettings } from "../subjects.ts";
+import { asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 import { workItemType } from "./tasks.ts";
@@ -59,6 +59,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     policies: {
       name: "sla_policies",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -75,9 +76,17 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "warnPercent",
+        "businessHours",
+        "archivedAt",
+        "createdAt",
+        "updatedAt",
+      ],
     },
     clocks: {
       name: "sla_clocks",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -95,6 +104,8 @@ const NAMES: BlockSqlNames = {
         metAt: "met_at",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
+      typed: ["metric"],
     },
   },
 };
@@ -302,6 +313,134 @@ function build(ctx: BlockSqlContext): string {
   const k = (column: string): string => ctx.col("clocks", column);
   const hours = businessHours(ctx);
   const service = "(auth.role() = 'service_role')";
+  const policyHas = (column: string): boolean => ctx.has("policies", column);
+
+  const metric = (row: string): string =>
+    asText(ctx, "clocks", `${row}.${k("metric")}`);
+
+  // Column `column` of policy row `row`, or `missing` when the app's table lacks it.
+  const policy = (row: string, column: string, missing: string): string =>
+    policyHas(column) ? `${row}.${p(column)}` : missing;
+
+  const business = (row: string): string =>
+    policy(row, "businessHours", "false");
+
+  // The policy column definitions the table keeps.
+  const policyColumns = (
+    [
+      ["id", () => "uuid primary key default gen_random_uuid()"],
+      ["tenant", () => `${ctx.idType} not null`],
+      ["subjectType", () => "text not null"],
+      [
+        "name",
+        () => `text not null check (length(${p("name")}) between 1 and 200)`,
+      ],
+      ["priority", () => "text"],
+      ["firstResponse", () => `integer check (${p("firstResponse")} > 0)`],
+      ["nextResponse", () => `integer check (${p("nextResponse")} > 0)`],
+      ["resolution", () => `integer check (${p("resolution")} > 0)`],
+      [
+        "warnPercent",
+        () =>
+          `smallint not null default 80 check (${p("warnPercent")} between 1 and 99)`,
+      ],
+      ["businessHours", () => "boolean not null default false"],
+      ["archivedAt", () => "timestamptz"],
+      ["createdAt", () => "timestamptz not null default now()"],
+      ["updatedAt", () => "timestamptz not null default now()"],
+    ] as const
+  )
+    .filter(([logical]) => policyHas(logical))
+    .map(([logical, definition]) => `${p(logical)} ${definition()}`);
+
+  const unsupported = (["warnAtPercent", "businessHours", "archived"] as const)
+    .filter(
+      (key) =>
+        !policyHas(
+          key === "warnAtPercent"
+            ? "warnPercent"
+            : key === "archived"
+              ? "archivedAt"
+              : key,
+        ),
+    )
+    .map((key) => sqlString(key));
+
+  const policySet = (
+    [
+      ["name", `coalesce(save_sla_policy.attrs ->> 'name', x.${p("name")})`],
+      [
+        "priority",
+        `case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x.${p("priority")} end`,
+      ],
+      [
+        "firstResponse",
+        `case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x.${p("firstResponse")} end`,
+      ],
+      [
+        "nextResponse",
+        `case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x.${p("nextResponse")} end`,
+      ],
+      [
+        "resolution",
+        `case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x.${p("resolution")} end`,
+      ],
+      [
+        "warnPercent",
+        () =>
+          `coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x.${p("warnPercent")})`,
+      ],
+      [
+        "businessHours",
+        () =>
+          `coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x.${p("businessHours")})`,
+      ],
+      [
+        "archivedAt",
+        () =>
+          `case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x.${p("archivedAt")}, now()) else x.${p("archivedAt")} end`,
+      ],
+      ["updatedAt", () => "now()"],
+    ] as const
+  )
+    .filter(([logical]) => policyHas(logical))
+    .map(
+      ([logical, value]) =>
+        `${p(logical)} = ${typeof value === "string" ? value : value()}`,
+    );
+
+  const policyInsert = (
+    [
+      ["tenant", "save_sla_policy.tenant"],
+      ["subjectType", "save_sla_policy.attrs ->> 'subjectType'"],
+      ["name", "save_sla_policy.attrs ->> 'name'"],
+      ["priority", "save_sla_policy.attrs ->> 'priority'"],
+      [
+        "firstResponse",
+        "(save_sla_policy.attrs ->> 'firstResponseMinutes')::integer",
+      ],
+      [
+        "nextResponse",
+        "(save_sla_policy.attrs ->> 'nextResponseMinutes')::integer",
+      ],
+      [
+        "resolution",
+        "(save_sla_policy.attrs ->> 'resolutionMinutes')::integer",
+      ],
+      [
+        "warnPercent",
+        "coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80)",
+      ],
+      [
+        "businessHours",
+        "coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false)",
+      ],
+    ] as const
+  ).filter(([logical]) => policyHas(logical));
+
+  const clockOrder = ctx.has("clocks", "createdAt")
+    ? k("createdAt")
+    : k("startedAt");
 
   const record = (type: string, extra = ""): string =>
     ctx.record({
@@ -340,22 +479,10 @@ function build(ctx: BlockSqlContext): string {
 ${
   ctx.manages
     ? `create table if not exists ${t("policies")} (
-  ${p("id")} uuid primary key default gen_random_uuid(),
-  ${p("tenant")} ${ctx.idType} not null,
-  ${p("subjectType")} text not null,
-  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),
-  ${p("priority")} text,
-  ${p("firstResponse")} integer check (${p("firstResponse")} > 0),
-  ${p("nextResponse")} integer check (${p("nextResponse")} > 0),
-  ${p("resolution")} integer check (${p("resolution")} > 0),
-  ${p("warnPercent")} smallint not null default 80 check (${p("warnPercent")} between 1 and 99),
-  ${p("businessHours")} boolean not null default false,
-  ${p("archivedAt")} timestamptz,
-  ${p("createdAt")} timestamptz not null default now(),
-  ${p("updatedAt")} timestamptz not null default now()
+  ${policyColumns.join(",\n  ")}
 );${addExtraColumns(t("policies"), extras)}
-create unique index if not exists ${ctx.naming.rename("sla_policies_match_idx")} on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, '')) where ${p("archivedAt")} is null;
-${lockTable(t("policies"), { read: true })}
+create unique index if not exists ${ctx.naming.rename("sla_policies_match_idx")} on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, ''))${policyHas("archivedAt") ? ` where ${p("archivedAt")} is null` : ""};
+${lockModuleTable(ctx, "policies", { read: true })}
 drop policy if exists ${ctx.naming.rename("sla_policies_read")} on ${t("policies")};
 create policy ${ctx.naming.rename("sla_policies_read")} on ${t("policies")} for select to authenticated
 using (${ctx.scope.check(p("tenant"), read)});
@@ -373,13 +500,12 @@ create table if not exists ${t("clocks")} (
   ${k("pausedSeconds")} integer not null default 0,
   ${k("warnedAt")} timestamptz,
   ${k("breachedAt")} timestamptz,
-  ${k("metAt")} timestamptz,
-  ${k("createdAt")} timestamptz not null default now()
+  ${k("metAt")} timestamptz${ctx.has("clocks", "createdAt") ? `,\n  ${k("createdAt")} timestamptz not null default now()` : ""}
 );
 create unique index if not exists sla_clocks_open_idx on ${t("clocks")} (${k("subjectType")}, ${k("subjectId")}, ${k("metric")}) where ${k("metAt")} is null;
 create index if not exists sla_clocks_due_idx on ${t("clocks")} (${k("dueAt")}) where ${k("metAt")} is null and ${k("pausedAt")} is null;
 create index if not exists sla_clocks_policy_idx on ${t("clocks")} (${k("policy")});
-${lockTable(t("clocks"), { read: true })}
+${lockModuleTable(ctx, "clocks", { read: true })}
 drop policy if exists sla_clocks_read on ${t("clocks")};
 create policy sla_clocks_read on ${t("clocks")} for select to authenticated
 using (${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read'));
@@ -438,26 +564,29 @@ declare
 begin
   if not (${service} or ${ctx.scope.can("save_sla_policy.tenant", manage)}) then
     ${fail("SLA_FORBIDDEN", "not allowed to manage service levels")}
-  end if;
+  end if;${
+    unsupported.length === 0
+      ? ""
+      : `
+  if save_sla_policy.attrs ?| array[${unsupported.join(", ")}] then
+    ${fail("SLA_POLICY_UNSUPPORTED", "this policies table doesn't keep every attribute passed", "0A000")}
+  end if;`
+  }
   begin
     if v_id is null then
-      insert into ${t("policies")} (${p("tenant")}, ${p("subjectType")}, ${p("name")}, ${p("priority")}, ${p("firstResponse")}, ${p("nextResponse")}, ${p("resolution")}, ${p("warnPercent")}, ${p("businessHours")})
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
+      insert into ${t("policies")} (${policyInsert.map(([logical]) => p(logical)).join(", ")})
+      values (${
+        policyInsert.length === 9
+          ? `save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority',
         (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer,
         (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80),
-        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false))
+        coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false)`
+          : policyInsert.map(([, value]) => value).join(", ")
+      })
       returning ${p("id")} into v_id;
     else
       update ${t("policies")} x set
-        ${p("name")} = coalesce(save_sla_policy.attrs ->> 'name', x.${p("name")}),
-        ${p("priority")} = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x.${p("priority")} end,
-        ${p("firstResponse")} = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x.${p("firstResponse")} end,
-        ${p("nextResponse")} = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x.${p("nextResponse")} end,
-        ${p("resolution")} = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x.${p("resolution")} end,
-        ${p("warnPercent")} = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x.${p("warnPercent")}),
-        ${p("businessHours")} = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x.${p("businessHours")}),
-        ${p("archivedAt")} = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x.${p("archivedAt")}, now()) else x.${p("archivedAt")} end,
-        ${p("updatedAt")} = now()
+        ${policySet.join(",\n        ")}
       where x.${p("id")} = v_id and x.${p("tenant")} = save_sla_policy.tenant;
       if not found then
         ${fail("SLA_POLICY_NOT_FOUND", "policy not found", "P0002")}
@@ -496,7 +625,7 @@ begin
     ${fail("SLA_FORBIDDEN", "not allowed to start clocks on this record")}
   end if;
   select * into v_policy from ${t("policies")} x
-  where x.${p("tenant")}::text = v_tenant and x.${p("subjectType")} = start_sla_clocks.subject_type and x.${p("archivedAt")} is null
+  where x.${p("tenant")}::text = v_tenant and x.${p("subjectType")} = start_sla_clocks.subject_type${policyHas("archivedAt") ? ` and x.${p("archivedAt")} is null` : ""}
     and (x.${p("priority")} = start_sla_clocks.priority or x.${p("priority")} is null)
   order by x.${p("priority")} nulls last
   limit 1;
@@ -509,15 +638,15 @@ begin
       continue;
     end if;
     update ${t("clocks")} x set ${k("policy")} = v_policy.${p("id")},
-      ${k("dueAt")} = ${fn("sla_due_at")}(x.${k("startedAt")}, v_minutes, v_policy.${p("businessHours")}) + make_interval(secs => x.${k("pausedSeconds")})
+      ${k("dueAt")} = ${fn("sla_due_at")}(x.${k("startedAt")}, v_minutes, ${business("v_policy")}) + make_interval(secs => x.${k("pausedSeconds")})
     where x.${k("subjectType")} = start_sla_clocks.subject_type and x.${k("subjectId")} = start_sla_clocks.subject_id
-      and x.${k("metric")} = v_metric and x.${k("metAt")} is null;
+      and ${metric("x")} = v_metric and x.${k("metAt")} is null;
     if not found and not exists (
-      select 1 from ${t("clocks")} x where x.${k("subjectType")} = start_sla_clocks.subject_type and x.${k("subjectId")} = start_sla_clocks.subject_id and x.${k("metric")} = v_metric
+      select 1 from ${t("clocks")} x where x.${k("subjectType")} = start_sla_clocks.subject_type and x.${k("subjectId")} = start_sla_clocks.subject_id and ${metric("x")} = v_metric
     ) then
       insert into ${t("clocks")} (${k("tenant")}, ${k("subjectType")}, ${k("subjectId")}, ${k("policy")}, ${k("metric")}, ${k("startedAt")}, ${k("dueAt")})
-      values (v_policy.${p("tenant")}, start_sla_clocks.subject_type, start_sla_clocks.subject_id, v_policy.${p("id")}, v_metric, now(),
-        ${fn("sla_due_at")}(now(), v_minutes, v_policy.${p("businessHours")}));
+      values (v_policy.${p("tenant")}, start_sla_clocks.subject_type, start_sla_clocks.subject_id, v_policy.${p("id")}, ${ctx.cast("clocks", "metric", "v_metric")}, now(),
+        ${fn("sla_due_at")}(now(), v_minutes, ${business("v_policy")}));
     end if;
   end loop;
   return ${fn("sla_clocks_of")}(start_sla_clocks.subject_type, start_sla_clocks.subject_id);
@@ -570,25 +699,25 @@ begin
   for v_clock in
     update ${t("clocks")} x set ${k("metAt")} = now(), ${k("pausedAt")} = null
     where x.${k("subjectType")} = record_sla_event.subject_type and x.${k("subjectId")} = record_sla_event.subject_id
-      and x.${k("metAt")} is null and x.${k("metric")} = any (v_meet)
+      and x.${k("metAt")} is null and ${metric("x")} = any (v_meet)
     returning *
   loop
     ${record("sla.completed", `, 'late', v_clock.${k("metAt")} > v_clock.${k("dueAt")}`)}
   end loop;
   select x.* into v_policy from ${t("clocks")} c join ${t("policies")} x on x.${p("id")} = c.${k("policy")}
   where c.${k("subjectType")} = record_sla_event.subject_type and c.${k("subjectId")} = record_sla_event.subject_id
-  order by c.${k("createdAt")} desc limit 1;
+  order by c.${clockOrder} desc limit 1;
   if v_policy.${p("id")} is not null then
     if record_sla_event.event = 'responded' and v_policy.${p("nextResponse")} is not null
       and exists (select 1 from ${t("clocks")} x where x.${k("subjectType")} = record_sla_event.subject_type and x.${k("subjectId")} = record_sla_event.subject_id and x.${k("metric")} = 'resolution' and x.${k("metAt")} is null) then
       insert into ${t("clocks")} (${k("tenant")}, ${k("subjectType")}, ${k("subjectId")}, ${k("policy")}, ${k("metric")}, ${k("startedAt")}, ${k("dueAt")})
       values (v_policy.${p("tenant")}, record_sla_event.subject_type, record_sla_event.subject_id, v_policy.${p("id")}, 'next_response', now(),
-        ${fn("sla_due_at")}(now(), v_policy.${p("nextResponse")}, v_policy.${p("businessHours")}))
+        ${fn("sla_due_at")}(now(), v_policy.${p("nextResponse")}, ${business("v_policy")}))
       on conflict do nothing;
     elsif record_sla_event.event = 'reopened' and v_policy.${p("resolution")} is not null then
       insert into ${t("clocks")} (${k("tenant")}, ${k("subjectType")}, ${k("subjectId")}, ${k("policy")}, ${k("metric")}, ${k("startedAt")}, ${k("dueAt")})
       values (v_policy.${p("tenant")}, record_sla_event.subject_type, record_sla_event.subject_id, v_policy.${p("id")}, 'resolution', now(),
-        ${fn("sla_due_at")}(now(), v_policy.${p("resolution")}, v_policy.${p("businessHours")}))
+        ${fn("sla_due_at")}(now(), v_policy.${p("resolution")}, ${business("v_policy")}))
       on conflict do nothing;
     end if;
   end if;
@@ -613,7 +742,7 @@ as $$
       when x.${k("dueAt")} < now() then 'breached'
       else 'running' end,
     'secondsLeft', case when x.${k("metAt")} is null then extract(epoch from x.${k("dueAt")} - coalesce(x.${k("pausedAt")}, now()))::integer end
-  ) order by x.${k("createdAt")} desc, x.${k("metric")}), '[]'::jsonb)
+  ) order by x.${clockOrder} desc, x.${k("metric")}), '[]'::jsonb)
   from ${t("clocks")} x
   where x.${k("subjectType")} = sla_clocks_of.subject_type and x.${k("subjectId")} = sla_clocks_of.subject_id
 $$;
@@ -646,7 +775,7 @@ begin
     from ${t("policies")} y
     where y.${p("id")} = x.${k("policy")} and x.${k("metAt")} is null and x.${k("pausedAt")} is null and x.${k("warnedAt")} is null
       and x.${k("breachedAt")} is null
-      and now() >= x.${k("startedAt")} + (x.${k("dueAt")} - x.${k("startedAt")}) * y.${p("warnPercent")} / 100.0
+      and now() >= x.${k("startedAt")} + (x.${k("dueAt")} - x.${k("startedAt")}) * ${policy("y", "warnPercent", "80")} / 100.0
     returning x.*
   loop
     ${record("sla.warned")}

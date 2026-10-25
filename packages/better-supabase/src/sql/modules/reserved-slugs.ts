@@ -1,19 +1,46 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
-import { SCHEMA, raise } from "../shared.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
+import { raise, schemaPreamble } from "../shared.ts";
 
-const RESERVED_SLUGS_SEED = `insert into better_supabase.reserved_slugs (slug, reason)
-select value, 'system'
-from unnest(array[
+const NAMES: BlockSqlNames = {
+  options: ["maxLength", "minLength", "slugs"],
+  tables: {
+    slugs: {
+      name: "reserved_slugs",
+      app: { writes: false },
+      columns: { slug: "slug", reason: "reason" },
+      optional: ["reason"],
+    },
+  },
+};
+
+/**
+ * `insert ... select <values>` of reserved words with `reason`, skipping words
+ * already there. Without a reason column only the words go in.
+ */
+function insertSlugs(
+  ctx: BlockSqlContext,
+  values: string,
+  reason: string,
+): string {
+  const slug = ctx.col("slugs", "slug");
+  const withReason = ctx.has("slugs", "reason");
+
+  return `insert into ${ctx.table("slugs")} (${slug}${withReason ? `, ${ctx.col("slugs", "reason")}` : ""})
+select value${withReason ? `, ${reason}` : ""}
+from unnest(array[${values}]) as value
+on conflict (${slug}) do nothing;`;
+}
+
+const SYSTEM_SLUGS = `
   'about', 'account', 'admin', 'api', 'app', 'assets', 'auth', 'billing', 'blog',
   'callback', 'cdn', 'dashboard', 'docs', 'help', 'invite', 'login', 'logout',
   'mail', 'new', 'oauth', 'onboarding', 'pricing', 'privacy', 'root', 'settings',
   'signin', 'signout', 'signup', 'static', 'status', 'support', 'system', 'terms',
   'www'
-]) as value
-on conflict (slug) do nothing;`;
+`;
 
 const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
@@ -61,16 +88,14 @@ function appSlugs(ctx: BlockSqlContext): string {
   return `
 
 -- blocks.reserved-slugs.options.slugs
-insert into better_supabase.reserved_slugs (slug, reason)
-select value, 'app'
-from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
-on conflict (slug) do nothing;`;
+${insertSlugs(ctx, slugs.map(sqlString).join(", "), "'app'")}`;
 }
 
 export const RESERVED_SLUGS: BlockSqlDefinition = {
   name: "reserved-slugs",
-  names: { tables: {}, options: ["maxLength", "minLength", "slugs"] },
-  data: (ctx) => `${RESERVED_SLUGS_SEED}${appSlugs(ctx)}`,
+  names: NAMES,
+  data: (ctx) =>
+    `${insertSlugs(ctx, SYSTEM_SLUGS, "'system'")}${appSlugs(ctx)}`,
   title: "Reserved slugs",
   description:
     "A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
@@ -78,18 +103,27 @@ export const RESERVED_SLUGS: BlockSqlDefinition = {
   target: "schema",
   build: (ctx) => {
     const { min, max } = slugLengths(ctx);
+    const slugs = ctx.table("slugs");
+    const slug = ctx.col("slugs", "slug");
+    const name = ctx.tableName("slugs").name;
 
-    return `${SCHEMA}
+    // Over the app's table the module's primary key isn't there.
+    const unique = ctx.owns("slugs")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_slug_key`)} on ${slugs} (${slug});`;
 
-create table if not exists better_supabase.reserved_slugs (
-  slug text primary key,
-  reason text
-);
-alter table better_supabase.reserved_slugs enable row level security;
+    const read = sqlIdent(`bsb_${name}_read`);
+
+    return `${schemaPreamble(ctx)}
+
+create table if not exists ${slugs} (
+  ${slug} text primary key${ctx.has("slugs", "reason") ? `,\n  ${ctx.col("slugs", "reason")} text` : ""}
+);${unique}
+alter table ${slugs} enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
-grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+grant select on ${slugs} to anon, authenticated, service_role;
+drop policy if exists ${read} on ${slugs};
+create policy ${read} on ${slugs} for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -104,7 +138,7 @@ as $$
     when slug !~ ${sqlString(SLUG_PATTERN)} then 'invalid'
     when slug ~ '--' then 'invalid'
     when length(slug) < ${String(min)} or length(slug) > ${String(max)} then 'invalid'
-    when exists (select 1 from better_supabase.reserved_slugs r where r.slug = slug_problem.slug) then 'reserved'
+    when exists (select 1 from ${slugs} r where r.${slug} = slug_problem.slug) then 'reserved'
   end
 $$;
 

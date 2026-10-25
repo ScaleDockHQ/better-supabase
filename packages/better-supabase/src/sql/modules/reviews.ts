@@ -64,7 +64,18 @@ const NAMES: BlockSqlNames = {
   tables: {
     reviews: {
       name: "reviews",
+      app: {},
       lifecycle: { tenant: "tenant", user: "author", export: true },
+      optional: [
+        "authorName",
+        "title",
+        "rejectionReason",
+        "reply",
+        "repliedBy",
+        "repliedAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -88,7 +99,9 @@ const NAMES: BlockSqlNames = {
     },
     stats: {
       name: "review_stats",
+      app: {},
       lifecycle: { tenant: "tenant" },
+      optional: ["histogram", "updatedAt"],
       columns: {
         tenant: "tenant_id",
         subjectType: "subject_type",
@@ -245,6 +258,40 @@ function build(ctx: BlockSqlContext): string {
   const stats = ctx.table("stats");
   const r = (column: string): string => ctx.col("reviews", column);
   const s = (column: string): string => ctx.col("stats", column);
+  const has = (column: string): boolean => ctx.has("reviews", column);
+  const hasStat = (column: string): boolean => ctx.has("stats", column);
+
+  const field = (row: string, column: string): string =>
+    has(column) ? `${row}.${r(column)}` : "null";
+
+  const status = (value: string): string =>
+    ctx.cast("reviews", "status", value);
+
+  const optional = (
+    column: string,
+    definition: (name: string) => string,
+  ): string =>
+    has(column) ? `\n  ${r(column)} ${definition(r(column))},` : "";
+
+  const touch = has("updatedAt") ? `,\n    ${r("updatedAt")} = now()` : "";
+
+  const replySet = [
+    ...(has("reply")
+      ? [`${r("reply")} = nullif(trim(reply_to_review.reply), '')`]
+      : []),
+    ...(has("repliedBy")
+      ? [
+          `${r("repliedBy")} = case when nullif(trim(reply_to_review.reply), '') is null then null else auth.uid() end`,
+        ]
+      : []),
+    ...(has("repliedAt")
+      ? [
+          `${r("repliedAt")} = case when nullif(trim(reply_to_review.reply), '') is null then null else now() end`,
+        ]
+      : []),
+    ...(has("updatedAt") ? [`${r("updatedAt")} = now()`] : []),
+  ].join(",\n    ");
+
   const fn = (name: string): string => ctx.fn(name);
   const manage = ctx.permission("manage", OPERATIONS["reviews.manage"]);
   const scale = scaleOf(ctx);
@@ -273,13 +320,50 @@ function build(ctx: BlockSqlContext): string {
 
   const refresh = fn("review_stats_refresh");
 
+  const statsUpdated = (["histogram", "updatedAt"] as const)
+    .filter(hasStat)
+    .map((column) => `${s(column)} = excluded.${s(column)}`)
+    .join(", ");
+
+  const submitted = (
+    [
+      ["tenant", "submit_review.tenant"],
+      ["subjectType", "submit_review.subject_type"],
+      ["subjectId", "submit_review.subject_id"],
+      ["author", "v_me"],
+      ["authorName", "nullif(trim(submit_review.author_name), '')"],
+      ["rating", "submit_review.rating"],
+      ["title", "nullif(trim(submit_review.title), '')"],
+      ["body", "nullif(trim(submit_review.body), '')"],
+      ["status", status(moderation === "post" ? "'published'" : "'pending'")],
+      ["verified", "v_verified"],
+      ["publishedAt", moderation === "post" ? "now()" : "null"],
+    ] as const
+  ).filter(([column]) => has(column));
+
+  const resubmitted = [
+    ...[
+      "rating",
+      "title",
+      "body",
+      "authorName",
+      "verified",
+      "status",
+      "publishedAt",
+    ]
+      .filter(has)
+      .map((column) => `${r(column)} = excluded.${r(column)}`),
+    ...(has("rejectionReason") ? [`${r("rejectionReason")} = null`] : []),
+    ...(has("updatedAt") ? [`${r("updatedAt")} = now()`] : []),
+  ];
+
   const forbidden = (message: string): string =>
     fail("REVIEW_FORBIDDEN", message);
 
   const notFound = fail("REVIEW_NOT_FOUND", "review not found", "P0002");
 
   const json = (row: string, author: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'authorId', ${author}, 'authorName', ${row}.${r("authorName")}, 'mine', coalesce(${row}.${r("author")} = auth.uid(), false), 'rating', ${row}.${r("rating")}, 'title', ${row}.${r("title")}, 'body', ${row}.${r("body")}, 'status', ${row}.${r("status")}, 'verified', ${row}.${r("verified")}, 'rejectionReason', ${row}.${r("rejectionReason")}, 'reply', ${row}.${r("reply")}, 'repliedAt', ${row}.${r("repliedAt")}, 'publishedAt', ${row}.${r("publishedAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'authorId', ${author}, 'authorName', ${field(row, "authorName")}, 'mine', coalesce(${row}.${r("author")} = auth.uid(), false), 'rating', ${row}.${r("rating")}, 'title', ${field(row, "title")}, 'body', ${row}.${r("body")}, 'status', ${row}.${r("status")}, 'verified', ${row}.${r("verified")}, 'rejectionReason', ${field(row, "rejectionReason")}, 'reply', ${field(row, "reply")}, 'repliedAt', ${field(row, "repliedAt")}, 'publishedAt', ${row}.${r("publishedAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${field(row, "updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const full = (row: string): string => json(row, `${row}.${r("author")}`);
 
@@ -349,25 +433,22 @@ function build(ctx: BlockSqlContext): string {
   ${r("tenant")} ${idType} not null,
   ${r("subjectType")} text not null check (${r("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${r("subjectId")} text not null check (length(${r("subjectId")}) between 1 and 200),
-  ${r("author")} uuid references auth.users (id) on delete cascade,
-  ${r("authorName")} text check (${r("authorName")} is null or length(${r("authorName")}) <= 100),
-  ${r("rating")} smallint not null check (${r("rating")} between 1 and ${String(scale)}),
-  ${r("title")} text check (${r("title")} is null or length(${r("title")}) <= 200),
+  ${r("author")} uuid references auth.users (id) on delete cascade,${optional("authorName", (c) => `text check (${c} is null or length(${c}) <= 100)`)}
+  ${r("rating")} smallint not null check (${r("rating")} between 1 and ${String(scale)}),${optional("title", (c) => `text check (${c} is null or length(${c}) <= 200)`)}
   ${r("body")} text check (${r("body")} is null or length(${r("body")}) <= ${String(maxBody)}),
   ${r("status")} text not null default 'pending' check (${r("status")} in ('pending', 'published', 'rejected')),
-  ${r("verified")} boolean not null default false,
-  ${r("rejectionReason")} text check (${r("rejectionReason")} is null or length(${r("rejectionReason")}) <= 1000),
-  ${r("reply")} text check (${r("reply")} is null or length(${r("reply")}) <= ${String(maxBody)}),
-  ${r("repliedBy")} uuid,
-  ${r("repliedAt")} timestamptz,
+  ${r("verified")} boolean not null default false,${optional("rejectionReason", (c) => `text check (${c} is null or length(${c}) <= 1000)`)}${optional("reply", (c) => `text check (${c} is null or length(${c}) <= ${String(maxBody)})`)}${optional("repliedBy", () => "uuid")}${optional("repliedAt", () => "timestamptz")}
   ${r("publishedAt")} timestamptz,
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now(),
+  ${r("createdAt")} timestamptz not null default now(),${optional("updatedAt", () => "timestamptz not null default now()")}
   unique (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("author")})
 );${addExtraColumns(reviews, extras)}
 create index if not exists ${sqlIdent(`${name}_subject_idx`)} on ${reviews} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("status")}, ${r("createdAt")} desc);
 create index if not exists ${sqlIdent(`${name}_queue_idx`)} on ${reviews} (${r("tenant")}, ${r("status")}, ${r("createdAt")} desc);
-create index if not exists ${sqlIdent(`${name}_author_idx`)} on ${reviews} (${r("author")});
+create index if not exists ${sqlIdent(`${name}_author_idx`)} on ${reviews} (${r("author")});${
+        ctx.owns("reviews")
+          ? ""
+          : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_author_key`)} on ${reviews} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("author")});`
+      }
 ${lockTable(reviews)}
 
 create table if not exists ${stats} (
@@ -375,11 +456,13 @@ create table if not exists ${stats} (
   ${s("subjectType")} text not null,
   ${s("subjectId")} text not null,
   ${s("count")} integer not null default 0,
-  ${s("total")} bigint not null default 0,
-  ${s("histogram")} jsonb not null default '{}'::jsonb,
-  ${s("updatedAt")} timestamptz not null default now(),
+  ${s("total")} bigint not null default 0,${hasStat("histogram") ? `\n  ${s("histogram")} jsonb not null default '{}'::jsonb,` : ""}${hasStat("updatedAt") ? `\n  ${s("updatedAt")} timestamptz not null default now(),` : ""}
   primary key (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")})
-);
+);${
+        ctx.owns("stats")
+          ? ""
+          : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("stats").name}_subject_key`)} on ${stats} (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")});`
+      }
 ${lockTable(stats)}
 `
     : "";
@@ -410,22 +493,24 @@ language sql
 security definer
 set search_path = ''
 as $$
-  insert into ${stats} (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")}, ${s("count")}, ${s("total")}, ${s("histogram")}, ${s("updatedAt")})
+  insert into ${stats} (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")}, ${s("count")}, ${s("total")}${hasStat("histogram") ? `, ${s("histogram")}` : ""}${hasStat("updatedAt") ? `, ${s("updatedAt")}` : ""})
   select review_stats_refresh.tenant, review_stats_refresh.subject_type, review_stats_refresh.subject_id,
-    count(*)::integer, coalesce(sum(x.${r("rating")}), 0)::bigint,
+    count(*)::integer, coalesce(sum(x.${r("rating")}), 0)::bigint${
+      hasStat("histogram")
+        ? `,
     coalesce((select jsonb_object_agg(h.rating::text, h.n) from (
       select y.${r("rating")} as rating, count(*) as n from ${reviews} y
       where y.${r("tenant")} = review_stats_refresh.tenant and y.${r("subjectType")} = review_stats_refresh.subject_type
         and y.${r("subjectId")} = review_stats_refresh.subject_id and y.${r("status")} = 'published'
       group by y.${r("rating")}
-    ) h), '{}'::jsonb),
-    now()
+    ) h), '{}'::jsonb)`
+        : ""
+    }${hasStat("updatedAt") ? ",\n    now()" : ""}
   from ${reviews} x
   where x.${r("tenant")} = review_stats_refresh.tenant and x.${r("subjectType")} = review_stats_refresh.subject_type
     and x.${r("subjectId")} = review_stats_refresh.subject_id and x.${r("status")} = 'published'
   on conflict (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")}) do update
-    set ${s("count")} = excluded.${s("count")}, ${s("total")} = excluded.${s("total")},
-      ${s("histogram")} = excluded.${s("histogram")}, ${s("updatedAt")} = excluded.${s("updatedAt")};
+    set ${s("count")} = excluded.${s("count")}, ${s("total")} = excluded.${s("total")}${statsUpdated ? `,\n      ${statsUpdated}` : ""};
 $$;
 revoke execute on function ${refresh}(${idType}, text, text) from public, anon, authenticated;
 
@@ -492,15 +577,10 @@ begin
     ["text", "submit_review.subject_id"],
     ["integer", "submit_review.rating"],
   ])}
-  insert into ${reviews} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("author")}, ${r("authorName")}, ${r("rating")}, ${r("title")}, ${r("body")}, ${r("status")}, ${r("verified")}, ${r("publishedAt")})
-  values (submit_review.tenant, submit_review.subject_type, submit_review.subject_id, v_me, nullif(trim(submit_review.author_name), ''),
-    submit_review.rating, nullif(trim(submit_review.title), ''), nullif(trim(submit_review.body), ''),
-    ${moderation === "post" ? "'published'" : "'pending'"}, v_verified, ${moderation === "post" ? "now()" : "null"})
+  insert into ${reviews} (${submitted.map(([column]) => r(column)).join(", ")})
+  values (${submitted.map(([, value]) => value).join(", ")})
   on conflict (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("author")}) do update
-    set ${r("rating")} = excluded.${r("rating")}, ${r("title")} = excluded.${r("title")}, ${r("body")} = excluded.${r("body")},
-      ${r("authorName")} = excluded.${r("authorName")}, ${r("verified")} = excluded.${r("verified")},
-      ${r("status")} = excluded.${r("status")}, ${r("publishedAt")} = excluded.${r("publishedAt")},
-      ${r("rejectionReason")} = null, ${r("updatedAt")} = now()
+    set ${resubmitted.join(", ")}
   returning * into v_row;${writeExtraColumns(reviews, extras, "submit_review.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   perform ${moderated.fn("moderation_track")}(v_row.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, v_row.${r("id")}::text, v_me, ${moderation === "post" ? "'visible'" : "'pending'"});
   ${record("review.submitted", "v_row")}
@@ -553,10 +633,8 @@ declare
   v_row ${reviews}%rowtype;${claims}
 begin
   update ${reviews} x
-  set ${r("status")} = case new.${mi("status")} when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
-    ${r("publishedAt")} = case when new.${mi("status")} = 'visible' then coalesce(x.${r("publishedAt")}, now()) end,
-    ${r("rejectionReason")} = case when new.${mi("status")} in ('hidden', 'removed') then new.${mi("reason")} end,
-    ${r("updatedAt")} = now()
+  set ${r("status")} = ${status(`case new.${mi("status")} when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end`)},
+    ${r("publishedAt")} = case when new.${mi("status")} = 'visible' then coalesce(x.${r("publishedAt")}, now()) end${has("rejectionReason") ? `,\n    ${r("rejectionReason")} = case when new.${mi("status")} in ('hidden', 'removed') then new.${mi("reason")} end` : ""}${touch}
   where x.${r("id")}::text = new.${mi("subjectId")} and x.${r("tenant")} = new.${mi("tenant")}
   returning * into v_row;
   if v_row.${r("id")} is null or new.${mi("decidedAt")} is null or old.${mi("status")} = new.${mi("status")} then
@@ -656,13 +734,14 @@ begin
   if length(reply_to_review.reply) > ${String(maxBody)} then
     ${fail("REVIEW_INVALID", `reply must be at most ${String(maxBody)} characters`, "22023")}
   end if;
-  update ${reviews} x
-  set ${r("reply")} = nullif(trim(reply_to_review.reply), ''),
-    ${r("repliedBy")} = case when nullif(trim(reply_to_review.reply), '') is null then null else auth.uid() end,
-    ${r("repliedAt")} = case when nullif(trim(reply_to_review.reply), '') is null then null else now() end,
-    ${r("updatedAt")} = now()
+  ${
+    has("reply")
+      ? `update ${reviews} x
+  set ${replySet}
   where x.${r("id")} = v_row.${r("id")}
-  returning * into v_row;
+  returning * into v_row;`
+      : fail("REVIEW_INVALID", "the reviews table has no reply column", "22023")
+  }
   ${record("review.replied", "v_row", "replied to a review")}${notifyAuthor("review.replied", "Your review has a reply")}
   return ${full("v_row")};
 end;
@@ -741,7 +820,7 @@ begin
     select ${full("x")} as item, x.${r("createdAt")} as created, x.${r("id")} as id
     from ${reviews} x
     where x.${r("tenant")} = review_queue.tenant
-      and (review_queue.status is null or x.${r("status")} = review_queue.status)
+      and (review_queue.status is null or x.${r("status")} = ${ctx.cast("reviews", "status", "review_queue.status", "null")})
       and (review_queue.subject_type is null or x.${r("subjectType")} = review_queue.subject_type)
       and (review_queue.subject_id is null or x.${r("subjectId")} = review_queue.subject_id)
       and (review_queue.before is null or x.${r("createdAt")} < review_queue.before)
@@ -767,7 +846,7 @@ as $$
   select coalesce(jsonb_object_agg(x.${s("subjectId")}, jsonb_build_object(
     'count', x.${s("count")},
     'average', case when x.${s("count")} = 0 then null else round(x.${s("total")}::numeric / x.${s("count")}, 2) end,
-    'histogram', x.${s("histogram")}
+    'histogram', ${hasStat("histogram") ? `x.${s("histogram")}` : "'{}'::jsonb"}
   )), '{}'::jsonb)
   from ${stats} x
   where x.${s("tenant")} = review_summary.tenant and x.${s("subjectType")} = review_summary.subject_type
@@ -830,15 +909,15 @@ function itemRows(ctx: BlockSqlContext, decided: boolean): string {
 
   return `insert into ${moderated.table("items")} (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}, ${mi("author")}, ${mi("status")}, ${mi("reason")}, ${mi("decidedBy")}, ${mi("decidedAt")}, ${mi("createdAt")}, ${mi("updatedAt")})
   select x.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, x.${r("id")}::text, x.${r("author")},
-    case x.${r("status")} when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
-    case when x.${r("status")} = 'rejected' then x.${r("rejectionReason")} end, ${decision}, x.${r("createdAt")}, x.${r("updatedAt")}
+    ${moderated.cast("items", "status", `case x.${r("status")}::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end`)},
+    ${ctx.has("reviews", "rejectionReason") ? `case when x.${r("status")} = 'rejected' then x.${r("rejectionReason")} end` : "null"}, ${decision}, x.${r("createdAt")}, x.${r(ctx.has("reviews", "updatedAt") ? "updatedAt" : "createdAt")}
   from ${ctx.table("reviews")} x
   on conflict (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}) do nothing;`;
 }
 
 /** Moves the moderation columns of version 1 onto moderation items. */
 function moderationUpgrade(ctx: BlockSqlContext): string {
-  if (!ctx.manages) {
+  if (!ctx.manages || !ctx.owns("reviews")) {
     return "";
   }
 
@@ -858,7 +937,7 @@ begin
   end if;
   ${itemRows(ctx, true)}
   insert into ${moderated.table("actions")} (${ma("tenant")}, ${ma("item")}, ${ma("action")}, ${ma("fromStatus")}, ${ma("toStatus")}, ${ma("reason")}, ${ma("actor")}, ${ma("createdAt")})
-  select x.${mi("tenant")}, x.${mi("id")}, case x.${mi("status")} when 'visible' then 'approve' else 'hide' end, 'pending', x.${mi("status")}, x.${mi("reason")}, x.${mi("decidedBy")}, x.${mi("decidedAt")}
+  select x.${mi("tenant")}, x.${mi("id")}, ${moderated.cast("actions", "action", `case x.${mi("status")}::text when 'visible' then 'approve' else 'hide' end`)}, ${moderated.cast("actions", "fromStatus", "'pending'")}, ${moderated.cast("actions", "toStatus", `x.${mi("status")}::text`)}, x.${mi("reason")}, x.${mi("decidedBy")}, x.${mi("decidedAt")}
   from ${moderated.table("items")} x
   where x.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)} and x.${mi("decidedAt")} is not null;
   alter table ${ctx.table("reviews")} drop column moderated_by, drop column moderated_at;

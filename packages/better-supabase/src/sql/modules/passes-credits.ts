@@ -51,6 +51,11 @@ function creditLedger(ctx: BlockSqlContext) {
 export function creditsSql(ctx: BlockSqlContext): string {
   const passes = ctx.table("passes");
   const p = (column: string): string => ctx.col("passes", column);
+
+  const touched = ctx.has("passes", "updatedAt")
+    ? `, ${p("updatedAt")} = now()`
+    : "";
+
   const fn = (name: string): string => ctx.fn(name);
   const bookings = ctx.of("bookings");
   const b = (column: string): string => bookings.col("bookings", column);
@@ -153,9 +158,9 @@ begin
     ${fail("PASS_BOOKING_NOT_FOUND", "the service does not exist in the pass's organization", "P0002")}
   end if;
   v_booking := ${bookings.fn("hold_booking")}(book_with_credit.service, book_with_credit.resource, book_with_credit.starts_at,
-    coalesce(book_with_credit.customer, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('userId', v_pass.${p("holderUser")}, 'name', v_pass.${p("holderName")}, 'email', v_pass.${p("holderEmail")})), true);
+    coalesce(book_with_credit.customer, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('userId', v_pass.${p("holderUser")}, 'name', ${ctx.has("passes", "holderName") ? `v_pass.${p("holderName")}` : "null"}, 'email', ${ctx.has("passes", "holderEmail") ? `v_pass.${p("holderEmail")}` : "null"})), true);
   v_entry := ${post(`v_pass.${p("tenant")}`, `v_pass.${p("id")}`, `v_pass.${p("holderUser")}`, "(v_booking ->> 'id')::uuid", "booking")};
-  update ${passes} x set ${p("uses")} = x.${p("uses")} + 1, ${p("updatedAt")} = now()
+  update ${passes} x set ${p("uses")} = x.${p("uses")} + 1${touched}
   where x.${p("id")} = v_pass.${p("id")};
   ${creditRecord("pass.credit_used", `v_pass.${p("tenant")}`, `v_pass.${p("id")}`, "v_entry", "(v_booking ->> 'id')::uuid")}
   return (v_booking - 'accessToken') || jsonb_build_object('passId', v_pass.${p("id")}, 'creditsLeft', v_pass.${p("usesAllowed")} - v_pass.${p("uses")} - 1);
@@ -190,7 +195,7 @@ begin
       and not exists (select 1 from ${transactions} d where d.${lt("tenant")} = r.${lt("tenant")} and d.${lt("key")} = ${creditKey(`new.${b("id")}`, "refund")})
   loop
     v_entry := ${post("v_spent.tenant", "v_spent.pass", "v_spent.holder", `new.${b("id")}`, "refund")};
-    update ${passes} x set ${p("uses")} = greatest(x.${p("uses")} - 1, 0), ${p("updatedAt")} = now()
+    update ${passes} x set ${p("uses")} = greatest(x.${p("uses")} - 1, 0)${touched}
     where x.${p("id")} = v_spent.pass;
     ${creditRecord("pass.credit_refunded", "v_spent.tenant", "v_spent.pass", "v_entry", `new.${b("id")}`)}
   end loop;
@@ -246,6 +251,8 @@ export function creditsUpgrade(ctx: BlockSqlContext): string {
   const passes = ctx.table("passes");
   const p = (column: string): string => ctx.col("passes", column);
   const old = `${ctx.schema}.pass_credit_entries`;
+  // The old table took the tenant column the block names on its other tables.
+  const mt = ctx.col("passes", "tenant");
   const bookings = ctx.of("bookings").table("bookings");
 
   return `${ledgerTables(ledger)}
@@ -255,27 +262,27 @@ begin
     return;
   end if;
   insert into ${accounts} (${la("tenant")}, ${la("kind")}, ${la("code")}, ${la("name")}, ${la("unit")}, ${la("scale")}, ${la("holderType")}, ${la("holderId")}, ${la("owner")}, ${la("allowNegative")}, ${la("readPermission")}, ${la("managedBy")}, ${la("metadata")})
-  select distinct m.tenant_id, 'pass_credits', ${passCode("m.pass_id")}, 'Pass credits', 'credit', 0, 'passes', m.pass_id::text, x.${p("holderUser")}, true, ${read}, 'passes',
+  select distinct m.${mt}, 'pass_credits', ${passCode("m.pass_id")}, 'Pass credits', 'credit', 0, 'passes', m.pass_id::text, x.${p("holderUser")}, true, ${read}, 'passes',
     jsonb_build_object('passId', m.pass_id)
   from ${old} m join ${passes} x on x.${p("id")} = m.pass_id
   on conflict do nothing;
   insert into ${accounts} (${la("tenant")}, ${la("kind")}, ${la("code")}, ${la("name")}, ${la("unit")}, ${la("scale")}, ${la("allowNegative")}, ${la("readPermission")}, ${la("managedBy")})
-  select distinct m.tenant_id, 'pass_credits_pool', ${POOL_CODE}, 'Pass credits pool', 'credit', 0, true, ${read}, 'passes'
+  select distinct m.${mt}, 'pass_credits_pool', ${POOL_CODE}, 'Pass credits pool', 'credit', 0, true, ${read}, 'passes'
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("transactions")} (${lt("id")}, ${lt("tenant")}, ${lt("kind")}, ${lt("referenceType")}, ${lt("referenceId")}, ${lt("key")}, ${lt("metadata")}, ${lt("effectiveAt")}, ${lt("actor")}, ${lt("createdAt")})
-  select m.id, m.tenant_id, case when m.reason = 'booking' then 'pass.credit_used' else 'pass.credit_refunded' end,
+  select m.id, m.${mt}, case when m.reason = 'booking' then 'pass.credit_used' else 'pass.credit_refunded' end,
     case when m.booking_id is not null then 'bookings' end, m.booking_id::text,
     case when m.booking_id is not null then 'pass-credit:' || m.booking_id::text || ':' || m.reason end,
     jsonb_build_object('passId', m.pass_id, 'reason', m.reason), m.created_at, m.created_by, m.created_at
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("entries")} (${le("tenant")}, ${le("transaction")}, ${le("account")}, ${le("amount")}, ${le("unit")}, ${le("createdAt")})
-  select m.tenant_id, m.id, x.${la("id")}, m.delta, 'credit', m.created_at
-  from ${old} m join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${passCode("m.pass_id")}
+  select m.${mt}, m.id, x.${la("id")}, m.delta, 'credit', m.created_at
+  from ${old} m join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${passCode("m.pass_id")}
   union all
-  select m.tenant_id, m.id, x.${la("id")}, -m.delta, 'credit', m.created_at
-  from ${old} m join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${POOL_CODE};
+  select m.${mt}, m.id, x.${la("id")}, -m.delta, 'credit', m.created_at
+  from ${old} m join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${POOL_CODE};
   ${ledgerRebalance(ledger)}
   drop trigger if exists pass_credit_entries_refund on ${bookings};
   drop table ${old};

@@ -20,7 +20,7 @@ function quizForm(ctx: BlockSqlContext, lesson: string): string {
 /** The courses module's authoring functions and the helpers they sync with. */
 export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
   const q = courseSql(ctx);
-  const { fn, c, m, l, e } = q;
+  const { fn, c, m, l, e, field } = q;
   const idType = ctx.idType;
   const extras = ctx.extraColumns("courses", COURSE_KEYS);
 
@@ -55,10 +55,51 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
     });
 
   const moduleJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m("id")}, 'courseId', ${row}.${m("course")}, 'title', ${row}.${m("title")}, 'rank', ${row}.${m("rank")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${m("id")}, 'courseId', ${row}.${m("course")}, 'title', ${row}.${m("title")}, 'rank', ${row}.${m("rank")}, 'createdAt', ${field("modules", row, "createdAt")}, 'updatedAt', ${field("modules", row, "updatedAt")})`;
 
   const lessonJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${l("id")}, 'courseId', ${row}.${l("course")}, 'moduleId', ${row}.${l("module")}, 'title', ${row}.${l("title")}, 'kind', ${row}.${l("kind")}, 'body', ${row}.${l("body")}, 'mediaUrl', ${row}.${l("mediaUrl")}, 'formId', ${row}.${l("form")}, 'required', ${row}.${l("required")}, 'minutes', ${row}.${l("minutes")}, 'rank', ${row}.${l("rank")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${l("id")}, 'courseId', ${row}.${l("course")}, 'moduleId', ${row}.${l("module")}, 'title', ${row}.${l("title")}, 'kind', ${row}.${l("kind")}, 'body', ${field("lessons", row, "body")}, 'mediaUrl', ${field("lessons", row, "mediaUrl")}, 'formId', ${row}.${l("form")}, 'required', ${row}.${l("required")}, 'minutes', ${field("lessons", row, "minutes")}, 'rank', ${row}.${l("rank")}, 'createdAt', ${field("lessons", row, "createdAt")}, 'updatedAt', ${field("lessons", row, "updatedAt")})`;
+
+  /** `, <column> = now()` when `table` has its updatedAt column. */
+  const touched = (table: string): string =>
+    ctx.has(table, "updatedAt")
+      ? `, ${ctx.col(table, "updatedAt")} = now()`
+      : "";
+
+  const touchCourse = ctx.has("courses", "updatedAt")
+    ? `\n  update ${q.courses} x set ${c("updatedAt")} = now() where x.${c("id")} = v_course.${c("id")};`
+    : "";
+
+  const courseInsert = (
+    [
+      ["tenant", "save_course.tenant"],
+      ["key", "v_key"],
+      ["title", "v_title"],
+      ["summary", "v_summary"],
+      ["status", ctx.cast("courses", "status", "v_status")],
+      ["certificate", "v_certificate"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("courses", column));
+
+  const lessonWrite = (
+    [
+      ["module", "v_new.module"],
+      ["title", "v_new.title"],
+      ["kind", ctx.cast("lessons", "kind", "v_new.kind")],
+      ["body", "v_new.body"],
+      ["mediaUrl", "v_new.media"],
+      ["form", "v_new.form"],
+      ["required", "v_new.required"],
+      ["minutes", "v_new.minutes"],
+    ] as const
+  ).filter(([column]) => ctx.has("lessons", column));
+
+  /** A lesson value from the input, else `old` when the table has `column`. */
+  const kept = (column: string, value: string, old: string): string =>
+    ctx.has("lessons", column)
+      ? `case when save_course_lesson.lesson ? '${value}' then ${old} else v_old.${l(column)} end`
+      : "null";
 
   const manageCourse = (
     row: string,
@@ -110,7 +151,7 @@ declare
   v_enrollment record;
   v_certificate ${q.certificates};
 begin
-  select x.${e("id")} as id, x.${e("tenant")} as tenant, x.${e("status")} as status, x.${e("user")} as learner, y.${c("id")} as course, y.${c("certificate")} as certifies
+  select x.${e("id")} as id, x.${e("tenant")} as tenant, x.${e("status")} as status, x.${e("user")} as learner, y.${c("id")} as course, ${field("courses", "y", "certificate", "true")} as certifies
   into v_enrollment
   from ${q.enrollments} x join ${q.courses} y on ${q.program(`y.${c("id")}`)} = x.${e("program")}
   where x.${e("id")} = course_finish.enrollment_id;
@@ -123,7 +164,7 @@ begin
   if v_enrollment.certifies then
     insert into ${q.certificates} (${q.k("tenant")}, ${q.k("course")}, ${q.k("enrollment")}, ${q.k("user")}, ${q.k("code")})
     values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
-    on conflict on constraint ${q.certificateKey} do nothing
+    on conflict ${q.certificateTarget} do nothing
     returning * into v_certificate;
     if v_certificate.${q.k("id")} is not null then
       ${certificateRecord("course_certificate.issued", "v_certificate", "issued a course certificate")}
@@ -198,9 +239,9 @@ begin
   end if;
   v_key := coalesce(save_course.course ->> 'key', v_old.${c("key")});
   v_title := trim(coalesce(save_course.course ->> 'title', v_old.${c("title")}));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old.${c("summary")} end;
+  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else ${field("courses", "v_old", "summary")} end;
   v_status := coalesce(save_course.course ->> 'status', v_old.${c("status")}, 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old.${c("certificate")}, true) end;
+  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(${field("courses", "v_old", "certificate")}, true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     ${q.invalid('key: use lowercase letters, digits or "-", starting with a letter')}
   end if;
@@ -214,8 +255,8 @@ begin
     ${q.invalid("status must be draft, published or archived")}
   end if;
   if v_old.${c("id")} is null then
-    insert into ${q.courses} (${c("tenant")}, ${c("key")}, ${c("title")}, ${c("summary")}, ${c("status")}, ${c("certificate")}, ${c("createdBy")})
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into ${q.courses} (${courseInsert.map(([column]) => c(column)).join(", ")})
+    values (${courseInsert.map(([, value]) => value).join(", ")})
     on conflict (${c("tenant")}, ${c("key")}) do nothing
     returning * into v_row;
     if v_row.${c("id")} is null then
@@ -224,8 +265,7 @@ begin
   else
     begin
       update ${q.courses} x
-      set ${c("key")} = v_key, ${c("title")} = v_title, ${c("summary")} = v_summary, ${c("status")} = v_status,
-        ${c("certificate")} = v_certificate, ${c("updatedAt")} = now()
+      set ${c("key")} = v_key, ${c("title")} = v_title,${ctx.has("courses", "summary") ? ` ${c("summary")} = v_summary,` : ""} ${c("status")} = ${ctx.cast("courses", "status", "v_status")}${ctx.has("courses", "certificate") ? `,\n        ${c("certificate")} = v_certificate` : ""}${touched("courses")}
       where x.${c("id")} = v_old.${c("id")}
       returning * into v_row;
     exception when unique_violation then
@@ -285,7 +325,7 @@ begin
     from ${q.courses} x
     where x.${c("tenant")} = list_courses.tenant
       and (v_manage or x.${c("status")} = 'published')
-      and (list_courses.status is null or x.${c("status")} = list_courses.status)
+      and (list_courses.status is null or x.${c("status")} = ${ctx.cast("courses", "status", "list_courses.status")})
   ), '[]'::jsonb);
 end;
 $$;
@@ -338,11 +378,10 @@ begin
     values (v_course.${c("tenant")}, v_course.${c("id")}, v_title, v_rank)
     returning * into v_row;
   else
-    update ${q.modules} x set ${m("title")} = v_title, ${m("rank")} = v_rank, ${m("updatedAt")} = now()
+    update ${q.modules} x set ${m("title")} = v_title, ${m("rank")} = v_rank${touched("modules")}
     where x.${m("id")} = v_old.${m("id")}
     returning * into v_row;
-  end if;
-  update ${q.courses} x set ${c("updatedAt")} = now() where x.${c("id")} = v_course.${c("id")};
+  end if;${touchCourse}
   perform ${fn("course_sync")}(v_course.${c("id")});
   return ${moduleJson("v_row")};
 end;
@@ -412,11 +451,11 @@ begin
     coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old.${l("module")}) as module,
     trim(coalesce(save_course_lesson.lesson ->> 'title', v_old.${l("title")})) as title,
     coalesce(save_course_lesson.lesson ->> 'kind', v_old.${l("kind")}, 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old.${l("body")} end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old.${l("mediaUrl")} end as media,
+    ${kept("body", "body", "nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb)")} as body,
+    ${kept("mediaUrl", "mediaUrl", "nullif(save_course_lesson.lesson ->> 'mediaUrl', '')")} as media,
     case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old.${l("form")} end as form,
     case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old.${l("required")}, true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old.${l("minutes")} end as minutes
+    ${kept("minutes", "minutes", "(save_course_lesson.lesson ->> 'minutes')::integer")} as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from ${q.modules} x where x.${m("id")} = v_new.module and x.${m("course")} = v_course.${c("id")}) then
     ${q.invalid("moduleId: pass a module of this course")}
@@ -452,18 +491,16 @@ begin
     ${q.invalid("rank must be a rank key")}
   end if;
   if v_old.${l("id")} is null then
-    insert into ${q.lessons} (${l("tenant")}, ${l("course")}, ${l("module")}, ${l("title")}, ${l("kind")}, ${l("body")}, ${l("mediaUrl")}, ${l("form")}, ${l("required")}, ${l("minutes")}, ${l("rank")})
-    values (v_new.tenant, v_course.${c("id")}, v_new.module, v_new.title, v_new.kind, v_new.body, v_new.media, v_new.form, v_new.required, v_new.minutes, v_last)
+    insert into ${q.lessons} (${l("tenant")}, ${l("course")}, ${lessonWrite.map(([column]) => l(column)).join(", ")}, ${l("rank")})
+    values (v_new.tenant, v_course.${c("id")}, ${lessonWrite.map(([, value]) => value).join(", ")}, v_last)
     returning * into v_row;
   else
     update ${q.lessons} x
-    set ${l("module")} = v_new.module, ${l("title")} = v_new.title, ${l("kind")} = v_new.kind, ${l("body")} = v_new.body,
-      ${l("mediaUrl")} = v_new.media, ${l("form")} = v_new.form, ${l("required")} = v_new.required, ${l("minutes")} = v_new.minutes,
-      ${l("rank")} = v_last, ${l("updatedAt")} = now()
+    set ${lessonWrite.map(([column, value]) => `${l(column)} = ${value}`).join(", ")},
+      ${l("rank")} = v_last${touched("lessons")}
     where x.${l("id")} = v_old.${l("id")}
     returning * into v_row;
-  end if;
-  update ${q.courses} x set ${c("updatedAt")} = now() where x.${c("id")} = v_course.${c("id")};
+  end if;${touchCourse}
   perform ${fn("course_sync")}(v_course.${c("id")});
   return ${lessonJson("v_row")};
 end;

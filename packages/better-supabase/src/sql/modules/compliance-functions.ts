@@ -11,7 +11,11 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { CONTROL_RESERVED, evidenceAttachments } from "./compliance-shared.ts";
+import {
+  CONTROL_RESERVED,
+  evidenceAttachments,
+  optionalField,
+} from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The framework, control, evidence and evidence task functions. */
@@ -34,6 +38,38 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
   const controlType = sqlString(ctx.resolved.entityNaming.rename("control"));
   const extras = ctx.extraColumns("controls", CONTROL_RESERVED);
   const extra = extraFieldsArg(extras);
+
+  const has = (table: string, column: string): boolean =>
+    ctx.has(table, column);
+
+  const field = (table: string, row: string, column: string): string =>
+    optionalField(ctx, table, row, column);
+
+  const insertCol = (table: string, column: string): string =>
+    has(table, column) ? `, ${ctx.col(table, column)}` : "";
+
+  const insertVal = (table: string, column: string, value: string): string =>
+    has(table, column) ? `, ${value}` : "";
+
+  const touch = (table: string): string =>
+    has(table, "updatedAt") ? `, ${ctx.col(table, "updatedAt")} = now()` : "";
+
+  const assignee = has("tasks", "assignee");
+  const owner = has("controls", "owner");
+
+  const frameworkSets = [
+    `${f("name")} = excluded.${f("name")}${has("frameworks", "version") ? `, ${f("version")} = excluded.${f("version")}` : ""}`,
+    [
+      has("frameworks", "description")
+        ? `${f("description")} = excluded.${f("description")}`
+        : "",
+      has("frameworks", "updatedAt") ? `${f("updatedAt")} = now()` : "",
+    ]
+      .filter((set) => set !== "")
+      .join(", "),
+  ]
+    .filter((line) => line !== "")
+    .join(",\n      ");
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -70,16 +106,16 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
   end`;
 
   const controlJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'frameworkId', ${row}.${k("framework")}, 'code', ${row}.${k("code")}, 'title', ${row}.${k("title")}, 'description', ${row}.${k("description")}, 'ownerId', ${row}.${k("owner")}, 'applicable', ${row}.${k("applicable")}, 'status', ${status(row)}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'frameworkId', ${row}.${k("framework")}, 'code', ${row}.${k("code")}, 'title', ${row}.${k("title")}, 'description', ${field("controls", row, "description")}, 'ownerId', ${field("controls", row, "owner")}, 'applicable', ${row}.${k("applicable")}, 'status', ${status(row)}, 'createdAt', ${field("controls", row, "createdAt")}, 'updatedAt', ${field("controls", row, "updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const frameworkJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'version', ${row}.${f("version")}, 'description', ${row}.${f("description")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'version', ${field("frameworks", row, "version")}, 'description', ${field("frameworks", row, "description")}, 'createdAt', ${field("frameworks", row, "createdAt")}, 'updatedAt', ${field("frameworks", row, "updatedAt")})`;
 
   const evidenceJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'controlId', ${row}.${e("control")}, 'evidenceTaskId', ${row}.${e("task")}, 'attachmentId', ${row}.${e("attachment")}, 'note', ${row}.${e("note")}, 'collectedBy', ${row}.${e("collectedBy")}, 'collectedAt', ${row}.${e("collectedAt")}, 'validUntil', ${row}.${e("validUntil")}, 'valid', ${valid(row)})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'controlId', ${row}.${e("control")}, 'evidenceTaskId', ${row}.${e("task")}, 'attachmentId', ${row}.${e("attachment")}, 'note', ${field("evidence", row, "note")}, 'collectedBy', ${row}.${e("collectedBy")}, 'collectedAt', ${row}.${e("collectedAt")}, 'validUntil', ${row}.${e("validUntil")}, 'valid', ${valid(row)})`;
 
   const taskJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'controlId', ${row}.${t("control")}, 'title', ${row}.${t("title")}, 'assigneeId', ${row}.${t("assignee")}, 'intervalDays', ${row}.${t("intervalDays")}, 'dueOn', ${row}.${t("dueOn")}, 'lastCollectedAt', ${row}.${t("lastCollectedAt")}, 'active', ${row}.${t("active")}, 'overdue', ${overdue(row)}, 'createdAt', ${row}.${t("createdAt")}, 'updatedAt', ${row}.${t("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'controlId', ${row}.${t("control")}, 'title', ${row}.${t("title")}, 'assigneeId', ${field("tasks", row, "assignee")}, 'intervalDays', ${row}.${t("intervalDays")}, 'dueOn', ${row}.${t("dueOn")}, 'lastCollectedAt', ${field("tasks", row, "lastCollectedAt")}, 'active', ${row}.${t("active")}, 'overdue', ${overdue(row)}, 'createdAt', ${field("tasks", row, "createdAt")}, 'updatedAt', ${field("tasks", row, "updatedAt")})`;
 
   const attachmentCheck =
     attachments === undefined
@@ -94,8 +130,13 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
     ${invalid("the attachment isn't a file in this organization")}
   end if;`;
 
+  // The assignee hears about a missed task, or the control's owner without one.
+  const recipient = assignee
+    ? `coalesce(v_task.${t("assignee")}, v_owner)`
+    : "v_owner";
+
   const overdueNotify = ctx.installed("notifications")
-    ? `if coalesce(v_task.${t("assignee")}, v_owner) is not null then
+    ? `if ${recipient} is not null then
       ${ctx.notify(
         `jsonb_build_object(
         'type', 'evidence_task.missed',
@@ -104,7 +145,7 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
         'subject_type', ${controlType},
         'subject_id', v_task.${t("control")}::text,
         'summary', v_task.${t("title")},
-        'recipients', to_jsonb(array[coalesce(v_task.${t("assignee")}, v_owner)]),
+        'recipients', to_jsonb(array[${recipient}]),
         'key', 'evidence_task.missed:' || v_task.${t("id")}::text || ':' || v_task.${t("dueOn")}::text,
         'data', jsonb_build_object('evidenceTaskId', v_task.${t("id")}, 'dueOn', v_task.${t("dueOn")})
       )`,
@@ -128,11 +169,10 @@ begin
   if not ${allowed("save_control_framework.tenant", manage)} then
     ${forbidden("not allowed to manage controls")}
   end if;
-  insert into ${frameworks} (${f("tenant")}, ${f("key")}, ${f("name")}, ${f("version")}, ${f("description")})
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  insert into ${frameworks} (${f("tenant")}, ${f("key")}, ${f("name")}${insertCol("frameworks", "version")}${insertCol("frameworks", "description")})
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name)${insertVal("frameworks", "version", "nullif(trim(save_control_framework.version), '')")}${insertVal("frameworks", "description", "nullif(trim(save_control_framework.description), '')")})
   on conflict (${f("tenant")}, ${f("key")}) do update
-    set ${f("name")} = excluded.${f("name")}, ${f("version")} = excluded.${f("version")},
-      ${f("description")} = excluded.${f("description")}, ${f("updatedAt")} = now()
+    set ${frameworkSets}
   returning * into v_row;
   return ${frameworkJson("v_row")};
 end;
@@ -177,20 +217,23 @@ begin
   if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
     ${invalid("a control needs a code and a title")}
   end if;
-  if save_control.owner_id is not null and not ${isMember(`v_framework.${f("tenant")}`, "save_control.owner_id")} then
+${
+  owner
+    ? `  if save_control.owner_id is not null and not ${isMember(`v_framework.${f("tenant")}`, "save_control.owner_id")} then
     ${invalid("the owner must be a member of the organization")}
   end if;
-  if save_control.control_id is null then
-    insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}, ${k("description")}, ${k("owner")}, ${k("applicable")})
-    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+`
+    : ""
+}  if save_control.control_id is null then
+    insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}${insertCol("controls", "description")}${insertCol("controls", "owner")}, ${k("applicable")})
+    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title)${insertVal("controls", "description", "nullif(trim(save_control.description), '')")}${insertVal("controls", "owner", "save_control.owner_id")}, coalesce(save_control.applicable, true))
     on conflict (${k("framework")}, ${k("code")}) do update
-      set ${k("title")} = excluded.${k("title")}, ${k("description")} = excluded.${k("description")},
-        ${k("owner")} = excluded.${k("owner")}, ${k("applicable")} = excluded.${k("applicable")}, ${k("updatedAt")} = now()
+      set ${k("title")} = excluded.${k("title")}${has("controls", "description") ? `, ${k("description")} = excluded.${k("description")}` : ""},
+        ${owner ? `${k("owner")} = excluded.${k("owner")}, ` : ""}${k("applicable")} = excluded.${k("applicable")}${touch("controls")}
     returning * into v_row;
   else
     update ${controls} x set ${k("code")} = trim(save_control.code), ${k("title")} = trim(save_control.title),
-      ${k("description")} = nullif(trim(save_control.description), ''), ${k("owner")} = save_control.owner_id,
-      ${k("applicable")} = coalesce(save_control.applicable, true), ${k("updatedAt")} = now()
+      ${has("controls", "description") ? `${k("description")} = nullif(trim(save_control.description), ''), ` : ""}${owner ? `${k("owner")} = save_control.owner_id,\n      ` : ""}${k("applicable")} = coalesce(save_control.applicable, true)${touch("controls")}
       where x.${k("id")} = save_control.control_id and x.${k("framework")} = v_framework.${f("id")}
       returning * into v_row;
     if not found then
@@ -254,7 +297,7 @@ as $$
     from ${controls} y
     where y.${k("tenant")} = list_controls.tenant
       and (list_controls.framework_id is null or y.${k("framework")} = list_controls.framework_id)
-      and (list_controls.owner_id is null or y.${k("owner")} = list_controls.owner_id)
+      and (list_controls.owner_id is null${owner ? ` or y.${k("owner")} = list_controls.owner_id` : ""})
       and (list_controls.status is null or ${status("y")} = list_controls.status)
     order by y.${k("framework")}, y.${k("code")}
     limit ${pageSize("list_controls.page_size", 200, 1000)}
@@ -290,21 +333,27 @@ begin
       ${fail("EVIDENCE_TASK_NOT_FOUND", "the evidence task isn't a task of this control", "P0002")}
     end if;
   end if;
-  if not (${allowed(`v_control.${k("tenant")}`, collect)} or (v_task.${t("assignee")} is not null and v_task.${t("assignee")} = auth.uid())) then
+  if not (${allowed(`v_control.${k("tenant")}`, collect)}${assignee ? ` or (v_task.${t("assignee")} is not null and v_task.${t("assignee")} = auth.uid())` : ""}) then
     ${forbidden("not allowed to collect evidence")}
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  ${
+    has("evidence", "note")
+      ? `if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
     ${invalid("evidence needs an attachment or a note")}
-  end if;
+  end if;`
+      : `if add_control_evidence.attachment_id is null then
+    ${invalid("evidence needs an attachment")}
+  end if;`
+  }
   ${attachmentCheck}
-  insert into ${evidence} (${e("tenant")}, ${e("control")}, ${e("task")}, ${e("attachment")}, ${e("note")}, ${e("collectedBy")}, ${e("validUntil")})
+  insert into ${evidence} (${e("tenant")}, ${e("control")}, ${e("task")}, ${e("attachment")}${insertCol("evidence", "note")}, ${e("collectedBy")}, ${e("validUntil")})
   values (v_control.${k("tenant")}, v_control.${k("id")}, v_task.${t("id")}, add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
+    ${has("evidence", "note") ? "nullif(trim(add_control_evidence.note), ''), " : ""}auth.uid(),
     coalesce(add_control_evidence.valid_until, current_date + v_task.${t("intervalDays")}))
   returning * into v_row;
   if v_task.${t("id")} is not null then
-    update ${tasks} x set ${t("dueOn")} = current_date + x.${t("intervalDays")}, ${t("lastCollectedAt")} = now(),
-      ${t("notifiedFor")} = null, ${t("updatedAt")} = now()
+    update ${tasks} x set ${t("dueOn")} = current_date + x.${t("intervalDays")}${has("tasks", "lastCollectedAt") ? `, ${t("lastCollectedAt")} = now()` : ""},
+      ${t("notifiedFor")} = null${touch("tasks")}
       where x.${t("id")} = v_task.${t("id")};
   end if;
   ${ctx.record({
@@ -372,18 +421,22 @@ begin
   if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
     ${invalid("interval_days must be from 1 to 3650")}
   end if;
-  if save_evidence_task.assignee_id is not null and not ${isMember(`v_control.${k("tenant")}`, "save_evidence_task.assignee_id")} then
+${
+  assignee
+    ? `  if save_evidence_task.assignee_id is not null and not ${isMember(`v_control.${k("tenant")}`, "save_evidence_task.assignee_id")} then
     ${invalid("the assignee must be a member of the organization")}
   end if;
-  if save_evidence_task.task_id is null then
-    insert into ${tasks} (${t("tenant")}, ${t("control")}, ${t("title")}, ${t("assignee")}, ${t("intervalDays")}, ${t("dueOn")}, ${t("active")})
-    values (v_control.${k("tenant")}, v_control.${k("id")}, trim(save_evidence_task.title), save_evidence_task.assignee_id,
+`
+    : ""
+}  if save_evidence_task.task_id is null then
+    insert into ${tasks} (${t("tenant")}, ${t("control")}, ${t("title")}${insertCol("tasks", "assignee")}, ${t("intervalDays")}, ${t("dueOn")}, ${t("active")})
+    values (v_control.${k("tenant")}, v_control.${k("id")}, trim(save_evidence_task.title)${insertVal("tasks", "assignee", "save_evidence_task.assignee_id")},
       save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
     returning * into v_row;
   else
-    update ${tasks} x set ${t("title")} = trim(save_evidence_task.title), ${t("assignee")} = save_evidence_task.assignee_id,
+    update ${tasks} x set ${t("title")} = trim(save_evidence_task.title)${assignee ? `, ${t("assignee")} = save_evidence_task.assignee_id` : ""},
       ${t("intervalDays")} = save_evidence_task.interval_days, ${t("dueOn")} = coalesce(save_evidence_task.due_on, x.${t("dueOn")}),
-      ${t("active")} = coalesce(save_evidence_task.active, true), ${t("updatedAt")} = now()
+      ${t("active")} = coalesce(save_evidence_task.active, true)${touch("tasks")}
       where x.${t("id")} = save_evidence_task.task_id and x.${t("control")} = v_control.${k("id")}
       returning * into v_row;
     if not found then
@@ -408,7 +461,7 @@ as $$
   join ${controls} y on y.${k("id")} = x.${t("control")}
   where x.${t("tenant")} = list_evidence_tasks.tenant
     and (list_evidence_tasks.control_id is null or x.${t("control")} = list_evidence_tasks.control_id)
-    and (list_evidence_tasks.assignee_id is null or x.${t("assignee")} = list_evidence_tasks.assignee_id)
+    and (list_evidence_tasks.assignee_id is null${assignee ? ` or x.${t("assignee")} = list_evidence_tasks.assignee_id` : ""})
     and (not coalesce(list_evidence_tasks.overdue_only, false) or ${overdue("x")})
 $$;
 ${userGrant(`${fn("list_evidence_tasks")}(${idType}, uuid, uuid, boolean)`)}
@@ -423,7 +476,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'frameworkId', w.${f("id")}, 'key', w.${f("key")}, 'name', w.${f("name")}, 'version', w.${f("version")},
+    'frameworkId', w.${f("id")}, 'key', w.${f("key")}, 'name', w.${f("name")}, 'version', ${field("frameworks", "w", "version")},
     'total', coalesce(r.total, 0), 'passing', coalesce(r.passing, 0), 'failing', coalesce(r.failing, 0),
     'notStarted', coalesce(r.not_started, 0), 'notApplicable', coalesce(r.not_applicable, 0),
     'overdueTasks', (select count(*) from ${tasks} ot join ${controls} oc on oc.${k("id")} = ot.${t("control")} where oc.${k("framework")} = w.${f("id")} and ${overdue("ot")})
@@ -462,10 +515,10 @@ begin
     where ${overdue("x")} and x.${t("notifiedFor")} is distinct from x.${t("dueOn")}
     for update skip locked
   loop
-    select y.${k("owner")} into v_owner from ${controls} y where y.${k("id")} = v_task.${t("control")};
+    ${owner ? `select y.${k("owner")} into v_owner from ${controls} y where y.${k("id")} = v_task.${t("control")};` : "v_owner := null;"}
     ${ctx.record({
       type: "evidence_task.missed",
-      payload: `jsonb_build_object('organizationId', v_task.${t("tenant")}, 'evidenceTaskId', v_task.${t("id")}, 'controlId', v_task.${t("control")}, 'assigneeId', v_task.${t("assignee")}, 'dueOn', v_task.${t("dueOn")})`,
+      payload: `jsonb_build_object('organizationId', v_task.${t("tenant")}, 'evidenceTaskId', v_task.${t("id")}, 'controlId', v_task.${t("control")}, 'assigneeId', ${field("tasks", "v_task", "assignee")}, 'dueOn', v_task.${t("dueOn")})`,
       subject: `'evidence-tasks/' || v_task.${t("id")}::text`,
       tenant: `v_task.${t("tenant")}`,
       audit: {

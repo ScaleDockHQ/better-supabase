@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -16,6 +16,7 @@ import {
   serviceGrant,
   updatedAt,
 } from "../shared.ts";
+import { asText } from "./over-app.ts";
 
 const EVENTS: BlockSqlEvents<VercelMarketplaceEvents> = {
   "marketplace_installation.upserted": {
@@ -38,6 +39,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     installations: {
       name: "marketplace_installations",
+      app: {},
       columns: {
         id: "id",
         configurationId: "configuration_id",
@@ -52,9 +54,20 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "teamId",
+        "userId",
+        "tenantCreated",
+        "metadata",
+        "removedAt",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
     },
     resources: {
       name: "marketplace_resources",
+      app: {},
       columns: {
         id: "id",
         installation: "installation_id",
@@ -69,9 +82,19 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "plan",
+        "metadata",
+        "tenantCreated",
+        "secretRefs",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
     },
     plans: {
       name: "marketplace_plans",
+      app: {},
       columns: {
         id: "id",
         name: "name",
@@ -80,9 +103,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["details", "createdAt", "updatedAt"],
+      typed: ["kind"],
     },
     invoices: {
       name: "marketplace_invoices",
+      app: {},
       columns: {
         id: "id",
         installation: "installation_id",
@@ -97,9 +123,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["periodStart", "periodEnd", "items", "createdAt", "updatedAt"],
+      typed: ["state"],
     },
     meterReports: {
       name: "marketplace_meter_reports",
+      app: {},
       columns: {
         id: "id",
         installation: "installation_id",
@@ -112,11 +141,29 @@ const NAMES: BlockSqlNames = {
         reportedAt: "reported_at",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
   },
 };
 
+/** What a read gives for a column the app's table lacks. */
+const MISSING: Readonly<Record<string, string>> = {
+  metadata: "'{}'::jsonb",
+  tenantCreated: "false",
+  secretRefs: "'[]'::jsonb",
+  details: "'{}'::jsonb",
+  items: "'[]'::jsonb",
+};
+
 const STATUSES = "('active', 'suspended', 'removed')";
+
+const METER_KEY = [
+  "installation",
+  "resourceExternalId",
+  "meterId",
+  "periodStart",
+  "periodEnd",
+];
 
 const guard = `
   if not (${SERVICE_CALLER}) then
@@ -134,17 +181,146 @@ function build(ctx: BlockSqlContext): string {
   const p = ctx.table("plans");
   const v = ctx.table("invoices");
   const m = ctx.table("meterReports");
-  const ic = (logical: string): string => ctx.col("installations", logical);
-  const rc = (logical: string): string => ctx.col("resources", logical);
-  const pc = (logical: string): string => ctx.col("plans", logical);
-  const vc = (logical: string): string => ctx.col("invoices", logical);
-  const mc = (logical: string): string => ctx.col("meterReports", logical);
+
+  // Empty for a column the app's table lacks; every use of one is guarded.
+  const column =
+    (table: string) =>
+    (logical: string): string =>
+      ctx.has(table, logical) ? ctx.col(table, logical) : "";
+
+  const ic = column("installations");
+  const rc = column("resources");
+  const pc = column("plans");
+  const vc = column("invoices");
+  const mc = column("meterReports");
   const currency = sqlString(ctx.text("currency", "usd"));
+
+  // A null column is a table constraint.
+  const create = (
+    table: string,
+    entries: readonly (readonly [string | null, string])[],
+  ): string =>
+    `create table if not exists ${ctx.table(table)} (\n  ${entries
+      .filter(([column]) => column === null || ctx.has(table, column))
+      .map(([column, definition]) =>
+        column === null
+          ? definition
+          : `${ctx.col(table, column)} ${definition}`,
+      )
+      .join(",\n  ")}\n);`;
+
+  const stamp = (table: string): string =>
+    ctx.has(table, "updatedAt")
+      ? `\n${updatedAt(ctx.table(table), ctx.col(table, "updatedAt"))}`
+      : "";
+
+  const meterKey = METER_KEY.map(mc).join(", ");
+
+  const read = (table: string, row: string, column: string): string =>
+    ctx.has(table, column)
+      ? `${row}.${ctx.col(table, column)}`
+      : (MISSING[column] ?? "null");
+
+  const unique = (
+    table: string,
+    what: string,
+    columns: readonly string[],
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns.map((column) => ctx.col(table, column)).join(", ")});`;
+
+  // The TypeScript side reads rows by the default column names; the app's
+  // table may name them otherwise and have more.
+  const json = (table: string, row: string): string =>
+    ctx.owns(table)
+      ? `to_jsonb(${row})`
+      : `jsonb_build_object(${Object.entries(NAMES.tables[table]?.columns ?? {})
+          .map(([logical, name]) => `'${name}', ${read(table, row, logical)}`)
+          .join(", ")})`;
+
+  const sets = (
+    table: string,
+    pairs: readonly (readonly [string, string])[],
+    separator = ",\n    ",
+  ): string =>
+    pairs
+      .filter(([column]) => ctx.has(table, column))
+      .map(([column, value]) => `${ctx.col(table, column)} = ${value}`)
+      .join(separator);
+
+  const insert = (
+    table: string,
+    pairs: readonly (readonly [string, string])[],
+  ): { readonly columns: string; readonly values: string } => {
+    const present = pairs.filter(([column]) => ctx.has(table, column));
+
+    return {
+      columns: present.map(([column]) => ctx.col(table, column)).join(", "),
+      values: present.map(([, value]) => value).join(", "),
+    };
+  };
+
+  const installationInsert = insert("installations", [
+    ["configurationId", "upsert_marketplace_installation.configuration_id"],
+    ["teamId", "upsert_marketplace_installation.team_id"],
+    ["userId", "upsert_marketplace_installation.user_id"],
+    ["tenant", "upsert_marketplace_installation.tenant"],
+    [
+      "metadata",
+      "coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb)",
+    ],
+  ]);
+
+  const planInsert = insert("plans", [
+    ["id", "upsert_marketplace_plan.id"],
+    ["name", "upsert_marketplace_plan.name"],
+    [
+      "kind",
+      ctx.cast(
+        "plans",
+        "kind",
+        "coalesce(upsert_marketplace_plan.kind, 'subscription')",
+      ),
+    ],
+    ["details", "coalesce(upsert_marketplace_plan.details, '{}'::jsonb)"],
+  ]);
+
+  const resourceInsert = insert("resources", [
+    ["installation", "v_installation"],
+    ["externalId", "upsert_marketplace_resource.external_id"],
+    ["name", "upsert_marketplace_resource.name"],
+    ["plan", "upsert_marketplace_resource.plan_id"],
+    [
+      "status",
+      ctx.cast(
+        "resources",
+        "status",
+        "coalesce(upsert_marketplace_resource.status, 'ready')",
+      ),
+    ],
+    ["metadata", "coalesce(upsert_marketplace_resource.metadata, '{}'::jsonb)"],
+  ]);
+
+  const invoiceInsert = insert("invoices", [
+    ["installation", "v_installation"],
+    ["externalId", "record_marketplace_invoice.external_id"],
+    [
+      "state",
+      ctx.cast("invoices", "state", "record_marketplace_invoice.state"),
+    ],
+    ["periodStart", "record_marketplace_invoice.period_start"],
+    ["periodEnd", "record_marketplace_invoice.period_end"],
+    ["total", "coalesce(record_marketplace_invoice.total, 0)"],
+    ["currency", `coalesce(record_marketplace_invoice.currency, ${currency})`],
+    ["items", "coalesce(record_marketplace_invoice.items, '[]'::jsonb)"],
+    ["eventAt", "coalesce(record_marketplace_invoice.event_at, now())"],
+  ]);
 
   const installationEvent = (type: string, row: string): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('installationId', ${row}.${ic("id")}, 'configurationId', ${row}.${ic("configurationId")}, 'teamId', ${row}.${ic("teamId")})`,
+      payload: `jsonb_build_object('installationId', ${row}.${ic("id")}, 'configurationId', ${row}.${ic("configurationId")}, 'teamId', ${read("installations", row, "teamId")})`,
       subject: `'marketplace-installations/' || ${row}.${ic("id")}`,
       audit: {
         category: "configuration",
@@ -165,89 +341,110 @@ function build(ctx: BlockSqlContext): string {
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists ${i} (
-  ${ic("id")} uuid primary key default gen_random_uuid(),
-  ${ic("configurationId")} text not null unique,
-  ${ic("teamId")} text,
-  ${ic("userId")} text,
-  ${ic("tenant")} text,
-  ${ic("status")} text not null default 'active' check (${ic("status")} in ${STATUSES}),
-  ${ic("metadata")} jsonb not null default '{}'::jsonb,
-  ${ic("removedAt")} timestamptz,
-  ${ic("createdAt")} timestamptz not null default now()
-);
-${updatedAt(i, ic("updatedAt"))}
--- tenant_created: the installation created its tenant, so removing the
--- installation may delete it. access_token_secret_id: the Vault secret with
--- the access token Vercel handed out at installation.
-alter table ${i} add column if not exists ${ic("tenantCreated")} boolean not null default false;
+${create("installations", [
+  ["id", "uuid primary key default gen_random_uuid()"],
+  ["configurationId", "text not null unique"],
+  ["teamId", "text"],
+  ["userId", "text"],
+  ["tenant", "text"],
+  [
+    "status",
+    `text not null default 'active' check (${ic("status")} in ${STATUSES})`,
+  ],
+  ["metadata", "jsonb not null default '{}'::jsonb"],
+  ["removedAt", "timestamptz"],
+  ["createdAt", "timestamptz not null default now()"],
+])}${stamp("installations")}
+-- ${ctx.has("installations", "tenantCreated") ? "tenant_created: the installation created its tenant, so removing the\n-- installation may delete it. " : ""}access_token_secret_id: the Vault secret with
+-- the access token Vercel handed out at installation.${ctx.has("installations", "tenantCreated") ? `\nalter table ${i} add column if not exists ${ic("tenantCreated")} boolean not null default false;` : ""}
 alter table ${i} add column if not exists ${ic("accessTokenSecret")} uuid;
-create index if not exists ${ctx.naming.rename("marketplace_installations_tenant_idx")} on ${i} (${ic("tenant")}) where ${ic("tenant")} is not null;
+create index if not exists ${ctx.naming.rename("marketplace_installations_tenant_idx")} on ${i} (${ic("tenant")}) where ${ic("tenant")} is not null;${unique("installations", "configuration", ["configurationId"])}
 ${lockTable(i)}
 
-create table if not exists ${p} (
-  ${pc("id")} text primary key,
-  ${pc("name")} text not null,
-  ${pc("kind")} text not null default 'subscription' check (${pc("kind")} in ('subscription', 'prepayment')),
-  ${pc("details")} jsonb not null default '{}'::jsonb,
-  ${pc("createdAt")} timestamptz not null default now()
-);
-${updatedAt(p, pc("updatedAt"))}
+${create("plans", [
+  ["id", "text primary key"],
+  ["name", "text not null"],
+  [
+    "kind",
+    `text not null default 'subscription' check (${pc("kind")} in ('subscription', 'prepayment'))`,
+  ],
+  ["details", "jsonb not null default '{}'::jsonb"],
+  ["createdAt", "timestamptz not null default now()"],
+])}${stamp("plans")}${unique("plans", "id", ["id"])}
 ${lockTable(p)}
 
-create table if not exists ${r} (
-  ${rc("id")} uuid primary key default gen_random_uuid(),
-  ${rc("installation")} uuid not null references ${i} (${ic("id")}) on delete cascade,
-  ${rc("externalId")} text not null,
-  ${rc("name")} text not null,
-  ${rc("plan")} text references ${p} (${pc("id")}) on delete set null,
-  ${rc("status")} text not null default 'ready' check (${rc("status")} in ('pending', 'ready', 'suspended', 'deleted')),
-  ${rc("metadata")} jsonb not null default '{}'::jsonb,
-  ${rc("createdAt")} timestamptz not null default now(),
-  unique (${rc("installation")}, ${rc("externalId")})
-);
-${updatedAt(r, rc("updatedAt"))}
+${create("resources", [
+  ["id", "uuid primary key default gen_random_uuid()"],
+  [
+    "installation",
+    `uuid not null references ${i} (${ic("id")}) on delete cascade`,
+  ],
+  ["externalId", "text not null"],
+  ["name", "text not null"],
+  ["plan", `text references ${p} (${pc("id")}) on delete set null`],
+  [
+    "status",
+    `text not null default 'ready' check (${rc("status")} in ('pending', 'ready', 'suspended', 'deleted'))`,
+  ],
+  ["metadata", "jsonb not null default '{}'::jsonb"],
+  ["createdAt", "timestamptz not null default now()"],
+  [null, `unique (${rc("installation")}, ${rc("externalId")})`],
+])}${stamp("resources")}
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table ${r} add column if not exists ${rc("tenant")} text;
-alter table ${r} add column if not exists ${rc("tenantCreated")} boolean not null default false;
-alter table ${r} add column if not exists ${rc("secretRefs")} jsonb not null default '[]'::jsonb;
-create index if not exists ${ctx.naming.rename("marketplace_resources_plan_idx")} on ${r} (${rc("plan")}) where ${rc("plan")} is not null;
+alter table ${r} add column if not exists ${rc("tenant")} text;${
+    ctx.has("resources", "tenantCreated")
+      ? `\nalter table ${r} add column if not exists ${rc("tenantCreated")} boolean not null default false;`
+      : ""
+  }${
+    ctx.has("resources", "secretRefs")
+      ? `\nalter table ${r} add column if not exists ${rc("secretRefs")} jsonb not null default '[]'::jsonb;`
+      : ""
+  }${
+    ctx.has("resources", "plan")
+      ? `\ncreate index if not exists ${ctx.naming.rename("marketplace_resources_plan_idx")} on ${r} (${rc("plan")}) where ${rc("plan")} is not null;`
+      : ""
+  }${unique("resources", "external", ["installation", "externalId"])}
 ${lockTable(r)}
 
-create table if not exists ${v} (
-  ${vc("id")} uuid primary key default gen_random_uuid(),
-  ${vc("installation")} uuid not null references ${i} (${ic("id")}) on delete cascade,
-  ${vc("externalId")} text not null,
-  ${vc("state")} text not null default 'pending',
-  ${vc("periodStart")} timestamptz,
-  ${vc("periodEnd")} timestamptz,
-  ${vc("total")} numeric not null default 0,
-  ${vc("currency")} text not null default ${currency},
-  ${vc("items")} jsonb not null default '[]'::jsonb,
-  ${vc("eventAt")} timestamptz not null default now(),
-  ${vc("createdAt")} timestamptz not null default now(),
-  unique (${vc("installation")}, ${vc("externalId")})
-);
-${updatedAt(v, vc("updatedAt"))}
+${create("invoices", [
+  ["id", "uuid primary key default gen_random_uuid()"],
+  [
+    "installation",
+    `uuid not null references ${i} (${ic("id")}) on delete cascade`,
+  ],
+  ["externalId", "text not null"],
+  ["state", "text not null default 'pending'"],
+  ["periodStart", "timestamptz"],
+  ["periodEnd", "timestamptz"],
+  ["total", "numeric not null default 0"],
+  ["currency", `text not null default ${currency}`],
+  ["items", "jsonb not null default '[]'::jsonb"],
+  ["eventAt", "timestamptz not null default now()"],
+  ["createdAt", "timestamptz not null default now()"],
+  [null, `unique (${vc("installation")}, ${vc("externalId")})`],
+])}${stamp("invoices")}${unique("invoices", "external", ["installation", "externalId"])}
 ${lockTable(v)}
 
-create table if not exists ${m} (
-  ${mc("id")} uuid primary key default gen_random_uuid(),
-  ${mc("installation")} uuid not null references ${i} (${ic("id")}) on delete cascade,
-  ${mc("resourceExternalId")} text not null default '',
-  ${mc("meterId")} text not null,
-  ${mc("periodStart")} timestamptz not null,
-  ${mc("periodEnd")} timestamptz not null,
-  ${mc("quantity")} numeric not null check (${mc("quantity")} >= 0),
-  ${mc("reportedAt")} timestamptz,
-  ${mc("createdAt")} timestamptz not null default now(),
-  unique (${mc("installation")}, ${mc("resourceExternalId")}, ${mc("meterId")}, ${mc("periodStart")}, ${mc("periodEnd")})
-);
+${create("meterReports", [
+  ["id", "uuid primary key default gen_random_uuid()"],
+  [
+    "installation",
+    `uuid not null references ${i} (${ic("id")}) on delete cascade`,
+  ],
+  ["resourceExternalId", "text not null default ''"],
+  ["meterId", "text not null"],
+  ["periodStart", "timestamptz not null"],
+  ["periodEnd", "timestamptz not null"],
+  ["quantity", `numeric not null check (${mc("quantity")} >= 0)`],
+  ["reportedAt", "timestamptz"],
+  ["createdAt", "timestamptz not null default now()"],
+  [null, `unique (${meterKey})`],
+])}
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table ${m} add column if not exists ${mc("reportedQuantity")} numeric not null default 0;
+alter table ${m} add column if not exists ${mc("reportedQuantity")} numeric not null default 0;${unique("meterReports", "period", METER_KEY)}
 ${lockTable(m)}
 
 -- Records an installation (or reactivates a removed one) for a configuration id.
@@ -261,18 +458,26 @@ as $$
 declare
   v_row ${i};
 begin${guard}
-  insert into ${i} (${ic("configurationId")}, ${ic("teamId")}, ${ic("userId")}, ${ic("tenant")}, ${ic("metadata")})
-  values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
+  insert into ${i} (${installationInsert.columns})
+  values (${installationInsert.values})
   on conflict (${ic("configurationId")}) do update set
-    ${ic("teamId")} = coalesce(excluded.${ic("teamId")}, ${i}.${ic("teamId")}),
-    ${ic("userId")} = coalesce(excluded.${ic("userId")}, ${i}.${ic("userId")}),
-    ${ic("tenant")} = coalesce(excluded.${ic("tenant")}, ${i}.${ic("tenant")}),
-    ${ic("metadata")} = ${i}.${ic("metadata")} || excluded.${ic("metadata")},
-    ${ic("status")} = case when ${i}.${ic("status")} = 'removed' then 'active' else ${i}.${ic("status")} end,
-    ${ic("removedAt")} = case when ${i}.${ic("status")} = 'removed' then null else ${i}.${ic("removedAt")} end
+    ${sets("installations", [
+      ["teamId", `coalesce(excluded.${ic("teamId")}, ${i}.${ic("teamId")})`],
+      ["userId", `coalesce(excluded.${ic("userId")}, ${i}.${ic("userId")})`],
+      ["tenant", `coalesce(excluded.${ic("tenant")}, ${i}.${ic("tenant")})`],
+      ["metadata", `${i}.${ic("metadata")} || excluded.${ic("metadata")}`],
+      [
+        "status",
+        `case when ${i}.${ic("status")} = 'removed' then ${ctx.cast("installations", "status", "'active'")} else ${i}.${ic("status")} end`,
+      ],
+      [
+        "removedAt",
+        `case when ${i}.${ic("status")} = 'removed' then null else ${i}.${ic("removedAt")} end`,
+      ],
+    ])}
   returning * into v_row;
   ${installationEvent("marketplace_installation.upserted", "v_row")}
-  return to_jsonb(v_row);
+  return ${json("installations", "v_row")};
 end;
 $$;
 
@@ -285,7 +490,7 @@ security definer
 set search_path = ''
 as $$
 begin${guard}
-  return (select to_jsonb(x) from ${i} x where x.${ic("configurationId")} = marketplace_installation.configuration_id);
+  return (select ${json("installations", "x")} from ${i} x where x.${ic("configurationId")} = marketplace_installation.configuration_id);
 end;
 $$;
 
@@ -300,7 +505,14 @@ as $$
 declare
   v_row ${i};
 begin${guard}
-  update ${i} x set ${ic("status")} = 'removed', ${ic("removedAt")} = coalesce(x.${ic("removedAt")}, now())
+  update ${i} x set ${sets(
+    "installations",
+    [
+      ["status", "'removed'"],
+      ["removedAt", `coalesce(x.${ic("removedAt")}, now())`],
+    ],
+    ", ",
+  )}
   where x.${ic("configurationId")} = remove_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row.${ic("id")} is null then
@@ -313,7 +525,7 @@ begin${guard}
   end if;
   update ${r} y set ${rc("status")} = 'deleted' where y.${rc("installation")} = v_row.${ic("id")} and y.${rc("status")} <> 'deleted';
   ${installationEvent("marketplace_installation.removed", "v_row")}
-  return to_jsonb(v_row);
+  return ${json("installations", "v_row")};
 end;
 $$;
 
@@ -328,11 +540,19 @@ as $$
 declare
   v_row ${p};
 begin${guard}
-  insert into ${p} (${pc("id")}, ${pc("name")}, ${pc("kind")}, ${pc("details")})
-  values (upsert_marketplace_plan.id, upsert_marketplace_plan.name, coalesce(upsert_marketplace_plan.kind, 'subscription'), coalesce(upsert_marketplace_plan.details, '{}'::jsonb))
-  on conflict (${pc("id")}) do update set ${pc("name")} = excluded.${pc("name")}, ${pc("kind")} = excluded.${pc("kind")}, ${pc("details")} = excluded.${pc("details")}
+  insert into ${p} (${planInsert.columns})
+  values (${planInsert.values})
+  on conflict (${pc("id")}) do update set ${sets(
+    "plans",
+    [
+      ["name", `excluded.${pc("name")}`],
+      ["kind", `excluded.${pc("kind")}`],
+      ["details", `excluded.${pc("details")}`],
+    ],
+    ", ",
+  )}
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${json("plans", "v_row")};
 end;
 $$;
 
@@ -352,15 +572,17 @@ begin${guard}
   if v_installation is null then
     ${missing()}
   end if;
-  insert into ${r} (${rc("installation")}, ${rc("externalId")}, ${rc("name")}, ${rc("plan")}, ${rc("status")}, ${rc("metadata")})
-  values (v_installation, upsert_marketplace_resource.external_id, upsert_marketplace_resource.name, upsert_marketplace_resource.plan_id, coalesce(upsert_marketplace_resource.status, 'ready'), coalesce(upsert_marketplace_resource.metadata, '{}'::jsonb))
+  insert into ${r} (${resourceInsert.columns})
+  values (${resourceInsert.values})
   on conflict (${rc("installation")}, ${rc("externalId")}) do update set
-    ${rc("name")} = excluded.${rc("name")},
-    ${rc("plan")} = coalesce(excluded.${rc("plan")}, ${r}.${rc("plan")}),
-    ${rc("status")} = excluded.${rc("status")},
-    ${rc("metadata")} = ${r}.${rc("metadata")} || excluded.${rc("metadata")}
+    ${sets("resources", [
+      ["name", `excluded.${rc("name")}`],
+      ["plan", `coalesce(excluded.${rc("plan")}, ${r}.${rc("plan")})`],
+      ["status", `excluded.${rc("status")}`],
+      ["metadata", `${r}.${rc("metadata")} || excluded.${rc("metadata")}`],
+    ])}
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${json("resources", "v_row")};
 end;
 $$;
 
@@ -383,21 +605,38 @@ begin${guard}
     ${missing()}
   end if;
   select y.${vc("state")} into v_before from ${v} y where y.${vc("installation")} = v_installation and y.${vc("externalId")} = record_marketplace_invoice.external_id;
-  insert into ${v} (${vc("installation")}, ${vc("externalId")}, ${vc("state")}, ${vc("periodStart")}, ${vc("periodEnd")}, ${vc("total")}, ${vc("currency")}, ${vc("items")}, ${vc("eventAt")})
-  values (v_installation, record_marketplace_invoice.external_id, record_marketplace_invoice.state, record_marketplace_invoice.period_start, record_marketplace_invoice.period_end, coalesce(record_marketplace_invoice.total, 0), coalesce(record_marketplace_invoice.currency, ${currency}), coalesce(record_marketplace_invoice.items, '[]'::jsonb), coalesce(record_marketplace_invoice.event_at, now()))
+  insert into ${v} (${invoiceInsert.columns})
+  values (${invoiceInsert.values})
   on conflict (${vc("installation")}, ${vc("externalId")}) do update set
-    ${vc("state")} = excluded.${vc("state")},
-    ${vc("periodStart")} = coalesce(excluded.${vc("periodStart")}, ${v}.${vc("periodStart")}),
-    ${vc("periodEnd")} = coalesce(excluded.${vc("periodEnd")}, ${v}.${vc("periodEnd")}),
-    ${vc("total")} = case when record_marketplace_invoice.total is null then ${v}.${vc("total")} else excluded.${vc("total")} end,
-    ${vc("currency")} = case when record_marketplace_invoice.currency is null then ${v}.${vc("currency")} else excluded.${vc("currency")} end,
-    ${vc("items")} = case when record_marketplace_invoice.items is null then ${v}.${vc("items")} else excluded.${vc("items")} end,
-    ${vc("eventAt")} = excluded.${vc("eventAt")}
+    ${sets("invoices", [
+      ["state", `excluded.${vc("state")}`],
+      [
+        "periodStart",
+        `coalesce(excluded.${vc("periodStart")}, ${v}.${vc("periodStart")})`,
+      ],
+      [
+        "periodEnd",
+        `coalesce(excluded.${vc("periodEnd")}, ${v}.${vc("periodEnd")})`,
+      ],
+      [
+        "total",
+        `case when record_marketplace_invoice.total is null then ${v}.${vc("total")} else excluded.${vc("total")} end`,
+      ],
+      [
+        "currency",
+        `case when record_marketplace_invoice.currency is null then ${v}.${vc("currency")} else excluded.${vc("currency")} end`,
+      ],
+      [
+        "items",
+        `case when record_marketplace_invoice.items is null then ${v}.${vc("items")} else excluded.${vc("items")} end`,
+      ],
+      ["eventAt", `excluded.${vc("eventAt")}`],
+    ])}
   where ${v}.${vc("eventAt")} <= excluded.${vc("eventAt")}
   returning * into v_row;
   if v_row.${vc("id")} is null then
     select y.* into v_row from ${v} y where y.${vc("installation")} = v_installation and y.${vc("externalId")} = record_marketplace_invoice.external_id;
-  elsif v_before is distinct from v_row.${vc("state")} then
+  elsif v_before is distinct from ${asText(ctx, "invoices", `v_row.${vc("state")}`)} then
     ${ctx.record({
       type: "marketplace_invoice.state_changed",
       payload: `jsonb_build_object('installationId', v_installation, 'invoiceId', v_row.${vc("id")}, 'externalId', v_row.${vc("externalId")}, 'state', v_row.${vc("state")})`,
@@ -409,7 +648,7 @@ begin${guard}
       },
     })}
   end if;
-  return to_jsonb(v_row);
+  return ${json("invoices", "v_row")};
 end;
 $$;
 
@@ -432,11 +671,11 @@ begin${guard}
   end if;
   insert into ${m} (${mc("installation")}, ${mc("resourceExternalId")}, ${mc("meterId")}, ${mc("periodStart")}, ${mc("periodEnd")}, ${mc("quantity")})
   values (v_installation, coalesce(record_marketplace_meter_report.resource_external_id, ''), record_marketplace_meter_report.meter_id, record_marketplace_meter_report.period_start, record_marketplace_meter_report.period_end, record_marketplace_meter_report.quantity)
-  on conflict (${mc("installation")}, ${mc("resourceExternalId")}, ${mc("meterId")}, ${mc("periodStart")}, ${mc("periodEnd")}) do update set
+  on conflict (${meterKey}) do update set
     ${mc("quantity")} = excluded.${mc("quantity")},
     ${mc("reportedAt")} = case when ${m}.${mc("quantity")} = excluded.${mc("quantity")} then ${m}.${mc("reportedAt")} end
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${json("meterReports", "v_row")};
 end;
 $$;
 
@@ -488,7 +727,7 @@ set search_path = ''
 as $$
 begin${guard}
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) order by x.${mc("periodStart")}, x.${mc("meterId")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${json("meterReports", "x")} order by x.${mc("periodStart")}, x.${mc("meterId")}), '[]'::jsonb)
     from ${m} x join ${i} y on y.${ic("id")} = x.${mc("installation")}
     where y.${ic("configurationId")} = unreported_marketplace_meter_reports.configuration_id and x.${mc("reportedAt")} is null
   );
@@ -549,13 +788,20 @@ as $$
 declare
   v_row ${i};
 begin${guard}
-  update ${i} x set ${ic("tenant")} = link_marketplace_tenant.tenant, ${ic("tenantCreated")} = coalesce(link_marketplace_tenant.created, false)
+  update ${i} x set ${sets(
+    "installations",
+    [
+      ["tenant", "link_marketplace_tenant.tenant"],
+      ["tenantCreated", "coalesce(link_marketplace_tenant.created, false)"],
+    ],
+    ", ",
+  )}
   where x.${ic("configurationId")} = link_marketplace_tenant.configuration_id
   returning * into v_row;
   if v_row.${ic("id")} is null then
     ${missing()}
   end if;
-  return to_jsonb(v_row);
+  return ${json("installations", "v_row")};
 end;
 $$;
 
@@ -571,9 +817,20 @@ declare
   v_row ${r};
 begin${guard}
   update ${r} y set
-    ${rc("tenant")} = coalesce(set_marketplace_resource_state.tenant, y.${rc("tenant")}),
-    ${rc("tenantCreated")} = coalesce(set_marketplace_resource_state.tenant_created, y.${rc("tenantCreated")}),
-    ${rc("secretRefs")} = coalesce(to_jsonb(set_marketplace_resource_state.secret_refs), y.${rc("secretRefs")})
+    ${sets("resources", [
+      [
+        "tenant",
+        `coalesce(set_marketplace_resource_state.tenant, y.${rc("tenant")})`,
+      ],
+      [
+        "tenantCreated",
+        `coalesce(set_marketplace_resource_state.tenant_created, y.${rc("tenantCreated")})`,
+      ],
+      [
+        "secretRefs",
+        `coalesce(to_jsonb(set_marketplace_resource_state.secret_refs), y.${rc("secretRefs")})`,
+      ],
+    ])}
   from ${i} x
   where x.${ic("id")} = y.${rc("installation")}
     and x.${ic("configurationId")} = set_marketplace_resource_state.configuration_id
@@ -582,7 +839,7 @@ begin${guard}
   if v_row.${rc("id")} is null then
     ${fail("MARKETPLACE_RESOURCE_NOT_FOUND", "The installation has no resource with this id", "P0002")}
   end if;
-  return to_jsonb(v_row);
+  return ${json("resources", "v_row")};
 end;
 $$;
 
@@ -596,7 +853,7 @@ set search_path = ''
 as $$
 begin${guard}
   return (
-    select to_jsonb(y) from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
+    select ${json("resources", "y")} from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
     where x.${ic("configurationId")} = marketplace_resource.configuration_id and y.${rc("externalId")} = marketplace_resource.external_id
   );
 end;
@@ -612,7 +869,7 @@ set search_path = ''
 as $$
 begin${guard}
   return (
-    select coalesce(jsonb_agg(to_jsonb(y) order by y.${rc("createdAt")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${json("resources", "y")} order by y.${ctx.has("resources", "createdAt") ? rc("createdAt") : rc("externalId")}), '[]'::jsonb)
     from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
     where x.${ic("configurationId")} = marketplace_resources.configuration_id and y.${rc("status")} <> 'deleted'
   );
@@ -635,7 +892,7 @@ begin${guard}
     and x.${ic("configurationId")} = delete_marketplace_resource.configuration_id
     and y.${rc("externalId")} = delete_marketplace_resource.external_id
   returning y.* into v_row;
-  return case when v_row.${rc("id")} is null then null else to_jsonb(v_row) end;
+  return case when v_row.${rc("id")} is null then null else ${json("resources", "v_row")} end;
 end;
 $$;
 
@@ -758,6 +1015,10 @@ export const VERCEL_MARKETPLACE: BlockSqlDefinition = {
         "Seals installation access tokens in Vault, keeps each resource's tenant and secret handles for the Partner API, and reports usage per period with reported_quantity.",
       // Rows reported before reported_quantity existed were accepted at their quantity.
       sql: (ctx) => {
+        if (!ctx.owns("meterReports")) {
+          return "";
+        }
+
         const table = ctx.table("meterReports");
         const column = (name: string): string => ctx.col("meterReports", name);
 

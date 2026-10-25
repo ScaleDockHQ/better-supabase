@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   raise,
   schemaPreamble,
@@ -11,6 +11,7 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const DOCUMENTS = {
@@ -55,9 +56,25 @@ const NAMES: BlockSqlNames = {
     documents: {
       name: "knowledge_documents",
       columns: DOCUMENTS,
+      optional: [
+        "file",
+        "source",
+        "metadata",
+        "error",
+        "chunkCount",
+        "model",
+        "createdAt",
+      ],
+      typed: ["scope", "status"],
+      app: {},
       lifecycle: { user: "owner", tenant: "tenant" },
     },
-    chunks: { name: "knowledge_chunks", columns: CHUNKS },
+    chunks: {
+      name: "knowledge_chunks",
+      columns: CHUNKS,
+      optional: ["tokens", "hash", "metadata", "tsv"],
+      app: {},
+    },
   },
 };
 
@@ -128,22 +145,45 @@ export function textSearchConfig(ctx: BlockSqlContext): string {
 
 type Columns<T> = { readonly [K in keyof T]: string };
 
-function columnsOf<T extends Readonly<Record<string, string>>>(
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
   ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
   // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
   return Object.fromEntries(
-    Object.keys(spec).map((key) => [key, ctx.col(table, key)]),
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
   ) as Columns<T>;
 }
 
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const d = columnsOf(ctx, "documents", DOCUMENTS);
-  const c = columnsOf(ctx, "chunks", CHUNKS);
+  const d = presentColumns(ctx, "documents", DOCUMENTS);
+  const c = presentColumns(ctx, "chunks", CHUNKS);
+
+  const doc = (column: keyof typeof DOCUMENTS): boolean =>
+    ctx.has("documents", column);
+
+  const chunk = (column: keyof typeof CHUNKS): boolean =>
+    ctx.has("chunks", column);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
+
+  const status = (value: string): string =>
+    ctx.cast("documents", "status", value);
+
+  const createdAt = (row: string): string =>
+    `${row}.${doc("createdAt") ? d.createdAt : d.updatedAt}`;
+
   const documents = ctx.table("documents");
   const chunks = ctx.table("chunks");
   const permissions = moduleOperations("knowledge");
@@ -159,6 +199,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       "blocks.knowledge.options.embedQueue must be a lowercase queue name of at most 47 characters",
     );
   }
+
+  const tsv = (row: string): string =>
+    chunk("tsv")
+      ? `${row}.${c.tsv}`
+      : `to_tsvector(${config}::regconfig, ${row}.${c.content})`;
 
   const ingestQueue = ctx.text("ingestQueue", "knowledge_ingest");
 
@@ -200,8 +245,77 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ${ctx.enqueue(queue, `jsonb_build_object('document_id', ${document})`, `'knowledge:' || ${document}::text`)}`
       : "";
 
-  const documentJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'scope', ${row}.${d.scope}, 'scope_id', ${row}.${d.scopeId}, 'file_id', ${row}.${d.file}, 'title', ${row}.${d.title}, 'source', ${row}.${d.source}, 'metadata', ${row}.${d.metadata}, 'status', ${row}.${d.status}, 'error', ${row}.${d.error}, 'chunk_count', ${row}.${d.chunkCount}, 'embedding_model', ${row}.${d.model}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
+  const documentJson = (row: string): string => {
+    const missing: Readonly<Record<string, string>> = {
+      metadata: "'{}'::jsonb",
+      chunkCount: `(select count(*)::integer from ${chunks} p where p.${c.document} = ${row}.${d.id})`,
+      createdAt: `${row}.${d.updatedAt}`,
+    };
+
+    const pairs = Object.entries(DOCUMENTS).map(
+      ([key, name]) =>
+        `'${name}', ${ctx.has("documents", key) ? `${row}.${ctx.col("documents", key)}` : (missing[key] ?? "null")}`,
+    );
+
+    return `jsonb_build_object(${pairs.join(", ")})`;
+  };
+
+  const documentInsert = [
+    [d.tenant, "create_knowledge_document.tenant"],
+    [d.owner, "v_owner"],
+    [
+      d.scope,
+      ctx.cast("documents", "scope", "create_knowledge_document.scope"),
+    ],
+    [d.scopeId, "v_scope_id"],
+    ...(doc("file") ? [[d.file, "create_knowledge_document.file_id"]] : []),
+    [d.title, "create_knowledge_document.title"],
+    ...(doc("source") ? [[d.source, "create_knowledge_document.source"]] : []),
+    ...(doc("metadata")
+      ? [[d.metadata, "coalesce(create_knowledge_document.metadata, '{}')"]]
+      : []),
+  ];
+
+  const chunkInsert = [
+    [c.document, `v_row.${d.id}`],
+    [c.index, "(e.ord - 1)::integer"],
+    [c.content, "e.value ->> 'content'"],
+    ...(chunk("tokens") ? [[c.tokens, "(e.value ->> 'tokens')::integer"]] : []),
+    ...(chunk("metadata")
+      ? [[c.metadata, "coalesce(e.value -> 'metadata', '{}')"]]
+      : []),
+  ];
+
+  // Without the hash column a chunk keeps its embedding while its text stays
+  // the same, which the old row still holds during the conflict update.
+  const unchanged = chunk("hash")
+    ? `t.${c.hash} = md5(excluded.${c.content})`
+    : `t.${c.content} = excluded.${c.content}`;
+
+  const chunkUpdate = [
+    `${c.content} = excluded.${c.content}`,
+    ...(chunk("tokens") ? [`${c.tokens} = excluded.${c.tokens}`] : []),
+    ...(chunk("metadata") ? [`${c.metadata} = excluded.${c.metadata}`] : []),
+    `${c.embedding} = case when v_keep and ${unchanged} then t.${c.embedding} end`,
+    ...(chunk("hash")
+      ? [`${c.hash} = case when v_keep and ${unchanged} then t.${c.hash} end`]
+      : []),
+  ];
+
+  const writeUpdate = [
+    `${d.status} = ${status(`case when exists (select 1 from ${chunks} p where p.${c.document} = x.${d.id} and p.${c.embedding} is null) then 'pending' else 'ready' end`)}`,
+    ...(doc("error") ? [`${d.error} = null`] : []),
+    ...(doc("chunkCount") ? [`${d.chunkCount} = v_count`] : []),
+    ...(doc("model")
+      ? [`${d.model} = coalesce(write_knowledge_chunks.model, x.${d.model})`]
+      : []),
+    `${d.updatedAt} = now()`,
+  ];
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns});`;
 
   // Organization and agent knowledge is shared with readers of the
   // organization, chat knowledge with readers of the chat, user and project
@@ -227,23 +341,15 @@ create table if not exists ${documents} (
   ${d.tenant} ${id} not null,
   ${d.owner} uuid references auth.users (id) on delete cascade,
   ${d.scope} text not null default 'user' check (${d.scope} in ('organization', 'agent', 'project', 'chat', 'user')),
-  ${d.scopeId} uuid,
-  ${d.file} uuid${fileReference},
-  ${d.title} text not null check (length(${d.title}) between 1 and 500),
-  ${d.source} text,
-  ${d.metadata} jsonb not null default '{}' check (jsonb_typeof(${d.metadata}) = 'object'),
-  ${d.status} text not null default 'pending' check (${d.status} in ('pending', 'ready', 'failed')),
-  ${d.error} text,
-  ${d.chunkCount} integer not null default 0,
-  ${d.model} text,
-  ${d.createdAt} timestamptz not null default now(),
+  ${d.scopeId} uuid,${line(doc("file"), `${d.file} uuid${fileReference}`)}
+  ${d.title} text not null check (length(${d.title}) between 1 and 500),${line(doc("source"), `${d.source} text`)}${line(doc("metadata"), `${d.metadata} jsonb not null default '{}' check (jsonb_typeof(${d.metadata}) = 'object')`)}
+  ${d.status} text not null default 'pending' check (${d.status} in ('pending', 'ready', 'failed')),${line(doc("error"), `${d.error} text`)}${line(doc("chunkCount"), `${d.chunkCount} integer not null default 0`)}${line(doc("model"), `${d.model} text`)}${line(doc("createdAt"), `${d.createdAt} timestamptz not null default now()`)}
   ${d.updatedAt} timestamptz not null default now(),
   check ((${d.scope} = 'organization') = (${d.scopeId} is null))
 );
 create index if not exists ${ctx.naming.rename("knowledge_documents_tenant_idx")} on ${documents} (${d.tenant}, ${d.scope}, ${d.scopeId});
 create index if not exists ${ctx.naming.rename("knowledge_documents_owner_idx")} on ${documents} (${d.owner}) where ${d.owner} is not null;
-create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;
-create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
+${doc("file") ? `create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;\n` : ""}create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
 alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
@@ -256,17 +362,12 @@ create policy ${ctx.naming.rename("knowledge_documents_read")} on ${documents} f
 create table if not exists ${chunks} (
   ${c.document} uuid not null references ${documents} (${d.id}) on delete cascade,
   ${c.index} integer not null check (${c.index} >= 0),
-  ${c.content} text not null check (length(${c.content}) > 0),
-  ${c.tokens} integer,
-  ${c.embedding} ${embedding.column},
-  ${c.hash} text,
-  ${c.metadata} jsonb not null default '{}',
-  ${c.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${c.content})) stored,
+  ${c.content} text not null check (length(${c.content}) > 0),${line(chunk("tokens"), `${c.tokens} integer`)}
+  ${c.embedding} ${embedding.column},${line(chunk("hash"), `${c.hash} text`)}${line(chunk("metadata"), `${c.metadata} jsonb not null default '{}'`)}${line(chunk("tsv"), `${c.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${c.content})) stored`)}
   primary key (${c.document}, ${c.index})
-);
+);${unique("chunks", "index", `${c.document}, ${c.index}`)}
 create index if not exists knowledge_chunks_embedding_idx on ${chunks} using hnsw (${c.embedding} ${embedding.opclass});
-create index if not exists knowledge_chunks_tsv_idx on ${chunks} using gin (${c.tsv});
-create index if not exists knowledge_chunks_pending_idx on ${chunks} (${c.document}, ${c.index}) where ${c.embedding} is null;
+${chunk("tsv") ? `create index if not exists knowledge_chunks_tsv_idx on ${chunks} using gin (${c.tsv});\n` : ""}create index if not exists knowledge_chunks_pending_idx on ${chunks} (${c.document}, ${c.index}) where ${c.embedding} is null;
 alter table ${chunks} enable row level security;
 ${revokeTable(chunks)}
 grant select on ${chunks} to authenticated;
@@ -317,8 +418,8 @@ begin
   if create_knowledge_document.scope = 'chat' and not (${SERVICE_CALLER} or ${chatReadable("v_scope_id")}) then
     ${raise("chat % not found", "P0002", "AI_CHAT_NOT_FOUND", "v_scope_id")}
   end if;${fileCheck}
-  insert into ${documents} (${d.tenant}, ${d.owner}, ${d.scope}, ${d.scopeId}, ${d.file}, ${d.title}, ${d.source}, ${d.metadata})
-  values (create_knowledge_document.tenant, v_owner, create_knowledge_document.scope, v_scope_id, create_knowledge_document.file_id, create_knowledge_document.title, create_knowledge_document.source, coalesce(create_knowledge_document.metadata, '{}'))
+  insert into ${documents} (${documentInsert.map(([column]) => column).join(", ")})
+  values (${documentInsert.map(([, value]) => value).join(", ")})
   returning * into v_row;
   return ${documentJson("v_row")};
 end;
@@ -349,23 +450,15 @@ begin
     ${raise("chunks must be an array of at most 10000 chunks", "22023", "KNOWLEDGE_CHUNKS")}
   end if;
   v_count := jsonb_array_length(v_items);
-  v_keep := write_knowledge_chunks.model is not distinct from v_row.${d.model} or write_knowledge_chunks.model is null;
-  insert into ${chunks} as t (${c.document}, ${c.index}, ${c.content}, ${c.tokens}, ${c.metadata})
-  select v_row.${d.id}, (e.ord - 1)::integer, e.value ->> 'content', (e.value ->> 'tokens')::integer, coalesce(e.value -> 'metadata', '{}')
+  v_keep := ${doc("model") ? `write_knowledge_chunks.model is not distinct from v_row.${d.model} or ` : ""}write_knowledge_chunks.model is null;
+  insert into ${chunks} as t (${chunkInsert.map(([column]) => column).join(", ")})
+  select ${chunkInsert.map(([, value]) => value).join(", ")}
   from jsonb_array_elements(v_items) with ordinality e(value, ord)
   on conflict (${c.document}, ${c.index}) do update set
-    ${c.content} = excluded.${c.content},
-    ${c.tokens} = excluded.${c.tokens},
-    ${c.metadata} = excluded.${c.metadata},
-    ${c.embedding} = case when v_keep and t.${c.hash} = md5(excluded.${c.content}) then t.${c.embedding} end,
-    ${c.hash} = case when v_keep and t.${c.hash} = md5(excluded.${c.content}) then t.${c.hash} end;
+    ${chunkUpdate.join(",\n    ")};
   delete from ${chunks} x where x.${c.document} = v_row.${d.id} and x.${c.index} >= v_count;
   update ${documents} x set
-    ${d.status} = case when exists (select 1 from ${chunks} p where p.${c.document} = x.${d.id} and p.${c.embedding} is null) then 'pending' else 'ready' end,
-    ${d.error} = null,
-    ${d.chunkCount} = v_count,
-    ${d.model} = coalesce(write_knowledge_chunks.model, x.${d.model}),
-    ${d.updatedAt} = now()
+    ${writeUpdate.join(",\n    ")}
   where x.${d.id} = v_row.${d.id}
   returning * into v_row;
   if v_row.${d.status} = 'pending' then${enqueue(`v_row.${d.id}`) || "\n    null;"}
@@ -399,13 +492,13 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${documentJson("x")} order by x.${d.createdAt} desc), '[]')
+  select coalesce(jsonb_agg(${documentJson("x")} order by ${createdAt("x")} desc), '[]')
   from (
     select * from ${documents} y
     where y.${d.tenant} = list_knowledge_documents.tenant
-      and (list_knowledge_documents.scope is null or y.${d.scope} = list_knowledge_documents.scope)
+      and (list_knowledge_documents.scope is null or ${asText(ctx, "documents", `y.${d.scope}`)} = list_knowledge_documents.scope)
       and (list_knowledge_documents.scope_id is null or y.${d.scopeId} = list_knowledge_documents.scope_id)
-    order by y.${d.createdAt} desc
+    order by ${createdAt("y")} desc
     limit least(greatest(list_knowledge_documents.max_rows, 1), 1000)
   ) x
 $$;
@@ -462,10 +555,10 @@ begin
     where x.${d.tenant} = knowledge_search.tenant
       and (v_scopes is null or exists (
         select 1 from jsonb_array_elements(v_scopes) s
-        where s.value ->> 'scope' = x.${d.scope}
+        where s.value ->> 'scope' = ${asText(ctx, "documents", `x.${d.scope}`)}
           and (s.value ->> 'id' is null or (s.value ->> 'id')::uuid = x.${d.scopeId})
       ))
-      and (knowledge_search.filter is null or x.${d.metadata} @> knowledge_search.filter)
+      and (knowledge_search.filter is null${doc("metadata") ? ` or x.${d.metadata} @> knowledge_search.filter` : ""})
   ),
   vector_hits as materialized (
     select t.${c.document} as document_id, t.${c.index} as idx, t.${c.embedding} ${embedding.distance} knowledge_search.query_embedding as distance
@@ -479,9 +572,9 @@ begin
     select h.document_id, h.idx, row_number() over (order by h.distance) as rank from vector_hits h
   ),
   text_hits as materialized (
-    select t.${c.document} as document_id, t.${c.index} as idx, ts_rank_cd(t.${c.tsv}, q) as text_score
+    select t.${c.document} as document_id, t.${c.index} as idx, ts_rank_cd(${tsv("t")}, q) as text_score
     from ${chunks} t, websearch_to_tsquery(${config}::regconfig, knowledge_search.query_text) q
-    where knowledge_search.query_text is not null and t.${c.tsv} @@ q
+    where knowledge_search.query_text is not null and ${tsv("t")} @@ q
       and t.${c.document} in (select docs.id from docs)
     order by text_score desc
     limit v_candidates
@@ -497,7 +590,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.score desc, r.document_id, r.idx), '[]')
   into v_rows
   from (
-    select f.document_id, f.idx, t.${c.content} as content, t.${c.metadata} as metadata, docs.title, f.score
+    select f.document_id, f.idx, t.${c.content} as content, ${chunk("metadata") ? `t.${c.metadata}` : "'{}'::jsonb"} as metadata, docs.title, f.score
     from fused f
     join ${chunks} t on t.${c.document} = f.document_id and t.${c.index} = f.idx
     join docs on docs.id = f.document_id
@@ -544,16 +637,14 @@ declare
   v_items jsonb := case when jsonb_typeof(set_knowledge_embeddings.embeddings) = 'object' then set_knowledge_embeddings.embeddings -> 'items' else set_knowledge_embeddings.embeddings end;
 begin
   update ${chunks} t set
-    ${c.embedding} = (e.value ->> 'embedding')::${embedding.column},
-    ${c.hash} = e.value ->> 'hash'
+    ${c.embedding} = (e.value ->> 'embedding')::${embedding.column}${chunk("hash") ? `,\n    ${c.hash} = e.value ->> 'hash'` : ""}
   from jsonb_array_elements(coalesce(v_items, '[]')) e
   where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.index} = (e.value ->> 'idx')::integer
     and md5(t.${c.content}) = e.value ->> 'hash';
   select count(*)::integer into v_remaining from ${chunks} t
   where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.embedding} is null;
   update ${documents} x set
-    ${d.status} = case when v_remaining = 0 then 'ready' else x.${d.status} end,
-    ${d.model} = coalesce(set_knowledge_embeddings.model, x.${d.model}),
+    ${d.status} = ${status(`case when v_remaining = 0 then 'ready' else ${asText(ctx, "documents", `x.${d.status}`)} end`)},${doc("model") ? `\n    ${d.model} = coalesce(set_knowledge_embeddings.model, x.${d.model}),` : ""}
     ${d.updatedAt} = now()
   where x.${d.id} = set_knowledge_embeddings.document_id;
   return v_remaining;
@@ -567,7 +658,7 @@ language sql
 security definer
 set search_path = ''
 as $$
-  update ${documents} x set ${d.status} = 'failed', ${d.error} = left(fail_knowledge_document.error, 2000), ${d.updatedAt} = now()
+  update ${documents} x set ${d.status} = 'failed',${doc("error") ? ` ${d.error} = left(fail_knowledge_document.error, 2000),` : ""} ${d.updatedAt} = now()
   where x.${d.id} = fail_knowledge_document.document_id
   returning true
 $$;
@@ -591,7 +682,7 @@ $$;
 ${serviceGrant(`${fn("pending_knowledge_documents")}(integer)`)}
 
 ${
-  files && ctx.installed("queue")
+  files && ctx.installed("queue") && doc("file")
     ? `-- Creates a pending document for a ready ai-files file and enqueues its
 -- ingestion on options.ingestQueue: the job reads the file, extracts its
 -- text and writes the chunks, which enqueues their embedding.
@@ -643,11 +734,10 @@ begin
   for v_id in
     update ${documents} x set ${d.status} = 'pending', ${d.updatedAt} = now()
     where (reembed_knowledge.tenant is null or x.${d.tenant} = reembed_knowledge.tenant)
-      and (reembed_knowledge.model is null or x.${d.model} is distinct from reembed_knowledge.model)
-      and x.${d.chunkCount} > 0
+      ${doc("model") ? `and (reembed_knowledge.model is null or x.${d.model} is distinct from reembed_knowledge.model)\n      ` : ""}and ${doc("chunkCount") ? `x.${d.chunkCount} > 0` : `exists (select 1 from ${chunks} p where p.${c.document} = x.${d.id})`}
     returning x.${d.id}
   loop
-    update ${chunks} t set ${c.embedding} = null, ${c.hash} = null where t.${c.document} = v_id;${enqueue("v_id")}
+    update ${chunks} t set ${c.embedding} = null${chunk("hash") ? `, ${c.hash} = null` : ""} where t.${c.document} = v_id;${enqueue("v_id")}
     v_count := v_count + 1;
   end loop;
   return v_count;

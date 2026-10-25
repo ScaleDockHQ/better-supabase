@@ -447,7 +447,7 @@ begin
   on conflict do nothing;
   update ${enrollments} x
   set ${e("completedSteps")} = ${count},
-    ${e("status")} = case when ${done} then 'completed' else 'active' end,
+    ${e("status")} = ${enrolled.cast("enrollments", "status", `case when ${done} then 'completed' else 'active' end`)},
     ${e("completedAt")} = case when ${done} then (select max(y.${s("completedAt")}) from ${steps} y where y.${s("enrollment")} = x.${e("id")}) end
   where x.${e("program")} like ${sqlString(`${PROGRAM}%`)};
   drop table ${old};

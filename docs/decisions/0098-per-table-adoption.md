@@ -61,3 +61,31 @@ the dashboard, for an app on declarative schemas) isn't seen; doctor's checks
 over the catalog report what that misses. If apps need a block to create its
 own table next to one of the app's with the same name, revisit with an
 explicit per-table override.
+
+## Amendment: every block table is adoptable (2026-10-25)
+
+A table spec without `app` made the block refuse an app that already had the
+table, so an app with its own schema still had to rename tables out of a
+block's way. Every `names.tables` spec now has `app`, and the rule is a test:
+`tests/sql/over-app-tables.test.ts` fails for a spec without it, with no
+allowlist, and `tests/sql/modules/over-app-modules.test.ts` renders every
+module over app tables at their default names. Over an app table a module
+guards its optional columns with `ctx.has`, writes typed columns through
+`ctx.cast`, gives each `on conflict` target its own `bsb_` unique index, and
+builds JSON column by column rather than from the whole row.
+
+Two kinds of table stay narrower:
+
+- The `workflow-sdk` world tables have no spec. The Workflow SDK defines their
+  shape and reads them directly, so an app table at one of their names stays
+  an error.
+- A spec with `app.onlyWhenMapped` (the catalog's channel, translation and
+  media tables) runs over the app's table only when `blocks.<name>.tables`
+  maps it. Unmapped, the block creates its own, and an app table at the
+  default name is an error.
+
+Usage history over the app's table is never partitioned; the app's table
+needs an increasing `bigint` id. The own-schemas docs page lists every
+adoptable table with its required and typed columns; `pnpm catalog` writes
+the list from the specs, and `catalog:check` and `docs:drift` fail when it is
+stale.

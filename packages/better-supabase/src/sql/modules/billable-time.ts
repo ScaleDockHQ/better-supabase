@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
-  lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -19,6 +18,7 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const GROUPINGS = ["subject", "member", "entry"] as const;
@@ -44,6 +44,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     rates: {
       name: "time_rates",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -57,9 +58,11 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["createdBy", "createdAt"],
     },
     billed: {
       name: "time_invoice_entries",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         entry: "entry_id",
@@ -70,6 +73,7 @@ const NAMES: BlockSqlNames = {
         seconds: "seconds",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
   },
 };
@@ -96,6 +100,29 @@ function tables(ctx: BlockSqlContext): string {
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${definition(ctx.col(table, logical))},`
+      : "";
+
+  const rateKey = [
+    "tenant",
+    "user",
+    "subjectType",
+    "subjectId",
+    "effectiveFrom",
+  ].map(r);
+
+  // set_time_rate upserts on the rate key; the app's table needs an index for it.
+  const rateKeyIndex = ctx.owns("rates")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("rates").name}_rate_key`)} on ${rates} (${rateKey.join(", ")}) nulls not distinct;`;
+
   return `
 create table if not exists ${rates} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -106,14 +133,12 @@ create table if not exists ${rates} (
   -- Minor units of currency per hour (ADR 0037).
   ${r("rate")} bigint not null check (${r("rate")} >= 0),
   ${r("currency")} char(3) not null check (${r("currency")} ~ '^[A-Z]{3}$'),
-  ${r("effectiveFrom")} date not null default current_date,
-  ${r("createdBy")} uuid,
-  ${r("createdAt")} timestamptz not null default now(),
+  ${r("effectiveFrom")} date not null default current_date,${column("rates", "createdBy", (name) => `${name} uuid`)}${column("rates", "createdAt", (name) => `${name} timestamptz not null default now()`)}
   check ((${r("subjectType")} is null) = (${r("subjectId")} is null)),
-  unique nulls not distinct (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("effectiveFrom")})
-);
+  unique nulls not distinct (${rateKey.join(", ")})
+);${rateKeyIndex}
 create index if not exists ${index("rates", "lookup_idx")} on ${rates} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}, ${r("effectiveFrom")} desc);
-${lockTable(rates, { read: true })}
+${lockModuleTable(ctx, "rates", { read: true })}
 drop policy if exists ${index("rates", "read")} on ${rates};
 create policy ${index("rates", "read")} on ${rates} for select to authenticated
   using (${ctx.scope.check(r("tenant"), read)});
@@ -125,12 +150,11 @@ create table if not exists ${billed} (
   ${b("invoice")} uuid not null references ${invoices.table("invoices")} (${invoices.col("invoices", "id")}) on delete cascade,
   ${b("rate")} bigint not null,
   ${b("currency")} char(3) not null,
-  ${b("seconds")} bigint not null,
-  ${b("createdAt")} timestamptz not null default now()
+  ${b("seconds")} bigint not null${ctx.has("billed", "createdAt") ? `,\n  ${b("createdAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${index("billed", "invoice_idx")} on ${billed} (${b("invoice")});
 create index if not exists ${index("billed", "tenant_idx")} on ${billed} (${b("tenant")});
-${lockTable(billed, { read: true })}
+${lockModuleTable(ctx, "billed", { read: true })}
 drop policy if exists ${index("billed", "read")} on ${billed};
 create policy ${index("billed", "read")} on ${billed} for select to authenticated
   using (${ctx.scope.check(b("tenant"), read)});
@@ -151,9 +175,24 @@ function functions(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const ops = moduleOperations("billable-time");
   const read = ctx.permission("read", ops.read);
+
+  // `row.column`, or null when the app's table lacks the column.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
   const manage = ctx.permission("manage", ops.manage);
   const invoice = ctx.permission("invoice", ops.invoice);
   const zone = sqlString(weekZone(ctx));
+  const createdBy = ctx.has("rates", "createdBy");
+
+  // The app's table can have columns named like the entry columns joined next to them.
+  const billedColumns = ctx.owns("billed")
+    ? "d.*"
+    : ["entry", "invoice", "rate", "currency", "seconds", "createdAt"]
+        .filter((logical) => ctx.has("billed", logical))
+        .map((logical) => `d.${b(logical)}`)
+        .join(", ");
+
   const groupings = GROUPINGS.map((each) => sqlString(each)).join(", ");
 
   const can = (tenant: string, permission: string): string =>
@@ -163,7 +202,7 @@ function functions(ctx: BlockSqlContext): string {
     fail("BILLABLE_TIME_FORBIDDEN", message);
 
   const rateJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'createdBy', ${row}.${r("createdBy")}, 'createdAt', ${row}.${r("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'createdBy', ${or("rates", row, "createdBy")}, 'createdAt', ${or("rates", row, "createdAt")})`;
 
   const seconds = (row: string): string =>
     `extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})`;
@@ -320,11 +359,11 @@ begin
   ) then
     ${fail("TIME_RATE_MEMBER_INVALID", "the user is not a member of this organization", "22023")}
   end if;
-  insert into ${rates} (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("rate")}, ${r("currency")}, ${r("effectiveFrom")}, ${r("createdBy")})
+  insert into ${rates} (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("rate")}, ${r("currency")}, ${r("effectiveFrom")}${createdBy ? `, ${r("createdBy")}` : ""})
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date), auth.uid())
+    coalesce(set_time_rate.effective_from, current_date)${createdBy ? ", auth.uid()" : ""})
   on conflict (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("effectiveFrom")})
-  do update set ${r("rate")} = excluded.${r("rate")}, ${r("currency")} = excluded.${r("currency")}, ${r("createdBy")} = excluded.${r("createdBy")}
+  do update set ${r("rate")} = excluded.${r("rate")}, ${r("currency")} = excluded.${r("currency")}${createdBy ? `, ${r("createdBy")} = excluded.${r("createdBy")}` : ""}
   returning * into v_row;
   return ${rateJson("v_row")};
 end;
@@ -524,9 +563,9 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object('entryId', q.${b("entry")}, 'invoiceId', q.${b("invoice")}, 'userId', q.user_id,
       'subjectType', q.subject_type, 'subjectId', q.subject_id, 'startedAt', q.started_at, 'seconds', q.${b("seconds")},
-      'rate', q.${b("rate")}::text, 'currency', q.${b("currency")}, 'createdAt', q.${b("createdAt")}) order by q.started_at, q.${b("entry")}), '[]'::jsonb)
+      'rate', q.${b("rate")}::text, 'currency', q.${b("currency")}, 'createdAt', ${or("billed", "q", "createdAt")}) order by q.started_at, q.${b("entry")}), '[]'::jsonb)
     from (
-      select d.*, x.${e("user")} as user_id, x.${e("subjectType")} as subject_type, x.${e("subjectId")} as subject_id, x.${e("startedAt")} as started_at
+      select ${billedColumns}, x.${e("user")} as user_id, x.${e("subjectType")} as subject_type, x.${e("subjectId")} as subject_id, x.${e("startedAt")} as started_at
       from ${billed} d join ${entries} x on x.${e("id")} = d.${b("entry")}
       where d.${b("invoice")} = list_invoiced_time.invoice
       order by x.${e("startedAt")}

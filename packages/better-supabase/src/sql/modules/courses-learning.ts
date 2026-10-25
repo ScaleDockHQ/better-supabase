@@ -37,6 +37,27 @@ function quizSubmit(ctx: BlockSqlContext, learner: string): string {
   const { fn, l, p, e } = q;
   const save = ctx.of("forms").fn("form_submission_save");
 
+  const written = (
+    [
+      ["enrollment", `v_row.${e("id")}`],
+      ["lesson", `v_lesson.${l("id")}`],
+      ["tenant", `v_lesson.${l("tenant")}`],
+      ["course", `v_lesson.${l("course")}`],
+      ["user", "auth.uid()"],
+      ["completedAt", "case when v_passes then now() end"],
+      ["attempts", "1"],
+      ["submission", "(v_submission ->> 'id')::uuid"],
+      ["score", "(v_submission ->> 'score')::numeric"],
+      ["maxScore", "(v_submission ->> 'maxScore')::numeric"],
+      ["passed", "(v_submission ->> 'passed')::boolean"],
+    ] as const
+  ).filter(([column]) => ctx.has("progress", column));
+
+  const graded = (["submission", "score", "maxScore", "passed"] as const)
+    .filter((column) => ctx.has("progress", column))
+    .map((column) => `, ${p(column)} = excluded.${p(column)}`)
+    .join("");
+
   return `
 -- Submits answers to a quiz lesson's form as the enrolled caller. The forms
 -- block grades the submission in SQL; a passed one, or one without a pass
@@ -71,13 +92,11 @@ begin
   v_passes := coalesce((v_submission ->> 'passed')::boolean, true);
   select x.${p("completedAt")} into v_before from ${q.progress} x
   where x.${p("enrollment")} = v_row.${e("id")} and x.${p("lesson")} = v_lesson.${l("id")};
-  insert into ${q.progress} (${p("enrollment")}, ${p("lesson")}, ${p("tenant")}, ${p("course")}, ${p("user")}, ${p("completedAt")}, ${p("attempts")}, ${p("submission")}, ${p("score")}, ${p("maxScore")}, ${p("passed")})
-  values (v_row.${e("id")}, v_lesson.${l("id")}, v_lesson.${l("tenant")}, v_lesson.${l("course")}, auth.uid(), case when v_passes then now() end, 1,
-    (v_submission ->> 'id')::uuid, (v_submission ->> 'score')::numeric, (v_submission ->> 'maxScore')::numeric, (v_submission ->> 'passed')::boolean)
-  on conflict on constraint ${q.progressKey} do update
-  set ${p("attempts")} = ${q.progress}.${p("attempts")} + 1, ${p("submission")} = excluded.${p("submission")}, ${p("score")} = excluded.${p("score")},
-    ${p("maxScore")} = excluded.${p("maxScore")}, ${p("passed")} = excluded.${p("passed")},
-    ${p("completedAt")} = coalesce(${q.progress}.${p("completedAt")}, excluded.${p("completedAt")}), ${p("updatedAt")} = now();
+  insert into ${q.progress} (${written.map(([column]) => p(column)).join(", ")})
+  values (${written.map(([, value]) => value).join(", ")})
+  on conflict ${q.progressTarget} do update
+  set ${p("attempts")} = ${q.progress}.${p("attempts")} + 1${graded},
+    ${p("completedAt")} = coalesce(${q.progress}.${p("completedAt")}, excluded.${p("completedAt")})${ctx.has("progress", "updatedAt") ? `, ${p("updatedAt")} = now()` : ""};
   if v_passes then
     perform ${fn("course_lesson_done")}(v_row.${e("id")}, v_lesson.${l("id")}, v_before is null);
   end if;
@@ -91,7 +110,11 @@ ${userGrant(`${fn("submit_course_quiz")}(uuid, jsonb)`)}
 /** The courses module's learner functions. */
 export function courseLearningFunctions(ctx: BlockSqlContext): string {
   const q = courseSql(ctx);
-  const { fn, c, m, l, p, k, e } = q;
+  const { fn, c, m, l, p, k, e, field } = q;
+
+  const touched = ctx.has("progress", "updatedAt")
+    ? `, ${p("updatedAt")} = now()`
+    : "";
 
   const learner = `  v_lesson ${q.lessons};
   v_row ${q.enrollments};`;
@@ -106,10 +129,10 @@ export function courseLearningFunctions(ctx: BlockSqlContext): string {
       and y.${e("subjectType")} = 'user' and y.${e("subjectId")} = auth.uid()::text and y.${e("status")} <> 'cancelled'))`;
 
   const entryJson = (row: string): string =>
-    `jsonb_build_object('lessonId', ${row}.${p("lesson")}, 'startedAt', ${row}.${p("startedAt")}, 'completedAt', ${row}.${p("completedAt")}, 'attempts', ${row}.${p("attempts")}, 'submissionId', ${row}.${p("submission")}, 'score', ${row}.${p("score")}, 'maxScore', ${row}.${p("maxScore")}, 'passed', ${row}.${p("passed")})`;
+    `jsonb_build_object('lessonId', ${row}.${p("lesson")}, 'startedAt', ${field("progress", row, "startedAt")}, 'completedAt', ${row}.${p("completedAt")}, 'attempts', ${row}.${p("attempts")}, 'submissionId', ${field("progress", row, "submission")}, 'score', ${field("progress", row, "score")}, 'maxScore', ${field("progress", row, "maxScore")}, 'passed', ${field("progress", row, "passed")})`;
 
   const certificateJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'courseId', ${row}.${k("course")}, 'userId', ${row}.${k("user")}, 'code', ${row}.${k("code")}, 'issuedAt', ${row}.${k("issuedAt")}, 'revokedAt', ${row}.${k("revokedAt")})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'courseId', ${row}.${k("course")}, 'userId', ${row}.${k("user")}, 'code', ${row}.${k("code")}, 'issuedAt', ${field("certificates", row, "issuedAt")}, 'revokedAt', ${row}.${k("revokedAt")})`;
 
   const enrollmentOf = (course: string, user: string): string =>
     `select * into v_row from ${q.enrollments} x
@@ -133,7 +156,7 @@ as $$
     'status', x.${e("status")}, 'completedLessons', x.${e("completedSteps")}, 'totalLessons', cardinality(x.${e("steps")}),
     'enrolledAt', x.${e("enrolledAt")}, 'completedAt', x.${e("completedAt")}, 'cancelledAt', x.${e("cancelledAt")}, 'updatedAt', x.${e("updatedAt")},
     'lessons', coalesce((
-      select jsonb_agg(${entryJson("y")} order by y.${p("startedAt")}, y.${p("lesson")})
+      select jsonb_agg(${entryJson("y")} order by ${ctx.has("progress", "startedAt") ? `y.${p("startedAt")}, ` : ""}y.${p("lesson")})
       from ${q.progress} y where y.${p("enrollment")} = x.${e("id")}
     ), '[]'::jsonb),
     'certificate', (select ${certificateJson("z")} from ${q.certificates} z where z.${k("enrollment")} = x.${e("id")})
@@ -202,7 +225,7 @@ begin
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z.${m("id")}, 'title', z.${m("title")}, 'rank', z.${m("rank")}, 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y.${l("id")}, 'moduleId', y.${l("module")}, 'title', y.${l("title")}, 'kind', y.${l("kind")}, 'required', y.${l("required")},
-          'minutes', y.${l("minutes")}, 'rank', y.${l("rank")}, 'completedAt', (
+          'minutes', ${field("lessons", "y", "minutes")}, 'rank', y.${l("rank")}, 'completedAt', (
             select w.${p("completedAt")} from ${q.progress} w where w.${p("enrollment")} = v_row.${e("id")} and w.${p("lesson")} = y.${l("id")}
           )) order by y.${l("rank")}, y.${l("id")})
         from ${q.lessons} y where y.${l("module")} = z.${m("id")}
@@ -244,9 +267,9 @@ begin
   end if;
   select * into v_entry from ${q.progress} x where x.${p("enrollment")} = v_row.${e("id")} and x.${p("lesson")} = v_lesson.${l("id")};
   return jsonb_build_object('id', v_lesson.${l("id")}, 'courseId', v_lesson.${l("course")}, 'moduleId', v_lesson.${l("module")}, 'title', v_lesson.${l("title")},
-    'kind', v_lesson.${l("kind")}, 'body', v_lesson.${l("body")}, 'mediaUrl', v_lesson.${l("mediaUrl")}, 'formId', v_lesson.${l("form")},
-    'required', v_lesson.${l("required")}, 'minutes', v_lesson.${l("minutes")}, 'rank', v_lesson.${l("rank")},
-    'createdAt', v_lesson.${l("createdAt")}, 'updatedAt', v_lesson.${l("updatedAt")},
+    'kind', v_lesson.${l("kind")}, 'body', ${field("lessons", "v_lesson", "body")}, 'mediaUrl', ${field("lessons", "v_lesson", "mediaUrl")}, 'formId', v_lesson.${l("form")},
+    'required', v_lesson.${l("required")}, 'minutes', ${field("lessons", "v_lesson", "minutes")}, 'rank', v_lesson.${l("rank")},
+    'createdAt', ${field("lessons", "v_lesson", "createdAt")}, 'updatedAt', ${field("lessons", "v_lesson", "updatedAt")},
     'quiz', case when v_lesson.${l("form")} is null then null else ${quizJson(ctx, "v_lesson", l("form"))} end,
     'progress', case when v_entry.${p("lesson")} is null then null else ${entryJson("v_entry")} end);
 end;
@@ -415,11 +438,11 @@ begin
   if complete_course_lesson.done then
     insert into ${q.progress} (${p("enrollment")}, ${p("lesson")}, ${p("tenant")}, ${p("course")}, ${p("user")}, ${p("completedAt")})
     values (v_row.${e("id")}, v_lesson.${l("id")}, v_lesson.${l("tenant")}, v_lesson.${l("course")}, auth.uid(), now())
-    on conflict on constraint ${q.progressKey} do update
-    set ${p("completedAt")} = coalesce(${q.progress}.${p("completedAt")}, now()), ${p("updatedAt")} = now();
+    on conflict ${q.progressTarget} do update
+    set ${p("completedAt")} = coalesce(${q.progress}.${p("completedAt")}, now())${touched};
     perform ${fn("course_lesson_done")}(v_row.${e("id")}, v_lesson.${l("id")}, v_before is null);
   else
-    update ${q.progress} x set ${p("completedAt")} = null, ${p("updatedAt")} = now()
+    update ${q.progress} x set ${p("completedAt")} = null${touched}
     where x.${p("enrollment")} = v_row.${e("id")} and x.${p("lesson")} = v_lesson.${l("id")};
     if v_lesson.${l("required")} then
       perform ${fn("enrollment_ensure")}(v_row.${e("tenant")}, v_row.${e("program")}, null, ${fn("course_steps")}(v_lesson.${l("course")}), 'user', v_row.${e("subjectId")}, auth.uid());
@@ -486,7 +509,7 @@ begin
     from (
       select x.${e("id")}, x.${e("updatedAt")} from ${q.enrollments} x
       where x.${e("tenant")} = v_course.${c("tenant")} and x.${e("program")} = ${q.program(`v_course.${c("id")}`)}
-        and (list_course_learners.status is null or x.${e("status")} = list_course_learners.status)
+        and (list_course_learners.status is null or x.${e("status")} = ${q.enrolled.cast("enrollments", "status", "list_course_learners.status")})
         and (list_course_learners.before is null or x.${e("updatedAt")} < list_course_learners.before)
       order by x.${e("updatedAt")} desc, x.${e("id")}
       limit ${pageSize("list_course_learners.page_size", 50, 200)}
@@ -507,7 +530,7 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z.${k("id")}, 'courseId', z.${k("course")}, 'courseTitle', y.${c("title")}, 'organizationId', z.${k("tenant")},
-    'issuedAt', z.${k("issuedAt")}, 'revokedAt', z.${k("revokedAt")}, 'valid', z.${k("revokedAt")} is null)
+    'issuedAt', ${field("certificates", "z", "issuedAt")}, 'revokedAt', z.${k("revokedAt")}, 'valid', z.${k("revokedAt")} is null)
   from ${q.certificates} z join ${q.courses} y on y.${c("id")} = z.${k("course")}
   where z.${k("code")} = lower(verify_course_certificate.code)
 $$;

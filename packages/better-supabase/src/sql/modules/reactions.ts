@@ -43,7 +43,10 @@ const NAMES: BlockSqlNames = {
   tables: {
     reactions: {
       name: "reactions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
+      optional: ["createdAt"],
+      typed: ["kind"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -59,7 +62,9 @@ const NAMES: BlockSqlNames = {
     },
     scores: {
       name: "reaction_scores",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["updatedAt"],
       columns: {
         tenant: "tenant_id",
         subjectType: "subject_type",
@@ -72,7 +77,9 @@ const NAMES: BlockSqlNames = {
     },
     emoji: {
       name: "custom_emoji",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      optional: ["attachment", "createdBy", "createdAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -152,6 +159,44 @@ function build(ctx: BlockSqlContext): string {
   const visible = fn("reaction_subject_visible");
   const name = ctx.tableName("reactions").name;
   const scoresName = ctx.tableName("scores").name;
+  const emojiName = ctx.tableName("emoji").name;
+  const reactedAt = ctx.has("reactions", "createdAt");
+  const scoredAt = ctx.has("scores", "updatedAt");
+  const attaches = ctx.has("emoji", "attachment");
+
+  const emojiColumn = (row: string, column: string): string =>
+    ctx.has("emoji", column) ? `${row}.${e(column)}` : "null";
+
+  const emojiJson = (row: string): string =>
+    `jsonb_build_object('id', ${row}.${e("id")}, 'shortcode', ${row}.${e("shortcode")}, 'attachmentId', ${emojiColumn(row, "attachment")}, 'url', ${row}.${e("url")}, 'createdAt', ${emojiColumn(row, "createdAt")})`;
+
+  const emojiWritten = (
+    [
+      ["tenant", "save_custom_emoji.tenant"],
+      ["shortcode", "lower(trim(both ':' from save_custom_emoji.shortcode))"],
+      ["attachment", "save_custom_emoji.attachment_id"],
+      ["url", "save_custom_emoji.url"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("emoji", column));
+
+  // The app's reactions table may have no default for kind.
+  const emojiKind = ctx.owns("reactions")
+    ? { column: "", value: "" }
+    : {
+        column: `, ${c("kind")}`,
+        value: `, ${ctx.cast("reactions", "kind", "'emoji'")}`,
+      };
+
+  const uniqueOverApp = (
+    table: string,
+    tableName: string,
+    what: string,
+    columns: readonly string[],
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${tableName}_${what}_key`)} on ${ctx.table(table)} (${columns.map((column) => ctx.col(table, column)).join(", ")});`;
 
   const forbidden = fail(
     "REACTION_FORBIDDEN",
@@ -177,8 +222,7 @@ function build(ctx: BlockSqlContext): string {
   ${c("kind")} text not null default 'emoji' check (${c("kind")} in ('emoji', ${sqlString(VOTE)})),
   ${c("emoji")} text not null check (length(${c("emoji")}) between 1 and 64 and ${c("emoji")} !~ '\\s'),
   -- A vote's direction; an emoji counts once.
-  ${c("value")} smallint not null default 1 check (${c("value")} in (-1, 1)),
-  ${c("createdAt")} timestamptz not null default now(),
+  ${c("value")} smallint not null default 1 check (${c("value")} in (-1, 1)),${reactedAt ? `\n  ${c("createdAt")} timestamptz not null default now(),` : ""}
   check (${c("kind")} = 'emoji' and ${c("value")} = 1 or ${c("kind")} = ${sqlString(VOTE)} and ${c("emoji")} = ${sqlString(VOTE)})
 );
 create unique index if not exists ${sqlIdent(`${name}_actor_idx`)} on ${reactions} (${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("kind")}, ${c("emoji")});
@@ -197,11 +241,10 @@ create table if not exists ${scores} (
   ${sc("subjectId")} text not null,
   ${sc("score")} integer not null default 0,
   ${sc("up")} integer not null default 0 check (${sc("up")} >= 0),
-  ${sc("down")} integer not null default 0 check (${sc("down")} >= 0),
-  ${sc("updatedAt")} timestamptz not null default now(),
+  ${sc("down")} integer not null default 0 check (${sc("down")} >= 0),${scoredAt ? `\n  ${sc("updatedAt")} timestamptz not null default now(),` : ""}
   primary key (${sc("tenant")}, ${sc("subjectType")}, ${sc("subjectId")})
 );
-create index if not exists ${sqlIdent(`${scoresName}_rank_idx`)} on ${scores} (${sc("tenant")}, ${sc("subjectType")}, ${sc("score")} desc);
+create index if not exists ${sqlIdent(`${scoresName}_rank_idx`)} on ${scores} (${sc("tenant")}, ${sc("subjectType")}, ${sc("score")} desc);${uniqueOverApp("scores", scoresName, "subject", ["tenant", "subjectType", "subjectId"])}
 alter table ${scores} enable row level security;
 revoke all on ${scores} from anon, authenticated;
 grant select on ${scores} to authenticated;
@@ -210,14 +253,11 @@ grant all on ${scores} to service_role;
 create table if not exists ${emojiTable} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
-  ${e("shortcode")} text not null check (${e("shortcode")} ~ '^[a-z0-9_+-]{1,32}$'),
-  ${e("attachment")} uuid,
-  ${e("url")} text check (${e("url")} ~ '^https://'),
-  ${e("createdBy")} uuid,
-  ${e("createdAt")} timestamptz not null default now(),
+  ${e("shortcode")} text not null check (${e("shortcode")} ~ '^[a-z0-9_+-]{1,32}$'),${attaches ? `\n  ${e("attachment")} uuid,` : ""}
+  ${e("url")} text check (${e("url")} ~ '^https://'),${ctx.has("emoji", "createdBy") ? `\n  ${e("createdBy")} uuid,` : ""}${ctx.has("emoji", "createdAt") ? `\n  ${e("createdAt")} timestamptz not null default now(),` : ""}
   unique (${e("tenant")}, ${e("shortcode")}),
-  check (${e("attachment")} is not null or ${e("url")} is not null)
-);
+  check (${attaches ? `${e("attachment")} is not null or ` : ""}${e("url")} is not null)
+);${uniqueOverApp("emoji", emojiName, "shortcode", ["tenant", "shortcode"])}
 alter table ${emojiTable} enable row level security;
 revoke all on ${emojiTable} from anon, authenticated;
 grant select on ${emojiTable} to authenticated;
@@ -355,8 +395,7 @@ begin
   on conflict (${sc("tenant")}, ${sc("subjectType")}, ${sc("subjectId")}) do update set
     ${sc("score")} = x.${sc("score")} + v_sign * v_row.${c("value")},
     ${sc("up")} = x.${sc("up")} + case when v_row.${c("value")} > 0 then v_sign else 0 end,
-    ${sc("down")} = x.${sc("down")} + case when v_row.${c("value")} < 0 then v_sign else 0 end,
-    ${sc("updatedAt")} = now();
+    ${sc("down")} = x.${sc("down")} + case when v_row.${c("value")} < 0 then v_sign else 0 end${scoredAt ? `,\n    ${sc("updatedAt")} = now()` : ""};
   delete from ${scores} x
   where x.${sc("tenant")} = v_row.${c("tenant")} and x.${sc("subjectType")} = v_row.${c("subjectType")}
     and x.${sc("subjectId")} = v_row.${c("subjectId")} and x.${sc("up")} = 0 and x.${sc("down")} = 0;
@@ -379,9 +418,9 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('emoji', g.emoji, 'count', g.n, 'reacted', g.mine, 'actors', g.actors) order by g.n desc, g.first, g.emoji), '[]'::jsonb)
   from (
-    select r.${c("emoji")} as emoji, count(*)::integer as n, min(r.${c("createdAt")}) as first,
+    select r.${c("emoji")} as emoji, count(*)::integer as n, ${reactedAt ? `min(r.${c("createdAt")})` : "null::timestamptz"} as first,
       coalesce(bool_or(r.${c("user")} = (select auth.uid())), false) as mine,
-      (array_agg(r.${c("actor")} order by r.${c("createdAt")}))[1:10] as actors
+      (array_agg(r.${c("actor")} order by r.${reactedAt ? c("createdAt") : c("actor")}))[1:10] as actors
     from ${reactions} r
     where r.${c("tenant")} = reaction_list.tenant
       and r.${c("subjectType")} = reaction_list.subject_type
@@ -428,8 +467,8 @@ begin
     ["boolean", "coalesce(react.present, true)"],
   ])}
   if coalesce(react.present, true) then
-    insert into ${reactions} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")})
-    values (react.tenant, react.subject_type, react.subject_id, v_actor, v_user, react.emoji)
+    insert into ${reactions} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")}${emojiKind.column})
+    values (react.tenant, react.subject_type, react.subject_id, v_actor, v_user, react.emoji${emojiKind.value})
     on conflict do nothing;
   else
     delete from ${reactions} r
@@ -518,7 +557,7 @@ begin
     and r.${c("tenant")} = vote.tenant and r.${c("actor")} = v_actor and r.${c("kind")} = ${sqlString(VOTE)};
   if vote.value <> 0 then
     insert into ${reactions} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("kind")}, ${c("emoji")}, ${c("value")})
-    values (vote.tenant, vote.subject_type, vote.subject_id, v_actor, v_user, ${sqlString(VOTE)}, ${sqlString(VOTE)}, vote.value);
+    values (vote.tenant, vote.subject_type, vote.subject_id, v_actor, v_user, ${ctx.cast("reactions", "kind", sqlString(VOTE))}, ${sqlString(VOTE)}, vote.value);
   end if;
   return ${fn("vote_tally")}(vote.tenant, vote.subject_type, vote.subject_id);
 end;
@@ -564,12 +603,12 @@ begin
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_custom_emoji.tenant", manage)}) then
     ${fail("REACTION_FORBIDDEN", "not allowed to manage custom emoji")}
   end if;
-  insert into ${emojiTable} (${e("tenant")}, ${e("shortcode")}, ${e("attachment")}, ${e("url")}, ${e("createdBy")})
-  values (save_custom_emoji.tenant, lower(trim(both ':' from save_custom_emoji.shortcode)), save_custom_emoji.attachment_id, save_custom_emoji.url, auth.uid())
+  insert into ${emojiTable} (${emojiWritten.map(([column]) => e(column)).join(", ")})
+  values (${emojiWritten.map(([, value]) => value).join(", ")})
   on conflict (${e("tenant")}, ${e("shortcode")}) do update
-    set ${e("attachment")} = excluded.${e("attachment")}, ${e("url")} = excluded.${e("url")}
+    set ${attaches ? `${e("attachment")} = excluded.${e("attachment")}, ` : ""}${e("url")} = excluded.${e("url")}
   returning * into v_row;
-  return jsonb_build_object('id', v_row.${e("id")}, 'shortcode', v_row.${e("shortcode")}, 'attachmentId', v_row.${e("attachment")}, 'url', v_row.${e("url")}, 'createdAt', v_row.${e("createdAt")});
+  return ${emojiJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("save_custom_emoji")}(${ctx.idType}, text, uuid, text)`)}
@@ -606,7 +645,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x.${e("id")}, 'shortcode', x.${e("shortcode")}, 'attachmentId', x.${e("attachment")}, 'url', x.${e("url")}, 'createdAt', x.${e("createdAt")}) order by x.${e("shortcode")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${emojiJson("x")} order by x.${e("shortcode")}), '[]'::jsonb)
   from ${emojiTable} x
   where x.${e("tenant")} = list_custom_emoji.tenant
 $$;
@@ -673,7 +712,7 @@ export const REACTIONS: BlockSqlDefinition = {
       description:
         "Reactions gain kind (emoji or vote) and value; the unique key includes kind, and reaction_scores keeps each subject's vote score.",
       sql: (ctx) => {
-        if (!ctx.manages) {
+        if (!ctx.manages || !ctx.owns("reactions")) {
           return "";
         }
 

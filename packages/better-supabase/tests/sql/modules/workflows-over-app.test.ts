@@ -108,11 +108,69 @@ const SAME_BLOCKS: AnyBlocksConfig = {
   },
 };
 
-async function run(check: string, app = APP, blocks = BLOCKS): Promise<void> {
-  const files = renderBlocks(["workflows"], {
-    modules: blocks,
-    ownTables: OWN_TABLES,
-  });
+// The app's own schedules and start requests: the schedule key columns share
+// create_workflow_schedule's parameter names, an enum request status, and no
+// last run or subject columns.
+const QUEUE = `
+create type public.start_state as enum ('pending', 'started', 'superseded', 'dropped');
+
+create table public.cron_jobs (
+  id uuid primary key default gen_random_uuid(),
+  tenant uuid,
+  name text not null,
+  workflow text not null,
+  input jsonb not null default '[]'::jsonb,
+  cron text not null,
+  timezone text not null default 'UTC',
+  next_run_at timestamptz not null,
+  locked_until timestamptz,
+  paused boolean not null default false,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+
+create table public.start_queue (
+  id uuid primary key default gen_random_uuid(),
+  key text not null,
+  workflow text not null,
+  input jsonb not null default '[]'::jsonb,
+  tenant_id uuid,
+  actor_id uuid,
+  concurrency integer,
+  state public.start_state not null default 'pending',
+  not_before timestamptz not null default now(),
+  claimed_until timestamptz,
+  run_id text,
+  created_at timestamptz not null default now(),
+  started_at timestamptz
+);
+`;
+
+const QUEUE_TABLES = {
+  "public.cron_jobs": "app.sql",
+  "public.start_queue": "app.sql",
+};
+
+const QUEUE_BLOCKS: AnyBlocksConfig = {
+  workflows: {
+    tables: {
+      schedules: "public.cron_jobs",
+      startRequests: "public.start_queue",
+    },
+    columns: {
+      schedules: { tenant: "tenant", lastRunAt: null },
+      startRequests: { status: "state", subjectType: null, subjectId: null },
+    },
+  },
+};
+
+async function run(
+  check: string,
+  app = APP,
+  blocks = BLOCKS,
+  ownTables: Record<string, string> = OWN_TABLES,
+): Promise<void> {
+  const files = renderBlocks(["workflows"], { modules: blocks, ownTables });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -209,6 +267,53 @@ begin
   end;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("upserts schedules and admits starts in the app's tables", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_first jsonb;
+  v_again jsonb;
+  v_claimed jsonb;
+  v_request jsonb;
+begin
+  ${SERVICE}
+  v_first := better_supabase.create_workflow_schedule('nightly', 'report', '0 2 * * *', now() - interval '1 minute', tenant => '${TENANT}');
+  v_again := better_supabase.create_workflow_schedule('nightly', 'digest', '0 3 * * *', now() - interval '1 minute', tenant => '${TENANT}');
+  if v_again ->> 'id' <> v_first ->> 'id' or (select count(*) from public.cron_jobs) <> 1 or v_again ->> 'workflow' <> 'digest' then
+    raise exception 'upserted %', v_again;
+  end if;
+  v_claimed := better_supabase.claim_due_workflow_schedules();
+  if jsonb_array_length(v_claimed) <> 1 or v_claimed -> 0 -> 'lastRunAt' <> 'null'::jsonb then
+    raise exception 'claimed %', v_claimed;
+  end if;
+  if not better_supabase.advance_workflow_schedule((v_first ->> 'id')::uuid, (v_claimed -> 0 ->> 'fireAt')::timestamptz, now() + interval '1 day') then
+    raise exception 'did not advance';
+  end if;
+  perform better_supabase.request_workflow_start('k', 'report', debounce => interval '0');
+  v_request := better_supabase.request_workflow_start('k', 'report', debounce => interval '0');
+  if (select count(*) from public.start_queue where state = 'superseded') <> 1 then
+    raise exception 'did not supersede';
+  end if;
+  v_claimed := better_supabase.claim_workflow_start_requests();
+  if jsonb_array_length(v_claimed) <> 1 or v_claimed -> 0 -> 'subjectType' <> 'null'::jsonb then
+    raise exception 'claimed %', v_claimed;
+  end if;
+  if not better_supabase.mark_workflow_start_request((v_request ->> 'id')::uuid, 'run-9') then
+    raise exception 'did not mark the request';
+  end if;
+  if (select state from public.start_queue where id = (v_request ->> 'id')::uuid) <> 'started' then
+    raise exception 'did not mark the request started';
+  end if;
+end;
+$$;`,
+        QUEUE,
+        QUEUE_BLOCKS,
+        QUEUE_TABLES,
+      ),
     ).resolves.toBeUndefined();
   });
 });

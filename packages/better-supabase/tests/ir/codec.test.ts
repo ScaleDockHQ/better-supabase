@@ -5,7 +5,13 @@ import type { Codec } from "../../src/schema/types.ts";
 
 import { DbException } from "../../src/core/errors.ts";
 import { decodeRows, needsDecoding } from "../../src/ir/codec.ts";
-import { decodeScalar, encodeValue, utcText } from "../../src/ir/wire.ts";
+import {
+  decodeScalar,
+  encodeArgument,
+  encodeArguments,
+  encodeValue,
+  utcText,
+} from "../../src/ir/wire.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const customers = schema.meta.tables["customers"];
@@ -70,6 +76,32 @@ describe("encodeValue", () => {
   it("passes objects through", () => {
     const value = { a: 1 };
     expect(encodeValue(value)).toBe(value);
+  });
+});
+
+describe("encodeArgument", () => {
+  it("encodes inside plain objects at any depth", () => {
+    const at = Temporal.Instant.fromEpochMilliseconds(0);
+
+    expect(
+      encodeArgument({ a: { at, n: 1n }, list: [{ at }], text: "x" }),
+    ).toEqual({
+      a: { at: "1970-01-01T00:00:00Z", n: "1" },
+      list: [{ at: "1970-01-01T00:00:00Z" }],
+      text: "x",
+    });
+  });
+
+  it("passes other objects through", () => {
+    const bytes = new Uint8Array([1]);
+    expect(encodeArgument(bytes)).toBe(bytes);
+  });
+
+  it("leaves out arguments that are undefined and keeps null", () => {
+    expect(encodeArguments({ a: undefined, b: null, c: 2n })).toEqual({
+      b: null,
+      c: "2",
+    });
   });
 });
 

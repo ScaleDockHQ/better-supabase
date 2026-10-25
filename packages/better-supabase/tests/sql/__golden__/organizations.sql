@@ -763,7 +763,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:e55eca71cb826ba49088dff16b1710eb4d8e736002bd9293c497eb023f7f8221
+-- @bsb-hash sha256:bae1c84bee6cdb386c7dac777cc9f2d25193b1dc68274bf98bf40f7ce6aaac6d
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -876,7 +876,7 @@ as $$
   select case
     when value is null then null
     when length(value) < 2 or length(value) > 48 or value !~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$' then 'invalid'
-    when exists (select 1 from better_supabase.reserved_slugs r where r.slug = lower(value)) then 'reserved'
+    when exists (select 1 from "better_supabase"."reserved_slugs" r where r."slug" = lower(value)) then 'reserved'
     when exists (
       select 1 from "better_supabase"."organizations" o
       where lower(o."slug"::text) = lower(value) and o."deleted_at" is null

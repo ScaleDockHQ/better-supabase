@@ -32,6 +32,13 @@ export interface BlockNaming {
   readonly functions?: Readonly<Record<string, string>>;
   /** The block's own entities the config renames, such as `work_item` to `task`. */
   readonly entities?: readonly EntityRename[];
+  /**
+   * The tenant columns `blocks.<name>.columns.<table>.tenant` renames: the
+   * column's name in the database to its default name, such as `org_id` to
+   * `tenant_id`, so the block's client reads rows by the default name.
+   */
+  readonly columns?: Readonly<Record<string, string>>;
+  /** `database.sql.tenantColumn`, read back as `tenant_id`. */
   readonly tenantColumn?: string;
 }
 
@@ -122,21 +129,26 @@ export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
     return functions[fn] ?? functions[renamed] ?? renamed;
   };
 
-  const columns = new Map(
-    TENANT_COLUMNS.map((column) => [tenant.rename(column), column]),
-  );
+  const { tenantColumn } = naming;
+
+  const columns = new Map([
+    ...TENANT_COLUMNS.map((column) => [tenant.rename(column), column] as const),
+    ...(tenantColumn === undefined
+      ? []
+      : [[tenantColumn, "tenant_id"] as const]),
+    ...Object.entries(naming.columns ?? {}),
+  ]);
+
+  const restores =
+    names.renamed ||
+    tenantColumn !== undefined ||
+    Object.keys(naming.columns ?? {}).length > 0;
 
   // A row a function returns whole (`to_jsonb(row)`) carries the renamed
   // tenant columns and entity keys; the clients read them by their default
   // names.
-  const { tenantColumn } = naming;
-
   const restore = (key: string): string =>
-    key === tenantColumn
-      ? "tenant_id"
-      : (columns.get(key) ?? entities.reverse(key));
-
-  const restores = names.renamed || tenantColumn !== undefined;
+    columns.get(key) ?? entities.reverse(key);
 
   return defineTransportMiddleware({
     name: "block-names",

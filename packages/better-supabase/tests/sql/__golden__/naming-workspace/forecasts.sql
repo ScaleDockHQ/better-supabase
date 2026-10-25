@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:a867d0744acb3fab7795670731984222ed9df6e7b4d8a9258c7047fad3af7c40
+-- @bsb-hash sha256:dd2c3a695fccbeb7a31148d6058fbb0efa2e92304ab2ac6bbabca4b17739a194
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -144,12 +144,10 @@ begin
     raise exception 'The organization has no pipeline with this id' using errcode = 'P0002', hint = 'FORECAST_PIPELINE_UNKNOWN';
   end if;
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
-  values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target,
-    "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null),
-    auth.uid())
+  values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
   insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category", x."outcome", x."amount", x."expected_close_on", x."closed_at"
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -211,7 +209,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category", 'outcome', y."outcome", 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -256,16 +254,16 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category", 'outcome', a."outcome", 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category", 'outcome', b."outcome", 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
       where a."deal_id" is null or b."deal_id" is null
       or a."amount" <> b."amount"
+      or a."outcome" <> b."outcome"
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
-      or a."outcome" <> b."outcome"
       or a."expected_close_on" is distinct from b."expected_close_on"
       or a."owner_user_id" is distinct from b."owner_user_id"
     ));

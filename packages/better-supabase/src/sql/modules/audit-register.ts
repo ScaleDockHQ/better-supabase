@@ -1,4 +1,61 @@
-export const REGISTER = `drop function if exists better_supabase.audit(regclass, text[]);
+import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
+
+/**
+ * `names.tables.registry`: the settings of tables registered before audit()
+ * kept them on the trigger. The module only reads and forgets rows.
+ */
+export const REGISTRY_TABLE: BlockSqlTableSpec = {
+  name: "audited_tables",
+  app: { writes: false },
+  columns: {
+    target: "target",
+    ignore: "ignore",
+    keyColumns: "key_columns",
+    redact: "redact",
+    category: "category",
+    eventPrefix: "event_prefix",
+    targetType: "target_type",
+    tenantColumn: "tenant_column",
+    labelColumn: "label_column",
+  },
+  optional: [
+    "ignore",
+    "keyColumns",
+    "redact",
+    "category",
+    "eventPrefix",
+    "targetType",
+    "tenantColumn",
+    "labelColumn",
+  ],
+};
+
+/** `alias.column` of a registry column, or `missing` when the table lacks it. */
+export function registryColumn(
+  ctx: BlockSqlContext,
+  alias: string,
+  logical: string,
+  missing: string,
+): string {
+  return ctx.has("registry", logical)
+    ? `${alias}.${ctx.col("registry", logical)}`
+    : missing;
+}
+
+/** Deletes the registry rows of tables that no longer exist. */
+export function forgetDropped(ctx: BlockSqlContext, indent = ""): string {
+  return `delete from ${ctx.table("registry")} a
+${indent}where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.${ctx.col("registry", "target")}::oid);`;
+}
+
+export function register(ctx: BlockSqlContext): string {
+  const registry = ctx.table("registry");
+  const target = ctx.col("registry", "target");
+
+  const col = (logical: string, missing: string): string =>
+    registryColumn(ctx, "a", logical, missing);
+
+  return `drop function if exists better_supabase.audit(regclass, text[]);
 drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
@@ -89,7 +146,7 @@ begin
   cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
   join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
   where i.indrelid = audit.target and i.indisprimary;
-  delete from better_supabase.audited_tables a where a.target = audit.target;
+  delete from ${registry} a where a.${target} = audit.target;
   base_settings := jsonb_strip_nulls(jsonb_build_object(
     'ignore', to_jsonb(coalesce(audit.ignore, '{}')),
     'redact', to_jsonb(coalesce(audit.redact, '{}')),
@@ -133,10 +190,10 @@ as $$
      from pg_catalog.pg_trigger t
      where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
-       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),
-       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,
-       'tenant_column', a.tenant_column, 'label_column', a.label_column))
-     from better_supabase.audited_tables a where a.target = audit_settings.target)
+       'ignore', to_jsonb(${col("ignore", "null::text[]")}), 'redact', to_jsonb(${col("redact", "null::text[]")}), 'key_columns', to_jsonb(${col("keyColumns", "null::text[]")}),
+       'category', ${col("category", "null::text")}, 'event_prefix', ${col("eventPrefix", "null::text")}, 'target_type', ${col("targetType", "null::text")},
+       'tenant_column', ${col("tenantColumn", "null::text")}, 'label_column', ${col("labelColumn", "null::text")}))
+     from ${registry} a where a.${target} = audit_settings.target)
   )
 $$;
 
@@ -148,7 +205,7 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  delete from better_supabase.audited_tables a where a.target = unaudit.target;
+  delete from ${registry} a where a.${target} = unaudit.target;
 end;
 $$;
 
@@ -163,8 +220,7 @@ begin
   if relation is not null then
     perform better_supabase.unaudit(relation);
   end if;
-  delete from better_supabase.audited_tables a
-  where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+  ${forgetDropped(ctx, "  ")}
 end;
 $$;
 
@@ -174,8 +230,8 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  delete from better_supabase.audited_tables a
-  where a.target::oid in (
+  delete from ${registry} a
+  where a.${target}::oid in (
     select d.objid from pg_catalog.pg_event_trigger_dropped_objects() d
     where d.object_type = 'table'
   );
@@ -262,3 +318,4 @@ revoke execute on function better_supabase.audit_forget_dropped() from public, a
 revoke execute on function better_supabase.audit_settings(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema_calls(text, text, text[]) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema(text, text, text[]) from public, anon, authenticated;`;
+}

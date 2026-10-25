@@ -46,10 +46,23 @@ export interface CourseSql {
   readonly lessons: string;
   readonly progress: string;
   readonly certificates: string;
-  /** The progress primary key, for `on conflict on constraint`. */
-  readonly progressKey: string;
-  /** The one-certificate-per-enrollment constraint. */
-  readonly certificateKey: string;
+  /**
+   * The `on conflict` target of a progress entry: its primary key, or the
+   * module's unique index over the app's table.
+   */
+  readonly progressTarget: string;
+  /** The `on conflict` target of the one certificate per enrollment. */
+  readonly certificateTarget: string;
+  /**
+   * Column `column` of row `row` in logical table `table`, or `fallback` when
+   * the app's table lacks it.
+   */
+  readonly field: (
+    table: string,
+    row: string,
+    column: string,
+    fallback?: string,
+  ) => string;
   readonly enrollments: string;
   readonly enrolled: BlockSqlContext;
   readonly read: string;
@@ -76,6 +89,19 @@ export function courseSql(ctx: BlockSqlContext): CourseSql {
   const keys = moduleOperations("courses");
   const extras = ctx.extraColumns("courses", COURSE_KEYS);
 
+  const field = (
+    table: string,
+    row: string,
+    column: string,
+    fallback = "null",
+  ): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : fallback;
+
+  const target = (logical: string, suffix: string, columns: string[]) =>
+    ctx.owns(logical)
+      ? `on constraint ${sqlIdent(`${ctx.tableName(logical).name}_${suffix}`)}`
+      : `(${columns.map((column) => ctx.col(logical, column)).join(", ")})`;
+
   return {
     fn: (name) => ctx.fn(name),
     c,
@@ -89,10 +115,9 @@ export function courseSql(ctx: BlockSqlContext): CourseSql {
     lessons: ctx.table("lessons"),
     progress: ctx.table("progress"),
     certificates: ctx.table("certificates"),
-    progressKey: sqlIdent(`${ctx.tableName("progress").name}_pkey`),
-    certificateKey: sqlIdent(
-      `${ctx.tableName("certificates").name}_enrollment_key`,
-    ),
+    progressTarget: target("progress", "pkey", ["enrollment", "lesson"]),
+    certificateTarget: target("certificates", "enrollment_key", ["enrollment"]),
+    field,
     enrollments: enrolled.table("enrollments"),
     enrolled,
     read: ctx.permission("read", keys.read),
@@ -110,7 +135,7 @@ export function courseSql(ctx: BlockSqlContext): CourseSql {
     ),
     courseJson: (row) =>
       withExtraFields(
-        `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'key', ${row}.${c("key")}, 'title', ${row}.${c("title")}, 'summary', ${row}.${c("summary")}, 'status', ${row}.${c("status")}, 'certificate', ${row}.${c("certificate")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")})`,
+        `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'key', ${row}.${c("key")}, 'title', ${row}.${c("title")}, 'summary', ${field("courses", row, "summary")}, 'status', ${row}.${c("status")}, 'certificate', ${field("courses", row, "certificate", "true")}, 'createdBy', ${field("courses", row, "createdBy")}, 'createdAt', ${field("courses", row, "createdAt")}, 'updatedAt', ${field("courses", row, "updatedAt")})`,
         row,
         extras,
       ),

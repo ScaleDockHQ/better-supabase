@@ -27,6 +27,30 @@ const pipelineFields = (names: Names, alias: string): string =>
         names.extras.map((extra) => extra.name),
       )})`;
 
+/** `, <column> = now()` when logical table `table` has its updatedAt column. */
+const touched = (names: Names, table: string): string =>
+  names.has(table, "updatedAt")
+    ? `, ${names.c(table, "updatedAt")} = now()`
+    : "";
+
+/** The `[column, value]` pairs of an insert whose table has the column. */
+const present = (
+  names: Names,
+  table: string,
+  pairs: readonly (readonly [string, string])[],
+): readonly (readonly [string, string])[] =>
+  pairs.filter(([column]) => names.has(table, column));
+
+/** The column list and the values of `pairs`, for an insert. */
+const columnsOf = (
+  names: Names,
+  table: string,
+  pairs: readonly (readonly [string, string])[],
+): string => pairs.map(([column]) => names.c(table, column)).join(", ");
+
+const valuesOf = (pairs: readonly (readonly [string, string])[]): string =>
+  pairs.map(([, value]) => value).join(", ");
+
 /**
  * The first pipeline of a subject type and scope, created from the binding's
  * stage template the first time a record needs one.
@@ -38,8 +62,19 @@ export function defaultPipeline(
 ): string {
   const { fn, t, c } = names;
   const p = (column: string): string => c("pipelines", column);
-  const s = (column: string): string => c("stages", column);
   const self = fn("default_pipeline");
+
+  const seeded = present(names, "stages", [
+    ["tenant", "default_pipeline.tenant"],
+    ["pipeline", "v_id"],
+    ["key", "x.key"],
+    ["systemKey", "x.key"],
+    ["name", "x.name"],
+    ["category", ctx.cast("stages", "category", "x.category")],
+    ["outcome", ctx.cast("stages", "outcome", "x.outcome")],
+    ["probability", "x.probability"],
+    ["rank", "x.rank"],
+  ]);
 
   const seed = (binding: PipelineBinding): string => {
     const ranks = rankKeys(binding.stages.length);
@@ -58,8 +93,8 @@ export function defaultPipeline(
       if v_id is null then
         return ${self}(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
-      insert into ${t("stages")} (${s("tenant")}, ${s("pipeline")}, ${s("key")}, ${s("systemKey")}, ${s("name")}, ${s("category")}, ${s("outcome")}, ${s("probability")}, ${s("rank")})
-      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
+      insert into ${t("stages")} (${columnsOf(names, "stages", seeded)})
+      select ${valuesOf(seeded)}
       from (values
           ${rows}
       ) x(key, name, category, outcome, probability, rank);`;
@@ -127,6 +162,22 @@ export function stageTrigger(
     binding.scope === undefined ? "null" : `new.${col(binding.scope)}::text`;
 
   const h = (column: string): string => c("history", column);
+
+  const entry = (amount: string, currency: string) =>
+    present(names, "history", [
+      ["tenant", tenant],
+      ["subjectType", sqlString(binding.type)],
+      ["subjectId", subjectId],
+      ["pipeline", `new.${pipeline}`],
+      ["fromStage", `case when tg_op = 'UPDATE' then old.${stage} end`],
+      ["toStage", `new.${stage}`],
+      ["stageName", "v_stage_name"],
+      ["category", ctx.cast("history", "category", "v_category")],
+      ["outcome", ctx.cast("history", "outcome", "v_outcome")],
+      ["amount", amount],
+      ["currency", currency],
+      ["actor", "auth.uid()"],
+    ]);
 
   const amount =
     binding.amount === undefined ? "null" : `new.${col(binding.amount)}`;
@@ -251,8 +302,8 @@ begin
     ])}${entered}
     update ${t("history")} set ${h("exitedAt")} = now()
     where ${h("subjectType")} = ${sqlString(binding.type)} and ${h("subjectId")} = ${subjectId} and ${h("exitedAt")} is null;
-    insert into ${t("history")} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")}, ${h("pipeline")}, ${h("fromStage")}, ${h("toStage")}, ${h("stageName")}, ${h("category")}, ${h("outcome")}, ${h("amount")}, ${h("currency")}, ${h("actor")})
-    values (${tenant}, ${sqlString(binding.type)}, ${subjectId}, new.${pipeline}, case when tg_op = 'UPDATE' then old.${stage} end, new.${stage}, v_stage_name, v_category, v_outcome, ${amount}, ${currency}, auth.uid());
+    insert into ${t("history")} (${columnsOf(names, "history", entry(amount, currency))})
+    values (${valuesOf(entry(amount, currency))});
     if tg_op = 'UPDATE' then
       ${ctx.record({
         type: "pipeline.stage_changed",
@@ -333,6 +384,22 @@ export function manageFunctions(
   const { fn, t, c } = names;
   const p = (column: string): string => c("pipelines", column);
   const s = (column: string): string => c("stages", column);
+
+  const stageInsert = present(names, "stages", [
+    ["tenant", "v_tenant"],
+    ["pipeline", "save_pipeline_stage.pipeline"],
+    ["key", "save_pipeline_stage.key"],
+    ["name", "save_pipeline_stage.name"],
+    [
+      "category",
+      ctx.cast("stages", "category", "save_pipeline_stage.category"),
+    ],
+    ["outcome", ctx.cast("stages", "outcome", "v_outcome")],
+    ["probability", "save_pipeline_stage.probability"],
+    ["rottingAfterDays", "save_pipeline_stage.rotting_after_days"],
+    ["wipLimit", "save_pipeline_stage.wip_limit"],
+    ["color", "save_pipeline_stage.color"],
+  ]);
 
   const guard = (
     tenant: string,
@@ -469,7 +536,7 @@ begin
       returning ${p("id")} into v_pipeline;
     else
       update ${t("pipelines")} x set ${p("key")} = save_pipeline.key, ${p("name")} = save_pipeline.name,
-        ${p("isDefault")} = coalesce(save_pipeline.is_default, x.${p("isDefault")}), ${p("updatedAt")} = now()
+        ${p("isDefault")} = coalesce(save_pipeline.is_default, x.${p("isDefault")})${touched(names, "pipelines")}
       where x.${p("id")} = save_pipeline.pipeline and x.${p("tenant")} = save_pipeline.tenant
         and x.${p("subjectType")} = save_pipeline.subject_type;
       if not found then
@@ -488,7 +555,7 @@ begin
     ["uuid", "v_pipeline"],
     ["boolean", "v_created"],
   ])}
-  return (select to_jsonb(x)${pipelineFields(names, "x")} from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
+  return (select ${names.json("pipelines", "x")}${pipelineFields(names, "x")} from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
 end;
 $$;
 ${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${extraFieldsArg(names.extras).type})`)}
@@ -516,7 +583,7 @@ begin
   if v_used then
     ${fail("PIPELINE_IN_USE", "records are still in this pipeline; move them first", "23503")}
   end if;
-  update ${t("pipelines")} x set ${p("archivedAt")} = now(), ${p("isDefault")} = false, ${p("updatedAt")} = now()
+  update ${t("pipelines")} x set ${p("archivedAt")} = now(), ${p("isDefault")} = false${touched(names, "pipelines")}
   where x.${p("id")} = archive_pipeline.pipeline;
   ${configured("pipeline.archived", "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type)", "'pipelines/' || v_pipeline::text", "v_tenant::text", "'archived a pipeline'")}
   return true;
@@ -558,23 +625,22 @@ begin
   ])}
   begin
     if v_stage is null then
-      insert into ${t("stages")} (${s("tenant")}, ${s("pipeline")}, ${s("key")}, ${s("name")}, ${s("category")}, ${s("outcome")}, ${s("probability")}, ${s("rottingAfterDays")}, ${s("wipLimit")}, ${s("color")}, ${s("rank")})
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome,
-        save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into ${t("stages")} (${columnsOf(names, "stages", stageInsert)}, ${s("rank")})
+      values (${valuesOf(stageInsert)},
         ${rankAfter(`(select max(x.${s("rank")} collate "C") from ${t("stages")} x where x.${s("pipeline")} = save_pipeline_stage.pipeline)`)})
       returning ${s("id")} into v_stage;
     else
       -- A stage holding records keeps its outcome, so won stays won.
-      if exists (select 1 from ${t("stages")} x where x.${s("id")} = v_stage and x.${s("outcome")} <> v_outcome) then
+      if exists (select 1 from ${t("stages")} x where x.${s("id")} = v_stage and x.${s("outcome")} <> ${ctx.cast("stages", "outcome", "v_outcome")}) then
         ${occupied((binding) => `r.${sqlIdent(binding.stage)} = v_stage`)}
         if v_used then
           ${fail("PIPELINE_STAGE_IN_USE", "records are in this stage; its outcome can't change", "23503")}
         end if;
       end if;
-      update ${t("stages")} x set ${s("key")} = save_pipeline_stage.key, ${s("name")} = save_pipeline_stage.name,
-        ${s("category")} = save_pipeline_stage.category, ${s("outcome")} = v_outcome,
-        ${s("probability")} = save_pipeline_stage.probability, ${s("rottingAfterDays")} = save_pipeline_stage.rotting_after_days,
-        ${s("wipLimit")} = save_pipeline_stage.wip_limit, ${s("color")} = save_pipeline_stage.color, ${s("updatedAt")} = now()
+      update ${t("stages")} x set ${stageInsert
+        .filter(([column]) => column !== "tenant" && column !== "pipeline")
+        .map(([column, value]) => `${s(column)} = ${value}`)
+        .join(", ")}${touched(names, "stages")}
       where x.${s("id")} = v_stage and x.${s("pipeline")} = save_pipeline_stage.pipeline;
       if not found then
         ${fail("PIPELINE_STAGE_NOT_FOUND", "stage not found", "P0002")}
@@ -585,7 +651,7 @@ begin
   end;
   ${configured("pipeline_stage.saved", "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)", "'pipelines/' || v_pipeline::text", "v_tenant::text", "'saved stage ' || save_pipeline_stage.name")}
   ${ctx.hook("after_pipeline_stage_save", [["uuid", "v_stage"]])}
-  return (select to_jsonb(x) from ${t("stages")} x where x.${s("id")} = v_stage);
+  return (select ${names.json("stages", "x")} from ${t("stages")} x where x.${s("id")} = v_stage);
 end;
 $$;
 ${userGrant(`${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text)`)}
@@ -608,7 +674,7 @@ begin
   if rank_pipeline_stage.rank is null or rank_pipeline_stage.rank !~ ${RANK_KEY_PATTERN} then
     ${fail("PIPELINE_RANK_INVALID", "not a rank key", "22023")}
   end if;
-  update ${t("stages")} x set ${s("rank")} = rank_pipeline_stage.rank, ${s("updatedAt")} = now()
+  update ${t("stages")} x set ${s("rank")} = rank_pipeline_stage.rank${touched(names, "stages")}
   where x.${s("id")} = rank_pipeline_stage.stage;
   return true;
 end;
@@ -648,7 +714,7 @@ begin
   ) then
     ${fail("PIPELINE_LAST_OPEN_STAGE", "a pipeline keeps at least one open stage", "23514")}
   end if;
-  update ${t("stages")} x set ${s("archivedAt")} = now(), ${s("updatedAt")} = now() where x.${s("id")} = archive_pipeline_stage.stage;
+  update ${t("stages")} x set ${s("archivedAt")} = now()${touched(names, "stages")} where x.${s("id")} = archive_pipeline_stage.stage;
   ${ctx.record({
     type: "pipeline_stage.archived",
     payload:
@@ -678,6 +744,10 @@ export function readFunctions(
   const s = (column: string): string => c("stages", column);
   const h = (column: string): string => c("history", column);
 
+  /** Stage `column` of row `st`, or null when the stages table lacks it. */
+  const stage = (column: string): string =>
+    names.has("stages", column) ? `st.${s(column)}` : "null";
+
   const board = byType(
     "pipeline_board.subject_type",
     bindings,
@@ -695,7 +765,7 @@ export function readFunctions(
         binding.amount === undefined || binding.currency === undefined
           ? "null::text as currency, null::bigint as amount, null::numeric as weighted"
           : `${r(binding.currency)}::text as currency, ${r(binding.amount)}::bigint as amount,
-            ${r(binding.amount)} * coalesce(${binding.probability === undefined ? "null" : r(binding.probability)}, st.${s("probability")}, 0) / 100.0 as weighted`;
+            ${r(binding.amount)} * coalesce(${binding.probability === undefined ? "null" : r(binding.probability)}, ${stage("probability")}, 0) / 100.0 as weighted`;
 
       return `      return (
         with rows as (
@@ -711,10 +781,10 @@ export function readFunctions(
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st.${s("id")}, 'key', st.${s("key")}, 'name', st.${s("name")}, 'color', st.${s("color")},
-          'category', st.${s("category")}, 'outcome', st.${s("outcome")}, 'probability', st.${s("probability")},
-          'wipLimit', st.${s("wipLimit")}, 'count', coalesce(n.n, 0),
-          'overLimit', st.${s("wipLimit")} is not null and coalesce(n.n, 0) > st.${s("wipLimit")},
+          'stageId', st.${s("id")}, 'key', st.${s("key")}, 'name', st.${s("name")}, 'color', ${stage("color")},
+          'category', st.${s("category")}, 'outcome', st.${s("outcome")}, 'probability', ${stage("probability")},
+          'wipLimit', ${stage("wipLimit")}, 'count', coalesce(n.n, 0),
+          'overLimit', ${stage("wipLimit")} is not null and coalesce(n.n, 0) > ${stage("wipLimit")},
           'totals', coalesce(m.totals, '[]'::jsonb)
         ) order by st.${s("rank")} collate "C"), '[]'::jsonb)
         from ${t("stages")} st
@@ -800,7 +870,7 @@ as $$
     'subjectType', h.${h("subjectType")}, 'subjectId', h.${h("subjectId")}, 'stageId', h.${h("toStage")},
     'enteredAt', h.${h("enteredAt")},
     'daysInStage', (extract(epoch from now() - h.${h("enteredAt")}) / 86400)::integer,
-    'rotting', st.${s("rottingAfterDays")} is not null and now() - h.${h("enteredAt")} > make_interval(days => st.${s("rottingAfterDays")})
+    'rotting', ${names.has("stages", "rottingAfterDays") ? `st.${s("rottingAfterDays")} is not null and now() - h.${h("enteredAt")} > make_interval(days => st.${s("rottingAfterDays")})` : "false"}
   ) order by h.${h("enteredAt")}), '[]'::jsonb)
   from ${t("history")} h
   join ${t("stages")} st on st.${s("id")} = h.${h("toStage")}
@@ -817,8 +887,8 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x)${pipelineFields(names, "x")} || jsonb_build_object('stages', coalesce((
-      select jsonb_agg(to_jsonb(st) order by st.${s("rank")} collate "C")
+  select coalesce(jsonb_agg(${names.json("pipelines", "x")}${pipelineFields(names, "x")} || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(${names.json("stages", "st")} order by st.${s("rank")} collate "C")
       from ${t("stages")} st where st.${s("pipeline")} = x.${c("pipelines", "id")} and st.${s("archivedAt")} is null
     ), '[]'::jsonb)) order by x.${c("pipelines", "rank")} collate "C"), '[]'::jsonb)
   from ${t("pipelines")} x

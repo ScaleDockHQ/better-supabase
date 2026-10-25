@@ -10,7 +10,7 @@ import type { BlockSqlScope } from "../scope.ts";
 import type { JsonSchemaCheck } from "../shared.ts";
 
 import { isRecord } from "../../core/guards.ts";
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   recordTrigger,
   jsonSchemaChecks,
@@ -33,13 +33,18 @@ const EVENTS: BlockSqlEvents<SettingsEvents> = {
   "platform_setting.updated": { subject: "settings", payload: ["key"] },
 };
 
+/** Who changed a setting and when: columns an app's settings table may lack. */
+const STAMPS = ["updatedBy", "updatedAt"];
+
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["schemas", "platform"],
   tables: {
     user: {
       name: "user_settings",
+      app: {},
       lifecycle: { user: "user" },
+      optional: STAMPS,
       columns: {
         user: "user_id",
         key: "key",
@@ -50,7 +55,9 @@ const NAMES: BlockSqlNames = {
     },
     organization: {
       name: "organization_settings",
+      app: {},
       lifecycle: { tenant: "tenant" },
+      optional: STAMPS,
       columns: {
         tenant: "organization_id",
         key: "key",
@@ -61,6 +68,8 @@ const NAMES: BlockSqlNames = {
     },
     platform: {
       name: "platform_settings",
+      app: {},
+      optional: STAMPS,
       columns: {
         key: "key",
         value: "value",
@@ -307,6 +316,55 @@ function build(ctx: BlockSqlContext): string {
   const pc = (logical: string): string => ctx.col("platform", logical);
   const platform = platformKeys(ctx);
 
+  const stampLines = (table: string): string =>
+    (
+      [
+        [
+          "updatedBy",
+          "uuid references auth.users (id) on delete set null default auth.uid()",
+        ],
+        ["updatedAt", "timestamptz not null default now()"],
+      ] as const
+    )
+      .filter(([logical]) => ctx.has(table, logical))
+      .map(([logical, type]) => `,\n  ${ctx.col(table, logical)} ${type}`)
+      .join("");
+
+  const stamps = (table: string): readonly (readonly [string, string])[] =>
+    (
+      [
+        ["updatedBy", "auth.uid()"],
+        ["updatedAt", "now()"],
+      ] as const
+    )
+      .filter(([logical]) => ctx.has(table, logical))
+      .map(([logical, value]) => [ctx.col(table, logical), value] as const);
+
+  const stampColumns = (table: string): string =>
+    stamps(table)
+      .map(([column]) => `, ${column}`)
+      .join("");
+
+  const stampValues = (table: string): string =>
+    stamps(table)
+      .map(([, value]) => `, ${value}`)
+      .join("");
+
+  const stampSets = (table: string): string =>
+    stamps(table)
+      .map(([column, value]) => `, ${column} = ${value}`)
+      .join("");
+
+  const updatedByIndex = (table: string, name: string): string =>
+    ctx.has(table, "updatedBy")
+      ? `\ncreate index if not exists ${name} on ${ctx.table(table)} (${ctx.col(table, "updatedBy")});`
+      : "";
+
+  const uniqueOverApp = (table: string, columns: readonly string[]): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_key`)} on ${ctx.table(table)} (${columns.map((logical) => ctx.col(table, logical)).join(", ")});`;
+
   const settingEvent = (
     type: string,
     col: (logical: string) => string,
@@ -378,12 +436,9 @@ function build(ctx: BlockSqlContext): string {
 create table if not exists ${u} (
   ${uc("user")} uuid not null references auth.users (id) on delete cascade,
   ${uc("key")} text not null ${KEY.replace("key", uc("key"))},
-  ${uc("value")} jsonb not null,
-  ${uc("updatedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${uc("updatedAt")} timestamptz not null default now(),
+  ${uc("value")} jsonb not null${stampLines("user")},
   primary key (${uc("user")}, ${uc("key")})
-);
-create index if not exists user_settings_updated_by_idx on ${u} (${uc("updatedBy")});
+);${updatedByIndex("user", "user_settings_updated_by_idx")}${uniqueOverApp("user", ["user", "key"])}
 alter table ${u} enable row level security;
 ${revokeTable(u)}
 grant select, insert, update, delete on ${u} to authenticated;
@@ -399,12 +454,9 @@ ${ownRowPolicies({
 create table if not exists ${o} (
   ${oc("tenant")} ${id} not null,
   ${oc("key")} text not null ${KEY.replace("key", oc("key"))},
-  ${oc("value")} jsonb not null,
-  ${oc("updatedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${oc("updatedAt")} timestamptz not null default now(),
+  ${oc("value")} jsonb not null${stampLines("organization")},
   primary key (${oc("tenant")}, ${oc("key")})
-);
-create index if not exists ${ctx.naming.rename("organization_settings_updated_by_idx")} on ${o} (${oc("updatedBy")});
+);${updatedByIndex("organization", ctx.naming.rename("organization_settings_updated_by_idx"))}${uniqueOverApp("organization", ["tenant", "key"])}
 alter table ${o} enable row level security;
 ${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
@@ -428,11 +480,8 @@ create policy "${ctx.naming.rename("organization_settings_delete")}" on ${o} for
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table if not exists ${p} (
   ${pc("key")} text primary key ${KEY.replace("key", pc("key"))},
-  ${pc("value")} jsonb not null,
-  ${pc("updatedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${pc("updatedAt")} timestamptz not null default now()
-);
-create index if not exists platform_settings_updated_by_idx on ${p} (${pc("updatedBy")});
+  ${pc("value")} jsonb not null${stampLines("platform")}
+);${updatedByIndex("platform", "platform_settings_updated_by_idx")}${uniqueOverApp("platform", ["key"])}
 alter table ${p} enable row level security;
 ${revokeTable(p)}
 grant select on ${p} to anon;
@@ -476,10 +525,10 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${u} (${uc("user")}, ${uc("key")}, ${uc("value")}, ${uc("updatedBy")}, ${uc("updatedAt")})
-  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
+  insert into ${u} (${uc("user")}, ${uc("key")}, ${uc("value")}${stampColumns("user")})
+  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb)${stampValues("user")})
   on conflict (${uc("user")}, ${uc("key")}) do update
-    set ${uc("value")} = excluded.${uc("value")}, ${uc("updatedBy")} = auth.uid(), ${uc("updatedAt")} = now()
+    set ${uc("value")} = excluded.${uc("value")}${stampSets("user")}
   returning ${uc("value")}
 $$;
 
@@ -514,10 +563,10 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${o} (${oc("tenant")}, ${oc("key")}, ${oc("value")}, ${oc("updatedBy")}, ${oc("updatedAt")})
-  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
+  insert into ${o} (${oc("tenant")}, ${oc("key")}, ${oc("value")}${stampColumns("organization")})
+  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb)${stampValues("organization")})
   on conflict (${oc("tenant")}, ${oc("key")}) do update
-    set ${oc("value")} = excluded.${oc("value")}, ${oc("updatedBy")} = auth.uid(), ${oc("updatedAt")} = now()
+    set ${oc("value")} = excluded.${oc("value")}${stampSets("organization")}
   returning ${oc("value")}
 $$;
 
@@ -552,10 +601,10 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${p} (${pc("key")}, ${pc("value")}, ${pc("updatedBy")}, ${pc("updatedAt")})
-  values (set_platform_setting.key, coalesce(set_platform_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
+  insert into ${p} (${pc("key")}, ${pc("value")}${stampColumns("platform")})
+  values (set_platform_setting.key, coalesce(set_platform_setting.value -> 'value', 'null'::jsonb)${stampValues("platform")})
   on conflict (${pc("key")}) do update
-    set ${pc("value")} = excluded.${pc("value")}, ${pc("updatedBy")} = auth.uid(), ${pc("updatedAt")} = now()
+    set ${pc("value")} = excluded.${pc("value")}${stampSets("platform")}
   returning ${pc("value")}
 $$;
 

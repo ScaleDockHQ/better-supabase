@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
-import { lockModuleTable } from "./over-app.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 export interface WorkflowParts {
   readonly ddl: string;
@@ -50,15 +50,41 @@ export function workflowParts(
   end if;`
     : "";
 
+  const has = (column: string): boolean => ctx.has("workflows", column);
+
+  // A column of workflow row `alias`, or what a read gives when the app's
+  // table lacks it.
+  const read = (alias: string, column: string, missing: string): string =>
+    has(column) ? `${alias}.${cw(column)}` : missing;
+
   const workflowJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cw("id")},
     'template', ${alias}.${cw("template")},
     'definition', ${alias}.${cw("definition")},
     'inputs', ${alias}.${cw("inputs")},
-    'enabled', ${alias}.${cw("enabled")},
-    'createdBy', ${alias}.${cw("createdBy")},
-    'createdAt', ${alias}.${cw("createdAt")}
+    'enabled', ${read(alias, "enabled", "true")},
+    'createdBy', ${read(alias, "createdBy", "null::uuid")},
+    'createdAt', ${read(alias, "createdAt", "null::timestamptz")}
   )`;
+
+  const order = (alias: string): string =>
+    has("createdAt")
+      ? `${alias}.${cw("createdAt")}, ${alias}.${cw("id")}`
+      : `${alias}.${cw("id")}`;
+
+  const copied = ["template", "definition", "inputs", "enabled", "createdBy"]
+    .filter(has)
+    .map(cw)
+    .join(", ");
+
+  const optional = (column: string, definition: string): string =>
+    has(column) ? `\n  ${cw(column)} ${definition},` : "";
+
+  // Over the app's table the named constraint doesn't exist; the module's
+  // unique index over the same columns stands in.
+  const conflict = ctx.owns("workflows")
+    ? "on conflict on constraint template_workflows_template_definition_key"
+    : `on conflict (${cw("template")}, ${cw("definition")})`;
 
   return {
     ddl: `
@@ -68,14 +94,10 @@ create table if not exists ${wf} (
   ${cw("id")} uuid primary key default gen_random_uuid(),
   ${cw("template")} uuid not null references ${t} (${ct("id")}) on delete cascade,
   ${cw("definition")} uuid not null references ${d} (${cd("id")}) on delete cascade,
-  ${cw("inputs")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${cw("inputs")}) = 'object'),
-  ${cw("enabled")} boolean not null default true,
-  ${cw("createdBy")} uuid references auth.users (id) on delete set null,
-  ${cw("createdAt")} timestamptz not null default now(),
+  ${cw("inputs")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${cw("inputs")}) = 'object'),${optional("enabled", "boolean not null default true")}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}
   constraint template_workflows_template_definition_key unique (${cw("template")}, ${cw("definition")})
-);
-create index if not exists template_workflows_definition_idx on ${wf} (${cw("definition")});
-create index if not exists template_workflows_created_by_idx on ${wf} (${cw("createdBy")});
+);${appUniqueIndex(ctx, "workflows", ["template", "definition"])}
+create index if not exists template_workflows_definition_idx on ${wf} (${cw("definition")});${has("createdBy") ? `\ncreate index if not exists template_workflows_created_by_idx on ${wf} (${cw("createdBy")});` : ""}
 ${lockModuleTable(ctx, "workflows", { read: true })}
 drop policy if exists template_workflows_read on ${wf};
 create policy template_workflows_read on ${wf} for select to authenticated
@@ -112,17 +134,17 @@ end;
 $$;
 ${serviceGrant(`${errors}(uuid, jsonb)`)}
 `,
-    forkCopy: `  insert into ${wf} (${cw("template")}, ${cw("definition")}, ${cw("inputs")}, ${cw("enabled")}, ${cw("createdBy")})
-  select v_row.${ct("id")}, w.${cw("definition")}, w.${cw("inputs")}, w.${cw("enabled")}, (select auth.uid())
+    forkCopy: `  insert into ${wf} (${copied})
+  select v_row.${ct("id")}, w.${cw("definition")}, w.${cw("inputs")}${has("enabled") ? `, w.${cw("enabled")}` : ""}${has("createdBy") ? ", (select auth.uid())" : ""}
   from ${wf} w where w.${cw("template")} = v_src.${ct("id")};
 `,
     applyTarget: `  select coalesce(jsonb_agg(jsonb_build_object(
       'definition', w.${cw("definition")},
       'inputs', w.${cw("inputs")},
       'errors', to_jsonb(${errors}(w.${cw("definition")}, w.${cw("inputs")})))
-    order by w.${cw("createdAt")}, w.${cw("id")}), '[]'::jsonb)
+    order by ${order("w")}), '[]'::jsonb)
   into v_workflows
-  from ${wf} w where w.${cw("template")} = v_tpl.${ct("id")} and w.${cw("enabled")};
+  from ${wf} w where w.${cw("template")} = v_tpl.${ct("id")}${has("enabled") ? ` and w.${cw("enabled")}` : ""};
   if exists (select 1 from jsonb_array_elements(v_workflows) e where jsonb_array_length(e.value -> 'errors') > 0) then
     raise exception 'A workflow input does not match its input schema: %',
       (select string_agg(e.value ->> 'definition' || ': ' || (e.value -> 'errors' ->> 0), '; ')
@@ -164,12 +186,11 @@ begin
     raise exception 'The workflow input does not match its input schema: %', v_errors[1]
       using errcode = '22023', hint = 'TEMPLATE_WORKFLOW_INPUT_INVALID';
   end if;
-  insert into ${wf} as w (${cw("template")}, ${cw("definition")}, ${cw("inputs")}, ${cw("enabled")}, ${cw("createdBy")})
+  insert into ${wf} as w (${copied})
   values (v_tpl.${ct("id")}, attach_template_workflow.definition,
-    coalesce(attach_template_workflow.inputs, '{}'::jsonb), coalesce(attach_template_workflow.enabled, true), (select auth.uid()))
-  on conflict on constraint template_workflows_template_definition_key do update set
-    ${cw("inputs")} = excluded.${cw("inputs")},
-    ${cw("enabled")} = excluded.${cw("enabled")}
+    coalesce(attach_template_workflow.inputs, '{}'::jsonb)${has("enabled") ? ", coalesce(attach_template_workflow.enabled, true)" : ""}${has("createdBy") ? ", (select auth.uid())" : ""})
+  ${conflict} do update set
+    ${cw("inputs")} = excluded.${cw("inputs")}${has("enabled") ? `,\n    ${cw("enabled")} = excluded.${cw("enabled")}` : ""}
   returning * into v_row;
   return ${workflowJson("v_row")};
 end;
@@ -207,7 +228,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${workflowJson("w")} order by w.${cw("createdAt")}, w.${cw("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${workflowJson("w")} order by ${order("w")}), '[]'::jsonb)
   from ${wf} w where w.${cw("template")} = template_workflows_list.template_id
 $$;
 ${userGrant(`${fn("template_workflows_list")}(uuid)`)}

@@ -177,6 +177,8 @@ export const MESSAGING_NAMES: BlockSqlNames = {
     },
     edits: {
       name: "message_edits",
+      app: {},
+      optional: ["document", "editor"],
       lifecycle: { tenant: "tenant", user: "editor", export: true },
       columns: {
         id: "id",
@@ -190,6 +192,7 @@ export const MESSAGING_NAMES: BlockSqlNames = {
     },
     reads: {
       name: "thread_reads",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user" },
       columns: {
         tenant: "tenant_id",
@@ -201,6 +204,7 @@ export const MESSAGING_NAMES: BlockSqlNames = {
     },
     recordMentions: {
       name: "message_record_mentions",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "tenant_id",
@@ -213,6 +217,8 @@ export const MESSAGING_NAMES: BlockSqlNames = {
     },
     summaries: {
       name: "thread_summaries",
+      app: {},
+      optional: ["model", "createdAt", "updatedAt"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -366,3 +372,27 @@ export function messagingSql(
 /** `'<prefix>' || <expr>`: the private Realtime topic of a conversation. */
 export const conversationTopic = (q: MessagingSql, id: string): string =>
   `${sqlString(`${q.topic}:`)} || ${id}::text`;
+
+/**
+ * Row `row` of `table` as `to_jsonb` gives it on the module's own table: keyed
+ * by the default column names, with null for a column the app's table lacks and
+ * none of the app's other columns.
+ */
+export function messagingRowJson(
+  ctx: BlockSqlContext,
+  table: string,
+  row: string,
+): string {
+  if (ctx.owns(table)) {
+    return `to_jsonb(${row})`;
+  }
+
+  const columns = MESSAGING_NAMES.tables[table]?.columns ?? {};
+
+  return `jsonb_build_object(${Object.entries(columns)
+    .map(
+      ([logical, name]) =>
+        `${sqlString(name)}, ${ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null"}`,
+    )
+    .join(", ")})`;
+}

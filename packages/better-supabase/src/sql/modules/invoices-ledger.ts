@@ -110,6 +110,8 @@ export function invoicePaymentsUpgrade(ctx: BlockSqlContext): string {
   const invoices = ctx.table("invoices");
   const i = (column: string): string => ctx.col("invoices", column);
   const old = `${ctx.schema}.invoice_payments`;
+  // The old table took the tenant column the block names on its other tables.
+  const mt = ctx.col("invoices", "tenant");
   const columns = `${la("tenant")}, ${la("kind")}, ${la("code")}, ${la("name")}, ${la("unit")}, ${la("scale")}, ${la("holderType")}, ${la("holderId")}, ${la("allowNegative")}, ${la("readPermission")}, ${la("managedBy")}`;
 
   return `${ledgerTables(ledger)}
@@ -127,18 +129,18 @@ begin
   from ${old} m join ${invoices} v on v.${i("id")} = m.invoice_id
   on conflict do nothing;
   insert into ${ledger.table("transactions")} (${tx("id")}, ${tx("tenant")}, ${tx("kind")}, ${tx("referenceType")}, ${tx("referenceId")}, ${tx("key")}, ${tx("metadata")}, ${tx("effectiveAt")}, ${tx("actor")}, ${tx("createdAt")})
-  select m.id, m.tenant_id, case when m.amount < 0 then 'invoice.refund' else 'invoice.payment' end, 'invoices', m.invoice_id::text,
+  select m.id, m.${mt}, case when m.amount < 0 then 'invoice.refund' else 'invoice.payment' end, 'invoices', m.invoice_id::text,
     case when m.reference is not null then ${paymentKey("m.reference")} end,
     jsonb_strip_nulls(jsonb_build_object('invoiceId', m.invoice_id, 'method', m.method, 'reference', m.reference)), m.paid_at, m.recorded_by, m.created_at
   from ${old} m
   on conflict do nothing;
   insert into ${ledger.table("entries")} (${le("tenant")}, ${le("transaction")}, ${le("account")}, ${le("amount")}, ${le("unit")}, ${le("createdAt")})
-  select m.tenant_id, m.id, x.${la("id")}, -m.amount, x.${la("unit")}, m.created_at
-  from ${old} m join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${receivableCode("m.invoice_id")}
+  select m.${mt}, m.id, x.${la("id")}, -m.amount, x.${la("unit")}, m.created_at
+  from ${old} m join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${receivableCode("m.invoice_id")}
   union all
-  select m.tenant_id, m.id, x.${la("id")}, m.amount, x.${la("unit")}, m.created_at
+  select m.${mt}, m.id, x.${la("id")}, m.amount, x.${la("unit")}, m.created_at
   from ${old} m join ${invoices} v on v.${i("id")} = m.invoice_id
-  join ${accounts} x on x.${la("tenant")} = m.tenant_id and x.${la("code")} = ${cashCode(`v.${i("currency")}`)};
+  join ${accounts} x on x.${la("tenant")} = m.${mt} and x.${la("code")} = ${cashCode(`v.${i("currency")}`)};
   ${ledgerRebalance(ledger)}
   drop table ${old};
 end;

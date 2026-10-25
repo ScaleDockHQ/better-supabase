@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { SERVICE_CALLER, triggerGrant } from "../shared.ts";
+import { asText } from "./over-app.ts";
 import { postsSql } from "./posts-sql.ts";
 
 /** The trigger functions of the posts module, listed as internal. */
@@ -27,6 +28,30 @@ export function postTriggers(ctx: BlockSqlContext): string {
 
   const messages = messaging.table("messages");
   const mm = (column: string): string => messaging.col("messages", column);
+  const status = asText(moderation, "items", `new.${mi("status")}`);
+
+  const replied = [
+    ...(q.hasPost("replyCount")
+      ? [
+          `${p("replyCount")} = (
+      select count(*) from ${messages} m
+      where m.${mm("conversation")} = new.${mm("conversation")}
+        and m.${mm("sentAt")} is not null and m.${mm("deletedAt")} is null
+    )`,
+        ]
+      : []),
+    ...(q.hasPost("lastActivityAt")
+      ? [
+          `${p("lastActivityAt")} = greatest(x.${p("lastActivityAt")}, coalesce(new.${mm("sentAt")}, x.${p("lastActivityAt")}))`,
+        ]
+      : []),
+  ];
+
+  const blocked = [
+    ...(q.hasPost("lockedAt") ? [`v_post.${p("lockedAt")} is not null`] : []),
+    `v_post.${p("mergedInto")} is not null`,
+    `v_post.${p("moderation")} <> 'visible'`,
+  ].join(" or ");
 
   return `-- Projects a post's moderation item onto the post. A moderator's decision
 -- records post.moderated.
@@ -39,9 +64,9 @@ as $$
 declare
   v_row ${posts}%rowtype;
 begin
-  update ${posts} x set ${p("moderation")} = new.${mi("status")}
+  update ${posts} x set ${p("moderation")} = ${ctx.cast("posts", "moderation", status)}
   where x.${p("id")}::text = new.${mi("subjectId")} and x.${p("tenant")} = new.${mi("tenant")}
-    and x.${p("moderation")} is distinct from new.${mi("status")}
+    and ${asText(ctx, "posts", `x.${p("moderation")}`)} is distinct from ${status}
   returning * into v_row;
   if v_row.${p("id")} is not null and new.${mi("decidedAt")} is not null then
     ${q.record("post.moderated", "v_row", false)}
@@ -93,7 +118,7 @@ begin
   if v_post.${p("id")} is null then
     return new;
   end if;
-  if (v_post.${p("lockedAt")} is not null or v_post.${p("mergedInto")} is not null or v_post.${p("moderation")} <> 'visible')
+  if (${blocked})
     and not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_post.${p("tenant")}`, q.moderate)}) then
     ${q.forbidden("the post is locked")}
   end if;
@@ -105,7 +130,11 @@ drop trigger if exists ${ctx.trigger("posts_reply_guard")} on ${messages};
 create trigger ${ctx.trigger("posts_reply_guard")}
   before insert on ${messages}
   for each row execute function ${fn("posts_reply_guard")}();
-
+${
+  replied.length === 0
+    ? `drop trigger if exists ${ctx.trigger("posts_replied")} on ${messages};
+`
+    : `
 -- Counts a post's sent, undeleted replies and moves its last activity.
 create or replace function ${fn("posts_replied")}()
 returns trigger
@@ -115,12 +144,7 @@ set search_path = ''
 as $$
 begin
   update ${posts} x set
-    ${p("replyCount")} = (
-      select count(*) from ${messages} m
-      where m.${mm("conversation")} = new.${mm("conversation")}
-        and m.${mm("sentAt")} is not null and m.${mm("deletedAt")} is null
-    ),
-    ${p("lastActivityAt")} = greatest(x.${p("lastActivityAt")}, coalesce(new.${mm("sentAt")}, x.${p("lastActivityAt")}))
+    ${replied.join(",\n    ")}
   from ${conversations} c
   where c.${mc("id")} = new.${mm("conversation")} and c.${mc("subjectType")} = ${subject}
     and x.${p("id")}::text = c.${mc("subjectId")} and x.${p("tenant")} = c.${mc("tenant")};
@@ -132,5 +156,6 @@ drop trigger if exists ${ctx.trigger("posts_replied")} on ${messages};
 create trigger ${ctx.trigger("posts_replied")}
   after insert or update of ${mm("sentAt")}, ${mm("deletedAt")} on ${messages}
   for each row execute function ${fn("posts_replied")}();
-`;
+`
+}`;
 }

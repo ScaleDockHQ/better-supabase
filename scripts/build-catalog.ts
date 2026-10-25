@@ -4,8 +4,9 @@
  * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
  * writes the preset catalog (`src/preset/catalog.generated.ts`), which
  * `better-supabase/preset` resolves against without importing the SQL
- * renderers. That file is committed, and `pnpm catalog:check` (`--check`, part
- * of `pnpm verify`) fails when it is stale.
+ * renderers, and the adoptable-tables table on the own-schemas docs page. Both
+ * are committed, and `pnpm catalog:check` (`--check`, part of `pnpm verify`)
+ * fails when either is stale.
  */
 import {
   existsSync,
@@ -58,6 +59,11 @@ import {
 } from "../packages/better-supabase/src/sql/modules/permissions-model.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveBlocks } from "../packages/better-supabase/src/sql/registry.ts";
+import {
+  adoptableTablesCurrent,
+  OWN_SCHEMAS_PAGE,
+  withAdoptableTables,
+} from "./adoptable-tables.ts";
 
 /**
  * The blocks a block works with: what it integrates and the generic blocks it
@@ -806,11 +812,28 @@ if (import.meta.main) {
         );
         exit(1);
       }
+
+      if (!adoptableTablesCurrent(readFileSync(OWN_SCHEMAS_PAGE, "utf-8"))) {
+        console.error(
+          "build-catalog: the adoptable tables on blocks/own-schemas.mdx are stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
       writeFileSync(NAME_REGISTRY_FILE, nameSets);
       mkdirSync(dirname(CATALOG_FILE), { recursive: true });
       writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
+
+      const page = withAdoptableTables(readFileSync(OWN_SCHEMAS_PAGE, "utf-8"));
+
+      if (page === undefined) {
+        throw new Error(
+          "build-catalog: blocks/own-schemas.mdx lost its adoptable-tables markers.",
+        );
+      }
+
+      writeFileSync(OWN_SCHEMAS_PAGE, page);
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

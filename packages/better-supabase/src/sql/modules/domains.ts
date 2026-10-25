@@ -36,6 +36,18 @@ const EVENTS: BlockSqlEvents<DomainsEvents> = {
   },
 };
 
+const HOSTNAMES = {
+  id: "id",
+  tenant: "organization_id",
+  hostname: "hostname",
+  kind: "kind",
+  token: "verification_token",
+  verifiedAt: "verified_at",
+  primary: "is_primary",
+  createdBy: "created_by",
+  createdAt: "created_at",
+} as const;
+
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["platformDomain", "txtPrefix"],
@@ -44,17 +56,10 @@ const NAMES: BlockSqlNames = {
     hostnames: {
       name: "organization_hostnames",
       lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        hostname: "hostname",
-        kind: "kind",
-        token: "verification_token",
-        verifiedAt: "verified_at",
-        primary: "is_primary",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
+      columns: HOSTNAMES,
+      app: {},
+      optional: ["createdBy"],
+      typed: ["kind"],
     },
   },
 };
@@ -116,9 +121,24 @@ function build(ctx: BlockSqlContext): string {
   const actorCan = (tenant: string, actor: string): string =>
     `(${actor} is null or ${ctx.scope.canUser(actor, tenant, manage)})`;
 
+  const createdBy = ctx.has("hostnames", "createdBy");
+
+  // The app's table has its own column names and columns of its own, so its
+  // rows go out under the module's names.
+  const fields = (row: string): string =>
+    ctx.owns("hostnames")
+      ? `(to_jsonb(${row}) - ${raw("token")})`
+      : `jsonb_build_object(${Object.entries(HOSTNAMES)
+          .filter(([logical]) => logical !== "token")
+          .map(
+            ([logical, key]) =>
+              `'${key}', ${ctx.has("hostnames", logical) ? `${row}.${c(logical)}` : "null"}`,
+          )
+          .join(", ")})`;
+
   // A verified hostname needs no record; a pending one carries the TXT record to publish.
   const publicRow = (row: string): string =>
-    `(to_jsonb(${row}) - ${raw("token")}) || case when ${row}.${c("verifiedAt")} is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${sqlString(`${prefix}.`)} || ${row}.${c("hostname")}, 'value', 'better-supabase-hostname-verification=' || ${row}.${c("token")})) else '{}'::jsonb end`;
+    `${fields(row)} || case when ${row}.${c("verifiedAt")} is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${sqlString(`${prefix}.`)} || ${row}.${c("hostname")}, 'value', 'better-supabase-hostname-verification=' || ${row}.${c("token")})) else '{}'::jsonb end`;
 
   const hostnameEvent = (
     type: string,
@@ -176,15 +196,13 @@ create table if not exists ${t} (
   ${c("token")} text not null default replace(gen_random_uuid()::text, '-', ''),
   ${c("verifiedAt")} timestamptz,
   ${c("primary")} boolean not null default false,
-  ${c("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${c("createdAt")} timestamptz not null default now(),
+${createdBy ? `  ${c("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),\n` : ""}  ${c("createdAt")} timestamptz not null default now(),
   unique (${c("tenant")}, ${c("hostname")}),
   check (not ${c("primary")} or ${c("verifiedAt")} is not null)
 );
 create unique index if not exists ${ctx.naming.rename("organization_hostnames_verified_idx")} on ${t} (${c("hostname")}) where ${c("verifiedAt")} is not null;
 create unique index if not exists ${ctx.naming.rename("organization_hostnames_primary_idx")} on ${t} (${c("tenant")}) where ${c("primary")};
-create index if not exists ${ctx.naming.rename("organization_hostnames_created_by_idx")} on ${t} (${c("createdBy")}) where ${c("createdBy")} is not null;
-${lockTable(t)}
+${createdBy ? `create index if not exists ${ctx.naming.rename("organization_hostnames_created_by_idx")} on ${t} (${c("createdBy")}) where ${c("createdBy")} is not null;\n` : ""}${lockTable(t)}
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
 -- with the TXT record to publish; adding it again returns the same row.
@@ -216,7 +234,7 @@ begin
     ${raise("Another organization holds %", "23505", "HOSTNAME_TAKEN", "v_hostname")}
   end if;
   insert into ${t} (${c("tenant")}, ${c("hostname")}, ${c("kind")}, ${c("verifiedAt")})
-  values (add_hostname.tenant, v_hostname, v_kind, case when v_kind = 'subdomain' then now() end)
+  values (add_hostname.tenant, v_hostname, ${ctx.cast("hostnames", "kind", "v_kind")}, case when v_kind = 'subdomain' then now() end)
   returning * into v_row;
   ${hostnameEvent("hostname.added", "v_row")}
   if v_row.${c("verifiedAt")} is not null then

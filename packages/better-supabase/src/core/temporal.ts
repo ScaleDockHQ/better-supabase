@@ -58,6 +58,8 @@ const ISO_TAGS: ReadonlySet<unknown> = new Set([
   "Temporal.PlainDateTime",
   "Temporal.PlainDate",
   "Temporal.PlainTime",
+  "Temporal.PlainYearMonth",
+  "Temporal.PlainMonthDay",
 ]);
 
 function tagOf(value: unknown): unknown {
@@ -75,7 +77,9 @@ function tagOf(value: unknown): unknown {
 /**
  * The text Postgres reads back for a Temporal value: ISO 8601, with a
  * `ZonedDateTime` sent as its instant because Postgres rejects the
- * `[Region/City]` annotation. `undefined` for anything else.
+ * `[Region/City]` annotation, and a negative `Duration` with the sign on each
+ * field, the only negative form `interval` accepts. `undefined` for anything
+ * else.
  *
  * Values are recognized by `Symbol.toStringTag`, not `instanceof`, so values
  * from another realm or a second copy of the polyfill still encode.
@@ -91,12 +95,25 @@ export function temporalText(value: unknown): string | undefined {
     return String(value);
   }
 
+  if (tag === "Temporal.Duration") {
+    return durationText(String(value));
+  }
+
   return tag === "Temporal.ZonedDateTime" &&
     typeof value === "object" &&
     value !== null &&
     isZoned(value)
     ? String(value.toInstant())
     : undefined;
+}
+
+const DURATION_FIELD = /(\d+(?:\.\d+)?)([YMWDHS])/g;
+
+/** `-P1DT2H` as `P-1DT-2H`: Postgres reads a sign per field, not one in front. */
+function durationText(text: string): string {
+  return text.startsWith("-")
+    ? text.slice(1).replaceAll(DURATION_FIELD, "-$1$2")
+    : text;
 }
 
 interface ZonedLike {

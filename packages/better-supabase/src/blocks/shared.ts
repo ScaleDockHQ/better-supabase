@@ -34,6 +34,7 @@ export {
   toInstant,
   workerId,
   instantOf,
+  intervalOf,
   bigintOf,
 } from "../core/block-helpers.ts";
 

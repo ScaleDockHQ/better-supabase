@@ -99,20 +99,23 @@ connected without Storage passes none. A `storage` you pass yourself, through
 
 When a table already holds the property, such as an app `tasks` table next to
 the `tasks` block, the table keeps `db.tasks` and the instance is on
-`db.$blocks.tasks`. `db.$blocks` holds every instance. `db.$api(fn, args)`
-calls a function in the API schema that has no typed client, such as
-`flag_enabled`, resolves to its result and rejects with the raw database
-error. `db.$apiResult(fn, args)` makes the same call and returns a `Result`
-like a repository call: the result, or the error as a `DbError` with its
-`kind` and `hint`, and `.orThrow()` for the value.
+`db.$blocks.tasks`. `db.$blocks` holds every instance.
+
+`db.$api(fn, args)` calls a function in the API schema that has no typed
+client, such as `flag_enabled`. It runs through `db.$rpc` in that schema, so
+it returns a `Result` with a `DbError` instead of throwing, and `.orThrow()`
+gives the value. Pass a `returns` schema to validate the value and type it:
 
 ```ts
-const result = await db.$apiResult("flag_enabled", { key: "beta" });
-
-if (!result.ok) {
-  return result.error.kind;
-}
+const quotes = await db
+  .$api("list_quotes", { tenant }, { returns: v.array(QuoteRow) })
+  .orThrow();
 ```
+
+`blockSet.call(db, fn, args)` does the same outside a `Db` with blocks on it
+and also returns a `Result`.
+`db.$apiResult(fn, args)` is the same as `db.$api(fn, args)` and stays for
+code written against 0.19.0.
 
 `defineSupabase(schema, { temporal })` passes its `temporal` to every
 instance `.blocks()` builds, so a runtime without a global `Temporal` needs it

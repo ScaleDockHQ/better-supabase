@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:f1521f8f6f99688cc76964e842f79c4843047c3dc9e0c06d55929f1a6c3493df
+-- @bsb-hash sha256:bb988d6ceda0c47594ba5519e8aff91fa3cbb7e386c3a33807d36efb96503f28
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -147,13 +147,10 @@ begin
     end if;
   end;
   insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "outcome", "owner_user_id", "due_at", "done_at", "duration_seconds", "external_ref", "created_by")
-  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner,
-    (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz,
-    (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
+  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner, (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz, (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
   on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
     "title" = excluded."title", "body" = excluded."body", "outcome" = excluded."outcome",
-    "due_at" = excluded."due_at", "done_at" = excluded."done_at",
-    "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
+    "due_at" = excluded."due_at", "done_at" = excluded."done_at", "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
   returning "id" into v_id;
   
   if jsonb_typeof(coalesce(log_engagement.subjects, '[]')) <> 'array' then
@@ -729,8 +726,7 @@ begin
   end loop;
   delete from "better_supabase"."engagement_transcript_segments" sx where sx."recording_id" = v_recording;
   insert into "better_supabase"."engagement_transcript_segments" ("recording_id", "tenant_id", "position", "speaker", "speaker_user_id", "starts_ms", "ends_ms", "text", "confidence")
-  select v_recording, v_tenant, i.ordinality::integer, nullif(i.value ->> 'speaker', ''), nullif(i.value ->> 'speakerUserId', '')::uuid,
-    round((i.value ->> 'startMs')::numeric)::integer, round((i.value ->> 'endMs')::numeric)::integer, i.value ->> 'text', (i.value ->> 'confidence')::real
+  select v_recording, v_tenant, i.ordinality::integer, nullif(i.value ->> 'speaker', ''), nullif(i.value ->> 'speakerUserId', '')::uuid, round((i.value ->> 'startMs')::numeric)::integer, round((i.value ->> 'endMs')::numeric)::integer, i.value ->> 'text', (i.value ->> 'confidence')::real
   from jsonb_array_elements(save_engagement_transcript.segments) with ordinality i;
   update "better_supabase"."engagement_recordings" rx set
     "status" = 'transcribed',
@@ -821,8 +817,7 @@ begin
     raise exception 'actionItems must be a list of { text }' using errcode = '22023', hint = 'ENGAGEMENT_NOTES_INVALID';
   end if;
   insert into "better_supabase"."engagement_notes" ("engagement_id", "tenant_id", "summary", "action_items", "model", "source", "created_by")
-  values (save_engagement_notes.engagement, v_tenant, v_summary, v_items, nullif(save_engagement_notes.notes ->> 'model', ''),
-    case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
+  values (save_engagement_notes.engagement, v_tenant, v_summary, v_items, nullif(save_engagement_notes.notes ->> 'model', ''), case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
   on conflict ("engagement_id") do update set
     "summary" = excluded."summary", "action_items" = excluded."action_items",
     "model" = excluded."model", "source" = excluded."source", "updated_at" = now();
@@ -910,8 +905,7 @@ begin
     into v_title
     from "better_supabase"."booking_services" sv where sv."id" = new."service_id";
     insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "owner_user_id", "due_at", "duration_seconds", "external_ref", "created_by")
-    values (v_tenant, 'meeting', coalesce(v_title, 'Booking'), new."notes", v_owner, lower(new."during"),
-      extract(epoch from upper(new."during") - lower(new."during"))::integer, v_ref, new."created_by")
+    values (v_tenant, 'meeting', coalesce(v_title, 'Booking'), new."notes", v_owner, lower(new."during"), extract(epoch from upper(new."during") - lower(new."during"))::integer, v_ref, new."created_by")
     on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
       "due_at" = excluded."due_at", "duration_seconds" = excluded."duration_seconds",
       "done_at" = null, "outcome" = null, "updated_at" = now()

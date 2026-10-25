@@ -12,6 +12,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const step = (frequency: string): string =>
@@ -32,6 +33,42 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
   const r = (column: string): string => ctx.col("receipts", column);
   const d = (column: string): string => ctx.col("donations", column);
   const fn = (name: string): string => ctx.fn(name);
+
+  const has = (table: string, logical: string): boolean =>
+    ctx.has(table, logical);
+
+  // `row.column`, or null when the app's table lacks the column.
+  const or = (table: string, row: string, logical: string): string =>
+    has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // ", <value>" for an insert's values, when the column exists.
+  const alsoValue = (table: string, logical: string, value: string): string =>
+    has(table, logical) ? `, ${value}` : "";
+
+  // "<column> = <value>, " for an update, when the column exists.
+  const set = (table: string, logical: string, value: string): string =>
+    has(table, logical) ? `${ctx.col(table, logical)} = ${value}, ` : "";
+
+  // The fund columns save_donation_fund writes after kind, and their values.
+  const fundWrites: readonly (readonly [string, string])[] = [
+    ["goal", "save_donation_fund.goal"],
+    ["currency", "save_donation_fund.currency"],
+    ["startsOn", "save_donation_fund.starts_on"],
+    ["endsOn", "save_donation_fund.ends_on"],
+  ];
+
+  const fundColumns = fundWrites.filter(([logical]) => has("funds", logical));
+
+  const fundValues = fundColumns.map(([, value]) => value);
+
+  const fundUpdates = fundColumns
+    .filter(([logical]) => logical !== "goal")
+    .map(([logical]) => `${f(logical)} = excluded.${f(logical)}`);
+
   const idType = ctx.idType;
   const extras = ctx.extraColumns("donations", GIFT_RESERVED);
   const extra = extraFieldsArg(extras);
@@ -84,16 +121,16 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
     `case when ${row}.${f("currency")} is null then null else coalesce((select sum(g.${d("amount")}) from ${donations} g where g.${d("fund")} = ${row}.${f("id")} and g.${d("status")} = 'posted' and g.${d("currency")} = ${row}.${f("currency")}), 0)::text end`;
 
   const fundJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'kind', ${row}.${f("kind")}, 'goal', ${row}.${f("goal")}::text, 'currency', ${row}.${f("currency")}, 'raised', ${raised(row)}, 'startsOn', ${row}.${f("startsOn")}, 'endsOn', ${row}.${f("endsOn")}, 'archivedAt', ${row}.${f("archivedAt")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'kind', ${row}.${f("kind")}, 'goal', ${or("funds", row, "goal")}::text, 'currency', ${row}.${f("currency")}, 'raised', ${raised(row)}, 'startsOn', ${or("funds", row, "startsOn")}, 'endsOn', ${or("funds", row, "endsOn")}, 'archivedAt', ${row}.${f("archivedAt")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")})`;
 
   const pledgeJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'donorType', ${row}.${p("donorType")}, 'donorId', ${row}.${p("donorId")}, 'fundId', ${row}.${p("fund")}, 'amount', ${row}.${p("amount")}::text, 'currency', ${row}.${p("currency")}, 'frequency', ${row}.${p("frequency")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'provider', ${row}.${p("provider")}, 'providerCustomer', ${row}.${p("providerCustomer")}, 'note', ${row}.${p("note")}, 'createdBy', ${row}.${p("createdBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'donorType', ${row}.${p("donorType")}, 'donorId', ${row}.${p("donorId")}, 'fundId', ${row}.${p("fund")}, 'amount', ${row}.${p("amount")}::text, 'currency', ${row}.${p("currency")}, 'frequency', ${row}.${p("frequency")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'provider', ${row}.${p("provider")}, 'providerCustomer', ${row}.${p("providerCustomer")}, 'note', ${or("pledges", row, "note")}, 'createdBy', ${row}.${p("createdBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`;
 
   const giftJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'donorType', ${row}.${d("donorType")}, 'donorId', ${row}.${d("donorId")}, 'fundId', ${row}.${d("fund")}, 'pledgeId', ${row}.${d("pledge")}, 'periodStart', ${row}.${d("periodStart")}, 'amount', ${row}.${d("amount")}::text, 'currency', ${row}.${d("currency")}, 'receivedOn', ${row}.${d("receivedOn")}, 'method', ${row}.${d("method")}, 'status', ${row}.${d("status")}, 'provider', ${row}.${d("provider")}, 'paymentReference', ${row}.${d("paymentReference")}, 'transactionId', ${row}.${d("transaction")}, 'refundTransactionId', ${row}.${d("refundTransaction")}, 'receiptId', ${row}.${d("receipt")}, 'note', ${row}.${d("note")}, 'createdBy', ${row}.${d("createdBy")}, 'createdAt', ${row}.${d("createdAt")}, 'updatedAt', ${row}.${d("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'donorType', ${row}.${d("donorType")}, 'donorId', ${row}.${d("donorId")}, 'fundId', ${row}.${d("fund")}, 'pledgeId', ${row}.${d("pledge")}, 'periodStart', ${row}.${d("periodStart")}, 'amount', ${row}.${d("amount")}::text, 'currency', ${row}.${d("currency")}, 'receivedOn', ${row}.${d("receivedOn")}, 'method', ${or("donations", row, "method")}, 'status', ${row}.${d("status")}, 'provider', ${row}.${d("provider")}, 'paymentReference', ${row}.${d("paymentReference")}, 'transactionId', ${row}.${d("transaction")}, 'refundTransactionId', ${or("donations", row, "refundTransaction")}, 'receiptId', ${row}.${d("receipt")}, 'note', ${or("donations", row, "note")}, 'createdBy', ${row}.${d("createdBy")}, 'createdAt', ${row}.${d("createdAt")}, 'updatedAt', ${row}.${d("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const receiptJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'donorType', ${row}.${r("donorType")}, 'donorId', ${row}.${r("donorId")}, 'sequence', ${row}.${r("sequence")}::text, 'number', ${row}.${r("number")}, 'kind', ${row}.${r("kind")}, 'year', ${row}.${r("year")}, 'amount', ${row}.${r("amount")}::text, 'currency', ${row}.${r("currency")}, 'issuedAt', ${row}.${r("issuedAt")}, 'voidedAt', ${row}.${r("voidedAt")}, 'voidReason', ${row}.${r("voidReason")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'donorType', ${row}.${r("donorType")}, 'donorId', ${row}.${r("donorId")}, 'sequence', ${row}.${r("sequence")}::text, 'number', ${row}.${r("number")}, 'kind', ${row}.${r("kind")}, 'year', ${row}.${r("year")}, 'amount', ${row}.${r("amount")}::text, 'currency', ${row}.${r("currency")}, 'issuedAt', ${row}.${r("issuedAt")}, 'voidedAt', ${row}.${r("voidedAt")}, 'voidReason', ${or("receipts", row, "voidReason")})`;
 
   const giftRecord = (type: string, summary: string): string =>
     ctx.record({
@@ -193,12 +230,12 @@ begin
   if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
     ${invalid("DONATION_FUND_INVALID", "ends_on is on or after starts_on")}
   end if;
-  insert into ${funds} (${f("tenant")}, ${f("key")}, ${f("name")}, ${f("kind")}, ${f("goal")}, ${f("currency")}, ${f("startsOn")}, ${f("endsOn")})
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  insert into ${funds} (${f("tenant")}, ${f("key")}, ${f("name")}, ${f("kind")}, ${fundColumns.map(([logical]) => f(logical)).join(", ")})
+  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), ${ctx.cast("funds", "kind", "coalesce(save_donation_fund.kind, 'fund')")},
+    ${fundValues.join(", ")})
   on conflict (${f("tenant")}, ${f("key")}) do update set
-    ${f("name")} = excluded.${f("name")}, ${f("kind")} = excluded.${f("kind")}, ${f("goal")} = excluded.${f("goal")},
-    ${f("currency")} = excluded.${f("currency")}, ${f("startsOn")} = excluded.${f("startsOn")}, ${f("endsOn")} = excluded.${f("endsOn")},
+    ${f("name")} = excluded.${f("name")}, ${f("kind")} = excluded.${f("kind")}${has("funds", "goal") ? `, ${f("goal")} = excluded.${f("goal")}` : ""},
+    ${fundUpdates.join(", ")},
     ${f("archivedAt")} = null, ${f("updatedAt")} = now()
   returning * into v_row;
   return ${fundJson("v_row")};
@@ -304,9 +341,9 @@ begin
         jsonb_build_object('account', ${incomeAccount}, 'amount', v_row.${d("amount")})),
       'donations', v_row.${d("id")}::text, 'Gift refunded', 'donation:' || v_row.${d("id")}::text || ':refunded', null,
       jsonb_build_object(${giftKey}, v_row.${d("id")}));
-    update ${receipts} x set ${r("voidedAt")} = now(), ${r("voidReason")} = 'the gift was refunded'
+    update ${receipts} x set ${r("voidedAt")} = now()${has("receipts", "voidReason") ? `, ${r("voidReason")} = 'the gift was refunded'` : ""}
       where x.${r("id")} = v_row.${d("receipt")} and x.${r("kind")} = 'gift' and x.${r("voidedAt")} is null;
-    update ${donations} x set ${d("status")} = 'refunded', ${d("refundTransaction")} = v_tx, ${d("receipt")} = null, ${d("updatedAt")} = now()
+    update ${donations} x set ${d("status")} = 'refunded', ${set("donations", "refundTransaction", "v_tx")}${d("receipt")} = null, ${d("updatedAt")} = now()
       where x.${d("id")} = v_row.${d("id")}
       returning * into v_row;
     ${giftRecord("donation.refunded", "refunded a gift")}
@@ -343,10 +380,10 @@ begin
     end if;
   end if;
   insert into ${donations} (${d("tenant")}, ${d("donorType")}, ${d("donorId")}, ${d("fund")}, ${d("pledge")}, ${d("periodStart")}, ${d("amount")},
-    ${d("currency")}, ${d("receivedOn")}, ${d("method")}, ${d("note")}, ${d("createdBy")})
+    ${d("currency")}, ${d("receivedOn")}${also("donations", "method")}${also("donations", "note")}, ${d("createdBy")})
   values (record_gift.tenant, record_gift.donor_type, record_gift.donor_id, coalesce(record_gift.fund_id, v_pledge.${p("fund")}), record_gift.pledge_id,
     case when record_gift.pledge_id is null then null else record_gift.period_start end, record_gift.amount, record_gift.currency,
-    coalesce(record_gift.received_on, current_date), nullif(trim(record_gift.method), ''), nullif(trim(record_gift.note), ''), auth.uid())
+    coalesce(record_gift.received_on, current_date)${alsoValue("donations", "method", "nullif(trim(record_gift.method), '')")}${alsoValue("donations", "note", "nullif(trim(record_gift.note), '')")}, auth.uid())
   on conflict (${d("pledge")}, ${d("periodStart")}) do nothing
   returning * into v_row;${writeExtraColumns(donations, extras, "record_gift.fields", `x.${d("id")} = v_row.${d("id")}`, "v_row")}
   if v_row.${d("id")} is null then
@@ -381,10 +418,10 @@ begin
     ${invalid("DONATION_PLEDGE_INVALID", "the pledge is unknown, another donor's or in another currency, or the period is missing")}
   end if;
   insert into ${donations} (${d("tenant")}, ${d("donorType")}, ${d("donorId")}, ${d("fund")}, ${d("pledge")}, ${d("periodStart")}, ${d("amount")},
-    ${d("currency")}, ${d("method")}, ${d("provider")}, ${d("note")}, ${d("createdBy")})
+    ${d("currency")}${also("donations", "method")}, ${d("provider")}${also("donations", "note")}, ${d("createdBy")})
   values (open_gift.tenant, open_gift.donor_type, open_gift.donor_id, open_gift.fund_id, open_gift.pledge_id,
     case when open_gift.pledge_id is null then null else open_gift.period_start end, open_gift.amount, open_gift.currency,
-    'card', open_gift.provider, nullif(trim(open_gift.note), ''), auth.uid())
+    ${has("donations", "method") ? "'card', " : ""}open_gift.provider${alsoValue("donations", "note", "nullif(trim(open_gift.note), '')")}, auth.uid())
   on conflict (${d("pledge")}, ${d("periodStart")}) do nothing
   returning * into v_row;${writeExtraColumns(donations, extras, "open_gift.fields", `x.${d("id")} = v_row.${d("id")}`, "v_row")}
   if v_row.${d("id")} is null then
@@ -461,7 +498,7 @@ begin
         and (list_gifts.donor_type is null or (x.${d("donorType")} = list_gifts.donor_type and x.${d("donorId")} = list_gifts.donor_id))
         and (list_gifts.fund_id is null or x.${d("fund")} = list_gifts.fund_id)
         and (list_gifts.pledge_id is null or x.${d("pledge")} = list_gifts.pledge_id)
-        and (list_gifts.status is null or x.${d("status")} = list_gifts.status)
+        and (list_gifts.status is null or ${asText(ctx, "donations", `x.${d("status")}`)} = list_gifts.status)
       order by x.${d("receivedOn")} desc, x.${d("createdAt")} desc
       limit ${pageSize("list_gifts.page_size", 100, 1000)}
     ) q
@@ -490,10 +527,10 @@ begin
     ${invalid("DONATION_PLEDGE_INVALID", "ends_on is after starts_on")}
   end if;
   insert into ${pledges} (${p("tenant")}, ${p("donorType")}, ${p("donorId")}, ${p("fund")}, ${p("amount")}, ${p("currency")}, ${p("frequency")},
-    ${p("startsOn")}, ${p("endsOn")}, ${p("provider")}, ${p("providerCustomer")}, ${p("note")}, ${p("createdBy")})
+    ${p("startsOn")}, ${p("endsOn")}, ${p("provider")}, ${p("providerCustomer")}${also("pledges", "note")}, ${p("createdBy")})
   values (create_pledge.tenant, create_pledge.donor_type, create_pledge.donor_id, create_pledge.fund_id, create_pledge.amount, create_pledge.currency,
-    coalesce(create_pledge.frequency, 'monthly'), coalesce(create_pledge.starts_on, current_date), create_pledge.ends_on,
-    nullif(trim(create_pledge.provider), ''), nullif(trim(create_pledge.provider_customer), ''), nullif(trim(create_pledge.note), ''), auth.uid())
+    ${ctx.cast("pledges", "frequency", "coalesce(create_pledge.frequency, 'monthly')")}, coalesce(create_pledge.starts_on, current_date), create_pledge.ends_on,
+    nullif(trim(create_pledge.provider), ''), nullif(trim(create_pledge.provider_customer), '')${alsoValue("pledges", "note", "nullif(trim(create_pledge.note), '')")}, auth.uid())
   returning * into v_row;
   ${pledgeRecord("pledge.created", "created a pledge")}
   return ${pledgeJson("v_row")};
@@ -530,7 +567,7 @@ begin
     ${invalid("DONATION_AMOUNT_INVALID", "an amount is more than zero minor units")}
   end if;
   update ${pledges} x set
-      ${p("status")} = coalesce(update_pledge.status, x.${p("status")}),
+      ${p("status")} = ${ctx.cast("pledges", "status", `coalesce(update_pledge.status, ${asText(ctx, "pledges", `x.${p("status")}`)})`)},
       ${p("endsOn")} = coalesce(update_pledge.ends_on, x.${p("endsOn")}),
       ${p("amount")} = coalesce(update_pledge.amount, x.${p("amount")}),
       ${p("updatedAt")} = now()
@@ -560,7 +597,7 @@ begin
       select * from ${pledges} x
       where x.${p("tenant")} = list_pledges.tenant
         and (list_pledges.donor_type is null or (x.${p("donorType")} = list_pledges.donor_type and x.${p("donorId")} = list_pledges.donor_id))
-        and (list_pledges.status is null or x.${p("status")} = list_pledges.status)
+        and (list_pledges.status is null or ${asText(ctx, "pledges", `x.${p("status")}`)} = list_pledges.status)
       order by x.${p("createdAt")} desc, x.${p("id")}
       limit ${pageSize("list_pledges.page_size", 100, 1000)}
     ) q
@@ -723,7 +760,7 @@ begin
   if v_receipt.${r("voidedAt")} is not null then
     return ${receiptJson("v_receipt")};
   end if;
-  update ${receipts} x set ${r("voidedAt")} = now(), ${r("voidReason")} = nullif(trim(void_donation_receipt.reason), '')
+  update ${receipts} x set ${r("voidedAt")} = now()${has("receipts", "voidReason") ? `, ${r("voidReason")} = nullif(trim(void_donation_receipt.reason), '')` : ""}
     where x.${r("id")} = v_receipt.${r("id")}
     returning * into v_receipt;
   update ${donations} x set ${d("receipt")} = null, ${d("updatedAt")} = now() where x.${d("receipt")} = v_receipt.${r("id")};

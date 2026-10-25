@@ -76,6 +76,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     frameworks: {
       name: "control_frameworks",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -87,9 +88,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["version", "description", "createdAt", "updatedAt"],
     },
     controls: {
       name: "controls",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -103,9 +106,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description", "owner", "createdAt", "updatedAt"],
     },
     evidence: {
       name: "control_evidence",
+      app: {},
       lifecycle: { tenant: "tenant", user: "collectedBy", export: true },
       columns: {
         id: "id",
@@ -118,9 +123,11 @@ const NAMES: BlockSqlNames = {
         collectedAt: "collected_at",
         validUntil: "valid_until",
       },
+      optional: ["note"],
     },
     tasks: {
       name: "evidence_tasks",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -136,9 +143,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["assignee", "lastCollectedAt", "createdAt", "updatedAt"],
     },
     policies: {
       name: "policies",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -154,9 +163,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["owner", "createdAt", "updatedAt"],
     },
     acknowledgements: {
       name: "policy_acknowledgements",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -193,10 +204,23 @@ function tables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
-  const readPolicy = (logical: string, using: string): string =>
-    `drop policy if exists ${name(logical, "read")} on ${ctx.table(logical)};
-create policy ${name(logical, "read")} on ${ctx.table(logical)} for select to authenticated
+  const opt = (logical: string, column: string, line: () => string): string =>
+    ctx.has(logical, column) ? `\n  ${line()},` : "";
+
+  const readPolicy = (logical: string, using: string): string => {
+    const policy = ctx.owns(logical)
+      ? name(logical, "read")
+      : sqlIdent(`bsb_${ctx.tableName(logical).name}_read`);
+
+    return `drop policy if exists ${policy} on ${ctx.table(logical)};
+create policy ${policy} on ${ctx.table(logical)} for select to authenticated
   using (${using});`;
+  };
+
+  const appKey = (logical: string, what: string, columns: string): string =>
+    ctx.owns(logical)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(logical).name}_${what}_key`)} on ${ctx.table(logical)} (${columns});`;
 
   const versionRef = versions.owns("versions")
     ? ` references ${versions.table("versions")} (${versions.col("versions", "id")}) on delete restrict`
@@ -207,14 +231,10 @@ create table if not exists ${frameworks} (
   ${f("id")} uuid primary key default gen_random_uuid(),
   ${f("tenant")} ${ctx.idType} not null,
   ${f("key")} text not null check (${f("key")} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  ${f("name")} text not null check (length(${f("name")}) between 1 and 200),
-  ${f("version")} text check (${f("version")} is null or length(${f("version")}) <= 50),
-  ${f("description")} text check (${f("description")} is null or length(${f("description")}) <= 4000),
-  ${f("createdAt")} timestamptz not null default now(),
-  ${f("updatedAt")} timestamptz not null default now(),
+  ${f("name")} text not null check (length(${f("name")}) between 1 and 200),${opt("frameworks", "version", () => `${f("version")} text check (${f("version")} is null or length(${f("version")}) <= 50)`)}${opt("frameworks", "description", () => `${f("description")} text check (${f("description")} is null or length(${f("description")}) <= 4000)`)}${opt("frameworks", "createdAt", () => `${f("createdAt")} timestamptz not null default now()`)}${opt("frameworks", "updatedAt", () => `${f("updatedAt")} timestamptz not null default now()`)}
   unique (${f("tenant")}, ${f("key")}),
   unique (${f("tenant")}, ${f("id")})
-);
+);${appKey("frameworks", "tenant_key", `${f("tenant")}, ${f("key")}`)}${appKey("frameworks", "tenant_id", `${f("tenant")}, ${f("id")}`)}
 ${lockTable(frameworks, { read: true })}
 ${readPolicy("frameworks", ctx.scope.check(f("tenant"), read))}
 
@@ -223,19 +243,19 @@ create table if not exists ${controls} (
   ${k("tenant")} ${ctx.idType} not null,
   ${k("framework")} uuid not null,
   ${k("code")} text not null check (length(${k("code")}) between 1 and 50),
-  ${k("title")} text not null check (length(${k("title")}) between 1 and 200),
-  ${k("description")} text check (${k("description")} is null or length(${k("description")}) <= 10000),
-  ${k("owner")} uuid,
+  ${k("title")} text not null check (length(${k("title")}) between 1 and 200),${opt("controls", "description", () => `${k("description")} text check (${k("description")} is null or length(${k("description")}) <= 10000)`)}${opt("controls", "owner", () => `${k("owner")} uuid`)}
   -- A control out of scope (excluded in the statement of applicability).
-  ${k("applicable")} boolean not null default true,
-  ${k("createdAt")} timestamptz not null default now(),
-  ${k("updatedAt")} timestamptz not null default now(),
+  ${k("applicable")} boolean not null default true,${opt("controls", "createdAt", () => `${k("createdAt")} timestamptz not null default now()`)}${opt("controls", "updatedAt", () => `${k("updatedAt")} timestamptz not null default now()`)}
   unique (${k("framework")}, ${k("code")}),
   unique (${k("tenant")}, ${k("id")}),
   foreign key (${k("tenant")}, ${k("framework")}) references ${frameworks} (${f("tenant")}, ${f("id")}) on delete cascade
-);${addExtraColumns(controls, extras)}
-create index if not exists ${name("controls", "tenant_idx")} on ${controls} (${k("tenant")}, ${k("framework")});
-create index if not exists ${name("controls", "owner_idx")} on ${controls} (${k("tenant")}, ${k("owner")}) where ${k("owner")} is not null;
+);${addExtraColumns(controls, extras)}${appKey("controls", "framework_code", `${k("framework")}, ${k("code")}`)}${appKey("controls", "tenant_id", `${k("tenant")}, ${k("id")}`)}
+create index if not exists ${name("controls", "tenant_idx")} on ${controls} (${k("tenant")}, ${k("framework")});${
+    ctx.has("controls", "owner")
+      ? `
+create index if not exists ${name("controls", "owner_idx")} on ${controls} (${k("tenant")}, ${k("owner")}) where ${k("owner")} is not null;`
+      : ""
+  }
 ${lockTable(controls, { read: true })}
 ${readPolicy("controls", ctx.scope.check(k("tenant"), read))}
 
@@ -243,24 +263,19 @@ create table if not exists ${tasks} (
   ${t("id")} uuid primary key default gen_random_uuid(),
   ${t("tenant")} ${ctx.idType} not null,
   ${t("control")} uuid not null,
-  ${t("title")} text not null check (length(${t("title")}) between 1 and 200),
-  ${t("assignee")} uuid,
+  ${t("title")} text not null check (length(${t("title")}) between 1 and 200),${opt("tasks", "assignee", () => `${t("assignee")} uuid`)}
   -- Collecting evidence moves due_on this many days past the collection.
   ${t("intervalDays")} integer not null check (${t("intervalDays")} between 1 and 3650),
-  ${t("dueOn")} date not null,
-  ${t("lastCollectedAt")} timestamptz,
+  ${t("dueOn")} date not null,${opt("tasks", "lastCollectedAt", () => `${t("lastCollectedAt")} timestamptz`)}
   -- The due date notify_overdue_evidence_tasks last reported, so each lapse notifies once.
   ${t("notifiedFor")} date,
-  ${t("active")} boolean not null default true,
-  ${t("createdAt")} timestamptz not null default now(),
-  ${t("updatedAt")} timestamptz not null default now(),
+  ${t("active")} boolean not null default true,${opt("tasks", "createdAt", () => `${t("createdAt")} timestamptz not null default now()`)}${opt("tasks", "updatedAt", () => `${t("updatedAt")} timestamptz not null default now()`)}
   foreign key (${t("tenant")}, ${t("control")}) references ${controls} (${k("tenant")}, ${k("id")}) on delete cascade
 );
 create index if not exists ${name("tasks", "parent_idx")} on ${tasks} (${t("tenant")}, ${t("control")});
-create index if not exists ${name("tasks", "assignee_idx")} on ${tasks} (${t("tenant")}, ${t("assignee")}, ${t("dueOn")}) where ${t("assignee")} is not null;
-create index if not exists ${name("tasks", "due_idx")} on ${tasks} (${t("dueOn")}) where ${t("active")};
+${ctx.has("tasks", "assignee") ? `create index if not exists ${name("tasks", "assignee_idx")} on ${tasks} (${t("tenant")}, ${t("assignee")}, ${t("dueOn")}) where ${t("assignee")} is not null;\n` : ""}create index if not exists ${name("tasks", "due_idx")} on ${tasks} (${t("dueOn")}) where ${t("active")};
 ${lockTable(tasks, { read: true })}
-${readPolicy("tasks", `${t("assignee")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)}`)}
+${readPolicy("tasks", ctx.has("tasks", "assignee") ? `${t("assignee")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)}` : ctx.scope.check(t("tenant"), read))}
 
 create table if not exists ${evidence} (
   ${e("id")} uuid primary key default gen_random_uuid(),
@@ -268,13 +283,12 @@ create table if not exists ${evidence} (
   ${e("control")} uuid not null,
   ${e("task")} uuid references ${tasks} (${t("id")}) on delete set null,
   -- The file behind the evidence, an attachment on the control.
-  ${e("attachment")} uuid${attachments === undefined ? "" : ` references ${attachments.table("attachments")} (${attachments.col("attachments", "id")}) on delete cascade`},
-  ${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 4000),
+  ${e("attachment")} uuid${attachments === undefined ? "" : ` references ${attachments.table("attachments")} (${attachments.col("attachments", "id")}) on delete cascade`},${opt("evidence", "note", () => `${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 4000)`)}
   ${e("collectedBy")} uuid,
   ${e("collectedAt")} timestamptz not null default now(),
   -- The last day the evidence counts; null counts until it is removed.
   ${e("validUntil")} date,
-  check (${e("attachment")} is not null or ${e("note")} is not null),
+  check (${e("attachment")} is not null${ctx.has("evidence", "note") ? ` or ${e("note")} is not null` : ""}),
   foreign key (${e("tenant")}, ${e("control")}) references ${controls} (${k("tenant")}, ${k("id")}) on delete cascade
 );
 create index if not exists ${name("evidence", "parent_idx")} on ${evidence} (${e("tenant")}, ${e("control")}, ${e("collectedAt")} desc);
@@ -287,19 +301,16 @@ create table if not exists ${policies} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
   ${p("key")} text not null check (${p("key")} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  ${p("title")} text not null check (length(${p("title")}) between 1 and 200),
-  ${p("owner")} uuid,
+  ${p("title")} text not null check (length(${p("title")}) between 1 and 200),${opt("policies", "owner", () => `${p("owner")} uuid`)}
   ${p("requiresAck")} boolean not null default true,
   -- The published version (versions block), frozen.
   ${p("currentVersion")} uuid${versionRef},
   ${p("versionNumber")} integer,
   ${p("publishedAt")} timestamptz,
-  ${p("archivedAt")} timestamptz,
-  ${p("createdAt")} timestamptz not null default now(),
-  ${p("updatedAt")} timestamptz not null default now(),
+  ${p("archivedAt")} timestamptz,${opt("policies", "createdAt", () => `${p("createdAt")} timestamptz not null default now()`)}${opt("policies", "updatedAt", () => `${p("updatedAt")} timestamptz not null default now()`)}
   unique (${p("tenant")}, ${p("key")}),
   unique (${p("tenant")}, ${p("id")})
-);
+);${appKey("policies", "tenant_key", `${p("tenant")}, ${p("key")}`)}${appKey("policies", "tenant_id", `${p("tenant")}, ${p("id")}`)}
 create index if not exists ${name("policies", "version_idx")} on ${policies} (${p("currentVersion")}) where ${p("currentVersion")} is not null;
 ${lockTable(policies, { read: true })}
 ${readPolicy("policies", `${ctx.scope.check(p("tenant"), read)} or ${ctx.scope.check(p("tenant"), acknowledge)}`)}
@@ -313,7 +324,7 @@ create table if not exists ${acks} (
   ${a("acknowledgedAt")} timestamptz not null default now(),
   unique (${a("policy")}, ${a("version")}, ${a("user")}),
   foreign key (${a("tenant")}, ${a("policy")}) references ${policies} (${p("tenant")}, ${p("id")}) on delete cascade
-);
+);${appKey("acknowledgements", "policy_version_user", `${a("policy")}, ${a("version")}, ${a("user")}`)}
 create index if not exists ${name("acknowledgements", "user_idx")} on ${acks} (${a("tenant")}, ${a("user")});
 create index if not exists ${name("acknowledgements", "parent_idx")} on ${acks} (${a("tenant")}, ${a("policy")});
 create index if not exists ${name("acknowledgements", "version_idx")} on ${acks} (${a("version")});

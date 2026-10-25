@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { uniqueContributions } from "../contributions.ts";
 import { columnRef } from "../shared.ts";
+import { tenantColumnOf } from "../subject-registry.ts";
 
 const ENTITY = /^[a-z][a-z0-9_]*$/;
 const PREDICATE = /^[A-Za-z0-9_.'"=<>!(), \t-]+$/;
@@ -100,7 +101,7 @@ export function sequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
   }
 
   const configured = Object.entries(raw ?? {}).map(([name, entry]) =>
-    entity(name, entry),
+    entity(ctx, name, entry),
   );
 
   const named = new Set(configured.map((item) => item.name));
@@ -113,7 +114,9 @@ export function sequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
         .contributions("numbering")
         .filter((contribution) => !named.has(contribution.entity)),
       (contribution) => contribution.entity,
-    ).map((contribution) => entity(contribution.entity, contribution.entry)),
+    ).map((contribution) =>
+      entity(ctx, contribution.entity, contribution.entry),
+    ),
   ];
 }
 
@@ -141,7 +144,11 @@ export function sequenceEntry(
     .find((contribution) => contribution.entity === name)?.entry;
 }
 
-function entity(name: string, entry: unknown): SequenceEntity {
+function entity(
+  ctx: BlockSqlContext,
+  name: string,
+  entry: unknown,
+): SequenceEntity {
   const where = `blocks.numbering.options.entities.${name}`;
 
   if (!ENTITY.test(name)) {
@@ -235,7 +242,11 @@ function entity(name: string, entry: unknown): SequenceEntity {
     );
   }
 
-  const tenantColumn = record["tenantColumn"] ?? "tenant_id";
+  const tenantColumn =
+    record["tenantColumn"] ??
+    (typeof table === "string"
+      ? tenantColumnOf(table, ctx.subjects, ctx.naming)
+      : ctx.naming.rename("organization_id"));
 
   if (typeof tenantColumn !== "string" || !ENTITY.test(tenantColumn)) {
     throw new TypeError(`${where}.tenantColumn must be a column name`);

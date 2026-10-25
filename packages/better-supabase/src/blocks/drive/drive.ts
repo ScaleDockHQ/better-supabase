@@ -1028,12 +1028,18 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
  * are the tenant-wide floor; grants decide per node.
  */
 export function driveSubject(
-  options: { readonly schema?: string } = {},
+  options: {
+    readonly schema?: string;
+    /** `blocks.drive.tables.nodes`. Default `drive_nodes`. */
+    readonly table?: string;
+    /** `blocks.drive.columns.nodes.tenant`. Default `tenant_id`. */
+    readonly tenant?: string;
+  } = {},
 ): SubjectConfig {
   return {
-    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.drive_nodes`,
+    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.${options.table ?? "drive_nodes"}`,
     idType: "uuid",
-    tenant: "tenant_id",
+    tenant: options.tenant ?? "tenant_id",
     title: "name",
     deletedAt: "deleted_at",
     permissions: { read: "drive.read", write: "drive.manage" },

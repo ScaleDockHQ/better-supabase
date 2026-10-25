@@ -8018,7 +8018,7 @@ async function loadFlags(): Promise<readonly FlagValue[] | null> {
   return Promise.all(
     FLAG_KEYS.map(async (key) => ({
       key,
-      on: (await db.$api("flag_enabled", { key, tenant })) === true,
+      on: (await db.$api("flag_enabled", { key, tenant }).orThrow()) === true,
     })),
   );
 }

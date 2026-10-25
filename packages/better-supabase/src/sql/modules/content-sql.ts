@@ -29,6 +29,19 @@ export interface ContentSql {
   readonly fn: (name: string) => string;
   /** A column of the entries table. */
   readonly e: (column: string) => string;
+  /** Whether the entries table has an optional column. */
+  readonly has: (column: string) => boolean;
+  /** `row.column`, or `null` when the entries table lacks the column. */
+  readonly of: (row: string, column: string) => string;
+  /**
+   * `value` as the type of a `typed` entries column. Comparisons pass `"null"`,
+   * so a value the app's enum lacks matches nothing.
+   */
+  readonly cast: (
+    column: string,
+    value: string,
+    invalid?: "raise" | "null",
+  ) => string;
   readonly entries: string;
   /** The entries' subject type, after renames, as a SQL literal. */
   readonly subject: string;
@@ -113,6 +126,12 @@ function requiresApproval(ctx: BlockSqlContext): boolean {
     return false;
   }
 
+  if (!ctx.has("entries", "approval")) {
+    throw new TypeError(
+      `${WHERE}.requireApproval needs the entries table's approval column`,
+    );
+  }
+
   if (!ctx.installed("approvals")) {
     throw new TypeError(
       `${WHERE}.requireApproval needs the approvals block installed`,
@@ -166,9 +185,14 @@ const managed = (
 
 export function contentSql(ctx: BlockSqlContext): ContentSql {
   const e = (column: string): string => ctx.col("entries", column);
+  const has = (column: string): boolean => ctx.has("entries", column);
+
+  const of = (row: string, column: string): string =>
+    has(column) ? `${row}.${e(column)}` : "null";
+
   const types = contentTypes(ctx);
   const locales = contentLocales(ctx);
-  const approvals = managed(ctx, "approvals");
+  const approvals = has("approval") ? managed(ctx, "approvals") : undefined;
   const attachments = managed(ctx, "attachments");
   const read = ctx.permission("read", OPERATIONS["content.read"]);
 
@@ -186,6 +210,10 @@ export function contentSql(ctx: BlockSqlContext): ContentSql {
   return {
     fn: (name) => ctx.fn(name),
     e,
+    has,
+    of,
+    cast: (column, value, invalid) =>
+      ctx.cast("entries", column, value, invalid),
     entries: ctx.table("entries"),
     subject: sqlString(ctx.naming.rename("content_entry")),
     types: textArray(types),
@@ -214,7 +242,7 @@ export function contentSql(ctx: BlockSqlContext): ContentSql {
     where r.${approvals.col("requests", "id")} = ${row}.${e("approval")} and r.${approvals.col("requests", "status")} = 'pending';
   end if;`,
     json: (row) =>
-      `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'type', ${row}.${e("type")}, 'locale', ${row}.${e("locale")}, 'slug', ${row}.${e("slug")}, 'title', ${row}.${e("title")}, 'summary', ${row}.${e("summary")}, 'body', ${row}.${e("body")}, 'status', ${row}.${e("status")}, 'publishAt', ${row}.${e("publishAt")}, 'publishedAt', ${row}.${e("publishedAt")}, 'authorId', ${row}.${e("author")}, 'translationGroupId', ${row}.${e("translationGroup")}, 'coverAttachmentId', ${row}.${e("cover")}, 'approvalId', ${row}.${e("approval")}, 'approvalStatus', ${approvalStatus(row)}, 'createdBy', ${row}.${e("createdBy")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'type', ${row}.${e("type")}, 'locale', ${row}.${e("locale")}, 'slug', ${row}.${e("slug")}, 'title', ${row}.${e("title")}, 'summary', ${of(row, "summary")}, 'body', ${row}.${e("body")}, 'status', ${row}.${e("status")}, 'publishAt', ${row}.${e("publishAt")}, 'publishedAt', ${row}.${e("publishedAt")}, 'authorId', ${row}.${e("author")}, 'translationGroupId', ${row}.${e("translationGroup")}, 'coverAttachmentId', ${of(row, "cover")}, 'approvalId', ${of(row, "approval")}, 'approvalStatus', ${approvalStatus(row)}, 'createdBy', ${of(row, "createdBy")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")})`,
     record: (type, row, summary) =>
       ctx.record({
         type,

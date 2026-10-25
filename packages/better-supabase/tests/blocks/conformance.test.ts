@@ -88,6 +88,8 @@ const NO_FIELDS: readonly string[] = [
   // Guests and grants are access rows; who the guest is lives in their party.
   "guests",
   // Linked accounts and verification codes are auth bookkeeping.
+  // Request keys and leases the block writes itself.
+  "idempotency",
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.
   "imports",
@@ -123,6 +125,9 @@ const NO_FIELDS: readonly string[] = [
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
+  // Job rows, schedules and rate limit rules belong to the block's functions.
+  "queue",
+  "rate-limit",
   "reactions",
   // Models hold rule trees and metrics; the app's data lives on the scored
   // subjects, which pass their fields to compute_score.

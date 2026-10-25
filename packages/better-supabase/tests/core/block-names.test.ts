@@ -24,6 +24,18 @@ async function call(
 }
 
 describe("blockNames", () => {
+  it("gives rows the tenant column the config renames by its default name", async () => {
+    const { result } = await call(
+      { columns: { org_id: "tenant_id" } },
+      "list_tasks",
+      [{ id: "t1", org_id: "o1", metadata: { org_id: "kept" } }],
+    );
+
+    expect(result).toEqual([
+      { id: "t1", tenant_id: "o1", metadata: { org_id: "kept" } },
+    ]);
+  });
+
   it("calls the functions by the tenant name", async () => {
     expect(
       (await call({ tenant: "workspace" }, "create_organization")).fn,

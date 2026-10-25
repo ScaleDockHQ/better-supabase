@@ -34,11 +34,12 @@ const forbidden = (
 function defaultClaims(
   automation: AutomationRef,
   publisher: string,
+  tenantClaim: string,
 ): Readonly<Record<string, unknown>> {
   return {
     role: "authenticated",
     sub: publisher,
-    ...(automation.tenant === null ? {} : { tenant_id: automation.tenant }),
+    ...(automation.tenant === null ? {} : { [tenantClaim]: automation.tenant }),
     [PERMISSION_CAP_CLAIM]: automation.permissions,
   };
 }
@@ -143,6 +144,7 @@ export function runAsPublisher(
   runAs: AutomationHooks["runAs"],
   version: string | undefined,
   tenant?: string,
+  tenantClaim = "tenant_id",
 ): AsyncResult<Readonly<Record<string, unknown>>> {
   if (version === undefined) {
     return AsyncResult.err(
@@ -178,7 +180,7 @@ export function runAsPublisher(
         );
       }
 
-      return ok(defaultClaims(automation, automation.publisher));
+      return ok(defaultClaims(automation, automation.publisher, tenantClaim));
     }
 
     const claims = await settled(() => runAs(automation));

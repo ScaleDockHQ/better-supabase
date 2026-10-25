@@ -1,8 +1,9 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { SCHEMA, serviceOnly, revokeTable } from "../shared.ts";
-import { table } from "./queue-table.ts";
+import { sqlIdent } from "../../core/template.ts";
+import { schemaPreamble, serviceOnly, revokeTable } from "../shared.ts";
+import { MESSAGES_TABLE, table } from "./queue-table.ts";
 
 export type JobsBackend = "pgmq" | "table";
 
@@ -542,31 +543,45 @@ as $$
   select 0;
 $$;`;
 
-const DRAIN = `-- Recurring jobs without pg_cron: the drain route (jobs.drainRoute) claims due
+function drain(ctx: BlockSqlContext): string {
+  const schedules = ctx.table("schedules");
+  const c = (column: string): string => ctx.col("schedules", column);
+  const { name } = ctx.tableName("schedules");
+  const index = (what: string): string => sqlIdent(`${name}_${what}`);
+
+  // Before first_after, every schedule had a next run.
+  const legacy = ctx.owns("schedules")
+    ? `\nalter table ${schedules} alter column ${c("nextRun")} drop not null;`
+    : "";
+
+  const jobNameKey = ctx.owns("schedules")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_job_name_key`)} on ${schedules} (${c("jobName")});`;
+
+  return `-- Recurring jobs without pg_cron: the drain route (jobs.drainRoute) claims due
 -- schedules, enqueues a run and moves next_run on. Times are computed in
 -- TypeScript, in each schedule's time zone. A schedule written in SQL without a
 -- next run (a trigger calling schedule_job) keeps next_run null and first_after
 -- set, and the next drain computes its first run after first_after.
-create table if not exists better_supabase.job_schedules (
-  job_name text primary key,
-  schedule text not null,
-  timezone text not null default 'UTC',
-  queue text not null,
-  payload jsonb not null default '{}',
-  next_run timestamptz not null,
-  last_run timestamptz,
-  locked_until timestamptz,
-  created_at timestamptz not null default now()
+create table if not exists ${schedules} (
+  ${c("jobName")} text primary key,
+  ${c("schedule")} text not null,
+  ${c("timezone")} text not null default 'UTC',
+  ${c("queue")} text not null,
+  ${c("payload")} jsonb not null default '{}',
+  ${c("nextRun")} timestamptz not null,
+  ${c("lastRun")} timestamptz,
+  ${c("lockedUntil")} timestamptz,
+  ${c("createdAt")} timestamptz not null default now()
 );
 -- The tenant a schedule runs for, so a tenant's schedules can be listed and
 -- removed together (unschedule_tenant).
-alter table better_supabase.job_schedules add column if not exists tenant text;
-alter table better_supabase.job_schedules add column if not exists first_after timestamptz;
-alter table better_supabase.job_schedules alter column next_run drop not null;
-create index if not exists job_schedules_due_idx on better_supabase.job_schedules (next_run);
-create index if not exists job_schedules_tenant_idx on better_supabase.job_schedules (tenant) where tenant is not null;
-alter table better_supabase.job_schedules enable row level security;
-${revokeTable("better_supabase.job_schedules")}
+alter table ${schedules} add column if not exists ${c("tenant")} text;
+alter table ${schedules} add column if not exists ${c("firstAfter")} timestamptz;${legacy}${jobNameKey}
+create index if not exists ${index("due_idx")} on ${schedules} (${c("nextRun")});
+create index if not exists ${index("tenant_idx")} on ${schedules} (${c("tenant")}) where ${c("tenant")} is not null;
+alter table ${schedules} enable row level security;
+${revokeTable(schedules)}
 
 -- jobs.schedule passes the next cron time. Without next_run, the next drain
 -- computes the first run after now. Writing a schedule again with the same
@@ -586,6 +601,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = timezone) then
     raise exception 'Unknown time zone %', timezone;
@@ -594,26 +610,26 @@ begin
     raise exception 'Invalid schedule %: expected five cron fields, a macro such as @daily, or an interval such as 5 minutes', schedule
       using errcode = '22023';
   end if;
-  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run, first_after, tenant)
+  insert into ${schedules} as s (${c("jobName")}, ${c("schedule")}, ${c("timezone")}, ${c("queue")}, ${c("payload")}, ${c("nextRun")}, ${c("firstAfter")}, ${c("tenant")})
   values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', next_run),
     case when next_run is null then date_trunc('milliseconds', now()) end, tenant)
-  on conflict on constraint job_schedules_pkey do update
-    set schedule = excluded.schedule,
-        timezone = excluded.timezone,
-        queue = excluded.queue,
-        payload = excluded.payload,
-        next_run = case
-          when job_schedules.schedule = excluded.schedule and job_schedules.timezone = excluded.timezone
-            then job_schedules.next_run
-          else excluded.next_run
+  on conflict (${c("jobName")}) do update
+    set ${c("schedule")} = excluded.${c("schedule")},
+        ${c("timezone")} = excluded.${c("timezone")},
+        ${c("queue")} = excluded.${c("queue")},
+        ${c("payload")} = excluded.${c("payload")},
+        ${c("nextRun")} = case
+          when s.${c("schedule")} = excluded.${c("schedule")} and s.${c("timezone")} = excluded.${c("timezone")}
+            then s.${c("nextRun")}
+          else excluded.${c("nextRun")}
         end,
-        first_after = case
-          when job_schedules.schedule = excluded.schedule and job_schedules.timezone = excluded.timezone
-            then job_schedules.first_after
-          else excluded.first_after
+        ${c("firstAfter")} = case
+          when s.${c("schedule")} = excluded.${c("schedule")} and s.${c("timezone")} = excluded.${c("timezone")}
+            then s.${c("firstAfter")}
+          else excluded.${c("firstAfter")}
         end,
-        tenant = excluded.tenant,
-        locked_until = null;
+        ${c("tenant")} = excluded.${c("tenant")},
+        ${c("lockedUntil")} = null;
   return null;
 end;
 $$;
@@ -627,11 +643,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select s.job_name, s.schedule, s.timezone, s.queue, s.tenant, s.next_run, s.last_run, s.locked_until, s.created_at
-  from better_supabase.job_schedules s
-  where (list_schedules.name_prefix is null or starts_with(s.job_name, list_schedules.name_prefix))
-    and (list_schedules.for_tenant is null or s.tenant = list_schedules.for_tenant)
-  order by s.job_name;
+  select s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("tenant")}, s.${c("nextRun")}, s.${c("lastRun")}, s.${c("lockedUntil")}, s.${c("createdAt")}
+  from ${schedules} s
+  where (list_schedules.name_prefix is null or starts_with(s.${c("jobName")}, list_schedules.name_prefix))
+    and (list_schedules.for_tenant is null or s.${c("tenant")} = list_schedules.for_tenant)
+  order by s.${c("jobName")};
 $$;
 
 -- Removes every schedule of a tenant, for tenant deletion. Returns how many.
@@ -642,7 +658,7 @@ security definer
 set search_path = ''
 as $$
   with removed as (
-    delete from better_supabase.job_schedules s where s.tenant = unschedule_tenant.tenant returning 1
+    delete from ${schedules} s where s.${c("tenant")} = unschedule_tenant.tenant returning 1
   )
   select count(*)::integer from removed;
 $$;
@@ -654,7 +670,7 @@ security definer
 set search_path = ''
 as $$
   with removed as (
-    delete from better_supabase.job_schedules s where s.job_name = unschedule_job.job_name returning 1
+    delete from ${schedules} s where s.${c("jobName")} = unschedule_job.job_name returning 1
   )
   select exists (select 1 from removed);
 $$;
@@ -671,19 +687,19 @@ as $$
 begin
   return query
     with due as (
-      select s.job_name
-      from better_supabase.job_schedules s
-      where (s.next_run is null or s.next_run <= clock_timestamp())
-        and (s.locked_until is null or s.locked_until < clock_timestamp())
-      order by s.next_run nulls first
+      select s.${c("jobName")} as job_name
+      from ${schedules} s
+      where (s.${c("nextRun")} is null or s.${c("nextRun")} <= clock_timestamp())
+        and (s.${c("lockedUntil")} is null or s.${c("lockedUntil")} < clock_timestamp())
+      order by s.${c("nextRun")} nulls first
       limit greatest(batch, 1)
       for update skip locked
     )
-    update better_supabase.job_schedules s
-    set locked_until = clock_timestamp() + make_interval(secs => lease)
+    update ${schedules} s
+    set ${c("lockedUntil")} = clock_timestamp() + make_interval(secs => lease)
     from due
-    where s.job_name = due.job_name
-    returning s.job_name, s.schedule, s.timezone, s.queue, s.payload, s.next_run, s.first_after;
+    where s.${c("jobName")} = due.job_name
+    returning s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("payload")}, s.${c("nextRun")}, s.${c("firstAfter")};
 end;
 $$;
 
@@ -698,20 +714,21 @@ security definer
 set search_path = ''
 as $$
   with advanced as (
-    update better_supabase.job_schedules s
-    set next_run = date_trunc('milliseconds', advance_schedule.next_run),
-        last_run = coalesce(ran, s.last_run),
-        first_after = null,
-        locked_until = null
-    where s.job_name = advance_schedule.job_name
+    update ${schedules} s
+    set ${c("nextRun")} = date_trunc('milliseconds', advance_schedule.next_run),
+        ${c("lastRun")} = coalesce(ran, s.${c("lastRun")}),
+        ${c("firstAfter")} = null,
+        ${c("lockedUntil")} = null
+    where s.${c("jobName")} = advance_schedule.job_name
       and (
-        date_trunc('milliseconds', s.next_run) = date_trunc('milliseconds', ran)
-        or (s.next_run is null and s.first_after is not null)
+        date_trunc('milliseconds', s.${c("nextRun")}) = date_trunc('milliseconds', ran)
+        or (s.${c("nextRun")} is null and s.${c("firstAfter")} is not null)
       )
     returning 1
   )
   select exists (select 1 from advanced);
 $$;`;
+}
 
 const GRANTS = (backend: JobsBackend): string =>
   serviceOnly([
@@ -737,15 +754,43 @@ const GRANTS = (backend: JobsBackend): string =>
     "retry_dead_jobs(text, bigint[], integer)",
   ]);
 
+// Both tables exist only with their option: messages with backend "table",
+// schedules with scheduler "drain". pgmq keeps its own per-queue tables.
+const NAMES: BlockSqlNames = {
+  options: ["backend", "scheduler"],
+  tables: {
+    messages: MESSAGES_TABLE,
+    schedules: {
+      name: "job_schedules",
+      app: { writes: false },
+      columns: {
+        jobName: "job_name",
+        schedule: "schedule",
+        timezone: "timezone",
+        queue: "queue",
+        payload: "payload",
+        nextRun: "next_run",
+        lastRun: "last_run",
+        lockedUntil: "locked_until",
+        createdAt: "created_at",
+        tenant: "tenant",
+        firstAfter: "first_after",
+      },
+    },
+  },
+};
+
 function jobsSql(ctx: BlockSqlContext): string {
   const backend = jobsBackend(ctx);
   const scheduler = jobsScheduler(ctx);
 
   return [
-    SCHEMA,
+    schemaPreamble(ctx),
     LEGACY,
-    backend === "pgmq" ? pgmq(archiveGuard(ctx)) : table(archiveGuard(ctx)),
-    scheduler === "pg_cron" ? PG_CRON(backend) : DRAIN,
+    backend === "pgmq"
+      ? pgmq(archiveGuard(ctx))
+      : table(ctx, archiveGuard(ctx)),
+    scheduler === "pg_cron" ? PG_CRON(backend) : drain(ctx),
     GRANTS(backend),
   ].join("\n\n");
 }
@@ -759,7 +804,7 @@ export const JOBS: BlockSqlDefinition = {
   integrates: ["data-lifecycle"],
   target: "schema",
   version: 8,
-  names: { tables: {}, options: ["backend", "scheduler"] },
+  names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:94ff7d5daa158de26d092ffc8eac446d9ae1a5cad91b36b14115a0b5544764d3
+-- @bsb-hash sha256:fe32a44c3d62db3ca50905f72f6f0304408dd5e43d44f062319af047583630bb
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -281,21 +281,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -754,10 +767,17 @@ begin
   delete from "better_supabase"."deal_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."deal_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_deal_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';

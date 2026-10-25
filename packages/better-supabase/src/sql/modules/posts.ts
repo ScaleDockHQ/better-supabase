@@ -8,7 +8,8 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { lockModuleTable } from "./over-app.ts";
 import { postFunctions } from "./posts-functions.ts";
 import { postsSql } from "./posts-sql.ts";
 import { POST_TRIGGERS, postTriggers } from "./posts-triggers.ts";
@@ -57,6 +58,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     boards: {
       name: "post_boards",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -70,9 +72,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description", "archivedAt", "createdBy", "updatedAt"],
+      typed: ["kind"],
     },
     posts: {
       name: "posts",
+      app: {},
       lifecycle: { tenant: "tenant", user: "author", export: true },
       columns: {
         id: "id",
@@ -91,6 +96,14 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "pinnedAt",
+        "lockedAt",
+        "replyCount",
+        "lastActivityAt",
+        "updatedAt",
+      ],
+      typed: ["status", "moderation"],
     },
   },
 };
@@ -114,18 +127,30 @@ function tables(ctx: BlockSqlContext): string {
 
   const statuses = POST_STATUSES.map((status) => `'${status}'`).join(", ");
 
+  // A column definition, left out when the app maps the column to null.
+  const column = (
+    table: string,
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, logical)
+      ? `\n  ${ctx.col(table, logical)} ${definition(ctx.col(table, logical))},`
+      : "";
+
+  const boardOrder = [
+    p("board"),
+    ...(q.hasPost("pinnedAt") ? [`${p("pinnedAt")} desc nulls last`] : []),
+    ...(q.hasPost("lastActivityAt") ? [`${p("lastActivityAt")} desc`] : []),
+  ].join(", ");
+
   return `create table if not exists ${boards} (
   ${b("id")} uuid primary key default gen_random_uuid(),
   ${b("tenant")} ${ctx.idType} not null,
   ${b("key")} text not null check (${b("key")} ~ '^[a-z0-9][a-z0-9_-]{0,62}$'),
-  ${b("name")} text not null check (length(${b("name")}) between 1 and 200),
-  ${b("description")} text check (${b("description")} is null or length(${b("description")}) <= 2000),
+  ${b("name")} text not null check (length(${b("name")}) between 1 and 200),${column("boards", "description", (name) => `text check (${name} is null or length(${name}) <= 2000)`)}
   -- forum: discussion threads; feedback: ideas members vote on, with a status.
-  ${b("kind")} text not null default 'forum' check (${b("kind")} in ('forum', 'feedback')),
-  ${b("archivedAt")} timestamptz,
-  ${b("createdBy")} uuid,
-  ${b("createdAt")} timestamptz not null default now(),
-  ${b("updatedAt")} timestamptz not null default now(),
+  ${b("kind")} text not null default 'forum' check (${b("kind")} in ('forum', 'feedback')),${column("boards", "archivedAt", () => "timestamptz")}${column("boards", "createdBy", () => "uuid")}
+  ${b("createdAt")} timestamptz not null default now(),${column("boards", "updatedAt", () => "timestamptz not null default now()")}
   unique (${b("tenant")}, ${b("key")})
 );
 
@@ -138,25 +163,20 @@ create table if not exists ${posts} (
   ${p("body")} text not null default '' check (length(${p("body")}) <= ${String(q.maxBody)}),
   ${p("status")} text not null default 'open' check (${p("status")} in (${statuses})),
   -- The moderation item's status, kept in step by a trigger.
-  ${p("moderation")} text not null default 'visible' check (${p("moderation")} in ('visible', 'pending', 'hidden', 'removed')),
-  ${p("pinnedAt")} timestamptz,
-  ${p("lockedAt")} timestamptz,
-  ${p("mergedInto")} uuid references ${posts} (${p("id")}) on delete set null check (${p("mergedInto")} is distinct from ${p("id")}),
-  ${p("replyCount")} integer not null default 0,
-  ${p("lastActivityAt")} timestamptz not null default now(),
-  ${p("createdAt")} timestamptz not null default now(),
-  ${p("updatedAt")} timestamptz not null default now()
+  ${p("moderation")} text not null default 'visible' check (${p("moderation")} in ('visible', 'pending', 'hidden', 'removed')),${column("posts", "pinnedAt", () => "timestamptz")}${column("posts", "lockedAt", () => "timestamptz")}
+  ${p("mergedInto")} uuid references ${posts} (${p("id")}) on delete set null check (${p("mergedInto")} is distinct from ${p("id")}),${column("posts", "replyCount", () => "integer not null default 0")}${column("posts", "lastActivityAt", () => "timestamptz not null default now()")}
+  ${p("createdAt")} timestamptz not null default now()${q.hasPost("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
 );${addExtraColumns(posts, q.extras)}
-create index if not exists ${name("posts", "board_idx")} on ${posts} (${p("board")}, ${p("pinnedAt")} desc nulls last, ${p("lastActivityAt")} desc);
+create index if not exists ${name("posts", "board_idx")} on ${posts} (${boardOrder});
 create index if not exists ${name("posts", "tenant_idx")} on ${posts} (${p("tenant")}, ${p("createdAt")} desc);
 create index if not exists ${name("posts", "author_idx")} on ${posts} (${p("author")});
 create index if not exists ${name("posts", "merged_idx")} on ${posts} (${p("mergedInto")});
 
-${lockTable(boards, { read: true })}
+${lockModuleTable(ctx, "boards", { read: true })}
 drop policy if exists ${name("boards", "read")} on ${boards};
 create policy ${name("boards", "read")} on ${boards} for select to authenticated
   using (${ctx.scope.check(b("tenant"), read)});
-${lockTable(posts, { read: true })}
+${lockModuleTable(ctx, "posts", { read: true })}
 drop policy if exists ${name("posts", "read")} on ${posts};
 create policy ${name("posts", "read")} on ${posts} for select to authenticated
   using (${ctx.scope.check(p("tenant"), read)} and (

@@ -141,11 +141,36 @@ describe("state machine", () => {
       },
     });
 
-    expect(sql).toContain(`where "tenant_id" = new."tenant_id"
+    expect(sql).toContain(`where "tenant_id" = new."organization_id"
     and "subject_type" = 'quote'`);
     expect(sql).toContain(
-      `where s."tenant_id" = new."tenant_id" and s."subject_type" = 'quote' and s."subject_id" = new."id"::text`,
+      `where s."tenant_id" = new."organization_id" and s."subject_type" = 'quote' and s."subject_id" = new."id"::text`,
     );
+  });
+
+  it("takes the tenant column of a named table from config.records", () => {
+    const sql = renderBlocks(["state-machine"], {
+      modules: { "state-machine": { options: { machines: { quote } } } },
+      subjects: { offer: { table: "quotes", tenant: "org_id" } },
+    })
+      .filter((file) => file.module === "state-machine")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('new."org_id"');
+    expect(sql).not.toContain('new."tenant_id"');
+  });
+
+  it("follows the tenant rename for a table config.records leaves out", () => {
+    const sql = sqlOf(
+      {
+        memberships: { entities: { organization: "workspace" } },
+        "state-machine": { options: { machines: { quote } } },
+      },
+      ["memberships"],
+    );
+
+    expect(sql).toContain('new."workspace_id"');
   });
 
   it("lets a caller read history, stages and lifecycles of records they can see", () => {

@@ -1,0 +1,155 @@
+import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
+import type { BlockSqlEvents, BlockSqlNames } from "../context.ts";
+
+const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
+  "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
+  "attachment.uploaded": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "uploadedBy",
+      "mimeType",
+      "size",
+    ],
+  },
+  "attachment.scanned": {
+    subject: "attachments",
+    payload: ["attachmentId", "organizationId", "status", "uploadedBy"],
+    retries: true,
+  },
+  "attachment.replaced": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "uploadedBy",
+      "version",
+    ],
+  },
+  "attachment.restored": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "version",
+    ],
+  },
+};
+
+/** The keys the attachment reads return next to the extra columns. */
+export const RESERVED = ["fields"] as const;
+
+export const NAMES: BlockSqlNames = {
+  entities: {
+    attachment: { table: "attachments", singular: "attachment", primary: true },
+  },
+  events: EVENTS,
+  options: [
+    "bucket",
+    "requireScan",
+    "maxSize",
+    "allowedMimeTypes",
+    "path",
+    "scanBuckets",
+    "publicBuckets",
+    "offline",
+    "extraColumns",
+  ],
+  tables: {
+    attachments: {
+      name: "attachments",
+      lifecycle: { user: "uploadedBy", tenant: "tenant" },
+      columns: {
+        id: "id",
+        tenant: "organization_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        bucket: "bucket",
+        path: "object_path",
+        name: "name",
+        mimeType: "mime_type",
+        size: "size",
+        status: "status",
+        detail: "scan_detail",
+        uploadedBy: "uploaded_by",
+        createdAt: "created_at",
+        uploadedAt: "uploaded_at",
+        scannedAt: "scanned_at",
+        metadata: "metadata",
+        version: "version",
+        width: "width",
+        height: "height",
+        pages: "pages",
+      },
+      app: {},
+      optional: ["metadata", "detail", "width", "height", "pages", "scannedAt"],
+      typed: ["status"],
+    },
+    versions: {
+      name: "attachment_versions",
+      lifecycle: { user: "uploadedBy", tenant: "tenant" },
+      columns: {
+        id: "id",
+        tenant: "organization_id",
+        attachment: "attachment_id",
+        version: "version",
+        bucket: "bucket",
+        path: "object_path",
+        name: "name",
+        mimeType: "mime_type",
+        size: "size",
+        width: "width",
+        height: "height",
+        pages: "pages",
+        status: "status",
+        detail: "scan_detail",
+        uploadedBy: "uploaded_by",
+        uploadedAt: "uploaded_at",
+        scannedAt: "scanned_at",
+        archivedAt: "archived_at",
+      },
+      app: {},
+      optional: [
+        "width",
+        "height",
+        "pages",
+        "detail",
+        "scannedAt",
+        "archivedAt",
+      ],
+      typed: ["status"],
+    },
+    scans: {
+      name: "scanned_objects",
+      columns: {
+        bucket: "bucket",
+        path: "object_path",
+        status: "status",
+        detail: "scan_detail",
+        createdAt: "created_at",
+        scannedAt: "scanned_at",
+      },
+      app: {},
+      optional: ["detail", "createdAt"],
+      typed: ["status"],
+    },
+    cleanup: {
+      name: "attachment_cleanup",
+      columns: {
+        bucket: "bucket",
+        path: "path",
+        queuedBy: "queued_by",
+        queuedAt: "queued_at",
+        attempts: "attempts",
+      },
+      app: {},
+    },
+  },
+};

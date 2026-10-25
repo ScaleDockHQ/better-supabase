@@ -7,15 +7,13 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   pageSize,
-  revokeTable,
-  lockTable,
   fail,
   ensureCheck,
 } from "../shared.ts";
@@ -105,6 +103,7 @@ const NAMES: BlockSqlNames = {
     },
     schedules: {
       name: "workflow_schedules",
+      app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
         id: "id",
@@ -121,9 +120,11 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["lastRunAt"],
     },
     semaphores: {
       name: "workflow_semaphores",
+      app: {},
       columns: {
         key: "key",
         holder: "holder",
@@ -133,6 +134,7 @@ const NAMES: BlockSqlNames = {
     },
     startRequests: {
       name: "workflow_start_requests",
+      app: {},
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
@@ -151,6 +153,8 @@ const NAMES: BlockSqlNames = {
         subjectType: "subject_type",
         subjectId: "subject_id",
       },
+      optional: ["subjectType", "subjectId"],
+      typed: ["status"],
     },
   },
 };
@@ -203,6 +207,18 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const nodded = ctx.has("runs", "triggerNode");
   const app = ctx.appOwned.includes("runs");
 
+  const queued =
+    ctx.has("startRequests", "subjectType") &&
+    ctx.has("startRequests", "subjectId");
+
+  const lastRun = ctx.has("schedules", "lastRunAt");
+  const ownSchedules = ctx.owns("schedules");
+
+  // A parameter of create_workflow_schedule. Over the app's table its upsert
+  // names the key columns, which a same-named parameter would shadow.
+  const arg = (name: string): string =>
+    ownSchedules ? name : `create_workflow_schedule.${name}`;
+
   // A subject column of row, or null without the subject columns.
   const subjectOf = (row: string, logical: string): string =>
     linked ? `${row}.${cr(logical)}` : "null";
@@ -239,7 +255,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'cron', ${alias}.${cs("cron")},
     'timezone', ${alias}.${cs("timezone")},
     'nextRunAt', ${alias}.${cs("nextRunAt")},
-    'lastRunAt', ${alias}.${cs("lastRunAt")},
+    'lastRunAt', ${lastRun ? `${alias}.${cs("lastRunAt")}` : "null::timestamptz"},
     'paused', ${alias}.${cs("paused")},
     'createdBy', ${alias}.${cs("createdBy")},
     'createdAt', ${alias}.${cs("createdAt")}
@@ -331,19 +347,25 @@ create table if not exists ${s} (
   ${cs("cron")} text not null check (length(${cs("cron")}) between 1 and 200),
   ${cs("timezone")} text not null default 'UTC',
   ${cs("nextRunAt")} timestamptz not null,
-  ${cs("lastRunAt")} timestamptz,
-  ${cs("lockedUntil")} timestamptz,
+${
+  lastRun
+    ? `  ${cs("lastRunAt")} timestamptz,
+`
+    : ""
+}  ${cs("lockedUntil")} timestamptz,
   ${cs("paused")} boolean not null default false,
   ${cs("createdBy")} uuid references auth.users (id) on delete set null,
   ${cs("createdAt")} timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct (${cs("tenant")}, ${cs("name")})
-);
+);${
+    ownSchedules
+      ? ""
+      : `
+create unique index if not exists ${sqlIdent(`${ctx.tableName("schedules").name}_${ctx.colName("schedules", "tenant")}_${ctx.colName("schedules", "name")}_key`.slice(0, 63))} on ${s} (${cs("tenant")}, ${cs("name")}) nulls not distinct;`
+  }
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
-alter table ${s} enable row level security;
-${revokeTable(s)}
-grant select on ${s} to authenticated;
-grant all on ${s} to service_role;
+${lockModuleTable(ctx, "schedules", { read: true })}
 drop policy if exists workflow_schedules_read on ${s};
 create policy workflow_schedules_read on ${s} for select to authenticated
   using (${ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read))});
@@ -357,7 +379,7 @@ create table if not exists ${m} (
   ${cm("expiresAt")} timestamptz not null,
   primary key (${cm("key")}, ${cm("holder")})
 );
-${lockTable(m)}
+${lockModuleTable(ctx, "semaphores")}
 
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
@@ -380,10 +402,13 @@ create table if not exists ${q} (
 create index if not exists workflow_start_requests_key_idx on ${q} (${cq("key")}, ${cq("status")});
 create index if not exists workflow_start_requests_due_idx on ${q} (${cq("notBefore")}) where ${cq("status")} = 'pending';
 create index if not exists workflow_start_requests_actor_idx on ${q} (${cq("actor")});
-alter table ${q} add column if not exists ${cq("subjectType")} text check (length(${cq("subjectType")}) between 1 and 100);
+${
+  queued
+    ? `alter table ${q} add column if not exists ${cq("subjectType")} text check (length(${cq("subjectType")}) between 1 and 100);
 alter table ${q} add column if not exists ${cq("subjectId")} text check (length(${cq("subjectId")}) between 1 and 200);
-${ensureCheck(q, "workflow_start_requests_subject_check", `(${cq("subjectType")} is null) = (${cq("subjectId")} is null)`)}
-${lockTable(q)}
+${ctx.owns("startRequests") ? `${ensureCheck(q, "workflow_start_requests_subject_check", `(${cq("subjectType")} is null) = (${cq("subjectId")} is null)`)}\n` : ""}`
+    : ""
+}${lockModuleTable(ctx, "startRequests")}
 
 -- Pings the run's topic and its tenant's topic on every status change, and
 -- writes workflow_run.completed, .failed or .cancelled to the outbox (not
@@ -562,16 +587,16 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict ${ownSchedules ? "use_variable" : "use_column"}
 declare
   v_row ${s}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or (tenant is not null and ${can("tenant", "admin")})) then
+  if not (${SERVICE_CALLER} or (${arg("tenant")} is not null and ${can(arg("tenant"), "admin")})) then
     ${fail("WORKFLOW_FORBIDDEN", "You may not schedule workflows here")}
   end if;
   insert into ${s} as x (${cs("tenant")}, ${cs("name")}, ${cs("workflow")}, ${cs("input")}, ${cs("cron")}, ${cs("timezone")}, ${cs("nextRunAt")}, ${cs("createdBy")})
-  values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
-  on conflict on constraint workflow_schedules_tenant_name_key do update set
+  values (${arg("tenant")}, ${arg("name")}, ${arg("workflow")}, coalesce(${arg("payload")} -> 'input', '[]'::jsonb), ${arg("cron")}, coalesce(${arg("timezone")}, 'UTC'), ${arg("next_run")}, (select auth.uid()))
+  on conflict ${ownSchedules ? "on constraint workflow_schedules_tenant_name_key" : `(${cs("tenant")}, ${cs("name")})`} do update set
     ${cs("workflow")} = excluded.${cs("workflow")},
     ${cs("input")} = excluded.${cs("input")},
     ${cs("cron")} = excluded.${cs("cron")},
@@ -665,7 +690,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  update ${s} x set ${cs("lastRunAt")} = fired, ${cs("nextRunAt")} = next_run, ${cs("lockedUntil")} = null
+  update ${s} x set ${lastRun ? `${cs("lastRunAt")} = fired, ` : ""}${cs("nextRunAt")} = next_run, ${cs("lockedUntil")} = null
   where x.${cs("id")} = schedule and x.${cs("nextRunAt")} = fired;
   return found;
 end;
@@ -760,7 +785,7 @@ as $$
 declare
   v_id uuid;
 begin${
-    linked
+    linked && queued
       ? ""
       : `
   if subject_type is not null or subject_id is not null then
@@ -775,12 +800,12 @@ begin${
     return jsonb_build_object('id', null, 'status', 'dropped');
   end if;
   if debounce is not null then
-    update ${q} x set ${cq("status")} = 'superseded'
+    update ${q} x set ${cq("status")} = ${ctx.cast("startRequests", "status", "'superseded'")}
     where x.${cq("key")} = key and x.${cq("status")} = 'pending'
       and (x.${cq("claimedUntil")} is null or x.${cq("claimedUntil")} < now());
   end if;
-  insert into ${q} (${cq("key")}, ${cq("workflow")}, ${cq("input")}, ${cq("tenant")}, ${cq("actor")}, ${cq("concurrency")}, ${cq("notBefore")}, ${cq("subjectType")}, ${cq("subjectId")})
-  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
+  insert into ${q} (${cq("key")}, ${cq("workflow")}, ${cq("input")}, ${cq("tenant")}, ${cq("actor")}, ${cq("concurrency")}, ${cq("notBefore")}${queued ? `, ${cq("subjectType")}, ${cq("subjectId")}` : ""})
+  values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0')${queued ? ", subject_type, subject_id" : ""})
   returning ${cq("id")} into v_id;
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
@@ -821,8 +846,8 @@ begin
         'input', v_row.${cq("input")},
         'tenant', v_row.${cq("tenant")},
         'actor', v_row.${cq("actor")},
-        'subjectType', v_row.${cq("subjectType")},
-        'subjectId', v_row.${cq("subjectId")}
+        'subjectType', ${queued ? `v_row.${cq("subjectType")}` : "null"},
+        'subjectId', ${queued ? `v_row.${cq("subjectId")}` : "null"}
       ));
       v_taken := v_taken + 1;
     end if;
@@ -840,7 +865,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  update ${q} x set ${cq("status")} = 'started', ${cq("runId")} = run, ${cq("startedAt")} = now(), ${cq("claimedUntil")} = null
+  update ${q} x set ${cq("status")} = ${ctx.cast("startRequests", "status", "'started'")}, ${cq("runId")} = run, ${cq("startedAt")} = now(), ${cq("claimedUntil")} = null
   where x.${cq("id")} = request and x.${cq("status")} = 'pending';
   return found;
 end;

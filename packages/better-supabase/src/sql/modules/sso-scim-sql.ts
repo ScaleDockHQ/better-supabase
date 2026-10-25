@@ -1,6 +1,31 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { fail, lockTable, raise, serviceGrant } from "../shared.ts";
+
+/**
+ * A row of an sso table as jsonb keyed by the default column names, built
+ * column by column so the other columns of the app's table stay out. A column
+ * the table lacks reads as `missing[logical]`, else null.
+ */
+export function appRowJson(
+  ctx: BlockSqlContext,
+  table: string,
+  row: string,
+  missing: Readonly<Record<string, string>>,
+  omit: readonly string[],
+): string {
+  const columns = ctx.names.tables[table]?.columns ?? {};
+
+  const pairs = Object.entries(columns)
+    .filter(([logical]) => !omit.includes(logical))
+    .map(
+      ([logical, name]) =>
+        `'${name}', ${ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : (missing[logical] ?? "null")}`,
+    );
+
+  return `jsonb_build_object(${pairs.join(", ")})`;
+}
+
 /** The SCIM storage functions of the sso module, for the SCIM handler. */
 
 export interface ScimSqlNames {
@@ -19,24 +44,42 @@ export interface ScimSqlNames {
   readonly verifiedFor: (tenant: string, email: string) => string;
   /** Records a SCIM write: `ctx.record` with the tenant and the row's id. */
   readonly record: (type: string, tenant: string, id: string) => string;
+  /** A SCIM user or group row as jsonb, without the members or groups. */
+  readonly row: (table: "scimUsers" | "scimGroups", alias: string) => string;
+  /** Whether the logical column of the SCIM users or groups table exists. */
+  readonly has: (table: "scimUsers" | "scimGroups", column: string) => boolean;
+  /** A group's role written as the role column's type. */
+  readonly role: (value: string) => string;
 }
 
 export function scimSql(names: ScimSqlNames): string {
-  const { id, fn, cu, cg, cm, serviceOnly, verifiedFor, record } = names;
+  const { id, fn, cu, cg, cm, serviceOnly, verifiedFor, record, row, has } =
+    names;
+
   const u = names.users;
   const g = names.groups;
   const gm = names.members;
 
+  const shown = has("scimUsers", "displayName");
+
+  const parts = ["givenName", "familyName"].filter((part) =>
+    has("scimUsers", part),
+  );
+
+  const nameColumns = [...(shown ? ["displayName"] : []), ...parts]
+    .map((part) => `, ${cu(part)}`)
+    .join("");
+
   const userJson = (alias: string): string =>
-    `to_jsonb(${alias}.*) || jsonb_build_object('groups', (
+    `${row("scimUsers", alias)} || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg.${cg("id")}, 'display', sg.${cg("displayName")}) order by sg.${cg("displayName")}), '[]'::jsonb)
       from ${gm} sm join ${g} sg on sg.${cg("id")} = sm.${cm("group")}
       where sm.${cm("member")} = ${alias}.${cu("id")}
     ))`;
 
   const groupJson = (alias: string): string =>
-    `to_jsonb(${alias}.*) || jsonb_build_object('members', (
-      select coalesce(jsonb_agg(jsonb_build_object('value', su.${cu("id")}, 'display', coalesce(su.${cu("displayName")}, su.${cu("userName")})) order by su.${cu("userName")}), '[]'::jsonb)
+    `${row("scimGroups", alias)} || jsonb_build_object('members', (
+      select coalesce(jsonb_agg(jsonb_build_object('value', su.${cu("id")}, 'display', ${has("scimUsers", "displayName") ? `coalesce(su.${cu("displayName")}, su.${cu("userName")})` : `su.${cu("userName")}`}) order by su.${cu("userName")}), '[]'::jsonb)
       from ${gm} sm join ${u} su on su.${cu("id")} = sm.${cm("member")}
       where sm.${cm("group")} = ${alias}.${cg("id")}
     ))`;
@@ -104,9 +147,9 @@ begin
     case when v_name like '%@%' then v_name end
   ));
   if scim_save_user.id is null then
-    insert into ${u} (${cu("tenant")}, ${cu("externalId")}, ${cu("userName")}, ${cu("displayName")}, ${cu("givenName")}, ${cu("familyName")}, ${cu("email")}, ${cu("emails")}, ${cu("active")})
-    values (scim_save_user.tenant, scim_save_user.data ->> 'externalId', v_name, scim_save_user.data ->> 'displayName',
-      scim_save_user.data ->> 'givenName', scim_save_user.data ->> 'familyName', v_email, v_emails,
+    insert into ${u} (${cu("tenant")}, ${cu("externalId")}, ${cu("userName")}${nameColumns}, ${cu("email")}, ${cu("emails")}, ${cu("active")})
+    values (scim_save_user.tenant, scim_save_user.data ->> 'externalId', v_name${shown ? ", scim_save_user.data ->> 'displayName'" : ""},
+      ${parts.map((part) => `scim_save_user.data ->> '${part}', `).join("")}v_email, v_emails,
       coalesce((scim_save_user.data ->> 'active')::boolean, true))
     returning * into v_row;
   else
@@ -118,16 +161,20 @@ begin
       ${raise("The user changed since version %", "P0001", "SCIM_PRECONDITION", "scim_save_user.version")}
     end if;
     update ${u} x set
-      ${cu("externalId")} = scim_save_user.data ->> 'externalId',
-      ${cu("userName")} = v_name,
-      ${cu("displayName")} = scim_save_user.data ->> 'displayName',
-      ${cu("givenName")} = scim_save_user.data ->> 'givenName',
-      ${cu("familyName")} = scim_save_user.data ->> 'familyName',
-      ${cu("email")} = v_email,
-      ${cu("emails")} = v_emails,
-      ${cu("active")} = coalesce((scim_save_user.data ->> 'active')::boolean, true),
-      ${cu("version")} = x.${cu("version")} + 1,
-      ${cu("updatedAt")} = now()
+      ${[
+        `${cu("externalId")} = scim_save_user.data ->> 'externalId'`,
+        `${cu("userName")} = v_name`,
+        ...[...(shown ? ["displayName"] : []), ...parts].map(
+          (part) => `${cu(part)} = scim_save_user.data ->> '${part}'`,
+        ),
+        `${cu("email")} = v_email`,
+        `${cu("emails")} = v_emails`,
+        `${cu("active")} = coalesce((scim_save_user.data ->> 'active')::boolean, true)`,
+        `${cu("version")} = x.${cu("version")} + 1`,
+        ...(has("scimUsers", "updatedAt")
+          ? [`${cu("updatedAt")} = now()`]
+          : []),
+      ].join(",\n      ")}
     where x.${cu("id")} = v_row.${cu("id")}
     returning * into v_row;
   end if;
@@ -236,7 +283,7 @@ begin
   end if;
   if scim_save_group.id is null then
     insert into ${g} (${cg("tenant")}, ${cg("displayName")}, ${cg("externalId")}, ${cg("role")})
-    values (scim_save_group.tenant, v_name, scim_save_group.data ->> 'externalId', ${fn("scim_group_role")}(v_name))
+    values (scim_save_group.tenant, v_name, scim_save_group.data ->> 'externalId', ${names.role(`${fn("scim_group_role")}(v_name)`)})
     returning * into v_row;
   else
     select * into v_row from ${g} x where x.${cg("tenant")} = scim_save_group.tenant and x.${cg("id")} = scim_save_group.id for update;
@@ -250,9 +297,8 @@ begin
     update ${g} x set
       ${cg("displayName")} = v_name,
       ${cg("externalId")} = scim_save_group.data ->> 'externalId',
-      ${cg("role")} = ${fn("scim_group_role")}(v_name),
-      ${cg("version")} = x.${cg("version")} + 1,
-      ${cg("updatedAt")} = now()
+      ${cg("role")} = ${names.role(`${fn("scim_group_role")}(v_name)`)},
+      ${cg("version")} = x.${cg("version")} + 1${has("scimGroups", "updatedAt") ? `,\n      ${cg("updatedAt")} = now()` : ""}
     where x.${cg("id")} = v_row.${cg("id")}
     returning * into v_row;
     delete from ${gm} sm where sm.${cm("group")} = v_row.${cg("id")} and not (sm.${cm("member")} = any (v_members));
@@ -295,8 +341,6 @@ end;
 $$;`;
 }
 
-const SCIM_SYNC_LOG = "better_supabase.scim_sync_log";
-
 export const SCIM_SYNC_LOG_CONTRACT: readonly BlockSqlContractFunction[] = [
   {
     name: "scim_log_sync",
@@ -318,23 +362,46 @@ export function scimSyncLogSql(
 ): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
+  const log = ctx.table("syncLog");
+  const { name } = ctx.tableName("syncLog");
+  const c = (column: string): string => ctx.col("syncLog", column);
+  const has = (column: string): boolean => ctx.has("syncLog", column);
+
+  const line = (column: string): string =>
+    has(column) ? `  ${c(column)} text,\n` : "";
+
+  const columns: [string, string][] = [
+    ["tenant", "scim_log_sync.tenant"],
+    ["operation", ctx.cast("syncLog", "operation", "scim_log_sync.operation")],
+    [
+      "resourceType",
+      ctx.cast("syncLog", "resourceType", "scim_log_sync.resource_type"),
+    ],
+    ["resourceId", "scim_log_sync.resource_id"],
+    ["status", "coalesce(scim_log_sync.status, 0)"],
+    ["error", "left(scim_log_sync.error, 2000)"],
+    ["requestId", "left(scim_log_sync.request_id, 200)"],
+  ];
+
+  const written = columns.filter(([column]) => has(column));
+
+  const read = (column: string): string =>
+    has(column) ? `l.${c(column)}` : "null::text";
 
   return `-- One row per SCIM write: what the identity provider asked for and how it
 -- went. sqlScimSyncLog writes it through scim_log_sync.
-create table if not exists ${SCIM_SYNC_LOG} (
-  id bigint generated always as identity primary key,
-  organization_id ${id} not null,
-  operation text not null check (operation in ('create', 'replace', 'patch', 'delete')),
-  resource_type text not null check (resource_type in ('User', 'Group')),
-  resource_id text,
-  status integer not null,
-  error text,
-  request_id text,
-  created_at timestamptz not null default now()
+create table if not exists ${log} (
+  ${c("id")} bigint generated always as identity primary key,
+  ${c("tenant")} ${id} not null,
+  ${c("operation")} text not null check (${c("operation")} in ('create', 'replace', 'patch', 'delete')),
+  ${c("resourceType")} text not null check (${c("resourceType")} in ('User', 'Group')),
+  ${c("resourceId")} text,
+  ${c("status")} integer not null,
+${line("error")}${line("requestId")}  ${c("createdAt")} timestamptz not null default now()
 );
-create index if not exists scim_sync_log_tenant_idx on ${SCIM_SYNC_LOG} (organization_id, created_at desc);
-create index if not exists scim_sync_log_created_idx on ${SCIM_SYNC_LOG} (created_at);
-${lockTable(SCIM_SYNC_LOG)}
+create index if not exists ${name}_tenant_idx on ${log} (${c("tenant")}, ${c("createdAt")} desc);
+create index if not exists ${name}_created_idx on ${log} (${c("createdAt")});
+${lockTable(log)}
 
 create or replace function ${fn("scim_log_sync")}(
   tenant ${id},
@@ -352,9 +419,8 @@ set search_path = ''
 as $$
 begin
   ${serviceOnly("logs SCIM writes")}
-  insert into ${SCIM_SYNC_LOG} (organization_id, operation, resource_type, resource_id, status, error, request_id)
-  values (scim_log_sync.tenant, scim_log_sync.operation, scim_log_sync.resource_type, scim_log_sync.resource_id,
-    coalesce(scim_log_sync.status, 0), left(scim_log_sync.error, 2000), left(scim_log_sync.request_id, 200));
+  insert into ${log} (${written.map(([column]) => c(column)).join(", ")})
+  values (${written.map(([, value]) => value).join(", ")});
 end;
 $$;
 
@@ -371,9 +437,12 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc, x.id desc), '[]'::jsonb)
     from (
-      select * from ${SCIM_SYNC_LOG} l
-      where l.organization_id = list_scim_sync_log.tenant
-      order by l.created_at desc, l.id desc
+      select l.${c("id")} as id, l.${c("tenant")} as organization_id, l.${c("operation")} as operation,
+        l.${c("resourceType")} as resource_type, l.${c("resourceId")} as resource_id, l.${c("status")} as status,
+        ${read("error")} as error, ${read("requestId")} as request_id, l.${c("createdAt")} as created_at
+      from ${log} l
+      where l.${c("tenant")} = list_scim_sync_log.tenant
+      order by l.${c("createdAt")} desc, l.${c("id")} desc
       limit least(greatest(coalesce(list_scim_sync_log.max, 100), 1), 1000)
     ) x
   );
@@ -392,9 +461,9 @@ declare
   v_count integer;
 begin
   ${serviceOnly("purges the SCIM log")}
-  delete from ${SCIM_SYNC_LOG} l where l.id in (
-    select x.id from ${SCIM_SYNC_LOG} x
-    where ${ctx.expired("scim_sync_log", { at: "x.created_at", tenant: "x.organization_id", fallback: "coalesce(older_than, interval '90 days')" })}
+  delete from ${log} l where l.${c("id")} in (
+    select x.${c("id")} from ${log} x
+    where ${ctx.expired("scim_sync_log", { at: `x.${c("createdAt")}`, tenant: `x.${c("tenant")}`, fallback: "coalesce(older_than, interval '90 days')" })}
     limit greatest(coalesce(batch, 10000), 1)
   );
   get diagnostics v_count = row_count;

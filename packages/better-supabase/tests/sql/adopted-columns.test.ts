@@ -136,6 +136,37 @@ create table public.profiles (
     ).toEqual([]);
   });
 
+  it("passes a domain locale on the app's profiles table, which the module casts", () => {
+    const files = [
+      {
+        text: `create type public.app_locale as enum ('en', 'nl', 'de');
+create domain public.locale_tag as public.app_locale;
+create table public.profiles (
+  id uuid primary key,
+  email text,
+  username text,
+  locale public.locale_tag,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);`,
+      },
+    ];
+
+    expect(
+      adoptedColumnProblems(
+        {
+          profiles: {
+            tables: { profiles: "public.profiles" },
+            columns: { profiles: { locale: "locale" } },
+          },
+        },
+        files,
+        ["public"],
+        { "public.profiles": "supabase/schemas/profiles.sql" },
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses an enum column the module writes as text, and passes one it casts", () => {
     const files = [
       {

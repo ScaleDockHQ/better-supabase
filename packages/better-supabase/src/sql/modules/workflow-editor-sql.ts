@@ -6,7 +6,7 @@ import {
   OPERATION_PREFIXES,
   operationPermission,
 } from "../../core/operations.ts";
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
   activeMembership,
@@ -113,6 +113,28 @@ export interface BuilderSql {
   readonly definitionReadable: (value: string) => string;
   readonly definitionJson: (value: string) => string;
   readonly versionJson: (alias: string, full: boolean) => string;
+  /**
+   * The status column and its `'draft'` value, each with a leading comma, for a
+   * version insert over the app's table, which may not default it.
+   */
+  readonly draftColumn: string;
+  readonly draftValue: string;
+  /** `value`, a text expression, as the type of the trigger kind column. */
+  readonly triggerKind: (value: string) => string;
+  /** `value`, a text expression, as the type of the alert event column. */
+  readonly alertEvent: (value: string) => string;
+  /** Whether the credentials table is the module's own. */
+  readonly ownCredentials: boolean;
+  /** Whether the step library has a description column. */
+  readonly stepDescribed: boolean;
+  /**
+   * The legacy event trigger index (only on the module's own table, whose kinds
+   * it names) and, over the app's table, the credentials key index.
+   */
+  readonly tableExtras: {
+    readonly triggers: string;
+    readonly credentials: string;
+  };
   readonly triggerJson: (value: string) => string;
   readonly credentialJson: (value: string) => string;
   readonly stepJson: (value: string) => string;
@@ -329,6 +351,14 @@ grant execute on function ${signature} to authenticated, service_role;`;
     }
   )`;
 
+  const ownVersions = ctx.owns("versions");
+  const stepDescribed = ctx.has("steps", "description");
+  const draftColumn = ownVersions ? "" : `, ${cv("status")}`;
+
+  const draftValue = ownVersions
+    ? ""
+    : `, ${ctx.cast("versions", "status", "'draft'")}`;
+
   const triggerJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${ct("id")},
     'definition', ${alias}.${ct("definition")},
@@ -353,7 +383,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const stepJson = (alias: string): string => `jsonb_build_object(
     'name', ${alias}.${cl("name")},
     'title', ${alias}.${cl("title")},
-    'description', ${alias}.${cl("description")},
+    'description', ${stepDescribed ? `${alias}.${cl("description")}` : "null::text"},
     'inputSchema', ${alias}.${cl("inputSchema")},
     'outputSchema', ${alias}.${cl("outputSchema")},
     'credentialKind', ${alias}.${cl("credentialKind")},
@@ -456,6 +486,21 @@ grant execute on function ${signature} to authenticated, service_role;`;
     definitionReadable,
     definitionJson,
     versionJson,
+    draftColumn,
+    draftValue,
+    triggerKind: (value) => ctx.cast("triggers", "kind", value),
+    alertEvent: (value) => ctx.cast("alerts", "onEvent", value),
+    ownCredentials: ctx.owns("credentials"),
+    stepDescribed,
+    tableExtras: {
+      triggers: ctx.owns("triggers")
+        ? `\ncreate index if not exists workflow_triggers_event_type_idx on ${t} ((${ct("config")} ->> 'type'))
+  where ${ct("kind")} = 'event' and ${ct("enabled")};`
+        : "",
+      credentials: ctx.owns("credentials")
+        ? ""
+        : `\ncreate unique index if not exists ${sqlIdent(`${ctx.tableName("credentials").name}_${ctx.colName("credentials", "tenant")}_${ctx.colName("credentials", "name")}_key`.slice(0, 63))} on ${c} (${cc("tenant")}, ${cc("name")}) nulls not distinct;`,
+    },
     triggerJson,
     credentialJson,
     stepJson,
@@ -567,7 +612,16 @@ export function builderRuntimeSql(s: BuilderSql): string {
     failedTrigger,
     runModes,
     nodeRunStatus,
+    triggerKind,
+    alertEvent,
+    ownCredentials,
+    stepDescribed,
   } = s;
+
+  // A parameter of save_workflow_credential. Over the app's table its upsert
+  // names the key columns, which a same-named parameter would shadow.
+  const credential = (name: string): string =>
+    ownCredentials ? name : `save_workflow_credential.${name}`;
 
   return `-- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function ${fn("save_workflow_trigger")}(
@@ -596,11 +650,11 @@ begin
   end if;
   if trigger is null then
     insert into ${t} (${ct("definition")}, ${ct("kind")}, ${ct("config")}, ${ct("enabled")})
-    values (definition, kind, coalesce(config, '{}'::jsonb), coalesce(enabled, true))
+    values (definition, ${triggerKind("kind")}, coalesce(config, '{}'::jsonb), coalesce(enabled, true))
     returning * into v_row;
   else
     update ${t} x set
-      ${ct("kind")} = kind,
+      ${ct("kind")} = ${triggerKind("kind")},
       ${ct("config")} = coalesce(config, '{}'::jsonb),
       ${ct("enabled")} = coalesce(enabled, true),
       ${ct("updatedAt")} = now()
@@ -712,17 +766,17 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict ${ownCredentials ? "use_variable" : "use_column"}
 declare
   v_row ${c}%rowtype;
 begin
-  if not ${allowed("tenant", "admin")} then
+  if not ${allowed(credential("tenant"), "admin")} then
     ${forbidden("You may not manage workflow credentials here")}
   end if;
   ${tenantRefGuard("save_workflow_credential.ref", "save_workflow_credential.tenant")}
   insert into ${c} as x (${cc("tenant")}, ${cc("kind")}, ${cc("name")}, ${cc("ref")}, ${cc("scopes")}, ${cc("createdBy")})
-  values (tenant, kind, name, ref, coalesce(scopes, '{}'), (select auth.uid()))
-  on conflict on constraint workflow_credentials_tenant_name_key do update set
+  values (${["tenant", "kind", "name", "ref"].map(credential).join(", ")}, coalesce(${credential("scopes")}, '{}'), (select auth.uid()))
+  on conflict ${ownCredentials ? "on constraint workflow_credentials_tenant_name_key" : `(${cc("tenant")}, ${cc("name")})`} do update set
     ${cc("kind")} = excluded.${cc("kind")},
     ${cc("ref")} = excluded.${cc("ref")},
     ${cc("scopes")} = excluded.${cc("scopes")}
@@ -790,14 +844,18 @@ as $$
 declare
   v_count integer;
 begin
-  insert into ${l} (${cl("name")}, ${cl("title")}, ${cl("description")}, ${cl("inputSchema")}, ${cl("outputSchema")}, ${cl("credentialKind")}, ${cl("operation")})
-  select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
+  insert into ${l} (${cl("name")}, ${cl("title")}, ${stepDescribed ? `${cl("description")}, ` : ""}${cl("inputSchema")}, ${cl("outputSchema")}, ${cl("credentialKind")}, ${cl("operation")})
+  select e.key, coalesce(e.value ->> 'title', e.key),${stepDescribed ? " e.value ->> 'description'," : ""}
     coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
     nullif(e.value ->> 'operation', '')
   from jsonb_each(coalesce(steps, '{}'::jsonb)) e
   on conflict (${cl("name")}) do update set
-    ${cl("title")} = excluded.${cl("title")},
-    ${cl("description")} = excluded.${cl("description")},
+    ${cl("title")} = excluded.${cl("title")},${
+      stepDescribed
+        ? `
+    ${cl("description")} = excluded.${cl("description")},`
+        : ""
+    }
     ${cl("inputSchema")} = excluded.${cl("inputSchema")},
     ${cl("outputSchema")} = excluded.${cl("outputSchema")},
     ${cl("credentialKind")} = excluded.${cl("credentialKind")},
@@ -908,10 +966,10 @@ begin
   end if;
   if alert is null then
     insert into ${a} (${ca("definition")}, ${ca("onEvent")}, ${ca("threshold")}, ${ca("channel")}, ${ca("createdBy")})
-    values (definition, on_event, threshold, coalesce(channel, '{}'::jsonb), (select auth.uid()))
+    values (definition, ${alertEvent("on_event")}, threshold, coalesce(channel, '{}'::jsonb), (select auth.uid()))
     returning * into v_row;
   else
-    update ${a} x set ${ca("onEvent")} = on_event, ${ca("threshold")} = threshold, ${ca("channel")} = coalesce(channel, '{}'::jsonb)
+    update ${a} x set ${ca("onEvent")} = ${alertEvent("on_event")}, ${ca("threshold")} = threshold, ${ca("channel")} = coalesce(channel, '{}'::jsonb)
     where x.${ca("id")} = alert and x.${ca("definition")} = definition
     returning * into v_row;
     if not found then

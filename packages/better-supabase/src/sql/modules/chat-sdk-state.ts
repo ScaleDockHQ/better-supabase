@@ -5,12 +5,15 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 
 const NAMES: BlockSqlNames = {
   tables: {
     subscriptions: {
       name: "chat_state_subscriptions",
+      app: { writes: false },
+      optional: ["createdAt"],
       columns: {
         prefix: "key_prefix",
         thread: "thread_id",
@@ -19,6 +22,8 @@ const NAMES: BlockSqlNames = {
     },
     locks: {
       name: "chat_state_locks",
+      app: { writes: false },
+      optional: ["updatedAt"],
       columns: {
         prefix: "key_prefix",
         thread: "thread_id",
@@ -29,6 +34,8 @@ const NAMES: BlockSqlNames = {
     },
     cache: {
       name: "chat_state_cache",
+      app: { writes: false },
+      optional: ["updatedAt"],
       columns: {
         prefix: "key_prefix",
         key: "cache_key",
@@ -39,6 +46,7 @@ const NAMES: BlockSqlNames = {
     },
     lists: {
       name: "chat_state_lists",
+      app: { writes: false },
       columns: {
         id: "id",
         prefix: "key_prefix",
@@ -49,6 +57,7 @@ const NAMES: BlockSqlNames = {
     },
     queues: {
       name: "chat_state_queues",
+      app: { writes: false },
       columns: {
         id: "id",
         prefix: "key_prefix",
@@ -59,6 +68,8 @@ const NAMES: BlockSqlNames = {
     },
     installations: {
       name: "chat_installations",
+      app: { writes: false },
+      optional: ["metadata", "installedBy"],
       // The row outlives a tenant purge until the app revokes its credential
       // (installations.uninstallTenant in better-supabase/chat-sdk), so the
       // purger doesn't revoke it.
@@ -102,6 +113,57 @@ function build(ctx: BlockSqlContext): string {
   const cq = (column: string): string => ctx.col("queues", column);
   const ci = (column: string): string => ctx.col("installations", column);
 
+  const line = (table: string, column: string, type: string): string =>
+    ctx.has(table, column) ? `\n  ${ctx.col(table, column)} ${type},` : "";
+
+  // Over the app's table the module's primary keys and inline unique
+  // constraints are dropped, so each on conflict target gets its own index.
+  const key = (
+    table: string,
+    what: string,
+    columns: readonly string[],
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns.map((column) => ctx.col(table, column)).join(", ")});`;
+
+  const touched = (table: string, value: string): string =>
+    ctx.has(table, "updatedAt")
+      ? `, ${ctx.col(table, "updatedAt")} = ${value}`
+      : "";
+
+  const metadata = ctx.has("installations", "metadata");
+  const installedBy = ctx.has("installations", "installedBy");
+
+  const INSTALLATION_KEYS: Readonly<Record<string, string>> = {
+    id: "id",
+    tenant: "tenant_id",
+    adapter: "adapter",
+    externalId: "external_id",
+    credentialRef: "credential_ref",
+    metadata: "metadata",
+    installedBy: "installed_by",
+    installedAt: "installed_at",
+    uninstalledAt: "uninstalled_at",
+  };
+
+  // The API reads the default column names; over the app's table the row
+  // also holds the app's own columns.
+  const installationJson = (row: string): string =>
+    ctx.owns("installations")
+      ? `to_jsonb(${row})`
+      : `jsonb_build_object(${Object.entries(INSTALLATION_KEYS)
+          .map(([logical, name]) => {
+            if (ctx.has("installations", logical)) {
+              return `'${name}', ${row}.${ci(logical)}`;
+            }
+
+            return logical === "metadata"
+              ? `'${name}', '{}'::jsonb`
+              : `'${name}', null`;
+          })
+          .join(", ")})`;
+
   const ttl = (ms: string): string =>
     `case when ${ms} is null or ${ms} <= 0 then null else clock_timestamp() + make_interval(secs => ${ms} / 1000.0) end`;
 
@@ -122,32 +184,29 @@ function build(ctx: BlockSqlContext): string {
 --   select cron.schedule('purge-chat-state', '*/15 * * * *', 'select ${fn("purge_chat_state")}()');
 create table if not exists ${sub} (
   ${cs("prefix")} text not null,
-  ${cs("thread")} text not null,
-  ${cs("createdAt")} timestamptz not null default now(),
+  ${cs("thread")} text not null,${line("subscriptions", "createdAt", "timestamptz not null default now()")}
   primary key (${cs("prefix")}, ${cs("thread")})
-);
+);${key("subscriptions", "thread", ["prefix", "thread"])}
 ${lockTable(sub)}
 
 create table if not exists ${lk} (
   ${cl("prefix")} text not null,
   ${cl("thread")} text not null,
   ${cl("token")} text not null,
-  ${cl("expiresAt")} timestamptz not null,
-  ${cl("updatedAt")} timestamptz not null default now(),
+  ${cl("expiresAt")} timestamptz not null,${line("locks", "updatedAt", "timestamptz not null default now()")}
   primary key (${cl("prefix")}, ${cl("thread")})
 );
-create index if not exists chat_state_locks_expires_idx on ${lk} (${cl("expiresAt")});
+create index if not exists chat_state_locks_expires_idx on ${lk} (${cl("expiresAt")});${key("locks", "thread", ["prefix", "thread"])}
 ${lockTable(lk)}
 
 create table if not exists ${ca} (
   ${cc("prefix")} text not null,
   ${cc("key")} text not null,
   ${cc("value")} jsonb not null,
-  ${cc("expiresAt")} timestamptz,
-  ${cc("updatedAt")} timestamptz not null default now(),
+  ${cc("expiresAt")} timestamptz,${line("cache", "updatedAt", "timestamptz not null default now()")}
   primary key (${cc("prefix")}, ${cc("key")})
 );
-create index if not exists chat_state_cache_expires_idx on ${ca} (${cc("expiresAt")}) where ${cc("expiresAt")} is not null;
+create index if not exists chat_state_cache_expires_idx on ${ca} (${cc("expiresAt")}) where ${cc("expiresAt")} is not null;${key("cache", "key", ["prefix", "key"])}
 ${lockTable(ca)}
 
 create table if not exists ${li} (
@@ -181,15 +240,16 @@ create table if not exists ${ins} (
   ${ci("tenant")} ${id},
   ${ci("adapter")} text not null check (length(${ci("adapter")}) between 1 and 100),
   ${ci("externalId")} text not null check (length(${ci("externalId")}) between 1 and 500),
-  ${ci("credentialRef")} jsonb check (${ci("credentialRef")} is null or (jsonb_typeof(${ci("credentialRef")}) = 'object' and ${ci("credentialRef")} ? 'provider')),
-  ${ci("metadata")} jsonb not null default '{}'::jsonb,
-  ${ci("installedBy")} uuid references auth.users (id) on delete set null,
+  ${ci("credentialRef")} jsonb check (${ci("credentialRef")} is null or (jsonb_typeof(${ci("credentialRef")}) = 'object' and ${ci("credentialRef")} ? 'provider')),${line("installations", "metadata", "jsonb not null default '{}'::jsonb")}${line("installations", "installedBy", "uuid references auth.users (id) on delete set null")}
   ${ci("installedAt")} timestamptz not null default now(),
   ${ci("uninstalledAt")} timestamptz,
   unique (${ci("adapter")}, ${ci("externalId")})
 );
-create index if not exists chat_installations_tenant_idx on ${ins} (${ci("tenant")});
-create index if not exists chat_installations_installed_by_idx on ${ins} (${ci("installedBy")});
+create index if not exists chat_installations_tenant_idx on ${ins} (${ci("tenant")});${
+    installedBy
+      ? `\ncreate index if not exists chat_installations_installed_by_idx on ${ins} (${ci("installedBy")});`
+      : ""
+  }${key("installations", "external", ["adapter", "externalId"])}
 ${lockTable(ins)}
 
 create or replace function ${fn("chat_state_subscribe")}(prefix text, thread_id text)
@@ -235,7 +295,7 @@ begin
   insert into ${lk} as l (${cl("prefix")}, ${cl("thread")}, ${cl("token")}, ${cl("expiresAt")})
   values (prefix, thread_id, token, clock_timestamp() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0))
   on conflict (${cl("prefix")}, ${cl("thread")}) do update
-    set ${cl("token")} = excluded.${cl("token")}, ${cl("expiresAt")} = excluded.${cl("expiresAt")}, ${cl("updatedAt")} = clock_timestamp()
+    set ${cl("token")} = excluded.${cl("token")}, ${cl("expiresAt")} = excluded.${cl("expiresAt")}${touched("locks", "clock_timestamp()")}
     where l.${cl("expiresAt")} <= clock_timestamp()
   returning * into v_lock;
   if not found then
@@ -254,7 +314,7 @@ set search_path = ''
 as $$
 begin
   update ${lk} l
-  set ${cl("expiresAt")} = clock_timestamp() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0), ${cl("updatedAt")} = clock_timestamp()
+  set ${cl("expiresAt")} = clock_timestamp() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0)${touched("locks", "clock_timestamp()")}
   where l.${cl("prefix")} = chat_state_extend_lock.prefix
     and l.${cl("thread")} = chat_state_extend_lock.thread_id
     and l.${cl("token")} = chat_state_extend_lock.token
@@ -315,7 +375,7 @@ as $$
   insert into ${ca} (${cc("prefix")}, ${cc("key")}, ${cc("value")}, ${cc("expiresAt")})
   values (prefix, key, value, ${ttl("ttl_ms")})
   on conflict (${cc("prefix")}, ${cc("key")}) do update
-    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = clock_timestamp();
+    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}${touched("cache", "clock_timestamp()")};
 $$;
 ${serviceGrant(`${fn("chat_state_set")}(text, text, jsonb, integer)`)}
 
@@ -330,7 +390,7 @@ begin
   insert into ${ca} as c (${cc("prefix")}, ${cc("key")}, ${cc("value")}, ${cc("expiresAt")})
   values (prefix, key, value, ${ttl("ttl_ms")})
   on conflict (${cc("prefix")}, ${cc("key")}) do update
-    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = clock_timestamp()
+    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}${touched("cache", "clock_timestamp()")}
     where c.${cc("expiresAt")} is not null and c.${cc("expiresAt")} <= clock_timestamp();
   return found;
 end;
@@ -502,17 +562,15 @@ begin
   select ${ci("credentialRef")} into v_previous from ${ins}
   where ${ci("adapter")} = chat_install.adapter and ${ci("externalId")} = chat_install.external_id
   for update;
-  insert into ${ins} as i (${ci("tenant")}, ${ci("adapter")}, ${ci("externalId")}, ${ci("credentialRef")}, ${ci("installedBy")}, ${ci("metadata")})
-  values (tenant, adapter, external_id, credential_ref, installed_by, coalesce(metadata, '{}'::jsonb))
+  insert into ${ins} as i (${ci("tenant")}, ${ci("adapter")}, ${ci("externalId")}, ${ci("credentialRef")}${installedBy ? `, ${ci("installedBy")}` : ""}${metadata ? `, ${ci("metadata")}` : ""})
+  values (tenant, adapter, external_id, credential_ref${installedBy ? ", installed_by" : ""}${metadata ? ", coalesce(metadata, '{}'::jsonb)" : ""})
   on conflict (${ci("adapter")}, ${ci("externalId")}) do update
     set ${ci("tenant")} = coalesce(excluded.${ci("tenant")}, i.${ci("tenant")}),
-        ${ci("credentialRef")} = excluded.${ci("credentialRef")},
-        ${ci("installedBy")} = coalesce(excluded.${ci("installedBy")}, i.${ci("installedBy")}),
-        ${ci("metadata")} = i.${ci("metadata")} || excluded.${ci("metadata")},
+        ${ci("credentialRef")} = excluded.${ci("credentialRef")},${installedBy ? `\n        ${ci("installedBy")} = coalesce(excluded.${ci("installedBy")}, i.${ci("installedBy")}),` : ""}${metadata ? `\n        ${ci("metadata")} = i.${ci("metadata")} || excluded.${ci("metadata")},` : ""}
         ${ci("installedAt")} = clock_timestamp(),
         ${ci("uninstalledAt")} = null
   returning * into v_row;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return ${installationJson("v_row")} || jsonb_build_object(
     'previous_credential_ref',
     case when v_previous is distinct from v_row.${ci("credentialRef")} then v_previous end
   );
@@ -526,7 +584,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select to_jsonb(i) from ${ins} i
+  select ${installationJson("i")} from ${ins} i
   where i.${ci("adapter")} = chat_installation.adapter and i.${ci("externalId")} = chat_installation.external_id;
 $$;
 ${serviceGrant(`${fn("chat_installation")}(text, text)`)}
@@ -537,7 +595,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(i) order by i.${ci("installedAt")} desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(${installationJson("i")} order by i.${ci("installedAt")} desc), '[]'::jsonb)
   from ${ins} i
   where (list_chat_installations.tenant is null or i.${ci("tenant")} = list_chat_installations.tenant)
     and (list_chat_installations.adapter is null or i.${ci("adapter")} = list_chat_installations.adapter)
@@ -567,7 +625,7 @@ begin
   update ${ins} i set ${ci("uninstalledAt")} = clock_timestamp(), ${ci("credentialRef")} = null
   where i.${ci("adapter")} = chat_uninstall.adapter and i.${ci("externalId")} = chat_uninstall.external_id
   returning * into v_row;
-  return to_jsonb(v_row) || jsonb_build_object('previous_credential_ref', v_ref);
+  return ${installationJson("v_row")} || jsonb_build_object('previous_credential_ref', v_ref);
 end;
 $$;
 ${serviceGrant(`${fn("chat_uninstall")}(text, text)`)}`;

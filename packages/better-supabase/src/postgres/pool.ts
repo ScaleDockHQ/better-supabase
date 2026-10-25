@@ -5,6 +5,7 @@ import type { Executor } from "../core/executor.ts";
 import type { Logger } from "../core/logger.ts";
 import type { SqlClient } from "./executor.ts";
 
+import { encodeArgument } from "../ir/wire.ts";
 import { postgresExecutor } from "./executor.ts";
 import { watchPoolErrors } from "./pool-errors.ts";
 
@@ -303,7 +304,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
       // SAFETY: each caller passes the row type that its SQL selects.
       const scoped: SqlClient = {
         queryRaw: async <R>(text: string, params?: unknown[]) =>
-          (await client.query(text, params)).rows as R[],
+          (await client.query(text, params?.map(encodeArgument))).rows as R[],
         transaction: (inner) => inner(scoped),
       };
 
@@ -325,7 +326,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     return {
       queryRaw: <R>(text: string, params?: unknown[]) =>
         bare
-          ? single<R>(text, params)
+          ? single<R>(text, params?.map(encodeArgument))
           : transaction(session, (client) => client.queryRaw<R>(text, params)),
       transaction: (fn) => transaction(session, fn),
     };

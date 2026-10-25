@@ -80,6 +80,8 @@ const NAMES: BlockSqlNames = {
         endedAt: "ended_at",
         createdAt: "created_at",
       },
+      app: {},
+      optional: ["reason"],
     },
   },
 };
@@ -182,6 +184,10 @@ function build(ctx: BlockSqlContext): string {
   const max = maxDuration(ctx);
   const join = ctx.flag("join", false);
   const provider = accessModel(ctx) === "provider";
+  const hasReason = ctx.has("requests", "reason");
+
+  const reasonOf = (row: string): string =>
+    hasReason ? `${row}.${c("reason")}` : "null::text";
 
   const roleCheck =
     roles.length === 0
@@ -192,7 +198,7 @@ function build(ctx: BlockSqlContext): string {
     `case when ${row}.${c("endedAt")} is not null then 'ended' when ${row}.${c("grantedAt")} is not null then 'granted' else coalesce(${approval}.${a("status")}, 'pending') end`;
 
   const json = (row: string, state: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${reasonOf(row)}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
 
   const record = (
     event: string,
@@ -263,8 +269,7 @@ function build(ctx: BlockSqlContext): string {
   ${c("user")} uuid not null,
   ${c("role")} text not null check (length(${c("role")}) between 1 and 200),
   ${c("previousRole")} text,
-  ${c("reason")} text check (${c("reason")} is null or length(${c("reason")}) <= 2000),
-  ${c("duration")} interval check (${c("duration")} is null or ${c("duration")} > interval '0'),
+${hasReason ? `  ${c("reason")} text check (${c("reason")} is null or length(${c("reason")}) <= 2000),\n` : ""}  ${c("duration")} interval check (${c("duration")} is null or ${c("duration")} > interval '0'),
   ${c("approval")} uuid references ${ar} (${a("id")}) on delete cascade,
   ${c("grantedAt")} timestamptz,
   ${c("expiresAt")} timestamptz,
@@ -334,8 +339,8 @@ begin
     [ctx.idType, "request_access.tenant"],
     ["text", "request_access.role"],
   ])}
-  insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("role")}, ${c("reason")}, ${c("duration")})
-  values (request_access.tenant, v_me, request_access.role, request_access.reason, v_duration)
+  insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("role")}, ${hasReason ? `${c("reason")}, ` : ""}${c("duration")})
+  values (request_access.tenant, v_me, request_access.role, ${hasReason ? "request_access.reason, " : ""}v_duration)
   returning * into v_row;${writeExtraColumns(requests, extras, "request_access.fields", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   v_approval := ${approvals.fn("open_approval")}(
     request_access.tenant, ${sqlString(ACCESS_REQUEST_SUBJECT)}, v_row.${c("id")}::text, 'grant',

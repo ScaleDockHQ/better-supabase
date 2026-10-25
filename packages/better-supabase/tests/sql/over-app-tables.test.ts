@@ -221,6 +221,69 @@ describe("blocks over the app's tables", () => {
   });
 });
 
+// The tables a module creates without a `names.tables` entry, by module.
+const SPECLESS: Readonly<Record<string, readonly string[]>> = {
+  // ADR 0098: the Workflow SDK owns the shape of its world's tables.
+  "workflow-sdk": [
+    "workflow_event_slots",
+    "workflow_events",
+    "workflow_hooks",
+    "workflow_invocations",
+    "workflow_runs",
+    "workflow_snapshots",
+    "workflow_steps",
+    "workflow_stream_chunks",
+    "workflow_waits",
+  ],
+};
+
+/** The modules registry every module writes its row to. */
+const REGISTRY = "blocks";
+
+const CREATE_TABLE =
+  /create (?:unlogged )?table (?:if not exists )?"?\w+"?\."?(\w+)"?/giu;
+
+describe("every block table", () => {
+  it("can be the app's own table", () => {
+    const missing = Object.entries(SQL_MODULES).flatMap(
+      ([module, definition]) =>
+        Object.entries(definition.names?.tables ?? {})
+          .filter(([, spec]) => spec.app === undefined)
+          .map(([table]) => `${module}.${table}`),
+    );
+
+    expect(missing).toEqual([]);
+  });
+
+  it("has a names.tables entry", () => {
+    const specless = Object.fromEntries(
+      ALONE.flatMap((module) => {
+        const names = new Set(
+          Object.values(SQL_MODULES[module]?.names?.tables ?? {}).map(
+            (spec) => spec.name,
+          ),
+        );
+
+        const tables = [
+          ...new Set(
+            renderBlocks([module])
+              .filter((file) => file.module === module)
+              .flatMap((file) =>
+                [...file.contents.matchAll(CREATE_TABLE)].map(
+                  (match) => match[1] ?? "",
+                ),
+              ),
+          ),
+        ].filter((table) => table !== REGISTRY && !names.has(table));
+
+        return tables.length === 0 ? [] : [[module, tables.toSorted()]];
+      }),
+    );
+
+    expect(specless).toEqual(SPECLESS);
+  });
+});
+
 describe("withoutAppTableEdits", () => {
   const sql = `alter table public.members drop constraint if exists members_role_check;
 alter table public.members

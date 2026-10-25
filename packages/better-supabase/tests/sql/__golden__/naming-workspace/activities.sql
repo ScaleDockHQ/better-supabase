@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:3a725151c9f414442f4db9077377846f733a679dec275ed6ae5792547334db4a
+-- @bsb-hash sha256:ea65ca098e78cae833a2ba1f5d46b9fb572c824195561dca46b8fadfedd3d8f6
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -148,13 +148,10 @@ begin
     end if;
   end;
   insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "outcome", "owner_user_id", "due_at", "done_at", "duration_seconds", "external_ref", "created_by")
-  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner,
-    (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz,
-    (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
+  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner, (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz, (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
   on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
     "title" = excluded."title", "body" = excluded."body", "outcome" = excluded."outcome",
-    "due_at" = excluded."due_at", "done_at" = excluded."done_at",
-    "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
+    "due_at" = excluded."due_at", "done_at" = excluded."done_at", "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
   returning "id" into v_id;
   
   if jsonb_typeof(coalesce(log_engagement.subjects, '[]')) <> 'array' then

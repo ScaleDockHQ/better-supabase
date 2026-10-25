@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:24a1d70730f0e875462dd09b2a1946535a70f832527f85739b3ed57e6c6afc3d
+-- @bsb-hash sha256:4c0d07fa54ceb8b12f438e30c216c2ea539ed552a8fb81afddeb134ec1a11705
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -346,8 +346,8 @@ begin
   if length(v_bytes) > 1048576 then
     raise exception 'an update can be at most 1048576 bytes' using errcode = '54000', hint = 'DOCUMENT_UPDATE_TOO_LARGE';
   end if;
-  insert into "better_supabase"."document_suggestions" ("document_id", "tenant_id", "payload", "summary", "created_by")
-  values (v_doc."id", v_doc."tenant_id", v_bytes, nullif(trim(suggest_document_change.summary), ''), auth.uid())
+  insert into "better_supabase"."document_suggestions" ("document_id", "tenant_id", "payload", "summary", "status", "created_by")
+  values (v_doc."id", v_doc."tenant_id", v_bytes, nullif(trim(suggest_document_change.summary), ''), 'open', auth.uid())
   returning * into v_suggestion;
   null;
   return jsonb_build_object('id', v_suggestion."id", 'documentId', v_suggestion."document_id", 'summary', v_suggestion."summary", 'status', v_suggestion."status", 'createdBy', v_suggestion."created_by", 'createdAt', v_suggestion."created_at", 'decidedBy', v_suggestion."decided_by", 'decidedAt', v_suggestion."decided_at", 'note', v_suggestion."note", 'update', replace(encode(v_suggestion."payload", 'base64'), E'\n', ''));
@@ -376,7 +376,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'documentId', x."document_id", 'summary', x."summary", 'status', x."status", 'createdBy', x."created_by", 'createdAt', x."created_at", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'note', x."note", 'update', replace(encode(x."payload", 'base64'), E'\n', '')) order by x."created_at", x."id"), '[]'::jsonb)
     from "better_supabase"."document_suggestions" x
     where x."document_id" = v_doc."id"
-      and (coalesce(list_document_suggestions.status, 'all') = 'all' or x."status" = list_document_suggestions.status)
+      and (coalesce(list_document_suggestions.status, 'all') = 'all' or x."status"::text = list_document_suggestions.status)
   );
 end;
 $$;
@@ -435,8 +435,7 @@ begin
   end if;
   end if;
   update "better_supabase"."document_suggestions" x
-    set "status" = decide_document_suggestion.decision, "decided_by" = auth.uid(), "decided_at" = now(),
-      "note" = nullif(trim(decide_document_suggestion.note), '')
+    set "status" = decide_document_suggestion.decision, "decided_by" = auth.uid(), "decided_at" = now(), "note" = nullif(trim(decide_document_suggestion.note), '')
     where x."id" = v_suggestion."id"
     returning * into v_suggestion;
   if v_suggestion."status" = 'accepted' then

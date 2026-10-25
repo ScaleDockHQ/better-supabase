@@ -20,6 +20,17 @@ export function inboxReadFunctions(q: InboxSql): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
+  const searched = (
+    [
+      ["conversations", "v", "subject"],
+      ["conversations", "v", "preview"],
+      ["contacts", "c", "name"],
+      ["contacts", "c", "email"],
+    ] as const
+  )
+    .filter(([table, , column]) => q.has(table, column))
+    .map(([table, alias, column]) => `${alias}.${q.cols(table)(column)}`);
+
   return `-- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
@@ -40,18 +51,19 @@ begin
       left join ${T("contacts")} c on c.${ct("id")} = v.${cv("contact")}
       where (list_inbox_conversations.tenant is null or v.${cv("tenant")} = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v.${cv("inbox")} = (filter ->> 'inbox_id')::uuid)
-        and (coalesce(filter ->> 'status', 'open') = 'all' or v.${cv("status")} = coalesce(filter ->> 'status', 'open'))
+        and (coalesce(filter ->> 'status', 'open') = 'all' or ${q.text("conversations", `v.${cv("status")}`)} = coalesce(filter ->> 'status', 'open'))
         and (case filter ->> 'assignee'
           when 'me' then v.${cv("assignee")} = (select auth.uid())
           when 'unassigned' then v.${cv("assignee")} is null
           else filter ->> 'assignee' is null or v.${cv("assignee")} = (filter ->> 'assignee')::uuid end)
         and (filter ->> 'team_id' is null or v.${cv("team")} = (filter ->> 'team_id')::uuid)
         and (filter ->> 'contact_id' is null or v.${cv("contact")} = (filter ->> 'contact_id')::uuid)
-        and (nullif(filter ->> 'search', '') is null
-          or v.${cv("subject")} ilike '%' || (filter ->> 'search') || '%'
-          or v.${cv("preview")} ilike '%' || (filter ->> 'search') || '%'
-          or c.${ct("name")} ilike '%' || (filter ->> 'search') || '%'
-          or c.${ct("email")} ilike '%' || (filter ->> 'search') || '%')
+        and (nullif(filter ->> 'search', '') is null${searched
+          .map(
+            (column) => `
+          or ${column} ilike '%' || (filter ->> 'search') || '%'`,
+          )
+          .join("")})
         and (filter -> 'before' is null
           or (v.${cv("lastMessageAt")}, v.${cv("id")}) < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v.${cv("lastMessageAt")} desc, v.${cv("id")} desc
@@ -68,7 +80,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select ${conversationJson}(v.${cv("id")}) from ${T("conversations")} v where v.${cv("id")} = conversation;
+  select ${conversationJson}(v.${cv("id")}) from ${T("conversations")} v where v.${cv("id")} = ${q.ctx.owns("conversations") ? "conversation" : "get_conversation.conversation"};
 $$;
 ${authed(`${fn("get_conversation")}(uuid)`)}
 
@@ -116,7 +128,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(e) order by e.${ev("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${q.json("events", "e")} order by e.${ev("id")}), '[]'::jsonb)
   from ${T("events")} e where e.${ev("conversation")} = list_conversation_events.conversation;
 $$;
 ${authed(`${fn("list_conversation_events")}(uuid)`)}
@@ -231,4 +243,34 @@ begin
 end;
 $$;
 ${authed}`;
+}
+
+/** When the contact last read a conversation, for staff read receipts. */
+export function inboxContactReadAt(q: InboxSql): string {
+  const { fn } = q;
+  const ct = q.cols("contacts");
+  const cv = q.cols("conversations");
+  const ck = q.core.cols("members");
+
+  return `-- When the contact last read the conversation, for staff read receipts.
+create or replace function ${fn("inbox_contact_read_at")}(conversation uuid)
+returns timestamptz
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select k.${ck("lastReadAt")}
+    from ${q.t("conversations")} v
+    join ${q.t("contacts")} c on c.${ct("id")} = v.${cv("contact")}
+    join ${q.core.t("members")} k on k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = c.${ct("user")}
+    where v.${cv("id")} = inbox_contact_read_at.conversation
+      and (${q.service} or ${q.can(`v.${cv("tenant")}`, "read")})
+  );
+end;
+$$;
+revoke execute on function ${fn("inbox_contact_read_at")}(uuid) from public, anon;
+grant execute on function ${fn("inbox_contact_read_at")}(uuid) to authenticated, service_role;`;
 }

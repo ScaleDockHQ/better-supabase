@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -20,7 +21,10 @@ const NAMES: BlockSqlNames = {
   tables: {
     links: {
       name: "identity_links",
+      app: {},
       lifecycle: { user: "user" },
+      optional: ["workspace", "contact", "createdAt"],
+      typed: ["kind", "source"],
       columns: {
         id: "id",
         kind: "kind",
@@ -35,7 +39,10 @@ const NAMES: BlockSqlNames = {
     },
     codes: {
       name: "identity_link_codes",
+      app: {},
       lifecycle: { user: "user", export: false },
+      optional: ["createdAt"],
+      typed: ["kind"],
       columns: {
         id: "id",
         user: "user_id",
@@ -58,6 +65,29 @@ function build(ctx: BlockSqlContext): string {
   const l = (column: string): string => ctx.col("links", column);
   const c = (column: string): string => ctx.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
+  const hasWorkspace = ctx.has("links", "workspace");
+  const hasContact = ctx.has("links", "contact");
+  const hasLinkCreated = ctx.has("links", "createdAt");
+  const linksName = ctx.tableName("links").name;
+
+  const identityKey = [
+    l("kind"),
+    l("provider"),
+    l("value"),
+    ...(hasWorkspace ? [l("workspace")] : []),
+  ].join(", ");
+
+  const sameWorkspace = (param: string, email: boolean): string => {
+    if (!hasWorkspace) {
+      return "";
+    }
+
+    const match = `${l("workspace")} is not distinct from ${param}`;
+
+    return email
+      ? `\n    and (${match} or (${l("kind")} = 'email' and ${l("workspace")} is null))`
+      : `\n    and ${match}`;
+  };
 
   const minutes = Math.max(
     1,
@@ -110,18 +140,18 @@ create table if not exists ${links} (
   ${l("id")} uuid primary key default gen_random_uuid(),
   ${l("kind")} text not null check (${l("kind")} in (${KINDS})),
   ${l("provider")} text check (length(${l("provider")}) between 1 and 100),
-  ${l("value")} text not null check (length(${l("value")}) between 1 and 500),
-  ${l("workspace")} text check (length(${l("workspace")}) between 1 and 200),
-  ${l("user")} uuid references auth.users (id) on delete cascade,
-  ${l("contact")} uuid${contactRef},
-  ${l("source")} text not null check (${l("source")} in ('link', 'verified_email')),
-  ${l("createdAt")} timestamptz not null default now(),
-  constraint identity_links_one_target check (num_nonnulls(${l("user")}, ${l("contact")}) = 1),
+  ${l("value")} text not null check (length(${l("value")}) between 1 and 500),${hasWorkspace ? `\n  ${l("workspace")} text check (length(${l("workspace")}) between 1 and 200),` : ""}
+  ${l("user")} uuid references auth.users (id) on delete cascade,${hasContact ? `\n  ${l("contact")} uuid${contactRef},` : ""}
+  ${l("source")} text not null check (${l("source")} in ('link', 'verified_email')),${hasLinkCreated ? `\n  ${l("createdAt")} timestamptz not null default now(),` : ""}
+  constraint identity_links_one_target check (${hasContact ? `num_nonnulls(${l("user")}, ${l("contact")}) = 1` : `${l("user")} is not null`}),
   constraint identity_links_email_lower check (${l("kind")} <> 'email' or ${l("value")} = lower(${l("value")})),
-  constraint identity_links_identity_key unique nulls not distinct (${l("kind")}, ${l("provider")}, ${l("value")}, ${l("workspace")})
+  constraint identity_links_identity_key unique nulls not distinct (${identityKey})
 );
-create index if not exists identity_links_user_idx on ${links} (${l("user")});
-create index if not exists identity_links_contact_idx on ${links} (${l("contact")});
+create index if not exists identity_links_user_idx on ${links} (${l("user")});${hasContact ? `\ncreate index if not exists identity_links_contact_idx on ${links} (${l("contact")});` : ""}${
+    ctx.owns("links")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${linksName}_identity_key`)} on ${links} (${identityKey}) nulls not distinct;`
+  }
 alter table ${links} enable row level security;
 ${revokeTable(links)}
 grant select, delete on ${links} to authenticated;
@@ -141,8 +171,7 @@ create table if not exists ${codes} (
   ${c("provider")} text check (length(${c("provider")}) between 1 and 100),
   ${c("codeHash")} text not null unique,
   ${c("expiresAt")} timestamptz not null,
-  ${c("usedAt")} timestamptz,
-  ${c("createdAt")} timestamptz not null default now()
+  ${c("usedAt")} timestamptz${ctx.has("codes", "createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists identity_link_codes_user_idx on ${codes} (${c("user")});
 ${lockTable(codes)}
@@ -169,11 +198,11 @@ begin
     ${fail("IDENTITY_KIND", "kind must be email or chat", "22023")}
   end if;
   delete from ${codes}
-  where ${c("user")} = v_user and ${c("kind")} = begin_identity_link.kind
+  where ${c("user")} = v_user and ${c("kind")} = ${ctx.cast("codes", "kind", "begin_identity_link.kind")}
     and ${c("provider")} is not distinct from begin_identity_link.provider
     and ${c("usedAt")} is null;
   insert into ${codes} (${c("user")}, ${c("kind")}, ${c("provider")}, ${c("codeHash")}, ${c("expiresAt")})
-  values (v_user, begin_identity_link.kind, begin_identity_link.provider, ${sha256Hex("convert_to(v_code, 'utf8')")}, v_expires);
+  values (v_user, ${ctx.cast("codes", "kind", "begin_identity_link.kind")}, begin_identity_link.provider, ${sha256Hex("convert_to(v_code, 'utf8')")}, v_expires);
   return jsonb_build_object('code', v_code, 'expires_at', v_expires);
 end;
 $$;
@@ -201,7 +230,7 @@ begin
   select ${c("id")}, ${c("user")} into v_code_id, v_user
   from ${codes}
   where ${c("codeHash")} = ${sha256Hex("convert_to(upper(regexp_replace(redeem_identity_link.code, '[^0-9A-Za-z]', '', 'g')), 'utf8')")}
-    and ${c("kind")} = redeem_identity_link.kind
+    and ${c("kind")} = ${ctx.cast("codes", "kind", "redeem_identity_link.kind", "null")}
     and ${c("provider")} is not distinct from redeem_identity_link.provider
     and ${c("usedAt")} is null
     and ${c("expiresAt")} > now()
@@ -211,17 +240,16 @@ begin
   end if;
   update ${codes} set ${c("usedAt")} = now() where ${c("id")} = v_code_id;
   select * into v_link from ${links}
-  where ${l("kind")} = redeem_identity_link.kind
+  where ${l("kind")} = ${ctx.cast("links", "kind", "redeem_identity_link.kind")}
     and ${l("provider")} is not distinct from redeem_identity_link.provider
-    and ${l("value")} = v_value
-    and ${l("workspace")} is not distinct from redeem_identity_link.workspace;
+    and ${l("value")} = v_value${sameWorkspace("redeem_identity_link.workspace", false)};
   if found then
     if v_link.${l("user")} is distinct from v_user then
       ${fail("IDENTITY_TAKEN", "this identity is linked to someone else", "23505")}
     end if;
   else
-    insert into ${links} (${l("kind")}, ${l("provider")}, ${l("value")}, ${l("workspace")}, ${l("user")}, ${l("source")})
-    values (redeem_identity_link.kind, redeem_identity_link.provider, v_value, redeem_identity_link.workspace, v_user, 'link')
+    insert into ${links} (${l("kind")}, ${l("provider")}, ${l("value")}, ${hasWorkspace ? `${l("workspace")}, ` : ""}${l("user")}, ${l("source")})
+    values (${ctx.cast("links", "kind", "redeem_identity_link.kind")}, redeem_identity_link.provider, v_value, ${hasWorkspace ? "redeem_identity_link.workspace, " : ""}v_user, ${ctx.cast("links", "source", "'link'")})
     returning * into v_link;
   end if;
   return jsonb_build_object('id', v_link.${l("id")}, 'user_id', v_user);
@@ -240,15 +268,13 @@ security definer
 set search_path = ''
 as $$
   select case when ${l("user")} is not null
-    then jsonb_build_object('kind', 'user', 'userId', ${l("user")})
-    else jsonb_build_object('kind', 'contact', 'contactId', ${l("contact")})
+    then jsonb_build_object('kind', 'user', 'userId', ${l("user")})${hasContact ? `\n    else jsonb_build_object('kind', 'contact', 'contactId', ${l("contact")})` : ""}
   end
   from ${links}
-  where ${l("kind")} = principal_by_identity.kind
+  where ${l("kind")} = ${ctx.cast("links", "kind", "principal_by_identity.kind", "null")}
     and ${l("value")} = case when principal_by_identity.kind = 'email' then lower(trim(principal_by_identity.value)) else principal_by_identity.value end
-    and (${l("provider")} is not distinct from principal_by_identity.provider or (${l("kind")} = 'email' and ${l("provider")} is null))
-    and (${l("workspace")} is not distinct from principal_by_identity.workspace or (${l("kind")} = 'email' and ${l("workspace")} is null))
-  order by ${l("provider")} is null, ${l("workspace")} is null
+    and (${l("provider")} is not distinct from principal_by_identity.provider or (${l("kind")} = 'email' and ${l("provider")} is null))${sameWorkspace("principal_by_identity.workspace", true)}
+  order by ${l("provider")} is null${hasWorkspace ? `, ${l("workspace")} is null` : ""}
   limit 1
 $$;
 ${serviceGrant(`${fn("principal_by_identity")}(text, text, text, text)`)}
@@ -272,8 +298,8 @@ begin
     return false;
   end if;
   insert into ${links} (${l("kind")}, ${l("value")}, ${l("user")}, ${l("source")})
-  values ('email', v_email, link_verified_email.user_id, 'verified_email')
-  on conflict on constraint identity_links_identity_key do nothing;
+  values (${ctx.cast("links", "kind", "'email'")}, v_email, link_verified_email.user_id, ${ctx.cast("links", "source", "'verified_email'")})
+  on conflict (${identityKey}) do nothing;
   return found;
 end;
 $$;
@@ -301,8 +327,8 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', ${l("id")}, 'kind', ${l("kind")}, 'provider', ${l("provider")}, 'value', ${l("value")},
-    'workspace', ${l("workspace")}, 'source', ${l("source")}, 'created_at', ${l("createdAt")}
-  ) order by ${l("createdAt")}), '[]'::jsonb)
+    'workspace', ${hasWorkspace ? l("workspace") : "null"}, 'source', ${l("source")}, 'created_at', ${hasLinkCreated ? l("createdAt") : "null"}
+  ) order by ${hasLinkCreated ? l("createdAt") : l("id")}), '[]'::jsonb)
   from ${links}
   where ${l("user")} = (select auth.uid())
 $$;

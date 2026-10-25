@@ -84,6 +84,45 @@ function tenantColumnOf(
 }
 
 /**
+ * The tenant columns `blocks.<module>.columns` renames, as database name to
+ * default name. A name another column of the block has by default is left out,
+ * since mapping it back would rename that column too.
+ */
+function tenantColumnsOf(
+  config: Pick<ResolvedConfig, "blocks">,
+  modules: readonly string[],
+): Record<string, string> {
+  const tables = modules.flatMap((module) =>
+    Object.entries(SQL_MODULES[module]?.names?.tables ?? {}).map(
+      ([table, spec]) =>
+        [spec, resolveBlock(config.blocks[module]).columns[table]] as const,
+    ),
+  );
+
+  const defaults = new Set(
+    tables.flatMap(([spec]) =>
+      Object.entries(spec.columns)
+        .filter(([logical]) => logical !== "tenant")
+        .map(([, name]) => name),
+    ),
+  );
+
+  return Object.fromEntries(
+    tables.flatMap(([spec, columns]) => {
+      const fallback = spec.columns["tenant"];
+      const name = columns?.["tenant"];
+
+      return fallback === undefined ||
+        typeof name !== "string" ||
+        name === fallback ||
+        defaults.has(name)
+        ? []
+        : [[name, fallback]];
+    }),
+  );
+}
+
+/**
  * How the tenant rename, the modules' renamed entities and their
  * `blocks.<module>.functions` rename the block's functions and payload keys, or
  * undefined when nothing does. `blocks.permissions.functions` is the custom
@@ -111,11 +150,20 @@ function namingOf(
   const renames = Object.keys(functions).length > 0;
   const tenantColumn = tenantColumnOf(config, modules);
 
+  const columns = Object.fromEntries(
+    Object.entries(tenantColumnsOf(config, modules)).filter(
+      ([name]) => name !== tenantColumn,
+    ),
+  );
+
+  const moved = Object.keys(columns).length > 0;
+
   if (
     tenant === undefined &&
     !renames &&
     entities.length === 0 &&
-    tenantColumn === undefined
+    tenantColumn === undefined &&
+    !moved
   ) {
     return undefined;
   }
@@ -125,6 +173,7 @@ function namingOf(
     ...(tenantColumn === undefined ? {} : { tenantColumn }),
     ...(renames ? { functions } : {}),
     ...(entities.length === 0 ? {} : { entities }),
+    ...(moved ? { columns } : {}),
   };
 }
 

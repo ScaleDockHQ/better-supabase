@@ -1,5 +1,6 @@
 import type { Codec } from "../schema/types.ts";
 
+import { isPlainObject } from "../core/clone.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { temporalText } from "../core/temporal.ts";
@@ -37,6 +38,48 @@ export function encodeValue(value: unknown): unknown {
   }
 
   return value;
+}
+
+/**
+ * Wire form of a function argument or query parameter: `encodeValue`, also
+ * inside plain objects, so a json or jsonb argument carries ISO text and
+ * decimal `bigint` text at any depth. Other objects (`Uint8Array`, class
+ * instances) pass through.
+ */
+export function encodeArgument(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(encodeArgument);
+  }
+
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {};
+
+    for (const [key, item] of Object.entries(value)) {
+      out[key] = encodeArgument(item);
+    }
+
+    return out;
+  }
+
+  return encodeValue(value);
+}
+
+/**
+ * The arguments of a function call in wire form, without the ones left
+ * `undefined` so the function's defaults apply.
+ */
+export function encodeArguments(
+  args: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(args)) {
+    if (value !== undefined) {
+      out[key] = encodeArgument(value);
+    }
+  }
+
+  return out;
 }
 
 /** Postgres timestamps can be `infinity`; Temporal has no such value. */

@@ -138,6 +138,7 @@ const NAMES: BlockSqlNames = {
     },
     personContacts: {
       name: "person_inbox_contacts",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -146,6 +147,7 @@ const NAMES: BlockSqlNames = {
         contact: "contact_id",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
   },
 };

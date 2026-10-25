@@ -24,6 +24,7 @@ import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
+  intervalOf,
   recordOf,
   recordsOf,
   requiredInstant,
@@ -174,8 +175,7 @@ export interface PlacedBooking extends Booking {
 export interface PublicBookingService {
   readonly id: string;
   readonly name: string;
-  /** The duration as Postgres prints an interval, such as `00:30:00`. */
-  readonly duration: string;
+  readonly duration: Temporal.Duration;
   readonly resources: readonly {
     readonly id: string;
     readonly name: string;
@@ -553,7 +553,7 @@ export function createBookings<
           return {
             id: textOf(row["id"]),
             name: textOf(row["name"]),
-            duration: textOf(row["duration"]),
+            duration: intervalOf(row["duration"]),
             resources: recordsOf(row["resources"], "resources").map(
               (resource) => ({
                 id: textOf(resource["id"]),

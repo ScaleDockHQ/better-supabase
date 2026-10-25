@@ -11,6 +11,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The length of one rent period of a frequency, as an interval. */
@@ -35,6 +36,19 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
   const lt = (column: string): string => ledger.col("transactions", column);
   const holds = ledger.table("holds");
   const fn = (name: string): string => ctx.fn(name);
+
+  // `row.column`, or null when the app's table lacks the column.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // "<column> = <value>, " for an update, when the column exists.
+  const set = (table: string, logical: string, value: string): string =>
+    ctx.has(table, logical) ? `${ctx.col(table, logical)} = ${value}, ` : "";
+
   const idType = ctx.idType;
   const extras = ctx.extraColumns("leases", LEASE_RESERVED);
   const extra = extraFieldsArg(extras);
@@ -96,10 +110,10 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
     `coalesce((select h.${lh("amount")} from ${holds} h where h.${lh("id")} = ${row}.${l("depositHold")} and h.${lh("status")} = 'active'), 0)`;
 
   const leaseJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'unitId', ${row}.${l("unit")}, 'partyType', ${row}.${l("partyType")}, 'partyId', ${row}.${l("partyId")}, 'title', ${row}.${l("title")}, 'status', ${row}.${l("status")}, 'startsOn', ${row}.${l("startsOn")}, 'endsOn', ${row}.${l("endsOn")}, 'rent', ${row}.${l("rent")}::text, 'currency', ${row}.${l("currency")}, 'frequency', ${row}.${l("frequency")}, 'deposit', ${row}.${l("deposit")}::text, 'depositHoldId', ${row}.${l("depositHold")}, 'depositHeld', ${depositHeld(row)}::text, 'balanceDue', ${balanceDue(row)}::text, 'renewedAt', ${row}.${l("renewedAt")}, 'terminatedOn', ${row}.${l("terminatedOn")}, 'terminationReason', ${row}.${l("terminationReason")}, 'metadata', ${row}.${l("metadata")}, 'createdBy', ${row}.${l("createdBy")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'unitId', ${row}.${l("unit")}, 'partyType', ${row}.${l("partyType")}, 'partyId', ${row}.${l("partyId")}, 'title', ${row}.${l("title")}, 'status', ${row}.${l("status")}, 'startsOn', ${row}.${l("startsOn")}, 'endsOn', ${row}.${l("endsOn")}, 'rent', ${row}.${l("rent")}::text, 'currency', ${row}.${l("currency")}, 'frequency', ${row}.${l("frequency")}, 'deposit', ${row}.${l("deposit")}::text, 'depositHoldId', ${row}.${l("depositHold")}, 'depositHeld', ${depositHeld(row)}::text, 'balanceDue', ${balanceDue(row)}::text, 'renewedAt', ${or("leases", row, "renewedAt")}, 'terminatedOn', ${row}.${l("terminatedOn")}, 'terminationReason', ${or("leases", row, "terminationReason")}, 'metadata', ${ctx.has("leases", "metadata") ? `${row}.${l("metadata")}` : "'{}'::jsonb"}, 'createdBy', ${row}.${l("createdBy")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const chargeJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'leaseId', ${row}.${c("lease")}, 'periodStart', ${row}.${c("periodStart")}, 'periodEnd', ${row}.${c("periodEnd")}, 'amount', ${row}.${c("amount")}::text, 'currency', ${row}.${c("currency")}, 'transactionId', ${row}.${c("transaction")}, 'createdAt', ${row}.${c("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'leaseId', ${row}.${c("lease")}, 'periodStart', ${row}.${c("periodStart")}, 'periodEnd', ${row}.${c("periodEnd")}, 'amount', ${row}.${c("amount")}::text, 'currency', ${row}.${c("currency")}, 'transactionId', ${row}.${c("transaction")}, 'createdAt', ${or("charges", row, "createdAt")})`;
 
   const leaseRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -169,11 +183,10 @@ begin
     ${invalid("LEASE_TERMS_INVALID", "a deposit is zero or more minor units")}
   end if;
   insert into ${leases} (${l("tenant")}, ${l("unit")}, ${l("partyType")}, ${l("partyId")}, ${l("title")}, ${l("startsOn")}, ${l("endsOn")},
-    ${l("rent")}, ${l("currency")}, ${l("frequency")}, ${l("deposit")}, ${l("metadata")}, ${l("createdBy")})
+    ${l("rent")}, ${l("currency")}, ${l("frequency")}, ${l("deposit")}${also("leases", "metadata")}, ${l("createdBy")})
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
-    create_lease.rent, create_lease.currency, coalesce(create_lease.frequency, 'monthly'), coalesce(create_lease.deposit, 0),
-    coalesce(create_lease.metadata, '{}'::jsonb), auth.uid())
+    create_lease.rent, create_lease.currency, ${ctx.cast("leases", "frequency", "coalesce(create_lease.frequency, 'monthly')")}, coalesce(create_lease.deposit, 0)${ctx.has("leases", "metadata") ? ",\n    coalesce(create_lease.metadata, '{}'::jsonb)" : ""}, auth.uid())
   returning * into v_row;${writeExtraColumns(leases, extras, "create_lease.fields", `x.${l("id")} = v_row.${l("id")}`, "v_row")}
   ${leaseRecord("lease.created", "v_row", "created a lease")}
   return ${leaseJson("v_row")};
@@ -250,7 +263,7 @@ begin${loadLease("renew_lease.lease_id", manage, true)}
     ${invalid("LEASE_TERMS_INVALID", "rent is more than zero minor units")}
   end if;
   update ${leases} x set ${l("endsOn")} = renew_lease.ends_on, ${l("rent")} = coalesce(renew_lease.rent, x.${l("rent")}),
-      ${l("renewedAt")} = now(), ${l("updatedAt")} = now()
+      ${set("leases", "renewedAt", "now()")}${l("updatedAt")} = now()
     where x.${l("id")} = v_row.${l("id")}
     returning * into v_row;
   ${leaseRecord("lease.renewed", "v_row", "renewed a lease")}
@@ -305,8 +318,8 @@ begin${loadLease("terminate_lease.lease_id", manage, true)}
     end if;
   end if;
   update ${leases} x set
-      ${l("status")} = case when x.${l("status")} = 'active' and x.${l("endsOn")} is not null and v_on >= x.${l("endsOn")} then 'ended' else 'terminated' end,
-      ${l("terminatedOn")} = v_on, ${l("terminationReason")} = nullif(trim(terminate_lease.reason), ''), ${l("updatedAt")} = now()
+      ${l("status")} = ${ctx.cast("leases", "status", `case when x.${l("status")} = 'active' and x.${l("endsOn")} is not null and v_on >= x.${l("endsOn")} then 'ended' else 'terminated' end`)},
+      ${l("terminatedOn")} = v_on, ${set("leases", "terminationReason", "nullif(trim(terminate_lease.reason), '')")}${l("updatedAt")} = now()
     where x.${l("id")} = v_row.${l("id")}
     returning * into v_row;
   ${leaseRecord("lease.terminated", "v_row", "ended a lease")}
@@ -347,7 +360,7 @@ begin
     from (
       select * from ${leases} x
       where x.${l("tenant")} = list_leases.tenant
-        and (list_leases.status is null or x.${l("status")} = list_leases.status)
+        and (list_leases.status is null or ${asText(ctx, "leases", `x.${l("status")}`)} = list_leases.status)
         and (list_leases.unit_id is null or x.${l("unit")} = list_leases.unit_id)
         and (list_leases.party_type is null or (x.${l("partyType")} = list_leases.party_type and x.${l("partyId")} = list_leases.party_id))
       order by x.${l("startsOn")} desc, x.${l("id")}

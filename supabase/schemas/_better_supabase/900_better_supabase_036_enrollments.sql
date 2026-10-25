@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:e384d62e031603a4faee163a1b6e8d580e0cb249649698f5227be2bac97c8a84
+-- @bsb-hash sha256:a370780275aeefcab642e23fa0c9c49004a69ff4c58f6db87d00e27777edcd48
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,8 +179,7 @@ begin
   for update;
   if v_row."id" is null then
     insert into "better_supabase"."enrollments" ("tenant_id", "program", "program_version", "subject_type", "subject_id", "user_id", "steps", "enrolled_by")
-    values (enrollment_ensure.tenant, enrollment_ensure.program, enrollment_ensure.program_version, enrollment_ensure.subject_type, enrollment_ensure.subject_id,
-      case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end, enrollment_ensure.steps, enrollment_ensure.actor)
+    values (enrollment_ensure.tenant, enrollment_ensure.program, enrollment_ensure.program_version, enrollment_ensure.subject_type, enrollment_ensure.subject_id, case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end, enrollment_ensure.steps, enrollment_ensure.actor)
     on conflict do nothing
     returning * into v_row;
     if v_row."id" is null then

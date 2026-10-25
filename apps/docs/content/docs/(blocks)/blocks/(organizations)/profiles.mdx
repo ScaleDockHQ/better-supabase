@@ -53,6 +53,10 @@ whose value the type rejects gets a null `locale` through
 sign-up never fails on it. Keep that column nullable or leave it out of
 `metadata`.
 
+The generated types follow the column: `db.profiles` rows carry the enum's
+labels as a union (`"en" | "nl" | "de"`), and `fields` on `createProfiles`
+types the same union on `mine()`.
+
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
 or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another
 profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a

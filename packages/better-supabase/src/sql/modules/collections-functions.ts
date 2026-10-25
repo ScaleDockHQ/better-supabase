@@ -36,6 +36,15 @@ export interface CollectionNames {
 
 const SERVICE = "auth.role() = 'service_role'";
 
+/** `alias.column`, or null when the table lacks the optional column. */
+const colOrNull = (
+  ctx: BlockSqlContext,
+  table: string,
+  alias: string,
+  column: string,
+): string =>
+  ctx.has(table, column) ? `${alias}.${ctx.col(table, column)}` : "null";
+
 /** `options.extraColumns`, which the collections table gets. */
 export const collectionExtras = (
   ctx: BlockSqlContext,
@@ -93,11 +102,14 @@ export function collectionFunctions(
     'ownerId', ${alias}.${co("owner")},
     'teamId', ${alias}.${co("team")},
     'name', ${alias}.${co("name")},
-    'description', ${alias}.${co("description")},
+    'description', ${colOrNull(ctx, "collections", alias, "description")},
     'archivedAt', ${alias}.${co("archivedAt")},
-    'createdBy', ${alias}.${co("createdBy")},
+    'createdBy', ${colOrNull(ctx, "collections", alias, "createdBy")},
     'createdAt', ${alias}.${co("createdAt")},
-    'updatedAt', ${alias}.${co("updatedAt")}${extraFieldsJson(alias, extras)})`;
+    'updatedAt', ${colOrNull(ctx, "collections", alias, "updatedAt")}${extraFieldsJson(alias, extras)})`;
+
+  const has = (column: string): boolean => ctx.has("collections", column);
+  const touched = has("updatedAt") ? `,\n    ${co("updatedAt")} = now()` : "";
 
   const entryRecord = (event: string): string =>
     ctx.record({
@@ -174,11 +186,11 @@ begin
     ["text", "create_collection.subject_type"],
     ["text", "v_scope"],
   ])}
-  insert into ${t("collections")} (${co("tenant")}, ${co("subjectType")}, ${co("scope")}, ${co("owner")}, ${co("team")}, ${co("name")}, ${co("description")}, ${co("createdBy")})
-  values (create_collection.tenant, create_collection.subject_type, v_scope,
+  insert into ${t("collections")} (${co("tenant")}, ${co("subjectType")}, ${co("scope")}, ${co("owner")}, ${co("team")}, ${co("name")}${has("description") ? `, ${co("description")}` : ""}${has("createdBy") ? `, ${co("createdBy")}` : ""})
+  values (create_collection.tenant, create_collection.subject_type, ${ctx.cast("collections", "scope", "v_scope")},
     case when v_scope = 'user' then auth.uid() end,
     case when v_scope = 'team' then create_collection.team end,
-    v_name, nullif(trim(create_collection.description), ''), auth.uid())
+    v_name${has("description") ? ", nullif(trim(create_collection.description), '')" : ""}${has("createdBy") ? ", auth.uid()" : ""})
   returning ${co("id")} into v_id;${setExtras("create_collection.fields", "v_id")}
   ${ctx.record({
     type: "collection.created",
@@ -212,10 +224,13 @@ begin
     ${fail("COLLECTION_NAME_REQUIRED", "a name is required", "23502")}
   end if;
   update ${t("collections")} x set
-    ${co("name")} = coalesce(trim(rename_collection.name), x.${co("name")}),
+    ${co("name")} = coalesce(trim(rename_collection.name), x.${co("name")})${
+      has("description")
+        ? `,
     ${co("description")} = case when rename_collection.description is null then x.${co("description")}
-      else nullif(trim(rename_collection.description), '') end,
-    ${co("updatedAt")} = now()
+      else nullif(trim(rename_collection.description), '') end`
+        : ""
+    }${touched}
   where x.${co("id")} = v_row.${co("id")};${setExtras("rename_collection.fields", `v_row.${co("id")}`)}
   return (select ${json("x")} from ${t("collections")} x where x.${co("id")} = v_row.${co("id")});
 end;
@@ -238,8 +253,7 @@ begin
     ${fail("COLLECTION_FORBIDDEN", "not allowed to change this collection")}
   end if;
   update ${t("collections")} x set
-    ${co("archivedAt")} = case when coalesce(archive_collection.archived, true) then coalesce(x.${co("archivedAt")}, now()) end,
-    ${co("updatedAt")} = now()
+    ${co("archivedAt")} = case when coalesce(archive_collection.archived, true) then coalesce(x.${co("archivedAt")}, now()) end${touched}
   where x.${co("id")} = v_row.${co("id")};
   if coalesce(archive_collection.archived, true) and v_row.${co("archivedAt")} is null then
     ${ctx.record({
@@ -281,6 +295,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${t("collections")};
   v_id text;
@@ -308,9 +323,9 @@ begin
       ${fail("COLLECTION_SUBJECT_FORBIDDEN", "a record is unknown or not readable in this organization")}
     end if;
     v_rank := ${rankAfter("v_last")};
-    insert into ${t("entries")} (${en("collection")}, ${en("tenant")}, ${en("subjectType")}, ${en("subjectId")}, ${en("rank")}, ${en("addedBy")})
-    values (v_row.${co("id")}, v_row.${co("tenant")}, v_row.${co("subjectType")}, v_id, v_rank, auth.uid())
-    on conflict do nothing;
+    insert into ${t("entries")} (${en("collection")}, ${en("tenant")}, ${en("subjectType")}, ${en("subjectId")}, ${en("rank")}${ctx.has("entries", "addedBy") ? `, ${en("addedBy")}` : ""})
+    values (v_row.${co("id")}, v_row.${co("tenant")}, v_row.${co("subjectType")}, v_id, v_rank${ctx.has("entries", "addedBy") ? ", auth.uid()" : ""})
+    on conflict (${en("collection")}, ${en("subjectId")}) do nothing;
     if found then
       v_last := v_rank;
       v_added := v_added || v_id;
@@ -394,8 +409,8 @@ as $$
       'subjectType', e.${en("subjectType")},
       'subjectId', e.${en("subjectId")},
       'rank', e.${en("rank")},
-      'addedBy', e.${en("addedBy")},
-      'addedAt', e.${en("addedAt")},
+      'addedBy', ${colOrNull(ctx, "entries", "e", "addedBy")},
+      'addedAt', ${colOrNull(ctx, "entries", "e", "addedAt")},
       'title', ${names.subjectTitle}(e.${en("subjectType")}, e.${en("subjectId")}),
       'url', ${names.subjectUrl}(e.${en("subjectType")}, e.${en("subjectId")})
     ) as value, e.${en("rank")} as rank, e.${en("subjectId")} collate "C" as id
@@ -461,7 +476,7 @@ export function starFunctions(
       'subjectId', ${alias}.${fa("subjectId")},
       'organizationId', ${alias}.${fa("tenant")},
       'rank', ${alias}.${fa("rank")},
-      'starredAt', ${alias}.${fa("createdAt")})`;
+      'starredAt', ${colOrNull(ctx, "favorites", alias, "createdAt")})`;
 
   return `
 -- Stars a record the caller can read, at the end of their favorites. A
@@ -472,6 +487,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -495,7 +511,7 @@ begin
     v_rank := ${rankAfter("v_last")};
     insert into ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("subjectType")}, ${fa("subjectId")}, ${fa("rank")})
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
-    on conflict do nothing;
+    on conflict (${fa("user")}, ${fa("subjectType")}, ${fa("subjectId")}) do nothing;
   end if;
   return (select ${json("f")} from ${t("favorites")} f
     where f.${fa("user")} = v_user and f.${fa("subjectType")} = star_subject.subject_type and f.${fa("subjectId")} = star_subject.subject_id);
@@ -569,6 +585,7 @@ export function savedItemFunctions(
 ): string {
   const { t, fn } = names;
   const sv = (column: string): string => names.c("savedItems", column);
+  const noted = ctx.has("savedItems", "note");
 
   const json = (alias: string): string =>
     `jsonb_build_object(
@@ -577,7 +594,7 @@ export function savedItemFunctions(
       'userId', ${alias}.${sv("user")},
       'subjectType', ${alias}.${sv("subjectType")},
       'subjectId', ${alias}.${sv("subjectId")},
-      'note', ${alias}.${sv("note")},
+      'note', ${colOrNull(ctx, "savedItems", alias, "note")},
       'remindAt', ${alias}.${sv("remindAt")},
       'remindedAt', ${alias}.${sv("remindedAt")},
       'completedAt', ${alias}.${sv("completedAt")},
@@ -612,11 +629,10 @@ begin
   if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
     ${fail("SAVED_ITEM_INVALID", "the reminder time must be in the future", "22023")}
   end if;
-  insert into ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("subjectType")}, ${sv("subjectId")}, ${sv("note")}, ${sv("remindAt")})
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  insert into ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("subjectType")}, ${sv("subjectId")}${noted ? `, ${sv("note")}` : ""}, ${sv("remindAt")})
+  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id${noted ? ", v_note" : ""}, save_for_later.remind_at)
   on conflict (${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")}) do update
-    set ${sv("note")} = excluded.${sv("note")},
-      ${sv("remindAt")} = excluded.${sv("remindAt")},
+    set ${noted ? `${sv("note")} = excluded.${sv("note")},\n      ` : ""}${sv("remindAt")} = excluded.${sv("remindAt")},
       ${sv("remindedAt")} = null,
       ${sv("completedAt")} = null;
   return (select ${json("s")} from ${t("savedItems")} s
@@ -711,7 +727,7 @@ begin
   loop
     ${ctx.record({
       type: "saved_item.reminded",
-      payload: `jsonb_strip_nulls(jsonb_build_object('organizationId', v_row.${sv("tenant")}, 'savedItemId', v_row.${sv("id")}, 'userId', v_row.${sv("user")}, 'subjectType', v_row.${sv("subjectType")}, 'subjectId', v_row.${sv("subjectId")}, 'note', v_row.${sv("note")}, 'remindAt', v_row.${sv("remindAt")}))`,
+      payload: `jsonb_strip_nulls(jsonb_build_object('organizationId', v_row.${sv("tenant")}, 'savedItemId', v_row.${sv("id")}, 'userId', v_row.${sv("user")}, 'subjectType', v_row.${sv("subjectType")}, 'subjectId', v_row.${sv("subjectId")}, 'note', ${colOrNull(ctx, "savedItems", "v_row", "note")}, 'remindAt', v_row.${sv("remindAt")}))`,
       subject: `'saved-items/' || v_row.${sv("id")}::text`,
       tenant: `v_row.${sv("tenant")}::text`,
       audit: false,

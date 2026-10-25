@@ -125,6 +125,10 @@ function tableDdl(q: MessagingSql): TableDdl {
       ? `\n  ${definition(ctx.col(table, logical))},`
       : "";
 
+  // An `on conflict` target with a nullable thread column.
+  const appKey = (table: string, columns: readonly string[]): string =>
+    appUniqueIndex(ctx, table, columns).replace(/;$/u, " nulls not distinct;");
+
   return {
     conversations: `create table if not exists ${t("conversations")} (
   ${cv("id")} uuid primary key default gen_random_uuid(),
@@ -199,9 +203,7 @@ ${lock("messages")}`,
   ${ed("id")} uuid primary key default gen_random_uuid(),
   ${ed("tenant")} ${id} not null,
   ${ed("message")} uuid not null references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${ed("body")} text not null,
-  ${ed("document")} jsonb,
-  ${ed("editor")} uuid,
+  ${ed("body")} text not null,${column("edits", "document", (name) => `${name} jsonb`)}${column("edits", "editor", (name) => `${name} uuid`)}
   ${ed("editedAt")} timestamptz not null default now()
 );
 create index if not exists ${idx("messaging_edits_message_idx")} on ${t("edits")} (${ed("message")}, ${ed("editedAt")});
@@ -213,7 +215,7 @@ ${lock("edits")}`,
   ${rd("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
   ${rd("lastReadAt")} timestamptz not null default now(),
   unique nulls not distinct (${rd("user")}, ${rd("conversation")}, ${rd("thread")})
-);
+);${appKey("reads", ["user", "conversation", "thread"])}
 create index if not exists ${idx("messaging_reads_conversation_idx")} on ${t("reads")} (${rd("conversation")});
 create index if not exists ${idx("messaging_reads_thread_idx")} on ${t("reads")} (${rd("thread")});
 ${lock("reads")}`,
@@ -225,7 +227,7 @@ ${lock("reads")}`,
   ${rm("subjectId")} text not null,
   ${rm("createdAt")} timestamptz not null default now(),
   primary key (${rm("message")}, ${rm("subjectType")}, ${rm("subjectId")})
-);
+);${appUniqueIndex(ctx, "recordMentions", ["message", "subjectType", "subjectId"])}
 create index if not exists ${idx("messaging_record_mentions_subject_idx")} on ${t("recordMentions")} (${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")} desc, ${rm("message")});
 create index if not exists ${idx("messaging_record_mentions_conversation_idx")} on ${t("recordMentions")} (${rm("conversation")});
 ${lock("recordMentions")}`,
@@ -234,14 +236,11 @@ ${lock("recordMentions")}`,
   ${su("tenant")} ${id} not null,
   ${su("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
   ${su("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${su("summary")} text not null check (char_length(${su("summary")}) between 1 and ${String(MAX_SUMMARY_LENGTH)}),
-  ${su("model")} text check (char_length(${su("model")}) <= 200),
+  ${su("summary")} text not null check (char_length(${su("summary")}) between 1 and ${String(MAX_SUMMARY_LENGTH)}),${column("summaries", "model", (name) => `${name} text check (char_length(${name}) <= 200)`)}
   ${su("messageCount")} integer not null default 0 check (${su("messageCount")} >= 0),
-  ${su("throughAt")} timestamptz not null,
-  ${su("createdAt")} timestamptz not null default now(),
-  ${su("updatedAt")} timestamptz not null default now(),
+  ${su("throughAt")} timestamptz not null,${column("summaries", "createdAt", (name) => `${name} timestamptz not null default now()`)}${column("summaries", "updatedAt", (name) => `${name} timestamptz not null default now()`)}
   unique nulls not distinct (${su("conversation")}, ${su("thread")})
-);
+);${appKey("summaries", ["conversation", "thread"])}
 create index if not exists ${idx("messaging_thread_summaries_thread_idx")} on ${t("summaries")} (${su("thread")});
 ${lock("summaries")}`,
   };

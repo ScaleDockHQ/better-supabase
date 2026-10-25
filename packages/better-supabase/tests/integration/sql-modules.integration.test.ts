@@ -3799,7 +3799,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       )!.contents;
 
       await pool.query(
-        /^delete from better_supabase\.audited_tables[^;]*;/m.exec(data)![0],
+        /^delete from "better_supabase"\."audited_tables"[^;]*;/m.exec(
+          data,
+        )![0],
       );
       expect(await registered()).toBe(0);
     } finally {

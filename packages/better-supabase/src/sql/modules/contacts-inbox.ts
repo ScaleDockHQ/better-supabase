@@ -3,7 +3,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
-import { lockModuleTable } from "./over-app.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 /**
  * With the inbox installed: which person an inbox contact is, so a conversation
@@ -36,10 +36,9 @@ export function partiesInboxSql(
 create table if not exists ${t("personContacts")} (
   ${pc("tenant")} ${ctx.idType} not null,
   ${pc("person")} uuid not null references ${t("people")} (${pe("id")}) on delete cascade,
-  ${pc("contact")} uuid not null unique references ${contacts} (${ic("id")}) on delete cascade,
-  ${pc("createdAt")} timestamptz not null default now(),
+  ${pc("contact")} uuid not null unique references ${contacts} (${ic("id")}) on delete cascade,${ctx.has("personContacts", "createdAt") ? `\n  ${pc("createdAt")} timestamptz not null default now(),` : ""}
   primary key (${pc("person")}, ${pc("contact")})
-);
+);${appUniqueIndex(ctx, "personContacts", ["contact"])}
 ${lockModuleTable(ctx, "personContacts", { read: true })}
 drop policy if exists ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")};
 create policy ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")} for select to authenticated

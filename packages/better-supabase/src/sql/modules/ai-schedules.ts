@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { Columns } from "./module-columns.ts";
 
 import {
   addExtraColumns,
@@ -13,7 +14,6 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { columnsOf, rowJson } from "./module-columns.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const RUN_STATES = "'queued', 'running', 'completed', 'failed'";
@@ -59,11 +59,16 @@ const NAMES: BlockSqlNames = {
       name: "ai_scheduled_tasks",
       columns: TASKS,
       lifecycle: { user: "user", tenant: "tenant" },
+      app: {},
+      optional: ["chat", "agent", "lastRunAt", "updatedAt"],
     },
     runs: {
       name: "ai_task_runs",
       columns: RUNS,
       lifecycle: { user: "user", tenant: "tenant" },
+      app: {},
+      optional: ["chat", "error", "finishedAt"],
+      typed: ["status"],
     },
   },
 };
@@ -71,11 +76,50 @@ const NAMES: BlockSqlNames = {
 const QUEUE = /^[a-z_][a-z0-9_]{0,46}$/;
 const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
 
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: T,
+): Columns<T> {
+  // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
+  return Object.fromEntries(
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
+  ) as Columns<T>;
+}
+
+/** `jsonb_build_object` over a spec's columns, null for the ones missing. */
+function presentJson(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: Readonly<Record<string, string>>,
+  row: string,
+): string {
+  const pairs = Object.entries(spec).map(
+    ([key, name]) =>
+      `'${name}', ${ctx.has(table, key) ? `${row}.${ctx.col(table, key)}` : "null"}`,
+  );
+
+  return `jsonb_build_object(${pairs.join(", ")})`;
+}
+
 function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const t = columnsOf(ctx, "tasks", TASKS);
-  const r = columnsOf(ctx, "runs", RUNS);
+  const t = presentColumns(ctx, "tasks", TASKS);
+  const r = presentColumns(ctx, "runs", RUNS);
+
+  const task = (column: keyof typeof TASKS): boolean =>
+    ctx.has("tasks", column);
+
+  const run = (column: keyof typeof RUNS): boolean => ctx.has("runs", column);
+  const status = (value: string): string => ctx.cast("runs", "status", value);
   const tasks = ctx.table("tasks");
   const runs = ctx.table("runs");
   const permissions = moduleOperations("ai-schedules");
@@ -121,9 +165,12 @@ function build(ctx: BlockSqlContext): string {
   ]);
 
   const taskJson = (row: string): string =>
-    withExtraFields(rowJson(TASKS, t, row), row, extras);
+    withExtraFields(presentJson(ctx, "tasks", TASKS, row), row, extras);
 
-  const runJson = (row: string): string => rowJson(RUNS, r, row);
+  const runJson = (row: string): string => presentJson(ctx, "runs", RUNS, row);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
 
   const enqueue = (run: string): string =>
     ctx.installed("queue")
@@ -148,22 +195,17 @@ function build(ctx: BlockSqlContext): string {
 create table if not exists ${tasks} (
   ${t.id} uuid primary key default gen_random_uuid(),
   ${t.tenant} ${id} not null,
-  ${t.user} uuid not null references auth.users (id) on delete cascade,
-  ${t.chat} uuid,
-  ${t.agent} uuid${agentReference},
+  ${t.user} uuid not null references auth.users (id) on delete cascade,${line(task("chat"), `${t.chat} uuid`)}${line(task("agent"), `${t.agent} uuid${agentReference}`)}
   ${t.title} text not null check (length(${t.title}) between 1 and 200),
   ${t.prompt} text not null check (length(${t.prompt}) between 1 and ${maxPrompt}),
   ${t.cron} text not null check (length(${t.cron}) between 1 and 200),
   ${t.timezone} text not null default 'UTC' check (length(${t.timezone}) between 1 and 64),
   ${t.enabled} boolean not null default true,
-  ${t.nextRunAt} timestamptz,
-  ${t.lastRunAt} timestamptz,
-  ${t.createdAt} timestamptz not null default now(),
-  ${t.updatedAt} timestamptz not null default now()
+  ${t.nextRunAt} timestamptz,${line(task("lastRunAt"), `${t.lastRunAt} timestamptz`)}
+  ${t.createdAt} timestamptz not null default now()${task("updatedAt") ? `,\n  ${t.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_due_idx")} on ${tasks} (${t.nextRunAt}) where ${t.enabled};
-create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});
-create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});${addExtraColumns(tasks, extras)}
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}${addExtraColumns(tasks, extras)}
 alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
@@ -178,11 +220,8 @@ create table if not exists ${runs} (
   ${r.tenant} ${id} not null,
   ${r.user} uuid not null references auth.users (id) on delete cascade,
   ${r.status} text not null default 'queued' check (${r.status} in (${RUN_STATES})),
-  ${r.scheduledFor} timestamptz not null,
-  ${r.chat} uuid,
-  ${r.error} text check (length(${r.error}) <= 4000),
-  ${r.startedAt} timestamptz,
-  ${r.finishedAt} timestamptz,
+  ${r.scheduledFor} timestamptz not null,${line(run("chat"), `${r.chat} uuid`)}${line(run("error"), `${r.error} text check (length(${r.error}) <= 4000)`)}
+  ${r.startedAt} timestamptz,${line(run("finishedAt"), `${r.finishedAt} timestamptz`)}
   ${r.createdAt} timestamptz not null default now()
 );
 create index if not exists ai_task_runs_task_idx on ${runs} (${r.task}, ${r.createdAt} desc);
@@ -252,16 +291,13 @@ begin
     ${t.title} = coalesce(save_ai_task.fields ->> 'title', x.${t.title}),
     ${t.prompt} = coalesce(save_ai_task.fields ->> 'prompt', x.${t.prompt}),
     ${t.cron} = coalesce(save_ai_task.fields ->> 'cron', x.${t.cron}),
-    ${t.timezone} = coalesce(save_ai_task.fields ->> 'timezone', x.${t.timezone}),
-    ${t.chat} = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x.${t.chat} end,
-    ${t.agent} = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x.${t.agent} end,
+    ${t.timezone} = coalesce(save_ai_task.fields ->> 'timezone', x.${t.timezone}),${task("chat") ? `\n    ${t.chat} = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x.${t.chat} end,` : ""}${task("agent") ? `\n    ${t.agent} = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x.${t.agent} end,` : ""}
     ${t.enabled} = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}),
     ${t.nextRunAt} = case
       when (save_ai_task.fields ->> 'enabled')::boolean is false then null
       when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
       when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
-      else x.${t.nextRunAt} end,
-    ${t.updatedAt} = now()
+      else x.${t.nextRunAt} end${task("updatedAt") ? `,\n    ${t.updatedAt} = now()` : ""}
   where x.${t.id} = v_row.${t.id}
   returning * into v_row;${writeExtraColumns(tasks, extras, "save_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
   return ${taskJson("v_row")};
@@ -336,7 +372,11 @@ declare
   v_runs jsonb := '[]';
   v_unscheduled jsonb;
 begin
-  update ${runs} y set ${r.status} = 'failed', ${r.error} = 'timed out', ${r.finishedAt} = now()
+  update ${runs} y set ${[
+    `${r.status} = ${status("'failed'")}`,
+    ...(run("error") ? [`${r.error} = 'timed out'`] : []),
+    ...(run("finishedAt") ? [`${r.finishedAt} = now()`] : []),
+  ].join(", ")}
   where (y.${r.status} = 'running' and y.${r.startedAt} < now() - interval '${staleAfter}')
      or (y.${r.status} = 'queued' and y.${r.createdAt} < now() - interval '${staleAfter}');
   for v_task in
@@ -346,10 +386,10 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into ${runs} (${r.task}, ${r.tenant}, ${r.user}, ${r.scheduledFor}, ${r.chat})
-    values (v_task.${t.id}, v_task.${t.tenant}, v_task.${t.user}, v_task.${t.nextRunAt}, v_task.${t.chat})
+    insert into ${runs} (${r.task}, ${r.tenant}, ${r.user}, ${r.scheduledFor}${run("chat") ? `, ${r.chat}` : ""})
+    values (v_task.${t.id}, v_task.${t.tenant}, v_task.${t.user}, v_task.${t.nextRunAt}${run("chat") ? `, ${task("chat") ? `v_task.${t.chat}` : "null"}` : ""})
     returning * into v_run;
-    update ${tasks} x set ${t.nextRunAt} = null, ${t.lastRunAt} = now() where x.${t.id} = v_task.${t.id};${enqueue(`v_run.${r.id}`)}
+    update ${tasks} x set ${t.nextRunAt} = null${task("lastRunAt") ? `, ${t.lastRunAt} = now()` : ""} where x.${t.id} = v_task.${t.id};${enqueue(`v_run.${r.id}`)}
     v_runs := v_runs || jsonb_build_array(${runJson("v_run")});
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x.${t.id}, 'cron', x.${t.cron}, 'timezone', x.${t.timezone})), '[]')
@@ -392,7 +432,7 @@ declare
   v_run ${runs}%rowtype;
   v_task ${tasks}%rowtype;
 begin
-  update ${runs} y set ${r.status} = 'running', ${r.startedAt} = now()
+  update ${runs} y set ${r.status} = ${status("'running'")}, ${r.startedAt} = now()
   where y.${r.id} = start_ai_task_run.id and y.${r.status} = 'queued'
   returning * into v_run;
   if not found then
@@ -415,18 +455,28 @@ declare
   v_task uuid;
 begin
   update ${runs} y set
-    ${r.status} = case when finish_ai_task_run.succeeded then 'completed' else 'failed' end,
-    ${r.error} = left(finish_ai_task_run.error, 4000),
-    ${r.chat} = coalesce(finish_ai_task_run.chat_id, y.${r.chat}),
-    ${r.finishedAt} = now()
+    ${[
+      `${r.status} = ${status("case when finish_ai_task_run.succeeded then 'completed' else 'failed' end")}`,
+      ...(run("error")
+        ? [`${r.error} = left(finish_ai_task_run.error, 4000)`]
+        : []),
+      ...(run("chat")
+        ? [`${r.chat} = coalesce(finish_ai_task_run.chat_id, y.${r.chat})`]
+        : []),
+      ...(run("finishedAt") ? [`${r.finishedAt} = now()`] : []),
+    ].join(",\n    ")}
   where y.${r.id} = finish_ai_task_run.id and y.${r.status} = 'running'
   returning y.${r.task} into v_task;
   if not found then
     return false;
-  end if;
+  end if;${
+    task("chat")
+      ? `
   if finish_ai_task_run.chat_id is not null then
     update ${tasks} x set ${t.chat} = finish_ai_task_run.chat_id where x.${t.id} = v_task and x.${t.chat} is null;
-  end if;
+  end if;`
+      : ""
+  }
   return true;
 end;
 $$;
@@ -436,6 +486,10 @@ ${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
 // Version 1 ended task runs succeeded; version 2 uses completed, the word
 // ai-chat and workflow runs use.
 function upgradeRunStates(ctx: BlockSqlContext): string {
+  if (!ctx.owns("runs")) {
+    return "";
+  }
+
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
 

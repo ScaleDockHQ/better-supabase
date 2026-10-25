@@ -24,7 +24,9 @@ export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
 
   const enabled = await Promise.all(
     FLAGS.map(async (key) =>
-      (await db.$api("flag_enabled", { key, tenant })) === true ? key : null,
+      (await db.$api("flag_enabled", { key, tenant }).orThrow()) === true
+        ? key
+        : null,
     ),
   );
 

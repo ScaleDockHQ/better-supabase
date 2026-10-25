@@ -234,25 +234,35 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   }
 
   const [jobs, applications, pipelines, customers] = await Promise.all([
-    db.$api("list_jobs", { tenant }),
-    db.$api("list_applications", { tenant }),
-    db.$api("list_pipelines", { tenant, subject_type: "application" }),
+    db.$api("list_jobs", { tenant }, { returns: v.array(JobRow) }).orThrow(),
+    db
+      .$api(
+        "list_applications",
+        { tenant },
+        { returns: v.array(ApplicationRow) },
+      )
+      .orThrow(),
+    db
+      .$api(
+        "list_pipelines",
+        { tenant, subject_type: "application" },
+        { returns: v.array(PipelineRow) },
+      )
+      .orThrow(),
     db.customers
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),
   ]);
 
-  const pipeline = v.parse(v.array(PipelineRow), pipelines)[0];
+  const pipeline = pipelines[0];
 
   return {
-    jobs: v
-      .parse(v.array(JobRow), jobs)
-      .map((job) => ({
-        id: job.id,
-        title: job.title,
-        status: job.status,
-        location: job.location ?? null,
-      })),
+    jobs: jobs.map((job) => ({
+      id: job.id,
+      title: job.title,
+      status: job.status,
+      location: job.location ?? null,
+    })),
     stages: (pipeline?.stages ?? [])
       .filter((stage) => !stage.archived_at)
       .map((stage) => ({
@@ -260,20 +270,18 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
         name: stage.name,
         category: stage.category,
       })),
-    cards: v
-      .parse(v.array(ApplicationRow), applications)
-      .flatMap((application) =>
-        application.stage_id
-          ? [
-              {
-                id: application.id,
-                jobId: application.job_id,
-                stageId: application.stage_id,
-                name: application.candidate_name ?? application.candidate_id,
-              },
-            ]
-          : [],
-      ),
+    cards: applications.flatMap((application) =>
+      application.stage_id
+        ? [
+            {
+              id: application.id,
+              jobId: application.job_id,
+              stageId: application.stage_id,
+              name: application.candidate_name ?? application.candidate_id,
+            },
+          ]
+        : [],
+    ),
     candidates: customers.map((customer) => ({
       value: customer.id,
       label: customer.name,

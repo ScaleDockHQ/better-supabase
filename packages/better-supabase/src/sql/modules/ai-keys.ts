@@ -5,8 +5,9 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { Columns } from "./module-columns.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   raise,
   schemaPreamble,
@@ -16,7 +17,7 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { tenantRefGuard } from "./credentials.ts";
-import { columnsOf, rowJson } from "./module-columns.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const KEYS = {
@@ -83,28 +84,105 @@ const NAMES: BlockSqlNames = {
       name: "ai_provider_keys",
       columns: KEYS,
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
+      app: {},
+      optional: ["settings", "enabled", "createdBy", "createdAt", "updatedAt"],
     },
     batches: {
       name: "ai_batches",
       columns: BATCHES,
       lifecycle: { user: "user", tenant: "tenant" },
+      app: {},
+      optional: [
+        "rawStatus",
+        "itemCount",
+        "counts",
+        "error",
+        "metadata",
+        "polls",
+        "expiresAt",
+        "completedAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
     },
     items: {
       name: "ai_batch_items",
       columns: ITEMS,
       lifecycle: { tenant: "tenant" },
+      app: {},
+      optional: ["usage", "error", "createdAt"],
+      typed: ["status"],
     },
   },
 };
 
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: T,
+): Columns<T> {
+  // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
+  return Object.fromEntries(
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
+  ) as Columns<T>;
+}
+
+/** `jsonb_build_object` over a spec's columns, `missing` for the ones absent. */
+function presentJson(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: Readonly<Record<string, string>>,
+  row: string,
+  missing?: Readonly<Record<string, string>>,
+): string {
+  const pairs = Object.entries(spec).map(
+    ([key, name]) =>
+      `'${name}', ${ctx.has(table, key) ? `${row}.${ctx.col(table, key)}` : (missing?.[key] ?? "null")}`,
+  );
+
+  return `jsonb_build_object(${pairs.join(", ")})`;
+}
+
+const KEY_DEFAULTS = { settings: "'{}'::jsonb", enabled: "true" };
+
+const BATCH_DEFAULTS = {
+  itemCount: "0",
+  counts: "'{}'::jsonb",
+  metadata: "'{}'::jsonb",
+  polls: "0",
+};
+
 function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const k = columnsOf(ctx, "keys", KEYS);
-  const b = columnsOf(ctx, "batches", BATCHES);
-  const i = columnsOf(ctx, "items", ITEMS);
+  const k = presentColumns(ctx, "keys", KEYS);
+  const b = presentColumns(ctx, "batches", BATCHES);
+  const i = presentColumns(ctx, "items", ITEMS);
+  const key = (column: keyof typeof KEYS): boolean => ctx.has("keys", column);
+
+  const batch = (column: keyof typeof BATCHES): boolean =>
+    ctx.has("batches", column);
+
+  const item = (column: keyof typeof ITEMS): boolean =>
+    ctx.has("items", column);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns});`;
+
   const keys = ctx.table("keys");
   const batches = ctx.table("batches");
   const items = ctx.table("items");
@@ -119,7 +197,8 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
-  const keyJson = (row: string): string => rowJson(KEYS, k, row);
+  const keyJson = (row: string): string =>
+    presentJson(ctx, "keys", KEYS, row, KEY_DEFAULTS);
 
   const keyEvent = (type: string, row: string): string =>
     ctx.record({
@@ -135,8 +214,118 @@ function build(ctx: BlockSqlContext): string {
       },
     });
 
-  const batchJson = (row: string): string => rowJson(BATCHES, b, row);
-  const itemJson = (row: string): string => rowJson(ITEMS, i, row);
+  const batchJson = (row: string): string =>
+    presentJson(ctx, "batches", BATCHES, row, BATCH_DEFAULTS);
+
+  const itemJson = (row: string): string =>
+    presentJson(ctx, "items", ITEMS, row);
+
+  const batchStatus = (row: string): string =>
+    asText(ctx, "batches", `${row}.${b.status}`);
+
+  const keyInsert: readonly (readonly [string, string])[] = [
+    [k.tenant, "save_ai_provider_key.tenant"],
+    [k.provider, "save_ai_provider_key.provider"],
+    [k.name, "coalesce(save_ai_provider_key.name, 'default')"],
+    [k.credentialRef, "save_ai_provider_key.credential_ref"],
+    ...(key("settings")
+      ? ([
+          [k.settings, "coalesce(save_ai_provider_key.settings, '{}')"],
+        ] as const)
+      : []),
+    ...(key("enabled")
+      ? ([[k.enabled, "coalesce(save_ai_provider_key.enabled, true)"]] as const)
+      : []),
+    ...(key("createdBy") ? ([[k.createdBy, "auth.uid()"]] as const) : []),
+  ];
+
+  const keyUpdate = [
+    `${k.credentialRef} = excluded.${k.credentialRef}`,
+    ...(key("settings") ? [`${k.settings} = excluded.${k.settings}`] : []),
+    ...(key("enabled") ? [`${k.enabled} = excluded.${k.enabled}`] : []),
+    ...(key("updatedAt") ? [`${k.updatedAt} = now()`] : []),
+  ];
+
+  const batchInsert: readonly (readonly [string, string])[] = [
+    [b.tenant, "record_ai_batch.tenant"],
+    [
+      b.user,
+      `case when ${SERVICE_CALLER} then (v_fields ->> 'user_id')::uuid else auth.uid() end`,
+    ],
+    [b.provider, "record_ai_batch.provider"],
+    [b.reference, "record_ai_batch.reference"],
+    [
+      b.status,
+      ctx.cast(
+        "batches",
+        "status",
+        "coalesce(v_fields ->> 'status', 'pending')",
+      ),
+    ],
+    ...(batch("rawStatus")
+      ? ([[b.rawStatus, "v_fields ->> 'raw_status'"]] as const)
+      : []),
+    ...(batch("itemCount")
+      ? ([
+          [b.itemCount, "coalesce((v_fields ->> 'item_count')::integer, 0)"],
+        ] as const)
+      : []),
+    ...(batch("counts")
+      ? ([[b.counts, "coalesce(v_fields -> 'counts', '{}')"]] as const)
+      : []),
+    ...(batch("metadata")
+      ? ([[b.metadata, "coalesce(v_fields -> 'metadata', '{}')"]] as const)
+      : []),
+    ...(batch("expiresAt")
+      ? ([[b.expiresAt, "(v_fields ->> 'expires_at')::timestamptz"]] as const)
+      : []),
+    [b.nextPollAt, `now() + interval '${pollEvery} seconds'`],
+  ];
+
+  const batchUpdate = [
+    `${b.status} = ${ctx.cast("batches", "status", `coalesce(v_fields ->> 'status', ${batchStatus("x")})`)}`,
+    ...(batch("rawStatus")
+      ? [
+          `${b.rawStatus} = coalesce(v_fields ->> 'raw_status', x.${b.rawStatus})`,
+        ]
+      : []),
+    ...(batch("counts")
+      ? [`${b.counts} = coalesce(v_fields -> 'counts', x.${b.counts})`]
+      : []),
+    ...(batch("error")
+      ? [
+          `${b.error} = case when v_fields ? 'error' then left(v_fields ->> 'error', 4000) else x.${b.error} end`,
+        ]
+      : []),
+    ...(batch("expiresAt")
+      ? [
+          `${b.expiresAt} = coalesce((v_fields ->> 'expires_at')::timestamptz, x.${b.expiresAt})`,
+        ]
+      : []),
+    `${b.resultsSaved} = coalesce((v_fields ->> 'results_saved')::boolean, x.${b.resultsSaved})`,
+    `${b.nextPollAt} = case when v_fields ? 'next_poll_at' then (v_fields ->> 'next_poll_at')::timestamptz else x.${b.nextPollAt} end`,
+    ...(batch("completedAt")
+      ? [
+          `${b.completedAt} = case when coalesce(v_fields ->> 'status', ${batchStatus("x")}) <> 'pending' then coalesce(x.${b.completedAt}, now()) else null end`,
+        ]
+      : []),
+    ...(batch("updatedAt") ? [`${b.updatedAt} = now()`] : []),
+  ];
+
+  const itemInsert: readonly (readonly [string, string])[] = [
+    [i.batch, "save_ai_batch_items.id"],
+    [i.request, "item ->> 'request_id'"],
+    [i.tenant, "v_tenant"],
+    [i.status, ctx.cast("items", "status", "item ->> 'status'")],
+    [i.output, "item -> 'output'"],
+    ...(item("usage") ? ([[i.usage, "item -> 'usage'"]] as const) : []),
+    ...(item("error")
+      ? ([[i.error, "left(item ->> 'error', 4000)"]] as const)
+      : []),
+  ];
+
+  const enabledKey = (row: string): string =>
+    key("enabled") ? ` and ${row}.${k.enabled}` : "";
 
   const refCheck = (column: string): string =>
     `check (jsonb_typeof(${column}) = 'object' and ${column} ? 'provider')`;
@@ -151,15 +340,9 @@ create table if not exists ${keys} (
   ${k.tenant} ${id} not null,
   ${k.provider} text not null check (${k.provider} ~ '${SLUG}'),
   ${k.name} text not null default 'default' check (length(${k.name}) between 1 and 100),
-  ${k.credentialRef} jsonb not null ${refCheck(k.credentialRef)},
-  ${k.settings} jsonb not null default '{}' check (jsonb_typeof(${k.settings}) = 'object'),
-  ${k.enabled} boolean not null default true,
-  ${k.createdBy} uuid references auth.users (id) on delete set null,
-  ${k.createdAt} timestamptz not null default now(),
-  ${k.updatedAt} timestamptz not null default now(),
+  ${k.credentialRef} jsonb not null ${refCheck(k.credentialRef)},${line(key("settings"), `${k.settings} jsonb not null default '{}' check (jsonb_typeof(${k.settings}) = 'object')`)}${line(key("enabled"), `${k.enabled} boolean not null default true`)}${line(key("createdBy"), `${k.createdBy} uuid references auth.users (id) on delete set null`)}${line(key("createdAt"), `${k.createdAt} timestamptz not null default now()`)}${line(key("updatedAt"), `${k.updatedAt} timestamptz not null default now()`)}
   unique (${k.tenant}, ${k.provider}, ${k.name})
-);
-create index if not exists ai_provider_keys_created_by_idx on ${keys} (${k.createdBy});
+);${unique("keys", "name", `${k.tenant}, ${k.provider}, ${k.name}`)}${key("createdBy") ? `\ncreate index if not exists ai_provider_keys_created_by_idx on ${keys} (${k.createdBy});` : ""}
 alter table ${keys} enable row level security;
 ${revokeTable(keys)}
 grant select on ${keys} to authenticated;
@@ -176,19 +359,10 @@ create table if not exists ${batches} (
   ${b.user} uuid references auth.users (id) on delete cascade,
   ${b.provider} text not null check (length(${b.provider}) between 1 and 100),
   ${b.reference} jsonb not null check (jsonb_typeof(${b.reference}) = 'object'),
-  ${b.status} text not null default 'pending' check (${b.status} in ('pending', 'completed', 'failed', 'cancelled')),
-  ${b.rawStatus} text check (length(${b.rawStatus}) <= 100),
-  ${b.itemCount} integer not null default 0 check (${b.itemCount} >= 0),
-  ${b.counts} jsonb not null default '{}' check (jsonb_typeof(${b.counts}) = 'object'),
-  ${b.error} text check (length(${b.error}) <= 4000),
-  ${b.metadata} jsonb not null default '{}' check (jsonb_typeof(${b.metadata}) = 'object'),
-  ${b.resultsSaved} boolean not null default false,
-  ${b.polls} integer not null default 0,
-  ${b.nextPollAt} timestamptz default now(),
-  ${b.expiresAt} timestamptz,
-  ${b.completedAt} timestamptz,
-  ${b.createdAt} timestamptz not null default now(),
-  ${b.updatedAt} timestamptz not null default now()
+  ${b.status} text not null default 'pending' check (${b.status} in ('pending', 'completed', 'failed', 'cancelled')),${line(batch("rawStatus"), `${b.rawStatus} text check (length(${b.rawStatus}) <= 100)`)}${line(batch("itemCount"), `${b.itemCount} integer not null default 0 check (${b.itemCount} >= 0)`)}${line(batch("counts"), `${b.counts} jsonb not null default '{}' check (jsonb_typeof(${b.counts}) = 'object')`)}${line(batch("error"), `${b.error} text check (length(${b.error}) <= 4000)`)}${line(batch("metadata"), `${b.metadata} jsonb not null default '{}' check (jsonb_typeof(${b.metadata}) = 'object')`)}
+  ${b.resultsSaved} boolean not null default false,${line(batch("polls"), `${b.polls} integer not null default 0`)}
+  ${b.nextPollAt} timestamptz default now(),${line(batch("expiresAt"), `${b.expiresAt} timestamptz`)}${line(batch("completedAt"), `${b.completedAt} timestamptz`)}
+  ${b.createdAt} timestamptz not null default now()${batch("updatedAt") ? `,\n  ${b.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ai_batches_due_idx on ${batches} (${b.nextPollAt}) where ${b.status} = 'pending' or not ${b.resultsSaved};
 create index if not exists ai_batches_tenant_idx on ${batches} (${b.tenant}, ${b.createdAt} desc);
@@ -206,12 +380,9 @@ create table if not exists ${items} (
   ${i.request} text not null check (length(${i.request}) between 1 and 200),
   ${i.tenant} ${id} not null,
   ${i.status} text not null check (${i.status} in ('succeeded', 'failed', 'cancelled', 'expired')),
-  ${i.output} jsonb,
-  ${i.usage} jsonb,
-  ${i.error} text check (length(${i.error}) <= 4000),
-  ${i.createdAt} timestamptz not null default now(),
+  ${i.output} jsonb,${line(item("usage"), `${i.usage} jsonb`)}${line(item("error"), `${i.error} text check (length(${i.error}) <= 4000)`)}${line(item("createdAt"), `${i.createdAt} timestamptz not null default now()`)}
   primary key (${i.batch}, ${i.request})
-);
+);${unique("items", "request", `${i.batch}, ${i.request}`)}
 create index if not exists ai_batch_items_tenant_idx on ${items} (${i.tenant});
 alter table ${items} enable row level security;
 ${revokeTable(items)}
@@ -254,13 +425,10 @@ begin
   select x.${k.credentialRef} into v_old from ${keys} x
   where x.${k.tenant} = save_ai_provider_key.tenant and x.${k.provider} = save_ai_provider_key.provider and x.${k.name} = coalesce(save_ai_provider_key.name, 'default')
   for update;
-  insert into ${keys} (${k.tenant}, ${k.provider}, ${k.name}, ${k.credentialRef}, ${k.settings}, ${k.enabled}, ${k.createdBy})
-  values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
+  insert into ${keys} (${keyInsert.map(([column]) => column).join(", ")})
+  values (${keyInsert.map(([, value]) => value).join(", ")})
   on conflict (${k.tenant}, ${k.provider}, ${k.name}) do update set
-    ${k.credentialRef} = excluded.${k.credentialRef},
-    ${k.settings} = excluded.${k.settings},
-    ${k.enabled} = excluded.${k.enabled},
-    ${k.updatedAt} = now()
+    ${keyUpdate.join(",\n    ")}
   returning * into v_row;
   ${keyEvent("ai_provider_key.saved", "v_row")}
   return jsonb_build_object('key', ${keyJson("v_row")}, 'replaced', v_old);
@@ -315,7 +483,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${keyJson("x")} order by x.${k.provider}, x.${k.name}), '[]')
   from ${keys} x
-  where x.${k.tenant} = ai_provider_keys_for.tenant and x.${k.enabled}
+  where x.${k.tenant} = ai_provider_keys_for.tenant${enabledKey("x")}
     and (ai_provider_keys_for.providers is null or x.${k.provider} = any (ai_provider_keys_for.providers))
 $$;
 ${serviceGrant(`${fn("ai_provider_keys_for")}(${id}, text[])`)}
@@ -337,19 +505,9 @@ begin
   if not (${SERVICE_CALLER} or (auth.uid() is not null and ${ctx.scope.can("record_ai_batch.tenant", use)})) then
     ${raise("you may not start batches here", "42501", "AI_BATCH_FORBIDDEN")}
   end if;
-  insert into ${batches} (${b.tenant}, ${b.user}, ${b.provider}, ${b.reference}, ${b.status}, ${b.rawStatus}, ${b.itemCount}, ${b.counts}, ${b.metadata}, ${b.expiresAt}, ${b.nextPollAt})
+  insert into ${batches} (${batchInsert.map(([column]) => column).join(", ")})
   values (
-    record_ai_batch.tenant,
-    case when ${SERVICE_CALLER} then (v_fields ->> 'user_id')::uuid else auth.uid() end,
-    record_ai_batch.provider,
-    record_ai_batch.reference,
-    coalesce(v_fields ->> 'status', 'pending'),
-    v_fields ->> 'raw_status',
-    coalesce((v_fields ->> 'item_count')::integer, 0),
-    coalesce(v_fields -> 'counts', '{}'),
-    coalesce(v_fields -> 'metadata', '{}'),
-    (v_fields ->> 'expires_at')::timestamptz,
-    now() + interval '${pollEvery} seconds'
+    ${batchInsert.map(([, value]) => value).join(",\n    ")}
   )
   returning * into v_row;
   return ${batchJson("v_row")};
@@ -370,15 +528,7 @@ declare
   v_fields jsonb := coalesce(update_ai_batch.fields, '{}');
 begin
   update ${batches} x set
-    ${b.status} = coalesce(v_fields ->> 'status', x.${b.status}),
-    ${b.rawStatus} = coalesce(v_fields ->> 'raw_status', x.${b.rawStatus}),
-    ${b.counts} = coalesce(v_fields -> 'counts', x.${b.counts}),
-    ${b.error} = case when v_fields ? 'error' then left(v_fields ->> 'error', 4000) else x.${b.error} end,
-    ${b.expiresAt} = coalesce((v_fields ->> 'expires_at')::timestamptz, x.${b.expiresAt}),
-    ${b.resultsSaved} = coalesce((v_fields ->> 'results_saved')::boolean, x.${b.resultsSaved}),
-    ${b.nextPollAt} = case when v_fields ? 'next_poll_at' then (v_fields ->> 'next_poll_at')::timestamptz else x.${b.nextPollAt} end,
-    ${b.completedAt} = case when coalesce(v_fields ->> 'status', x.${b.status}) <> 'pending' then coalesce(x.${b.completedAt}, now()) else null end,
-    ${b.updatedAt} = now()
+    ${batchUpdate.join(",\n    ")}
   where x.${b.id} = update_ai_batch.id
   returning * into v_row;
   if not found then
@@ -409,9 +559,11 @@ begin
     for update skip locked
   ), claimed as (
     update ${batches} x set
-      ${b.polls} = x.${b.polls} + 1,
-      ${b.nextPollAt} = now() + make_interval(secs => greatest(due_ai_batches.lease_seconds, 1)),
-      ${b.updatedAt} = now()
+      ${[
+        ...(batch("polls") ? [`${b.polls} = x.${b.polls} + 1`] : []),
+        `${b.nextPollAt} = now() + make_interval(secs => greatest(due_ai_batches.lease_seconds, 1))`,
+        ...(batch("updatedAt") ? [`${b.updatedAt} = now()`] : []),
+      ].join(",\n      ")}
     from due where x.${b.id} = due.${b.id}
     returning x.*
   )
@@ -438,14 +590,14 @@ begin
   if not found then
     ${raise("batch % not found", "P0002", "AI_BATCH_NOT_FOUND", "save_ai_batch_items.id")}
   end if;
-  insert into ${items} (${i.batch}, ${i.request}, ${i.tenant}, ${i.status}, ${i.output}, ${i.usage}, ${i.error})
-  select save_ai_batch_items.id, item ->> 'request_id', v_tenant, item ->> 'status', item -> 'output', item -> 'usage', left(item ->> 'error', 4000)
+  insert into ${items} (${itemInsert.map(([column]) => column).join(", ")})
+  select ${itemInsert.map(([, value]) => value).join(", ")}
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
   on conflict (${i.batch}, ${i.request}) do update set
-    ${i.status} = excluded.${i.status},
-    ${i.output} = excluded.${i.output},
-    ${i.usage} = excluded.${i.usage},
-    ${i.error} = excluded.${i.error};
+    ${itemInsert
+      .slice(3)
+      .map(([column]) => `${column} = excluded.${column}`)
+      .join(",\n    ")};
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -473,7 +625,7 @@ as $$
   select coalesce(jsonb_agg(${batchJson("x")} order by x.${b.createdAt} desc), '[]')
   from (
     select * from ${batches} y
-    where y.${b.tenant} = list_ai_batches.tenant and (list_ai_batches.status is null or y.${b.status} = list_ai_batches.status)
+    where y.${b.tenant} = list_ai_batches.tenant and (list_ai_batches.status is null or ${batchStatus("y")} = list_ai_batches.status)
     order by y.${b.createdAt} desc
     limit least(greatest(list_ai_batches.max_rows, 1), 200)
   ) x

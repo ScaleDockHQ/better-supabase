@@ -5,7 +5,9 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
+import type { Columns } from "./module-columns.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   addExtraColumns,
   withExtraFields,
@@ -16,7 +18,6 @@ import {
   revokeTable,
   writeExtraColumns,
 } from "../shared.ts";
-import { columnsOf, rowJson } from "./module-columns.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const AGENTS = {
@@ -96,18 +97,41 @@ const NAMES: BlockSqlNames = {
       name: "agents",
       columns: AGENTS,
       lifecycle: { user: "owner", tenant: "tenant" },
+      app: {},
+      optional: [
+        "description",
+        "model",
+        "tools",
+        "connectors",
+        "knowledgeScope",
+        "starters",
+        "installCount",
+        "ratingCount",
+        "ratingSum",
+        "createdAt",
+      ],
+      typed: ["visibility"],
     },
     installs: {
       name: "agent_installs",
       columns: INSTALLS,
       lifecycle: { user: "user", tenant: "tenant" },
+      app: {},
+      optional: ["installedAt"],
     },
     ratings: {
       name: "agent_ratings",
       columns: RATINGS,
       lifecycle: { user: "user" },
+      app: {},
+      optional: ["comment", "createdAt"],
     },
-    skills: { name: "agent_skills", columns: SKILLS },
+    skills: {
+      name: "agent_skills",
+      columns: SKILLS,
+      app: {},
+      optional: ["createdAt"],
+    },
   },
 };
 
@@ -122,13 +146,49 @@ const AGENT_KEYS: readonly string[] = [
 
 const SLUG = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
+/** What an agent read returns for a column the app's agents table lacks. */
+const AGENT_DEFAULTS: Readonly<Record<string, string>> = {
+  description: "''",
+  instructions: "''",
+  tools: "'[]'::jsonb",
+  connectors: "'{}'::uuid[]",
+  knowledgeScope: "'[]'::jsonb",
+  starters: "'[]'::jsonb",
+  installCount: "0",
+  ratingCount: "0",
+  ratingSum: "0",
+};
+
+/**
+ * The quoted columns of `table`. A column the app's table lacks is empty, so
+ * every use of an optional column checks `ctx.has` first.
+ */
+function presentColumns<T extends Readonly<Record<string, string>>>(
+  ctx: BlockSqlContext,
+  table: string,
+  spec: T,
+): Columns<T> {
+  // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
+  return Object.fromEntries(
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
+  ) as Columns<T>;
+}
+
 function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
-  const a = columnsOf(ctx, "agents", AGENTS);
-  const i = columnsOf(ctx, "installs", INSTALLS);
-  const r = columnsOf(ctx, "ratings", RATINGS);
-  const s = columnsOf(ctx, "skills", SKILLS);
+  const a = presentColumns(ctx, "agents", AGENTS);
+  const i = presentColumns(ctx, "installs", INSTALLS);
+  const r = presentColumns(ctx, "ratings", RATINGS);
+  const s = presentColumns(ctx, "skills", SKILLS);
+  const agent = (column: string): boolean => ctx.has("agents", column);
+
+  const line = (present: boolean, definition: string): string =>
+    present ? `\n  ${definition},` : "";
+
   const agents = ctx.table("agents");
   const installs = ctx.table("installs");
   const ratings = ctx.table("ratings");
@@ -149,7 +209,90 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("agents", AGENT_KEYS);
 
   const json = (row: string): string =>
-    withExtraFields(rowJson(AGENTS, a, row), row, extras);
+    withExtraFields(
+      `jsonb_build_object(${Object.entries(AGENTS)
+        .map(
+          ([key, name]) =>
+            `'${name}', ${agent(key) ? `${row}.${ctx.col("agents", key)}` : (AGENT_DEFAULTS[key] ?? "null")}`,
+        )
+        .join(", ")})`,
+      row,
+      extras,
+    );
+
+  const setText = (
+    key: "slug" | "name" | "description" | "instructions",
+  ): string[] =>
+    agent(key)
+      ? [
+          `${a[key]} = coalesce(save_agent.fields ->> '${AGENTS[key]}', x.${a[key]})`,
+        ]
+      : [];
+
+  const setJson = (key: "tools" | "knowledgeScope" | "starters"): string[] =>
+    agent(key)
+      ? [
+          `${a[key]} = coalesce(save_agent.fields -> '${AGENTS[key]}', x.${a[key]})`,
+        ]
+      : [];
+
+  const agentUpdate = [
+    ...setText("slug"),
+    ...setText("name"),
+    ...setText("description"),
+    ...setText("instructions"),
+    ...(agent("model")
+      ? [
+          `${a.model} = case when save_agent.fields ? 'model' then save_agent.fields ->> 'model' else x.${a.model} end`,
+        ]
+      : []),
+    ...setJson("tools"),
+    ...(agent("connectors")
+      ? [
+          `${a.connectors} = case when save_agent.fields ? 'connector_ids'
+      then array(select jsonb_array_elements_text(save_agent.fields -> 'connector_ids')::uuid)
+      else x.${a.connectors} end`,
+        ]
+      : []),
+    ...setJson("knowledgeScope"),
+    ...setJson("starters"),
+    `${a.updatedAt} = now()`,
+  ];
+
+  const searched = (["name", "description"] as const)
+    .filter((key) => agent(key))
+    .map(
+      (key) =>
+        `x.${a[key]} ilike '%' || replace(replace(list_agents.search, '%', '\\%'), '_', '\\_') || '%'`,
+    )
+    .join("\n        or ");
+
+  const totals = [
+    ...(agent("ratingCount")
+      ? [
+          `${a.ratingCount} = x.${a.ratingCount} - (case when v_old is null then 0 else 1 end) + (case when rate_agent.rating is null then 0 else 1 end)`,
+        ]
+      : []),
+    ...(agent("ratingSum")
+      ? [
+          `${a.ratingSum} = x.${a.ratingSum} - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)`,
+        ]
+      : []),
+  ];
+
+  const ratingTotals =
+    totals.length > 0
+      ? `
+  update ${ctx.table("agents")} x set
+    ${totals.join(",\n    ")}
+  where x.${a.id} = v_row.${a.id}
+  returning * into v_row;`
+      : "";
+
+  const installCount = (change: string, indent: string): string =>
+    agent("installCount")
+      ? `\n${indent}update ${ctx.table("agents")} x set ${a.installCount} = ${change} where x.${a.id} = install_agent.agent_id;`
+      : "";
 
   // Owners see their agents, members the tenant's published ones, every
   // signed-in user the published public ones, moderators all of the tenant's.
@@ -200,20 +343,10 @@ create table if not exists ${agents} (
   ${a.tenant} ${id} not null,
   ${a.owner} uuid references auth.users (id) on delete set null,
   ${a.slug} text not null check (${a.slug} ~ '${SLUG}' and length(${a.slug}) <= 64),
-  ${a.name} text not null check (length(${a.name}) between 1 and 200),
-  ${a.description} text not null default '' check (length(${a.description}) <= 2000),
-  ${a.instructions} text not null default '' check (length(${a.instructions}) <= ${String(maxInstructions)}),
-  ${a.model} text,
-  ${a.tools} jsonb not null default '[]' check (jsonb_typeof(${a.tools}) = 'array'),
-  ${a.connectors} uuid[] not null default '{}',
-  ${a.knowledgeScope} jsonb not null default '[]' check (jsonb_typeof(${a.knowledgeScope}) = 'array'),
-  ${a.starters} jsonb not null default '[]' check (jsonb_typeof(${a.starters}) = 'array'),
+  ${a.name} text not null check (length(${a.name}) between 1 and 200),${line(agent("description"), `${a.description} text not null default '' check (length(${a.description}) <= 2000)`)}
+  ${a.instructions} text not null default '' check (length(${a.instructions}) <= ${String(maxInstructions)}),${line(agent("model"), `${a.model} text`)}${line(agent("tools"), `${a.tools} jsonb not null default '[]' check (jsonb_typeof(${a.tools}) = 'array')`)}${line(agent("connectors"), `${a.connectors} uuid[] not null default '{}'`)}${line(agent("knowledgeScope"), `${a.knowledgeScope} jsonb not null default '[]' check (jsonb_typeof(${a.knowledgeScope}) = 'array')`)}${line(agent("starters"), `${a.starters} jsonb not null default '[]' check (jsonb_typeof(${a.starters}) = 'array')`)}
   ${a.visibility} text not null default 'private' check (${a.visibility} in ('private', 'organization', 'public')),
-  ${a.publishedAt} timestamptz,
-  ${a.installCount} integer not null default 0,
-  ${a.ratingCount} integer not null default 0,
-  ${a.ratingSum} integer not null default 0,
-  ${a.createdAt} timestamptz not null default now(),
+  ${a.publishedAt} timestamptz,${line(agent("installCount"), `${a.installCount} integer not null default 0`)}${line(agent("ratingCount"), `${a.ratingCount} integer not null default 0`)}${line(agent("ratingSum"), `${a.ratingSum} integer not null default 0`)}${line(agent("createdAt"), `${a.createdAt} timestamptz not null default now()`)}
   ${a.updatedAt} timestamptz not null default now(),
   unique (${a.tenant}, ${a.slug})
 );
@@ -230,10 +363,9 @@ create policy ${ctx.naming.rename("agents_read")} on ${agents} for select to aut
 create table if not exists ${installs} (
   ${i.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
   ${i.user} uuid not null references auth.users (id) on delete cascade,
-  ${i.tenant} ${id} not null,
-  ${i.installedAt} timestamptz not null default now(),
+  ${i.tenant} ${id} not null,${line(ctx.has("installs", "installedAt"), `${i.installedAt} timestamptz not null default now()`)}
   primary key (${i.agent}, ${i.user}, ${i.tenant})
-);
+);${ctx.owns("installs") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("installs").name}_install_key`)} on ${installs} (${i.agent}, ${i.user}, ${i.tenant});`}
 create index if not exists ${ctx.naming.rename("agent_installs_user_idx")} on ${installs} (${i.user}, ${i.tenant});
 alter table ${installs} enable row level security;
 ${revokeTable(installs)}
@@ -246,9 +378,7 @@ create policy ${ctx.naming.rename("agent_installs_read")} on ${installs} for sel
 create table if not exists ${ratings} (
   ${r.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
   ${r.user} uuid not null references auth.users (id) on delete cascade,
-  ${r.rating} smallint not null check (${r.rating} between 1 and 5),
-  ${r.comment} text check (length(${r.comment}) <= 2000),
-  ${r.createdAt} timestamptz not null default now(),
+  ${r.rating} smallint not null check (${r.rating} between 1 and 5),${line(ctx.has("ratings", "comment"), `${r.comment} text check (length(${r.comment}) <= 2000)`)}${line(ctx.has("ratings", "createdAt"), `${r.createdAt} timestamptz not null default now()`)}
   primary key (${r.agent}, ${r.user})
 );
 create index if not exists ${ctx.naming.rename("agent_ratings_user_idx")} on ${ratings} (${r.user});
@@ -265,8 +395,7 @@ create table if not exists ${skills} (
   ${s.id} uuid primary key default gen_random_uuid(),
   ${s.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
   ${s.provider} text not null check (length(${s.provider}) between 1 and 100),
-  ${s.reference} jsonb not null check (jsonb_typeof(${s.reference}) = 'object'),
-  ${s.createdAt} timestamptz not null default now()
+  ${s.reference} jsonb not null check (jsonb_typeof(${s.reference}) = 'object')${ctx.has("skills", "createdAt") ? `,\n  ${s.createdAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("agent_skills_agent_idx")} on ${skills} (${s.agent});
 alter table ${skills} enable row level security;
@@ -309,18 +438,7 @@ begin
     end if;
   end if;
   update ${agents} x set
-    ${a.slug} = coalesce(save_agent.fields ->> 'slug', x.${a.slug}),
-    ${a.name} = coalesce(save_agent.fields ->> 'name', x.${a.name}),
-    ${a.description} = coalesce(save_agent.fields ->> 'description', x.${a.description}),
-    ${a.instructions} = coalesce(save_agent.fields ->> 'instructions', x.${a.instructions}),
-    ${a.model} = case when save_agent.fields ? 'model' then save_agent.fields ->> 'model' else x.${a.model} end,
-    ${a.tools} = coalesce(save_agent.fields -> 'tools', x.${a.tools}),
-    ${a.connectors} = case when save_agent.fields ? 'connector_ids'
-      then array(select jsonb_array_elements_text(save_agent.fields -> 'connector_ids')::uuid)
-      else x.${a.connectors} end,
-    ${a.knowledgeScope} = coalesce(save_agent.fields -> 'knowledge_scope', x.${a.knowledgeScope}),
-    ${a.starters} = coalesce(save_agent.fields -> 'starters', x.${a.starters}),
-    ${a.updatedAt} = now()
+    ${agentUpdate.join(",\n    ")}
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;${writeExtraColumns(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
   ${agentEvent("agent.saved", "v_row")}
@@ -355,7 +473,7 @@ begin
     ${raise("you may not publish agents here", "42501", "AGENT_FORBIDDEN")}
   end if;
   update ${agents} x set
-    ${a.visibility} = publish_agent.visibility,
+    ${a.visibility} = ${ctx.cast("agents", "visibility", "publish_agent.visibility")},
     ${a.publishedAt} = case when publish_agent.visibility = 'private' then null else coalesce(x.${a.publishedAt}, now()) end,
     ${a.updatedAt} = now()
   where x.${a.id} = v_row.${a.id}
@@ -404,7 +522,7 @@ begin
     return null;
   end if;
   return ${json("v_row")} || jsonb_build_object(
-    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k.${s.id}, 'provider', k.${s.provider}, 'reference', k.${s.reference}) order by k.${s.createdAt}) from ${skills} k where k.${s.agent} = v_row.${a.id}), '[]'),
+    'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k.${s.id}, 'provider', k.${s.provider}, 'reference', k.${s.reference}) order by k.${ctx.has("skills", "createdAt") ? s.createdAt : s.id}) from ${skills} k where k.${s.agent} = v_row.${a.id}), '[]'),
     'installed', exists (select 1 from ${installs} n where n.${i.agent} = v_row.${a.id} and n.${i.user} = auth.uid()),
     'my_rating', (select g.${r.rating} from ${ratings} g where g.${r.agent} = v_row.${a.id} and g.${r.user} = auth.uid())
   );
@@ -431,8 +549,7 @@ as $$
         when 'installed' then exists (select 1 from ${installs} n where n.${i.agent} = x.${a.id} and n.${i.user} = auth.uid() and n.${i.tenant} = list_agents.tenant)
         else x.${a.publishedAt} is not null and (x.${a.visibility} = 'public' or x.${a.tenant} = list_agents.tenant)
       end
-      and (list_agents.search is null or x.${a.name} ilike '%' || replace(replace(list_agents.search, '%', '\\%'), '_', '\\_') || '%'
-        or x.${a.description} ilike '%' || replace(replace(list_agents.search, '%', '\\%'), '_', '\\_') || '%')
+      and (list_agents.search is null or ${searched})
     order by coalesce(x.${a.publishedAt}, x.${a.updatedAt}) desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
@@ -454,8 +571,7 @@ begin
   end if;
   if not install_agent.installed then
     delete from ${installs} n where n.${i.agent} = install_agent.agent_id and n.${i.user} = auth.uid() and n.${i.tenant} = install_agent.tenant;
-    get diagnostics v_count = row_count;
-    update ${agents} x set ${a.installCount} = greatest(x.${a.installCount} - v_count, 0) where x.${a.id} = install_agent.agent_id;
+    get diagnostics v_count = row_count;${installCount(`greatest(x.${a.installCount} - v_count, 0)`, "    ")}
     if v_count > 0 then
       ${installEvent("agent.uninstalled")}
     end if;
@@ -466,8 +582,7 @@ begin
   end if;
   insert into ${installs} (${i.agent}, ${i.user}, ${i.tenant}) values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
-  get diagnostics v_count = row_count;
-  update ${agents} x set ${a.installCount} = x.${a.installCount} + v_count where x.${a.id} = install_agent.agent_id;
+  get diagnostics v_count = row_count;${installCount(`x.${a.installCount} + v_count`, "  ")}
   if v_count > 0 then
     ${installEvent("agent.installed")}
   end if;
@@ -500,14 +615,9 @@ begin
   delete from ${ratings} g where g.${r.agent} = v_row.${a.id} and g.${r.user} = auth.uid()
   returning g.${r.rating} into v_old;
   if rate_agent.rating is not null then
-    insert into ${ratings} (${r.agent}, ${r.user}, ${r.rating}, ${r.comment})
-    values (v_row.${a.id}, auth.uid(), rate_agent.rating, rate_agent.comment);
-  end if;
-  update ${agents} x set
-    ${a.ratingCount} = x.${a.ratingCount} - (case when v_old is null then 0 else 1 end) + (case when rate_agent.rating is null then 0 else 1 end),
-    ${a.ratingSum} = x.${a.ratingSum} - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
-  where x.${a.id} = v_row.${a.id}
-  returning * into v_row;
+    insert into ${ratings} (${r.agent}, ${r.user}, ${r.rating}${ctx.has("ratings", "comment") ? `, ${r.comment}` : ""})
+    values (v_row.${a.id}, auth.uid(), rate_agent.rating${ctx.has("ratings", "comment") ? ", rate_agent.comment" : ""});
+  end if;${ratingTotals}
   return ${json("v_row")};
 end;
 $$;
