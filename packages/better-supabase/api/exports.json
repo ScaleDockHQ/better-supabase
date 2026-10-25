@@ -5248,6 +5248,7 @@
     "types": [
       "CreatedShareLink",
       "CreateShareLinkOptions",
+      "FoundShareLink",
       "ResolvedShareLink",
       "ShareLink",
       "ShareLinkInput",

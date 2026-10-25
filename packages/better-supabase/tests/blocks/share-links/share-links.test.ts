@@ -117,4 +117,68 @@ describe("createShareLinks", () => {
     expect(transport.calls).toEqual([]);
     expect(await links.list(FILE).orThrow()).toEqual([]);
   });
+
+  it("creates a link for a caller-made hash, finds it and lists full rows", async () => {
+    const fake = fakeTransport({
+      create_share_link: { id: "l1", token: null },
+      find_share_link: {
+        id: "l1",
+        organizationId: "org-1",
+        subjectType: "thread",
+        subjectId: "t1",
+        role: "view",
+        createdBy: "u1",
+      },
+      list_share_links: [
+        {
+          id: "l1",
+          role: "view",
+          expiresAt: null,
+          revokedAt: null,
+          organizationId: "org-1",
+          subjectType: "thread",
+          subjectId: "t1",
+          createdBy: "u1",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const links = createShareLinks({
+      transport: fake,
+      schema: "app",
+      tenant: "org-1",
+    });
+
+    const thread = { type: "thread", id: "t1" };
+
+    expect(await links.createHashed(thread, "a".repeat(64)).orThrow()).toEqual({
+      id: "l1",
+      fields: {},
+    });
+    expect(await links.find("a".repeat(64)).orThrow()).toEqual({
+      id: "l1",
+      organizationId: "org-1",
+      subject: thread,
+      role: "view",
+      createdBy: "u1",
+    });
+
+    const [row] = await links.list(thread, { includeRevoked: false }).orThrow();
+
+    expect(row?.subject).toEqual(thread);
+    expect(row?.createdBy).toBe("u1");
+    expect(row?.createdAt?.toString()).toBe("2026-01-01T00:00:00Z");
+    expect(
+      fake.calls.map(([fn, args]) => {
+        const record = args as Record<string, unknown>;
+
+        return [fn, record["token_hash"] ?? record["include_revoked"]];
+      }),
+    ).toEqual([
+      ["create_share_link", "a".repeat(64)],
+      ["find_share_link", "a".repeat(64)],
+      ["list_share_links", false],
+    ]);
+  });
 });

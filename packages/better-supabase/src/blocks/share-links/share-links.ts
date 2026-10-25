@@ -57,6 +57,14 @@ export interface ShareLink<F extends object = Record<never, never>> {
   readonly role: string;
   readonly expiresAt: Temporal.Instant | null;
   readonly revokedAt: Temporal.Instant | null;
+  /** With `options.fullRows`: the organization the link was created in. */
+  readonly organizationId?: string;
+  /** With `options.fullRows`: the record the link opens. */
+  readonly subject?: RecordRef;
+  /** With `options.fullRows`: who created the link. */
+  readonly createdBy?: string;
+  /** With `options.fullRows` and a `createdAt` column: when it was created. */
+  readonly createdAt?: Temporal.Instant;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -100,6 +108,31 @@ export interface ResolvedShareLink {
   readonly maxUses?: number;
 }
 
+/** What `find` returns: the live link, with its creator. */
+export interface FoundShareLink extends ResolvedShareLink {
+  readonly createdBy?: string;
+}
+
+/** A resolved link row as `ResolvedShareLink`. */
+function resolvedOf(value: unknown, label: string): ResolvedShareLink {
+  const row = recordOf(value, label);
+  const versionId = optionalText(row["versionId"]);
+  const expiresAt = optionalInstant(row["expiresAt"]);
+
+  const maxUses =
+    typeof row["maxUses"] === "number" ? row["maxUses"] : undefined;
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    subject: subjectRefOf(row["subjectType"], row["subjectId"]),
+    role: textOf(row["role"]),
+    ...(versionId === undefined ? {} : { versionId }),
+    ...(expiresAt === undefined ? {} : { expiresAt }),
+    ...(maxUses === undefined ? {} : { maxUses }),
+  };
+}
+
 /**
  * `F` is the extra fields `options.fields` describes. `create` and `recordView`
  * act in the block's `tenant`.
@@ -125,9 +158,27 @@ export interface ShareLinks<F extends object = Record<never, never>> {
   ): AsyncResult<boolean>;
   /**
    * The links to `subject` the caller created or may read (`share_links.read`),
-   * revoked ones included.
+   * revoked ones included unless `includeRevoked` is `false` (which needs
+   * `options.fullRows`).
    */
-  list(subject: RecordRef): AsyncResult<readonly ShareLink<F>[]>;
+  list(
+    subject: RecordRef,
+    options?: { readonly includeRevoked?: boolean },
+  ): AsyncResult<readonly ShareLink<F>[]>;
+  /**
+   * With `options.tokenHash`: a link for a token the caller made, given as its
+   * sha256 hex. The link has no token to return.
+   */
+  createHashed(
+    subject: RecordRef,
+    tokenHash: string,
+    options?: CreateShareLinkOptions<F>,
+  ): AsyncResult<Omit<CreatedShareLink<F>, "token">>;
+  /**
+   * With `options.tokenHash`, for the service role: the live link a token hash
+   * names, or `null`. It counts no use.
+   */
+  find(tokenHash: string): AsyncResult<FoundShareLink | null>;
   /** Stars or unstars `subject` for the caller. */
   setState(subject: RecordRef, starred: boolean): AsyncResult<boolean>;
 }
@@ -193,28 +244,50 @@ export function createShareLinks<
     revoke: (id) =>
       call("revoke_share_link", { id }, (value) => value === true),
     resolve: (token) =>
-      call("resolve_share_link", { token }, (value) => {
+      call("resolve_share_link", { token }, (value) =>
+        value === null || value === undefined
+          ? null
+          : resolvedOf(value, "resolve_share_link"),
+      ),
+    find: (tokenHash) =>
+      call("find_share_link", { token_hash: tokenHash }, (value) => {
         if (value === null || value === undefined) {
           return null;
         }
 
-        const row = recordOf(value, "resolve_share_link");
-        const versionId = optionalText(row["versionId"]);
-        const expiresAt = optionalInstant(row["expiresAt"]);
-
-        const maxUses =
-          typeof row["maxUses"] === "number" ? row["maxUses"] : undefined;
+        const createdBy = optionalText(
+          recordOf(value, "find_share_link")["createdBy"],
+        );
 
         return {
-          id: textOf(row["id"]),
-          organizationId: textOf(row["organizationId"]),
-          subject: subjectRefOf(row["subjectType"], row["subjectId"]),
-          role: textOf(row["role"]),
-          ...(versionId === undefined ? {} : { versionId }),
-          ...(expiresAt === undefined ? {} : { expiresAt }),
-          ...(maxUses === undefined ? {} : { maxUses }),
+          ...resolvedOf(value, "find_share_link"),
+          ...(createdBy === undefined ? {} : { createdBy }),
         };
       }),
+    createHashed: (subject, tokenHash, link = {}) =>
+      tenant().andThen((organizationId) =>
+        fields.args(link.fields).andThen((checked) =>
+          call(
+            "create_share_link",
+            {
+              tenant: organizationId,
+              subject_type: subject.type,
+              subject_id: subject.id,
+              role: link.role ?? "view",
+              version_id: link.versionId ?? null,
+              expires_at: instantArg(link.expiresAt) ?? null,
+              max_uses: link.maxUses ?? null,
+              token_hash: tokenHash,
+              fields: checked,
+            },
+            (value) => {
+              const row = recordOf(value, "create_share_link");
+
+              return { id: textOf(row["id"]), fields: fieldsOf(row) };
+            },
+          ).andThen(fields.row),
+        ),
+      ),
     recordView: (subject, viewerKind, viewer) =>
       tenant().andThen((organizationId) =>
         call(
@@ -229,18 +302,38 @@ export function createShareLinks<
           (value) => value === true,
         ),
       ),
-    list: (subject) =>
+    list: (subject, filter = {}) =>
       call(
         "list_share_links",
-        { subject_type: subject.type, subject_id: subject.id },
+        {
+          subject_type: subject.type,
+          subject_id: subject.id,
+          ...(filter.includeRevoked === undefined
+            ? {}
+            : { include_revoked: filter.includeRevoked }),
+        },
         (value) =>
-          recordsOf(value, "list_share_links").map((row) => ({
-            id: textOf(row["id"]),
-            role: textOf(row["role"]),
-            expiresAt: nullableInstant(row["expiresAt"]),
-            revokedAt: nullableInstant(row["revokedAt"]),
-            fields: fieldsOf(row),
-          })),
+          recordsOf(value, "list_share_links").map((row) => {
+            const organizationId = optionalText(row["organizationId"]);
+            const createdBy = optionalText(row["createdBy"]);
+            const createdAt = optionalInstant(row["createdAt"]);
+
+            return {
+              id: textOf(row["id"]),
+              role: textOf(row["role"]),
+              expiresAt: nullableInstant(row["expiresAt"]),
+              revokedAt: nullableInstant(row["revokedAt"]),
+              ...(organizationId === undefined ? {} : { organizationId }),
+              ...(row["subjectType"] === undefined
+                ? {}
+                : {
+                    subject: subjectRefOf(row["subjectType"], row["subjectId"]),
+                  }),
+              ...(createdBy === undefined ? {} : { createdBy }),
+              ...(createdAt === undefined ? {} : { createdAt }),
+              fields: fieldsOf(row),
+            };
+          }),
       ).andThen(fields.rows),
     setState: (subject, starred) =>
       call(

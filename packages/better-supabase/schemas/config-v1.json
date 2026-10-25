@@ -6329,6 +6329,14 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "tokenHash": {
+                "type": "boolean",
+                "default": false
+              },
+              "fullRows": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

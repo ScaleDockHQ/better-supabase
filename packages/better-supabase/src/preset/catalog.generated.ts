@@ -1550,7 +1550,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "versions"
+        "versions",
+        "subjects"
       ],
       "manifest": "share-links",
       "scopes": [
@@ -1582,7 +1583,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "useCount": "use_count",
               "createdBy": "created_by",
               "leaf": "leaf_id",
-              "versionId": "version_id"
+              "versionId": "version_id",
+              "createdAt": "created_at"
             }
           }
         },
@@ -17162,6 +17164,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "CreateShareLinkOptions",
           "fields": true
+        },
+        {
+          "name": "FoundShareLink"
         },
         {
           "name": "ResolvedShareLink"
