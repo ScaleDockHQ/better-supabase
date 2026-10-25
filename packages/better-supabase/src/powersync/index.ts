@@ -79,3 +79,15 @@ export type {
   AttachmentQueueRoute,
   AttachmentQueueRouteOptions,
 } from "./attachments.ts";
+
+export {
+  notificationRecipientsRoute,
+  powersyncNotificationsTransport,
+  powersyncTopicPort,
+} from "./notifications.ts";
+
+export type {
+  LocalNotificationFunction,
+  NotificationRecipientWrites,
+  PowerSyncNotificationsOptions,
+} from "./notifications.ts";

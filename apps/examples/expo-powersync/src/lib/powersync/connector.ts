@@ -1,14 +1,32 @@
-import { createUploadConnector } from "better-supabase/powersync";
+import {
+  createNotifications,
+  rpcTransport,
+} from "better-supabase/blocks/notifications";
+import {
+  createUploadConnector,
+  notificationRecipientsRoute,
+} from "better-supabase/powersync";
 
+import { API_SCHEMA } from "../blocks";
 import { server, supabase } from "../supabase/supabase.native";
+
+/** On the Data API, not the device database, so a replay reaches the server. */
+const notifications = createNotifications({
+  transport: rpcTransport(supabase, { schema: API_SCHEMA }),
+  types: {},
+});
 
 /**
  * Replays local changes through `server.db.customers`, so RLS and validation
- * run as they do online. Transient errors retry, refused changes land in
+ * run as they do online, and marks read or dismissed through the notifications
+ * functions. Transient errors retry, refused changes land in
  * `connector.rejected` for `useConflicts()`.
  */
 export const connector = createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
   supabase,
-  tables: { customers: server.db.customers },
+  tables: {
+    customers: server.db.customers,
+    notification_recipients: notificationRecipientsRoute(notifications),
+  },
 });

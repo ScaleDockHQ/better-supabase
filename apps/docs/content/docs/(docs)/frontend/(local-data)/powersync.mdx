@@ -229,6 +229,52 @@ the row (pass the block's `path` option when you changed it), so PowerSync's
 trigger marks the record uploaded when the file lands, so the client never
 has to call `confirm`.
 
+## Offline-capable blocks
+
+Two blocks work offline on PowerSync: attachments (above) and notifications.
+Every other block calls its functions on the server, so on native it needs
+the network. `better-supabase powersync streams` writes the Sync Streams, the
+publication migration and the client schema for the instances you name; see
+[`powersync streams`](/docs/cli/powersync).
+
+`powersyncNotificationsTransport` runs the notifications feed on the synced
+tables: listing, paging, counts, and marking read, unread or dismissed. The
+local writes go into the upload queue, and `notificationRecipientsRoute`
+replays them through the server's functions, which check that the caller
+owns the row. Sending, preferences and resolving go to `server`.
+
+```ts title="src/lib/powersync/notifications.ts"
+import {
+  createNotifications,
+  rpcTransport,
+} from "better-supabase/blocks/notifications";
+import {
+  notificationRecipientsRoute,
+  powersyncNotificationsTransport,
+} from "better-supabase/powersync";
+import { supabase } from "../supabase/supabase.native";
+import { powersync } from "./database";
+
+const server = createNotifications({ transport: rpcTransport(supabase) });
+
+export const notifications = createNotifications({
+  transport: powersyncNotificationsTransport(powersync, {
+    server: rpcTransport(supabase),
+  }),
+});
+
+export const notificationRoutes = {
+  notification_recipients: notificationRecipientsRoute(server),
+};
+```
+
+The upload route takes the client on `rpcTransport`, not the local one: the
+local transport would write the change into SQLite again. Pass
+`powersyncTopicPort(powersync)` as `ports.topic` to
+`createNotificationsController`: the feed reloads when a sync or a local write
+changes the notification tables, without a Realtime channel. Pass `functions`
+and `tables` when the instance renames them.
+
 ## Uploaded columns
 
 A generated column is in the row you sync down, but Postgres rejects an
