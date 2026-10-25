@@ -42,6 +42,14 @@ test("a thrown non-Error becomes the issue message", async () => {
 
   expect(result.tables).toBe(0);
   expect(result.issues).toEqual([
-    { module: "a", path: "a.sql", message: "boom" },
+    {
+      code: "sql_error",
+      severity: "error",
+      source: "sql",
+      path: "",
+      table: "a",
+      file: "a.sql",
+      message: "boom",
+    },
   ]);
 });

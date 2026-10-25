@@ -39,7 +39,11 @@ export {
   DesignTooLongError,
   designFileSource,
   designFormat,
+  CREATE_URL,
+  createQuery,
   createUrl,
+  presetArgumentOf,
+  presetKey,
   designConfig,
   designOf,
   encodeDesign,
@@ -114,6 +118,30 @@ export {
   presetGlue,
   PROVIDER_COMMENT,
 } from "./render.ts";
+
+export {
+  blockEntities,
+  blockRequires,
+  canAddInstance,
+  entityName,
+  installedBlocks,
+  instanceBlock,
+  instanceNameProblem,
+  instancesOf,
+  presetInstances,
+  SINGLE_INSTANCE_BLOCKS,
+  withEntityName,
+  withInstance,
+  withoutInstance,
+} from "./instances.ts";
+
+export type {
+  BlockEntity,
+  BlockInstance,
+  PresetInstance,
+} from "./instances.ts";
+
+export { INSTANCE_NAME, instancePrefix } from "../config/instances.ts";
 
 export { presetFromSpec, presetOfSpec, presetSpec } from "./spec.ts";
 

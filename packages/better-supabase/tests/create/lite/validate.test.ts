@@ -44,8 +44,10 @@ describe("validateDesign", () => {
     expect(result.tables).toBe(1);
     expect(result.issues).toMatchObject([
       {
-        module: "b",
-        path: "b.sql",
+        code: "sql_error",
+        source: "sql",
+        table: "b",
+        file: "b.sql",
         message: expect.stringContaining("already exists"),
       },
     ]);

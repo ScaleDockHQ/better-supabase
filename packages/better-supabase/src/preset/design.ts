@@ -21,7 +21,8 @@ import { defaultPreset } from "./presets.ts";
 import { configSource } from "./render.ts";
 import { presetOfSpec, presetSpec } from "./spec.ts";
 
-const CREATE_URL = "https://app.bettersupabase.com/create";
+/** Where Create links point. */
+export const CREATE_URL = "https://app.bettersupabase.com/create";
 
 /**
  * A design from the `/create` canvas (ADR 0040): the preset (its name, or its
@@ -917,14 +918,39 @@ export async function createUrl(
   resolved: ResolvedPreset,
   design: CreateDesign = {},
 ): Promise<string> {
-  const preset = presetSpec(resolved.preset);
+  return `${CREATE_URL}?${await createQuery(resolved.preset, design)}`;
+}
+
+/**
+ * The query `/create` and its routes read a selection from: `preset=<name>` for
+ * a named preset without a design, otherwise `design=<code>` with the preset
+ * inside the design. Throws a `DesignTooLongError` when the design is too long
+ * for a link.
+ */
+export async function createQuery(
+  preset: Preset,
+  design: CreateDesign = {},
+): Promise<string> {
+  const spec = presetSpec(preset);
   const rest = withoutPreset(design);
 
-  if (typeof preset === "string" && Object.keys(rest).length === 0) {
-    return `${CREATE_URL}?preset=${preset}`;
+  if (typeof spec === "string" && Object.keys(rest).length === 0) {
+    return `preset=${spec}`;
   }
 
-  return `${CREATE_URL}?design=${await encodeDesign({ ...rest, preset })}`;
+  return `design=${await encodeDesign({ ...rest, preset: spec })}`;
+}
+
+/** The value `--preset` takes for a `createQuery`: the name, or the quoted URL. */
+export function presetArgumentOf(query: string): string {
+  return query.startsWith("preset=")
+    ? query.slice("preset=".length)
+    : `"${CREATE_URL}?${query}"`;
+}
+
+/** A string that is equal for equal presets, for comparing selections. */
+export function presetKey(preset: Preset): string {
+  return JSON.stringify(presetSpec(preset));
 }
 
 /**

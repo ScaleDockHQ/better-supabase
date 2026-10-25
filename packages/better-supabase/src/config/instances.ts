@@ -69,7 +69,7 @@ export interface ResolvedInstance {
   readonly config: BlockConfig;
 }
 
-const INSTANCE_NAME = /^[a-z][a-zA-Z0-9-]*$/;
+export const INSTANCE_NAME: RegExp = /^[a-z][a-zA-Z0-9-]*$/;
 
 /**
  * The prefix an instance gives the names its block's renames leave unchanged:

@@ -1,5 +1,5 @@
 import type { CreateDesign, Preset, PresetInput } from "../preset/index.ts";
-import type { DesignIssue } from "./design-issues.ts";
+import type { Issue } from "./issue.ts";
 
 import {
   designConfig,
@@ -36,20 +36,27 @@ export type DesignCheck =
        * Each problem, with a stable `code` and a JSON Pointer `path` into the
        * design; `table` is `design` or `preset` for one outside a table.
        */
-      readonly issues: readonly DesignIssue[];
+      readonly issues: readonly Issue[];
     };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /** The issue for a design that failed to parse, with its code and path. */
-function parseIssue(error: unknown): DesignIssue {
+function parseIssue(error: unknown): Issue {
   const { code, path } =
     error instanceof DesignParseError
       ? error
       : { code: "invalid_design" as const, path: "" };
 
-  return { code, path, table: tableAt(path), message: messageOf(error) };
+  return {
+    code,
+    severity: "error",
+    source: "design",
+    path,
+    table: tableAt(path),
+    message: messageOf(error),
+  };
 }
 
 /** The app table or block module a design path is in, or `design`. */
@@ -107,6 +114,8 @@ export async function checkDesign(
       issues: [
         {
           code: "invalid_preset",
+          severity: "error",
+          source: "design",
           path: "",
           table: "preset",
           message: messageOf(error),
@@ -122,6 +131,8 @@ export async function checkDesign(
       ok: false,
       issues: resolved.conflicts.map((conflict) => ({
         code: "preset_conflict",
+        severity: "error",
+        source: "design",
         path: "",
         table: "preset",
         message: `${conflict.block ?? conflict.field ?? "preset"}: ${conflict.reason}`,

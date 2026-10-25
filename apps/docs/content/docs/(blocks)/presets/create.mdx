@@ -20,6 +20,34 @@ console.log(files.map((file) => file.path));
 `diffDesigns(base, next)` classifies each change as safe or breaking, so an
 app can block a breaking change before it deploys.
 
+## Load and check a project
+
+`loadProject(input, { preset })` reads a design object, a design code or a
+`/create` URL into a `Project`: the preset, the design and the files `upgrade`
+would write. Pass `ownTables` (and `ownColumns`) to render the files over the
+tables the project already has, as the CLI does. `checkProject(project)`
+returns every problem as one list of `Issue`. Its `sql` option adds what
+Postgres rejects, for example `checkProject(project, { sql: sqlIssues })` with
+`sqlIssues` from `better-supabase/create/lite`.
+
+```ts
+import { checkProject, loadProject } from "better-supabase/create";
+
+const loaded = await loadProject(body.design, { preset: body.preset });
+
+if (!loaded.ok) {
+  return reply(loaded.issues);
+}
+
+const issues = await checkProject(loaded.project);
+```
+
+The instance rules the canvas needs are exported from `better-supabase/preset`
+too: `canAddInstance`, `blockRequires`, `instanceNameProblem`,
+`withInstance`, `withoutInstance`, `withEntityName`, `installedBlocks`,
+`presetKey`, and `createQuery` with `presetArgumentOf` for the links and
+commands.
+
 ## Check a design
 
 `checkDesign(input, preset)` runs every rule the canvas and `upgrade` apply
@@ -40,13 +68,16 @@ if (check.ok) {
   }
 } else {
   console.log(check.issues);
-  // [{ code: "table_name_taken", path: "/appTables/profiles",
-  //    table: "profiles", message: "A block already creates a profiles table. Rename this one." }]
+  // [{ code: "table_name_taken", severity: "error", source: "rules",
+  //    path: "/appTables/profiles", table: "profiles",
+  //    message: "A block already creates a profiles table. Rename this one." }]
 }
 ```
 
-It never throws for a bad design or preset. Each problem is an issue with a
-stable `code`, a `path`, the `table` it is on (or `design` or `preset` for one
+It never throws for a bad design or preset. Each problem is an `Issue`, the one
+type every surface reports (the canvas, the chat tools, the API and the CLI),
+with a stable `code`, a `severity`, a `source` (`design`, `rules`, `sql`,
+`verifier` or `plan`), a `path`, the `table` it is on (or `design` or `preset` for one
 outside a table) and a `message`: a design that doesn't parse, a preset that
 can't install, extra columns on a block the preset doesn't install, a table
 name a block already uses, or a reference to a block table the preset doesn't
@@ -203,6 +234,8 @@ import { defaultPreset } from "better-supabase/preset";
 
 const files = previewFiles(defaultPreset());
 const { ok, issues, skipped } = await validateDesign(files);
+// issues are `Issue` values with `source: "sql"`, the module in `table`
+// and the file in `file`.
 ```
 
 PGlite starts without a Supabase project's roles and `auth` schema, so the
