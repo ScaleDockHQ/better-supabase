@@ -124,7 +124,10 @@ function postgrestOver(pool: Pool): RpcClient {
 
               return value !== null &&
                 typeof value === "object" &&
-                !Array.isArray(value)
+                (!Array.isArray(value) ||
+                  value.some(
+                    (entry) => entry !== null && typeof entry === "object",
+                  ))
                 ? JSON.stringify(value)
                 : value;
             }),
@@ -2256,6 +2259,48 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).orThrow();
 
       expect(lease).toEqual({ acquired: true, value: false });
+    } finally {
+      await pool.query(`drop schema ${api} cascade`);
+    }
+  });
+
+  it("checks several rate limits through the api wrappers over rpcTransport", async () => {
+    const api = `bsb_api_${RUN}_limits`;
+
+    const file = renderBlocks(["rate-limit"], {
+      modules: {
+        "rate-limit": { api: { schema: api, functions: ["check_rate_limit"] } },
+      },
+    }).find(
+      (entry) => entry.module === "rate-limit" && entry.kind === "schema",
+    )!.contents;
+
+    await pool.query(file.slice(file.indexOf("-- blocks.rate-limit.api:")));
+
+    try {
+      const limit = createRateLimit({
+        transport: rpcTransport(postgrestOver(pool), { schema: api }),
+      });
+
+      const hits = [
+        {
+          scope: `rpc-${RUN}-minute`,
+          key: "k",
+          rule: { max: 2, period: "1 minute" },
+        },
+        {
+          scope: `rpc-${RUN}-hour`,
+          key: "k",
+          rule: { max: 1, period: "1 hour" },
+        },
+      ];
+
+      const first = await limit.checkAll(hits).orThrow();
+      expect(first.allowed).toBe(true);
+
+      const second = await limit.checkAll(hits).orThrow();
+      expect(second).toMatchObject({ allowed: false, blocked: { index: 1 } });
+      expect(await limit.purge().orThrow()).toBeGreaterThanOrEqual(0);
     } finally {
       await pool.query(`drop schema ${api} cascade`);
     }

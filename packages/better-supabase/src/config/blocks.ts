@@ -189,10 +189,11 @@ export interface BlockConfig<
   /**
    * A schema for the Data API, such as `api`: the module writes a `security
    * invoker` wrapper there for each of its functions that `anon` or
-   * `authenticated` may execute (or only those in `functions`), so
-   * `rpcTransport(supabase, { schema: "api" })` reaches them without exposing
-   * the module schema (doctor BS312). Defaults to `sql.api`; `false` writes no
-   * wrappers even when `sql.api` is set.
+   * `authenticated` may execute (or only those in `functions`, plus the ones
+   * the block's TypeScript client calls), so `rpcTransport(supabase, { schema:
+   * "api" })` reaches them without exposing the module schema (doctor BS312).
+   * Defaults to `sql.api`; `false` writes no wrappers even when `sql.api` is
+   * set.
    */
   readonly api?:
     | string
