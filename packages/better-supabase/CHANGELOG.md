@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.18.3
+
+### Patch Changes
+
+- [#385](https://github.com/ScaleDockHQ/better-supabase/pull/385) [`050a36e`](https://github.com/ScaleDockHQ/better-supabase/commit/050a36e67ab4534c41162e1fe3160fc9e186211d) Thanks [@mick340](https://github.com/mick340)! - With an authorization provider that sets `authorization.functions.actorMayWrite`, the blocks replace calls to `better_supabase.actor_may_write()` with the provider's check but keep the function's own `create function`, `grant` and `revoke` statements. The created-by block file no longer renders `create or replace function (provider_check())`, which failed with a syntax error.
+
 ## 0.18.2
 
 ### Patch Changes
