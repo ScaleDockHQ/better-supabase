@@ -261,7 +261,7 @@ import {
 import { supabase } from "../supabase/supabase.native";
 import { powersync } from "./database";
 
-const server = createNotifications({ transport: rpcTransport(supabase) });
+const remote = createNotifications({ transport: rpcTransport(supabase) });
 
 export const notifications = createNotifications({
   transport: powersyncNotificationsTransport(powersync, {
@@ -270,7 +270,7 @@ export const notifications = createNotifications({
 });
 
 export const notificationRoutes = {
-  notification_recipients: notificationRecipientsRoute(server),
+  notification_recipients: notificationRecipientsRoute(remote),
 };
 ```
 
