@@ -1,10 +1,45 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:7ba60eacd3839ee4fb1f5297e8c6c438ccfc47429ef31b072f39f11a4a47b193
+-- @bsb-hash sha256:1399a4faf5cdd273a7fe992ecd7001960c05ea1172ec4c51e58a7c3708d231c8
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 -- "public"."invoices" is the app's table (supabase/schemas/010_app.sql): tables.invoices adds only the columns it lacks.
 alter table "public"."invoices" add column if not exists "organization_id" uuid references "better_supabase"."organizations" ("id") on delete cascade;
@@ -31,11 +66,11 @@ grant all on "public"."invoices" to service_role;
 drop policy if exists "bsb_invoices_select" on "public"."invoices";
 create policy "bsb_invoices_select" on "public"."invoices" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "bsb_invoices_insert" on "public"."invoices";
-create policy "bsb_invoices_insert" on "public"."invoices" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "bsb_invoices_insert" on "public"."invoices" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "bsb_invoices_update" on "public"."invoices";
-create policy "bsb_invoices_update" on "public"."invoices" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "bsb_invoices_update" on "public"."invoices" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "bsb_invoices_delete" on "public"."invoices";
-create policy "bsb_invoices_delete" on "public"."invoices" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "bsb_invoices_delete" on "public"."invoices" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."invoices";
 create policy bsb_tenant_scope on "public"."invoices" as restrictive
   for all to authenticated

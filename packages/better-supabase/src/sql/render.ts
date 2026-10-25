@@ -77,6 +77,20 @@ function renameQualifiers(sql: string, ctx: BlockSqlContext): string {
   return out;
 }
 
+/**
+ * Guards a file's SQL under its header: the marker the CLI recognizes a managed
+ * file by stays on the first lines, and the helper functions follow it.
+ */
+function guardBelowHeader(contents: string, layout: BlockSqlLayout): string {
+  const split = contents.indexOf("\n\n");
+
+  if (split === -1) {
+    return applyActorWriteGuards(contents, layout);
+  }
+
+  return `${contents.slice(0, split)}\n${applyActorWriteGuards(contents.slice(split + 1), layout)}`;
+}
+
 function moduleSql(
   module: BlockSql,
   ctx: BlockSqlContext,
@@ -240,7 +254,15 @@ export function renderBlocks(
     ),
   ]);
 
-  return [...files, ...appTablesFiles(layout, installed)].map((file) => ({
+  // App table policies take the read-only check like every block policy, so a
+  // read-only support or agent session can't write through them either.
+  const appFiles = appTablesFiles(layout, installed).map((file) =>
+    file.kind === "schema"
+      ? { ...file, contents: guardBelowHeader(file.contents, layout) }
+      : file,
+  );
+
+  return [...files, ...appFiles].map((file) => ({
     ...file,
     contents: withBlockHash(
       file.kind === "schema"

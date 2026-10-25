@@ -1,9 +1,44 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:688538131a2df8adafa3a6c7cfae86d6c745cd37a791664b871d80758d8d2ca2
+-- @bsb-hash sha256:6175f5dbb151baf887cc6b5c636c1a2ce05277c8061ebafdaee1aeced393b457
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 create table if not exists "public"."projects" (
   id uuid primary key default gen_random_uuid(),
@@ -65,11 +100,11 @@ grant all on "public"."projects" to service_role;
 drop policy if exists "projects_select" on "public"."projects";
 create policy "projects_select" on "public"."projects" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "projects_insert" on "public"."projects";
-create policy "projects_insert" on "public"."projects" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "projects_insert" on "public"."projects" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "projects_update" on "public"."projects";
-create policy "projects_update" on "public"."projects" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "projects_update" on "public"."projects" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "projects_delete" on "public"."projects";
-create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "projects_delete" on "public"."projects" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."projects";
 create policy bsb_tenant_scope on "public"."projects" as restrictive
   for all to authenticated
@@ -89,11 +124,11 @@ grant all on "public"."tasks" to service_role;
 drop policy if exists "tasks_select" on "public"."tasks";
 create policy "tasks_select" on "public"."tasks" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "tasks_insert" on "public"."tasks";
-create policy "tasks_insert" on "public"."tasks" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "tasks_insert" on "public"."tasks" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "tasks_update" on "public"."tasks";
-create policy "tasks_update" on "public"."tasks" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "tasks_update" on "public"."tasks" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "tasks_delete" on "public"."tasks";
-create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "tasks_delete" on "public"."tasks" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."tasks";
 create policy bsb_tenant_scope on "public"."tasks" as restrictive
   for all to authenticated
@@ -157,11 +192,11 @@ grant all on "public"."client_notes" to service_role;
 drop policy if exists "client_notes_select" on "public"."client_notes";
 create policy "client_notes_select" on "public"."client_notes" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "client_notes_insert" on "public"."client_notes";
-create policy "client_notes_insert" on "public"."client_notes" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "client_notes_insert" on "public"."client_notes" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "client_notes_update" on "public"."client_notes";
-create policy "client_notes_update" on "public"."client_notes" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "client_notes_update" on "public"."client_notes" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists "client_notes_delete" on "public"."client_notes";
-create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."client_notes";
 create policy bsb_tenant_scope on "public"."client_notes" as restrictive
   for all to authenticated
@@ -279,11 +314,11 @@ grant all on "public"."saved_views" to service_role;
 drop policy if exists "saved_views_select" on "public"."saved_views";
 create policy "saved_views_select" on "public"."saved_views" for select to authenticated using ("user_id" = (select auth.uid()));
 drop policy if exists "saved_views_insert" on "public"."saved_views";
-create policy "saved_views_insert" on "public"."saved_views" for insert to authenticated with check ("user_id" = (select auth.uid()));
+create policy "saved_views_insert" on "public"."saved_views" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 drop policy if exists "saved_views_update" on "public"."saved_views";
-create policy "saved_views_update" on "public"."saved_views" for update to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+create policy "saved_views_update" on "public"."saved_views" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 drop policy if exists "saved_views_delete" on "public"."saved_views";
-create policy "saved_views_delete" on "public"."saved_views" for delete to authenticated using ("user_id" = (select auth.uid()));
+create policy "saved_views_delete" on "public"."saved_views" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 create index if not exists "saved_views_user_id_idx" on "public"."saved_views" ("user_id");
 drop trigger if exists "bsb_updated_at" on "public"."saved_views";
 create trigger "bsb_updated_at" before update on "public"."saved_views"

@@ -126,6 +126,28 @@ const golden = (files: ReturnType<typeof renderBlocks>): string =>
     .join("\n");
 
 describe("appTables SQL", () => {
+  it("makes every write policy refuse a read-only session", () => {
+    const file = render([], { scope: "user", appTables: TABLES }).find(
+      (each) => each.kind === "schema",
+    );
+
+    const policies = file!.contents
+      .split(";")
+      .filter((statement) => statement.includes("create policy"));
+
+    expect(policies.length).toBeGreaterThan(0);
+
+    for (const policy of policies) {
+      expect(policy.includes("actor_may_write()")).toBe(
+        !/\bfor select\b/.test(policy),
+      );
+    }
+
+    expect(file!.contents).toContain(
+      "create or replace function better_supabase.actor_may_write()",
+    );
+  });
+
   it("renders nothing without app tables", () => {
     expect(render(BLOCKS, {})).toEqual([]);
     expect(render(BLOCKS, { appTables: {} })).toEqual([]);
