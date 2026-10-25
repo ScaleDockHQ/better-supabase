@@ -79,6 +79,7 @@ interface AuthorizationProvider {
     userColumn: string;
     scope: { column: string } | { value: string };
     idColumn: string;
+    rolesTable?: string;
   }[];
   suspension?: { user?: DisabledRow; tenant?: DisabledRow };
   roleSources?: AuthorizationRoleSource[];
@@ -148,8 +149,8 @@ puts the result into a policy or a module function:
 | `memberIds`      | `{scope}`                                                   | the `{scope}` ids the caller is a member of                                                |
 | `memberIdsFor`   | `{user}`, `{scope}`                                         | as `memberIds`, for another user                                                           |
 | `teamIdsOf`      | `{user}`                                                    | a set of the team ids `{user}` belongs to                                                  |
-| `canAssign`      | `{role}`, `{tenant}`, `{scope}`                             | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
-| `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`                   | as `canAssign`, for another user                                                           |
+| `canAssign`      | `{role}`, `{roles}`, `{tenant}`, `{scope}`                  | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
+| `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`        | as `canAssign`, for another user                                                           |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
 | `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
 | `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                             | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
@@ -158,6 +159,14 @@ puts the result into a policy or a module function:
 | `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}` | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
 | `portalSubjects` | `{action}`                                                  | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
 | `portalParties`  | none                                                        | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
+
+`{roles}` is the same role as a `text[]` (`array[role]::text[]`), for a
+function that checks a set of roles at once. A `memberships` entry's
+`rolesTable` names the table of a member's roles when a member can hold
+several, one row per scope id, user and role; better-supabase's own is
+`better_supabase.membership_roles`
+([`roles.many`](/docs/blocks/memberships#several-roles-per-member)). Doctor
+(BS411) warns when `roles.many` is on and no entry sets it.
 
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for

@@ -616,6 +616,39 @@ describe("BS411", () => {
     });
   });
 
+  it("warns when the provider reads one role per member and roles.many is on", async () => {
+    const membership = {
+      table: "authz.members",
+      userColumn: "user_id",
+      scope: { column: "scope_id" },
+      idColumn: "scope_id",
+    };
+
+    const many = { memberships: { options: { roles: { many: true } } } };
+
+    expect(
+      await findings(
+        "BS411",
+        config(withProvider({ memberships: [membership] }), many),
+        { snapshot },
+      ),
+    ).toMatchObject([
+      { severity: "warning", target: "blocks.memberships.options.roles" },
+    ]);
+    expect(
+      await findings(
+        "BS411",
+        config(
+          withProvider({
+            memberships: [{ ...membership, rolesTable: "authz.member_roles" }],
+          }),
+          many,
+        ),
+        { snapshot },
+      ),
+    ).toEqual([]);
+  });
+
   it("warns without canAssign, even with the tenant module", async () => {
     const { canAssign: _, ...functions } = stubProvider.functions;
     const noAssign = withProvider({ functions });

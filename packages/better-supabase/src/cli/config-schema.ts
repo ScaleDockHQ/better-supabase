@@ -287,6 +287,7 @@ const authorization = v.strictObject({
         userColumn: v.string(),
         scope: membershipScope,
         idColumn: v.string(),
+        rolesTable: v.optional(v.string()),
       }),
     ),
   ),

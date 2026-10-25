@@ -317,6 +317,7 @@ const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
     "member_organization_ids",
     "has_organization_role",
     "organization_member_role",
+    "organization_member_roles",
   ]),
 };
 

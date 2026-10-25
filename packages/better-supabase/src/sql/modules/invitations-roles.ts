@@ -112,7 +112,10 @@ export function platformAssignment(ctx: BlockSqlContext): PlatformAssignment {
       canAssign: (member, stored) =>
         platform.canAssign === undefined
           ? undefined
-          : `coalesce((${platform.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
+          : `coalesce((${platform.canAssign
+              .replaceAll("{user}", member)
+              .replaceAll("{roles}", `array[${name(stored)}]::text[]`)
+              .replaceAll("{role}", name(stored))}), false)`,
       inviterCanAssign: (member, stored) => {
         const template = platform.canAssign?.includes("{user}")
           ? platform.canAssign
@@ -120,7 +123,10 @@ export function platformAssignment(ctx: BlockSqlContext): PlatformAssignment {
 
         return template === undefined
           ? undefined
-          : `coalesce((${template.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`;
+          : `coalesce((${template
+              .replaceAll("{user}", member)
+              .replaceAll("{roles}", `array[${name(stored)}]::text[]`)
+              .replaceAll("{role}", name(stored))}), false)`;
       },
       table: platform.table,
       user: platform.user,

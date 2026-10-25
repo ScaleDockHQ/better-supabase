@@ -27,6 +27,7 @@ const RECORDED = (() => {
     modules: {
       audit: { options: { restricted: true } },
       bookings: { options: { recurring: true } },
+      memberships: { options: { roles: { many: true } } },
       content: { options: { requireApproval: true } },
       activities: { options: { recordings: true } },
       orders: { options: { kitchen: true } },

@@ -656,7 +656,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
+      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
     check: (context) => {
       const mode = accessModule(context);
 
@@ -706,6 +706,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           severity: "warning",
           message: `Neither blocks.permissions.functions.canAssign nor ${providerLabel(provider)} sets canAssign, so under the provider model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes. Use a provider that sets authorization.functions.canAssign, or set blocks.permissions.functions.canAssign.`,
           target: "blocks.permissions.functions.canAssign",
+        });
+      }
+
+      const roles = context.config.blocks["memberships"]?.options?.["roles"];
+
+      const many =
+        typeof roles === "object" &&
+        roles !== null &&
+        "many" in roles &&
+        roles.many === true;
+
+      if (
+        many &&
+        (provider.memberships ?? []).length > 0 &&
+        !(provider.memberships ?? []).some(
+          (membership) => membership.rolesTable !== undefined,
+        )
+      ) {
+        findings.push({
+          severity: "warning",
+          message: `blocks.memberships.options.roles.many keeps several roles per member in better_supabase.membership_roles, but ${providerLabel(provider)} reads one role per membership: none of its authorization.memberships sets rolesTable. A member's extra roles then grant nothing through the provider. Use a provider that reads the role set, or turn roles.many off.`,
+          target: "blocks.memberships.options.roles",
         });
       }
 
@@ -999,7 +1021,7 @@ const CONTRACT_CALL =
   /\bbetter_supabase"?\s*\.\s*"?(can|tenant_ids_with)"?\s*\(/gi;
 
 const ROLE_HELPER_CALL =
-  /\bbetter_supabase"?\s*\.\s*"?(member_organization_ids|has_organization_role|organization_member_role)"?\s*\(/gi;
+  /\bbetter_supabase"?\s*\.\s*"?(member_organization_ids|has_organization_role|organization_member_roles?)"?\s*\(/gi;
 
 /** The tenant role helpers `text` calls, outside string literals. */
 function roleHelperCalls(text: string): string[] {

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:d3ecdd4a0216178e4ffeab9372b07bec135b53ffba90ab6ac334a2d30137d215
+-- @bsb-hash sha256:f48ab21260ff92cf9fe9b265a1c6b579e7f35f3f6b0afc7ec509cc5a283a43c5
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -322,7 +322,8 @@ create trigger "bsb_workspace_role_guard" before insert or update on "better_sup
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
 -- Errors carry a code in the hint: ORGANIZATION_FORBIDDEN, ORGANIZATION_DISABLED, ORGANIZATION_NOT_MEMBER,
--- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED.
+-- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED,
+-- ORGANIZATION_ROLE_LAST.
 create or replace function "better_supabase"."update_member_role"(organization uuid, member uuid, role text)
 returns boolean
 language plpgsql
@@ -506,6 +507,10 @@ begin
   return true;
 end;
 $$;
+
+
+drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
+drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
 
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.

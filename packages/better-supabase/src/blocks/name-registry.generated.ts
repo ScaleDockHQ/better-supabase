@@ -1020,7 +1020,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "memberships": "tenant" | "user" | "role" | "createdAt" | "updatedAt" | "lastUsedAt" | "disabledAt";
     };
-    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "organization_member_role";
+    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "membership_role_from_roles" | "membership_roles_from_role" | "organization_member_role" | "organization_member_roles";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {
@@ -1172,7 +1172,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "organizations": "id" | "name" | "slug" | "createdBy" | "createdAt" | "updatedAt" | "disabledAt" | "deletedAt";
     };
-    readonly functions: "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
+    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
     readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};

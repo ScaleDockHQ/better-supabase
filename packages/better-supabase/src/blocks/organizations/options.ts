@@ -47,6 +47,10 @@ export type InvitationsSqlOptions = {
   readonly tokenStorage?: string;
   readonly validFor?: string;
   readonly extraColumns?: unknown;
+  /** The role `create_invitation` and `invite_member` use when none is named. */
+  readonly defaultRole?: string;
+  /** Extra roles and teams an invitation grants on accept. */
+  readonly onAccept?: { readonly roles?: boolean; readonly teams?: boolean };
 };
 
 export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
@@ -60,4 +64,9 @@ export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
     tokenStorage: option.string({ default: "sha256" }),
     validFor: option.string({ default: "7 days" }),
     extraColumns: option.unknown(),
+    defaultRole: option.string({ default: "member" }),
+    onAccept: option.unknown<{
+      readonly roles?: boolean;
+      readonly teams?: boolean;
+    }>(),
   });

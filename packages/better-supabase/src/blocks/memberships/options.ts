@@ -7,6 +7,8 @@ export type MembershipsSqlOptions = {
   readonly claimFormat?: string;
   readonly roleThrough?: unknown;
   readonly sameTenant?: unknown;
+  /** `{ many: true }` lets a member hold several roles (`membership_roles`). */
+  readonly roles?: { readonly many?: boolean };
 };
 
 export const membershipsSqlOptions: BlockOptionsSchema<MembershipsSqlOptions> =
@@ -14,4 +16,5 @@ export const membershipsSqlOptions: BlockOptionsSchema<MembershipsSqlOptions> =
     claimFormat: option.string({ default: "array" }),
     roleThrough: option.unknown(),
     sameTenant: option.unknown(),
+    roles: option.unknown<{ readonly many?: boolean }>(),
   });

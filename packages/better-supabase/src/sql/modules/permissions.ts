@@ -16,6 +16,7 @@ import {
   membershipSuspended,
   schemaPreamble,
 } from "../shared.ts";
+import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { roleNameOf } from "./memberships.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
@@ -106,7 +107,13 @@ function catalogEffective(ctx: BlockSqlContext, n: Names): string {
 /** Whether membership row `m` grants `permission` (an SQL expression). */
 function grants(ctx: BlockSqlContext, n: Names, permission: string): string {
   if (accessModel(ctx) === "roles") {
-    return `better_supabase.role_grants(${roleNameOf(ctx.of("memberships"), "m")}, ${permission})`;
+    const members = ctx.of("memberships");
+
+    if (manyRoles(members)) {
+      return `exists (select 1 from ${membershipRolesTable(members)} mr where mr.${n.tenant} = m.${n.tenant} and mr.${n.user} = m.${n.user} and better_supabase.role_grants(mr."role", ${permission}))`;
+    }
+
+    return `better_supabase.role_grants(${roleNameOf(members, "m")}, ${permission})`;
   }
 
   return `exists (select 1 from ${ctx.table("permissions")} p where p.${ctx.col("permissions", "key")} = ${permission} and ${catalogEffective(ctx, n)})`;
@@ -247,13 +254,22 @@ function membershipFunctions(ctx: BlockSqlContext): string {
   const model = accessModel(ctx);
   const active = activeMembership(ctx, "m");
 
+  const members = ctx.of("memberships");
+
   const permissions =
-    model === "roles"
+    model === "roles" && manyRoles(members)
       ? `select coalesce((
+      select array_agg(distinct k.key order by k.key) from ${n.m} m
+      join ${membershipRolesTable(members)} mr on mr.${n.tenant} = m.${n.tenant} and mr.${n.user} = m.${n.user}
+      cross join unnest(better_supabase.role_permissions(mr."role")) k(key)
+      where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member${active}
+    ), '{}'::text[])`
+      : model === "roles"
+        ? `select coalesce((
       select better_supabase.role_permissions(${roleNameOf(ctx.of("memberships"), "m")}) from ${n.m} m
       where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member${active}
     ), '{}'::text[])`
-      : `select coalesce(array_agg(p.${ctx.col("permissions", "key")} order by p.${ctx.col("permissions", "key")}), '{}'::text[])
+        : `select coalesce(array_agg(p.${ctx.col("permissions", "key")} order by p.${ctx.col("permissions", "key")}), '{}'::text[])
     from ${ctx.table("permissions")} p
     where exists (
       select 1 from ${n.m} m
@@ -500,6 +516,7 @@ function providerCanAssign(
     return fill(template, {
       tenant: "can_assign.tenant",
       role: "can_assign.role",
+      roles: "array[can_assign.role]::text[]",
     });
   }
 
@@ -509,6 +526,7 @@ function providerCanAssign(
     return providerSql(provider, "canAssign", {
       tenant: "can_assign.tenant",
       role: "can_assign.role",
+      roles: "array[can_assign.role]::text[]",
     });
   }
 
@@ -611,6 +629,7 @@ function assignAsCheck(
     user: "can_assign_as.member",
     tenant: "can_assign_as.tenant",
     role: "can_assign_as.role",
+    roles: "array[can_assign_as.role]::text[]",
   };
 
   const template = ctx.modules.permissions?.functions?.canAssignFor;
@@ -863,7 +882,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${fill(functions.canAssign!, { tenant: "can_assign.tenant", role: "can_assign.role" })}), false)
+  select ${SERVICE} or coalesce((${fill(functions.canAssign!, {
+    tenant: "can_assign.tenant",
+    role: "can_assign.role",
+    roles: "array[can_assign.role]::text[]",
+  })}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)

@@ -20,6 +20,7 @@ import {
   ORGANIZATION_CUSTOMER_COLUMN,
   readsOrganizationCustomer,
 } from "./entitlements-source.ts";
+import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { activeTenantSource, roleNameOf } from "./memberships.ts";
 import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
@@ -122,7 +123,9 @@ const isOwner = (
   n: OrganizationNames,
   alias: string,
 ): string =>
-  `${roleNameOf(ctx.of("memberships"), alias)} = ${sqlString(n.ownerRole)}`;
+  manyRoles(ctx.of("memberships"))
+    ? `exists (select 1 from ${membershipRolesTable(ctx.of("memberships"))} mr where mr.${n.tenant} = ${alias}.${n.tenant} and mr.${n.user} = ${alias}.${n.user} and mr."role" = ${sqlString(n.ownerRole)})`
+    : `${roleNameOf(ctx.of("memberships"), alias)} = ${sqlString(n.ownerRole)}`;
 
 /** True while the organization exists and is neither deleted nor disabled. */
 function activeOrganization(
@@ -673,9 +676,102 @@ function members(ctx: BlockSqlContext, n: OrganizationNames): string {
     ${fail("ORGANIZATION_MEMBER_SUSPENDED", "The new owner is suspended")}
   end if;`;
 
+  const many = manyRoles(ctx.of("memberships"));
+  const mr = many ? membershipRolesTable(ctx.of("memberships")) : "";
+  const owner = sqlString(n.ownerRole);
+
+  // The owner set is kept whole: the caller keeps former_role next to the
+  // roles they had, minus owner.
+  const transferRoles = `  insert into ${mr} (${n.tenant}, ${n.user}, "role") values (organization, new_owner, ${owner})
+  on conflict do nothing;
+  if me is not null and me <> new_owner and exists (
+    select 1 from ${mr} r where r.${n.tenant} = organization and r.${n.user} = me and r."role" = ${owner}
+  ) then
+    insert into ${mr} (${n.tenant}, ${n.user}, "role") values (organization, me, former_role)
+    on conflict do nothing;
+    delete from ${mr} r where r.${n.tenant} = organization and r.${n.user} = me and r."role" = ${owner};
+  end if;
+`;
+
+  const roleSet = many
+    ? `
+-- blocks.memberships.options.roles.many: add or remove one of a member's
+-- roles. The membership's role column follows the highest-ranked one left.
+create or replace function ${ctx.fn("add_member_role")}(organization ${id}, member uuid, role text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to change roles")}
+  end if;${active}${checkRole(ctx, "role", "organization")}
+  if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member) then
+    ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER}) and member = auth.uid() then
+    ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
+  end if;
+  if not better_supabase.can_assign(organization, role) then
+    ${fail("ORGANIZATION_ROLE_CEILING", "That role is above your own")}
+  end if;
+  insert into ${mr} (${n.tenant}, ${n.user}, "role") values (organization, member, role)
+  on conflict do nothing;
+  if not found then
+    return false;
+  end if;
+  ${change("member", "role")}
+  ${ctx.record({ type: "organization.role_added", payload: event("organization", "member", ", 'role', role"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "member::text" } })}
+  return true;
+end;
+$$;
+
+create or replace function ${ctx.fn("remove_member_role")}(organization ${id}, member uuid, role text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to change roles")}
+  end if;${active}
+  if not exists (select 1 from ${mr} r where r.${n.tenant} = organization and r.${n.user} = member and r."role" = role) then
+    return false;
+  end if;
+  if not (${SERVICE_CALLER}) and member = auth.uid() then
+    ${fail("ORGANIZATION_SELF_ROLE", "You cannot change your own role")}
+  end if;
+  if not better_supabase.can_assign(organization, role) then
+    ${fail("ORGANIZATION_ROLE_CEILING", "That role is above your own")}
+  end if;
+  if not exists (select 1 from ${mr} r where r.${n.tenant} = organization and r.${n.user} = member and r."role" <> role) then
+    ${fail("ORGANIZATION_ROLE_LAST", "A member keeps at least one role; remove the member instead", "22023")}
+  end if;
+  if role = ${owner} and not exists (
+    select 1 from ${mr} r where r.${n.tenant} = organization and r.${n.user} <> member and r."role" = ${owner}
+  ) then
+    ${fail("ORGANIZATION_OWNER_REQUIRED", "An organization keeps at least one owner")}
+  end if;
+  delete from ${mr} r where r.${n.tenant} = organization and r.${n.user} = member and r."role" = role;
+  ${change("member", "role")}
+  ${ctx.record({ type: "organization.role_removed", payload: event("organization", "member", ", 'role', role"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "member::text" } })}
+  return true;
+end;
+$$;
+`
+    : `
+drop function if exists ${ctx.fn("add_member_role")}(${id}, uuid, text);
+drop function if exists ${ctx.fn("remove_member_role")}(${id}, uuid, text);
+`;
+
   return `
 -- Errors carry a code in the hint: ORGANIZATION_FORBIDDEN, ORGANIZATION_DISABLED, ORGANIZATION_NOT_MEMBER,
--- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED.
+-- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED,
+-- ORGANIZATION_ROLE_LAST.
 create or replace function ${ctx.fn("update_member_role")}(organization ${id}, member uuid, role text)
 returns boolean
 language plpgsql
@@ -790,7 +886,10 @@ begin
   if better_supabase.user_disabled(new_owner) then
     ${fail("ORGANIZATION_FORBIDDEN", "The new owner is disabled")}
   end if;${suspendedOwner}
-  -- One statement for both rows, so a statement-level guard on the number of
+${
+  many
+    ? transferRoles
+    : `  -- One statement for both rows, so a statement-level guard on the number of
   -- owners sees the transfer as a whole.
   update ${n.m} m set ${n.role} = case
       when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole), "organization")}
@@ -799,12 +898,14 @@ begin
   where m.${n.tenant} = organization
     and (m.${n.user} = new_owner
       or (me is not null and me <> new_owner and m.${n.user} = me and ${isOwner(ctx, n, "m")}));
-  ${change("new_owner", "owner")}
+`
+}  ${change("new_owner", "owner")}
   ${ctx.record({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "new_owner::text" } })}
   return true;
 end;
 $$;
 
+${roleSet}
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function ${ctx.fn("mark_used")}(organization ${id})
@@ -912,6 +1013,12 @@ const functionsOf = (
         ["suspend_member", `${id}, uuid`],
         ["resume_member", `${id}, uuid`],
       ] as const)),
+  ...(manyRoles(ctx.of("memberships"))
+    ? ([
+        ["add_member_role", `${id}, uuid, text`],
+        ["remove_member_role", `${id}, uuid, text`],
+      ] as const)
+    : []),
 ];
 
 function organizationsSql(

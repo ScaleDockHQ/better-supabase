@@ -145,7 +145,7 @@ describe("upgradePlan", () => {
       {
         module: "memberships",
         from: 1,
-        to: 2,
+        to: 3,
         steps: [
           {
             from: 1,
@@ -153,6 +153,7 @@ describe("upgradePlan", () => {
               'alter table "better_supabase"."memberships" rename column "org_id" to "organization_id";',
             ),
           },
+          { from: 2, sql: "" },
         ],
       },
     ]);

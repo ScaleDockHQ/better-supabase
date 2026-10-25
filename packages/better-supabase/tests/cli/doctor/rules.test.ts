@@ -705,7 +705,7 @@ describe("generated and module files (BS303, BS304)", () => {
         .map((file) => file.contents)
         .join("\n")
         .replace(
-          /^-- @bsb-block memberships@2/m,
+          /^-- @bsb-block memberships@3/m,
           "-- @bsb-block memberships@1",
         ),
     );
@@ -760,7 +760,7 @@ describe("generated and module files (BS303, BS304)", () => {
         severity: "warning",
         target: file!.path,
         message: expect.stringContaining(
-          "has memberships version 1; this release ships version 2. Run `better-supabase upgrade`",
+          "has memberships version 1; this release ships version 3. Run `better-supabase upgrade`",
         ),
       }),
     ]);
@@ -796,7 +796,7 @@ describe("generated and module files (BS303, BS304)", () => {
       expect.objectContaining({
         target: "better_supabase.blocks.memberships",
         message: expect.stringContaining(
-          "The database has memberships version 1; this release ships version 2.",
+          "The database has memberships version 1; this release ships version 3.",
         ),
       }),
     ]);

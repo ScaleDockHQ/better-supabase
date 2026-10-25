@@ -81,7 +81,7 @@ const NAMES: BlockSqlNames = {
 /** The keys the team reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function teamIdType(ctx: BlockSqlContext): "uuid" | "bigint" {
+export function teamIdType(ctx: BlockSqlContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
 
   if (value !== "uuid" && value !== "bigint") {

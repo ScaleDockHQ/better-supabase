@@ -19,6 +19,14 @@ export const ORGANIZATION_EVENTS: BlockSqlEvents<OrganizationsEvents> = {
     subject: "organizations",
     payload: ["organizationId", "userId", "role", "previousRole"],
   },
+  "organization.role_added": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
+  "organization.role_removed": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
   "organization.member_removed": {
     subject: "organizations",
     payload: ["organizationId", "userId"],

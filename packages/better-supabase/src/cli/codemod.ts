@@ -422,7 +422,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       },
       {
         pattern:
-          /\b(has_organization_role|member_organization_ids|organization_member_role)\s*\(/,
+          /\b(has_organization_role|member_organization_ids|organization_member_roles?)\s*\(/,
         message:
           "Under the provider model the role helpers take membership from the provider's `memberIds`, and a role name check skips the delegation cap (doctor BS334): check a permission with `tenant_ids_with('<permission>')` or `member_can()`",
       },

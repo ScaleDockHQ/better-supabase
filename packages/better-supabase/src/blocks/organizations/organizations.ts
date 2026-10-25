@@ -71,6 +71,14 @@ export interface InviteRequest<I extends object = Record<never, never>> {
    * `options.invitationFields`.
    */
   readonly fields?: Partial<I> & Readonly<Record<string, unknown>>;
+  /**
+   * Roles and teams granted on accept, with
+   * `blocks.invitations.options.onAccept`.
+   */
+  readonly onAccept?: {
+    readonly roles?: readonly string[];
+    readonly teams?: readonly string[];
+  };
 }
 
 /**
@@ -161,6 +169,8 @@ export interface OrganizationMembership {
   readonly name: string;
   readonly slug?: string;
   readonly role: string;
+  /** Every role, with `blocks.memberships.options.roles.many`. */
+  readonly roles?: readonly string[];
   readonly disabledAt?: Temporal.Instant;
   readonly [column: string]: unknown;
 }
@@ -168,7 +178,10 @@ export interface OrganizationMembership {
 /** A row `list_members` returns. */
 export interface OrganizationMember {
   readonly userId: string;
+  /** The highest-ranked role when a member holds several. */
   readonly role: string;
+  /** Every role, with `blocks.memberships.options.roles.many`. */
+  readonly roles?: readonly string[];
   readonly disabledAt?: Temporal.Instant;
 }
 
@@ -281,6 +294,25 @@ export interface Organizations<
     userId: string,
     role: string,
   ): AsyncResult<true>;
+  /**
+   * Adds a role to a member, with `blocks.memberships.options.roles.many`.
+   * `false` when they already held it.
+   */
+  addMemberRole(
+    organizationId: string,
+    userId: string,
+    role: string,
+  ): AsyncResult<boolean>;
+  /**
+   * Removes one of a member's roles, with
+   * `blocks.memberships.options.roles.many`. `false` when they didn't hold it;
+   * the last role and the last owner are refused.
+   */
+  removeMemberRole(
+    organizationId: string,
+    userId: string,
+    role: string,
+  ): AsyncResult<boolean>;
   removeMember(organizationId: string, userId: string): AsyncResult<true>;
   suspendMember(organizationId: string, userId: string): AsyncResult<boolean>;
   resumeMember(organizationId: string, userId: string): AsyncResult<boolean>;
@@ -419,6 +451,14 @@ function previewFrom(row: Record<string, unknown>): InvitationPreview {
     extra: extraOf(row, PREVIEW_KEYS),
   };
 }
+
+const rolesOf = (
+  row: Record<string, unknown>,
+): { readonly roles?: readonly string[] } => {
+  const roles = row["roles"];
+
+  return Array.isArray(roles) ? { roles: roles.map((role) => text(role)) } : {};
+};
 
 const disabledAtOf = (
   row: Record<string, unknown>,
@@ -702,6 +742,42 @@ function organizationsClient<F extends object, I extends object>(
         },
       );
     },
+    addMemberRole(organizationId, userId, role) {
+      return run(
+        "organizations",
+        "add_member_role",
+        { organization: organizationId, member: userId, role },
+        (value) => {
+          if (value === true) {
+            organizationEvent("organization.role_added", {
+              organizationId,
+              userId,
+              role,
+            });
+          }
+
+          return value === true;
+        },
+      );
+    },
+    removeMemberRole(organizationId, userId, role) {
+      return run(
+        "organizations",
+        "remove_member_role",
+        { organization: organizationId, member: userId, role },
+        (value) => {
+          if (value === true) {
+            organizationEvent("organization.role_removed", {
+              organizationId,
+              userId,
+              role,
+            });
+          }
+
+          return value === true;
+        },
+      );
+    },
     removeMember(organizationId, userId) {
       return run(
         "organizations",
@@ -840,6 +916,7 @@ function organizationsClient<F extends object, I extends object>(
             name: text(row["name"]),
             ...(slug === null ? {} : { slug }),
             role: text(row["role"]),
+            ...rolesOf(row),
             ...disabledAtOf(row),
           });
         }
@@ -856,6 +933,7 @@ function organizationsClient<F extends object, I extends object>(
           recordsOf(value, "list_members").map((row) => ({
             userId: text(row["user_id"]),
             role: text(row["role"]),
+            ...rolesOf(row),
             ...disabledAtOf(row),
           })),
       );
@@ -909,6 +987,9 @@ function organizationsClient<F extends object, I extends object>(
             valid_for: request.validFor,
             prefill: request.prefill,
             fields: checked.data,
+            ...(request.onAccept === undefined
+              ? {}
+              : { on_accept: request.onAccept }),
           },
           (value) => sent(value, "invite_member", false),
         );
