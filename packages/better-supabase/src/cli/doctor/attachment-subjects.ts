@@ -72,8 +72,9 @@ function attachmentSubjects(
  * Whether `expression` only checks that the caller is a member of the row's
  * tenant: `current_tenant_id()`, a `*_ids_with` or `*member_*ids` function in
  * any schema (the provider's own helpers included), `can('tenant', ...)` or
- * `member_can`, joined by `and`, with a soft-delete `is null` allowed. A
- * permission call passes only with one of `keys`.
+ * `member_can`, joined by `and`, with a soft-delete `is null` and the
+ * support-session `actor_may_write()` guard allowed. A permission call passes
+ * only with one of `keys`.
  */
 function tenantOnly(
   expression: string,
@@ -90,6 +91,7 @@ function tenantOnly(
     `better_supabase\\.can\\(\\s*'tenant'(?:::text)?\\s*,\\s*${col}\\s*,\\s*${key}\\s*\\)`,
     `better_supabase\\.member_can\\(\\s*${col}\\s*,\\s*${key}\\s*\\)`,
     `(?:"?\\w+"?\\.)?"?\\w+"?\\s+is\\s+null`,
+    `\\(?\\s*(?:select\\s+)?better_supabase\\.actor_may_write\\(\\)(?:\\s+as\\s+\\w+)?\\s*\\)?`,
   ];
 
   const used: string[] = [];
