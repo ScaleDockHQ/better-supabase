@@ -17,6 +17,8 @@ interface Variant {
   readonly applies: (module: string) => boolean;
   readonly modules: (module: string) => readonly string[];
   readonly layout: (module: string) => BlockSqlLayout;
+  /** `modules` and `layout` ignore the module, so one render serves them all. */
+  readonly shared?: true;
 }
 
 const VARIANTS: readonly Variant[] = [
@@ -31,6 +33,7 @@ const VARIANTS: readonly Variant[] = [
     applies: (module) => module !== "pgtap",
     modules: () => NAMES.filter((name) => name !== "pgtap"),
     layout: () => ({ modules: { usage: { options: { history: true } } } }),
+    shared: true,
   },
   {
     name: "schema app_private",
@@ -69,7 +72,8 @@ type Rendered = ReturnType<typeof renderBlocks> | { readonly error: unknown };
 const RENDERS = new Map<string, Rendered>();
 
 function filesOf(variant: Variant, module: string): Rendered {
-  const key = `${variant.name}\u0000${module}`;
+  const key = variant.shared ? variant.name : `${variant.name}\u0000${module}`;
+
   let rendered = RENDERS.get(key);
 
   if (rendered === undefined) {
@@ -162,12 +166,7 @@ describe("SQL module output", () => {
   it("gives every table one owning module", () => {
     const owners = new Map<string, Set<string>>();
 
-    const files = renderBlocks(
-      NAMES.filter((name) => name !== "pgtap"),
-      {},
-    );
-
-    for (const file of files) {
+    for (const file of renderEveryModule()) {
       for (const match of file.contents.matchAll(CREATE_TABLE)) {
         const table = (match[1] ?? "").replaceAll('"', "");
         const modules = owners.get(table) ?? new Set<string>();
