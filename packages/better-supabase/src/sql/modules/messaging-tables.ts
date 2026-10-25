@@ -37,11 +37,19 @@ export function conversationReadable(
     "read",
   );
 
-  const held =
+  const follows = q.followsRecord(`${alias}.${cv("subjectType")}`);
+
+  const scopedHeld =
     onRecord === undefined
       ? inTenant
       : `(${inTenant}
     or (${alias}.${cv("access")} = 'subject' and ${onRecord}))`;
+
+  const held =
+    follows === undefined
+      ? scopedHeld
+      : `(${scopedHeld}
+    or (${alias}.${cv("access")} = 'subject' and ${follows}))`;
 
   const readable = `(${held}
     and case ${alias}.${cv("access")}

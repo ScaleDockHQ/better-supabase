@@ -52,6 +52,35 @@ The comments operations check the messaging keys:
 delete: the comment stays as a placeholder so replies keep their parent, and
 its body and files are cleared.
 
+### Records with their own checks
+
+A record type whose [`config.records`](/docs/blocks/sql#actions-granted-per-row)
+entry declares a `comment` action keeps its comment threads on the record's
+own checks instead of the messaging keys: whoever may read the record reads
+its comments, whoever holds `comment` on it comments, replies and edits their
+own comments, and whoever holds `moderate` on it (when the entry declares
+one) or the tenant's moderate key deletes others' comments. Each action can
+be a key, a per-row grant or an owner column, so a record shared through its
+own grants can be discussed by everyone it is shared with:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: {
+    file: {
+      table: "public.files",
+      idType: "uuid",
+      permissions: {
+        read: { key: "file.read", rows: "file" },
+        comment: { key: "file.comment", rows: "file" },
+        moderate: { key: "file.update", rows: "file" },
+      },
+    },
+  },
+});
+```
+
+Record types without a `comment` action keep the messaging keys.
+
 ## Config
 
 ```ts title="better-supabase.config.ts"

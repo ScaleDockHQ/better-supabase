@@ -115,6 +115,28 @@ ${userGrant(`${fn("follow")}(text, uuid, boolean)`)}
           unless: "not v_guest and ",
         };
 
+  const subjectArgs = [
+    "(open_conversation.attrs ->> 'subjectType')",
+    "(open_conversation.attrs ->> 'subjectId')",
+  ] as const;
+
+  const recordFollows = q.followsRecord(`v_conv.${cv("subjectType")}`);
+
+  const recordComment = q.recordCan(
+    `v_conv.${cv("subjectType")}`,
+    `v_conv.${cv("subjectId")}`,
+    "comment",
+  );
+
+  const recordModerate = q.recordCan(
+    `v_conv.${cv("subjectType")}`,
+    `v_conv.${cv("subjectId")}`,
+    "moderate",
+  );
+
+  const openFollows = q.followsRecord(subjectArgs[0]);
+  const openOnRecord = q.recordCan(subjectArgs[0], subjectArgs[1], "comment");
+
   return `
 -- Whether the caller may act on a conversation: read it, send to it (the send
 -- key, and membership unless anyone in the tenant may post), or moderate it.
@@ -147,12 +169,24 @@ begin
   case can_conversation.action
     when 'read' then
       return true;
-    when 'send' then
+    when 'send' then${
+      recordFollows === undefined
+        ? ""
+        : `
+      if v_conv.${cv("access")} = 'subject' and ${recordFollows} then
+        return v_conv.${cv("archivedAt")} is null and ${recordComment ?? "false"};
+      end if;`
+    }
       return v_conv.${cv("archivedAt")} is null
         and ((${q.can(`v_conv.${cv("tenant")}`, "send")}
         and (v_conv.${cv("access")} <> 'members' or ${fn("is_conversation_member")}(v_conv.${cv("id")})))${guestOnRecord(q, "v_conv", "comment")});
     when 'moderate' then
-      return ${q.can(`v_conv.${cv("tenant")}`, "moderate")};
+      return ${q.can(`v_conv.${cv("tenant")}`, "moderate")}${
+        recordModerate === undefined
+          ? ""
+          : `
+        or (v_conv.${cv("access")} = 'subject' and ${recordModerate})`
+      };
     else
       return false;
   end case;
@@ -179,14 +213,14 @@ declare
   v_conv ${t("conversations")};
   v_created boolean := false;${guestOpen.declare}
 begin
-  if not (${q.service} or ${q.can("open_conversation.tenant", "send")}${guestOpen.or}) then
+  if not (${q.service} or ${q.can("open_conversation.tenant", "send")}${guestOpen.or}${openOnRecord === undefined ? "" : ` or (open_conversation.kind = 'subject' and ${openOnRecord})`}) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to send messages here")}
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if ${guestOpen.unless}exists (
+  if ${guestOpen.unless}${openFollows === undefined ? "" : `not (open_conversation.kind = 'subject' and ${openFollows}) and `}exists (
     select 1 from unnest(v_users) x
     where not ${ctx.scope.canUser("x", "open_conversation.tenant", q.key("read"))}
   ) then
