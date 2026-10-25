@@ -1,7 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { COMPONENT_STATUSES } from "./incidents-shared.ts";
+import {
+  asText,
+  COMPONENT_STATUSES,
+  componentOrder,
+  optionalField,
+} from "./incidents-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const list = (values: readonly string[]): string =>
@@ -34,8 +39,13 @@ export function statusPageFunctions(ctx: BlockSqlContext): string {
 
   const ranks = `array[${list(COMPONENT_STATUSES)}]`;
 
+  const field = (table: string, row: string, column: string): string =>
+    optionalField(ctx, table, row, column);
+
+  const pageDescription = ctx.has("pages", "description");
+
   const pageJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${g("id")}, 'organizationId', ${row}.${g("tenant")}, 'slug', ${row}.${g("slug")}, 'title', ${row}.${g("title")}, 'description', ${row}.${g("description")}, 'published', ${row}.${g("published")}, 'createdAt', ${row}.${g("createdAt")}, 'updatedAt', ${row}.${g("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${g("id")}, 'organizationId', ${row}.${g("tenant")}, 'slug', ${row}.${g("slug")}, 'title', ${row}.${g("title")}, 'description', ${field("pages", row, "description")}, 'published', ${row}.${g("published")}, 'createdAt', ${field("pages", row, "createdAt")}, 'updatedAt', ${field("pages", row, "updatedAt")})`;
 
   // A public incident as the status page shows it: no description, no
   // commander, no private updates, and only the public components it affects.
@@ -48,7 +58,7 @@ export function statusPageFunctions(ctx: BlockSqlContext): string {
       'startedAt', ${row}.${i("startedAt")},
       'resolvedAt', ${row}.${i("resolvedAt")},
       'components', (
-        select coalesce(jsonb_agg(jsonb_build_object('id', pc.${c("id")}, 'name', pc.${c("name")}, 'impact', pi.${m("impact")}) order by pc.${c("position")}, pc.${c("name")}), '[]'::jsonb)
+        select coalesce(jsonb_agg(jsonb_build_object('id', pc.${c("id")}, 'name', pc.${c("name")}, 'impact', pi.${m("impact")}) order by ${componentOrder(ctx, "pc")}), '[]'::jsonb)
         from ${impacts} pi join ${components} pc on pc.${c("id")} = pi.${m("component")}
         where pi.${m("incident")} = ${row}.${i("id")} and pc.${c("public")}
       ),
@@ -87,11 +97,11 @@ begin
   ) then
     ${fail("STATUS_PAGE_SLUG_TAKEN", "another organization uses this slug", "23505")}
   end if;
-  insert into ${pages} (${g("tenant")}, ${g("slug")}, ${g("title")}, ${g("description")}, ${g("published")})
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  insert into ${pages} (${g("tenant")}, ${g("slug")}, ${g("title")}${pageDescription ? `, ${g("description")}` : ""}, ${g("published")})
+  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title)${pageDescription ? ", save_status_page.description" : ""}, coalesce(save_status_page.published, false))
   on conflict (${g("tenant")}) do update
-    set ${g("slug")} = excluded.${g("slug")}, ${g("title")} = excluded.${g("title")}, ${g("description")} = excluded.${g("description")},
-      ${g("published")} = excluded.${g("published")}, ${g("updatedAt")} = now()
+    set ${g("slug")} = excluded.${g("slug")}, ${g("title")} = excluded.${g("title")}${pageDescription ? `, ${g("description")} = excluded.${g("description")}` : ""},
+      ${g("published")} = excluded.${g("published")}${ctx.has("pages", "updatedAt") ? `, ${g("updatedAt")} = now()` : ""}
   returning * into v_row;
   return ${pageJson("v_row")};
 end;
@@ -134,10 +144,10 @@ begin
   return jsonb_build_object(
     'slug', v_page.${g("slug")},
     'title', v_page.${g("title")},
-    'description', v_page.${g("description")},
+    'description', ${field("pages", "v_page", "description")},
     'days', v_days,
     'status', (
-      select coalesce((${ranks})[max(array_position(${ranks}, sc.${c("status")}))], 'operational')
+      select coalesce((${ranks})[max(array_position(${ranks}, ${asText(ctx, "components", `sc.${c("status")}`)}))], 'operational')
       from ${components} sc
       where sc.${c("tenant")} = v_page.${g("tenant")} and sc.${c("public")}
     ),
@@ -145,8 +155,8 @@ begin
       select coalesce(jsonb_agg(jsonb_build_object(
         'id', pc.${c("id")},
         'name', pc.${c("name")},
-        'description', pc.${c("description")},
-        'group', pc.${c("group")},
+        'description', ${field("components", "pc", "description")},
+        'group', ${field("components", "pc", "group")},
         'status', pc.${c("status")},
         'uptimePercent', (
           select round(100 * (1 - coalesce(sum(extract(epoch from (
@@ -161,7 +171,7 @@ begin
           select jsonb_agg(jsonb_build_object('date', dd.d, 'status', coalesce(w.worst, 'operational'), 'downMinutes', coalesce(w.down, 0)) order by dd.d)
           from (select (current_date - n)::date as d from generate_series(0, v_days - 1) n) dd
           cross join lateral (
-            select (${ranks})[max(array_position(${ranks}, dh.${h("status")}))] as worst,
+            select (${ranks})[max(array_position(${ranks}, ${asText(ctx, "history", `dh.${h("status")}`)}))] as worst,
               (coalesce(sum(extract(epoch from (
                 least(coalesce(dh.${h("endedAt")}, now()), (dd.d + 1)::timestamp at time zone 'UTC')
                 - greatest(dh.${h("startedAt")}, dd.d::timestamp at time zone 'UTC')
@@ -172,7 +182,7 @@ begin
               and coalesce(dh.${h("endedAt")}, now()) > dd.d::timestamp at time zone 'UTC'
           ) w
         )
-      ) order by pc.${c("position")}, pc.${c("name")}), '[]'::jsonb)
+      ) order by ${componentOrder(ctx, "pc")}), '[]'::jsonb)
       from ${components} pc
       where pc.${c("tenant")} = v_page.${g("tenant")} and pc.${c("public")}
     ),

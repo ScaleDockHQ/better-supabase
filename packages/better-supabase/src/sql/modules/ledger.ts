@@ -8,8 +8,8 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { fail, lockTable, schemaPreamble } from "../shared.ts";
-import { ledgerFunctions } from "./ledger-functions.ts";
+import { fail, schemaPreamble } from "../shared.ts";
+import { ledgerFunctions, ledgerTouch } from "./ledger-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -145,6 +145,8 @@ const NAMES: BlockSqlNames = {
     },
     balances: {
       name: "ledger_balances",
+      app: {},
+      optional: ["available", "updatedAt"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         account: "account_id",
@@ -157,6 +159,15 @@ const NAMES: BlockSqlNames = {
     },
     holds: {
       name: "ledger_holds",
+      app: {},
+      optional: [
+        "referenceType",
+        "referenceId",
+        "expiresAt",
+        "createdBy",
+        "updatedAt",
+      ],
+      typed: ["status"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -197,6 +208,16 @@ export function ledgerTables(ctx: BlockSqlContext): string {
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
   const idType = ctx.idType;
+
+  const optional = (
+    logical: string,
+    column: string,
+    definition: string,
+    lead = "\n  ",
+  ): string =>
+    ctx.has(logical, column)
+      ? `${lead}${ctx.col(logical, column)} ${definition}`
+      : "";
 
   return `create table if not exists ${accounts} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -264,10 +285,8 @@ create table if not exists ${balances} (
   ${b("tenant")} ${idType} not null,
   ${b("balance")} bigint not null default 0,
   -- The sum of the account's active holds.
-  ${b("held")} bigint not null default 0 check (${b("held")} >= 0),
-  ${b("available")} bigint generated always as (${b("balance")} - ${b("held")}) stored,
-  ${b("updatedAt")} timestamptz not null default now()
-);
+  ${b("held")} bigint not null default 0 check (${b("held")} >= 0)${optional("balances", "available", `bigint generated always as (${b("balance")} - ${b("held")}) stored`, ",\n  ")}${optional("balances", "updatedAt", "timestamptz not null default now()", ",\n  ")}
+);${appUniqueIndex(ctx, "balances", ["account"])}
 create index if not exists ${name("balances", "tenant_idx")} on ${balances} (${b("tenant")});
 
 create table if not exists ${holds} (
@@ -275,18 +294,16 @@ create table if not exists ${holds} (
   ${h("tenant")} ${idType} not null,
   ${h("account")} uuid not null references ${accounts} (${a("id")}) on delete restrict,
   ${h("amount")} bigint not null check (${h("amount")} > 0),
-  ${h("status")} text not null default 'active' check (${h("status")} in ('active', 'captured', 'released', 'expired')),
-  ${h("referenceType")} text,
-  ${h("referenceId")} text,
-  ${h("expiresAt")} timestamptz,
-  ${h("transaction")} uuid references ${transactions} (${t("id")}) on delete restrict,
-  ${h("createdBy")} uuid,
-  ${h("createdAt")} timestamptz not null default now(),
-  ${h("updatedAt")} timestamptz not null default now()
+  ${h("status")} text not null default 'active' check (${h("status")} in ('active', 'captured', 'released', 'expired')),${optional("holds", "referenceType", "text,")}${optional("holds", "referenceId", "text,")}${optional("holds", "expiresAt", "timestamptz,")}
+  ${h("transaction")} uuid references ${transactions} (${t("id")}) on delete restrict,${optional("holds", "createdBy", "uuid,")}
+  ${h("createdAt")} timestamptz not null default now()${optional("holds", "updatedAt", "timestamptz not null default now()", ",\n  ")}
 );
 create index if not exists ${name("holds", "account_idx")} on ${holds} (${h("account")}, ${h("status")});
-create index if not exists ${name("holds", "transaction_idx")} on ${holds} (${h("transaction")}) where ${h("transaction")} is not null;
-create index if not exists ${name("holds", "expiry_idx")} on ${holds} (${h("expiresAt")}) where ${h("status")} = 'active' and ${h("expiresAt")} is not null;
+create index if not exists ${name("holds", "transaction_idx")} on ${holds} (${h("transaction")}) where ${h("transaction")} is not null;${
+    ctx.has("holds", "expiresAt")
+      ? `\ncreate index if not exists ${name("holds", "expiry_idx")} on ${holds} (${h("expiresAt")}) where ${h("status")} = 'active' and ${h("expiresAt")} is not null;`
+      : ""
+  }
 `;
 }
 
@@ -305,7 +322,7 @@ from (
   select z.${e("account")} as account, min(z.${e("tenant")}::text)::${ctx.idType} as tenant, sum(z.${e("amount")}) as balance
   from ${ctx.table("entries")} z group by z.${e("account")}
 ) s
-on conflict (${b("account")}) do update set ${b("balance")} = excluded.${b("balance")}, ${b("held")} = excluded.${b("held")}, ${b("updatedAt")} = now();`;
+on conflict (${b("account")}) do update set ${b("balance")} = excluded.${b("balance")}, ${b("held")} = excluded.${b("held")}${ledgerTouch(ctx)};`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -369,11 +386,11 @@ ${lockModuleTable(ctx, "entries", { read: true })}
 drop policy if exists ${policyName("entries")} on ${entries};
 create policy ${policyName("entries")} on ${entries} for select to authenticated
   using (${e("account")} in (select y.${a("id")} from ${accounts} y));
-${lockTable(balances, { read: true })}
+${lockModuleTable(ctx, "balances", { read: true })}
 drop policy if exists ${policyName("balances")} on ${balances};
 create policy ${policyName("balances")} on ${balances} for select to authenticated
   using (${b("account")} in (select y.${a("id")} from ${accounts} y));
-${lockTable(holds, { read: true })}
+${lockModuleTable(ctx, "holds", { read: true })}
 drop policy if exists ${policyName("holds")} on ${holds};
 create policy ${policyName("holds")} on ${holds} for select to authenticated
   using (${h("account")} in (select y.${a("id")} from ${accounts} y));
@@ -409,7 +426,7 @@ declare
 begin
   insert into ${balances} as x (${b("account")}, ${b("tenant")}, ${b("balance")})
   values (new.${e("account")}, new.${e("tenant")}, new.${e("amount")})
-  on conflict (${b("account")}) do update set ${b("balance")} = x.${b("balance")} + excluded.${b("balance")}, ${b("updatedAt")} = now()
+  on conflict (${b("account")}) do update set ${b("balance")} = x.${b("balance")} + excluded.${b("balance")}${ledgerTouch(ctx)}
   returning x.${b("balance")} - x.${b("held")} into v_available;
   if new.${e("amount")} < 0 and v_available < 0 and not exists (
     select 1 from ${accounts} y where y.${a("id")} = new.${e("account")} and y.${a("allowNegative")}

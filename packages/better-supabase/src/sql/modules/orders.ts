@@ -272,6 +272,7 @@ const NAMES: BlockSqlNames = {
     },
     fulfillmentLines: {
       name: "fulfillment_lines",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         tenant: "tenant_id",
@@ -299,6 +300,7 @@ const NAMES: BlockSqlNames = {
     },
     returnLines: {
       name: "order_return_lines",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         tenant: "tenant_id",
@@ -548,7 +550,7 @@ create table if not exists ${t("fulfillmentLines")} (
   ${fl("line")} uuid not null references ${t("orderLines")} (${ol("id")}) on delete cascade,
   ${fl("quantity")} integer not null check (${fl("quantity")} > 0),
   primary key (${fl("fulfillment")}, ${fl("line")})
-);
+);${appUniqueIndex(ctx, "fulfillmentLines", ["fulfillment", "line"])}
 create index if not exists fulfillment_lines_line_idx on ${t("fulfillmentLines")} (${fl("line")});
 ${lockModuleTable(ctx, "fulfillmentLines", { read: true })}
 ${policy("fulfillmentLines", tenantRead("fulfillmentLines"))}
@@ -571,7 +573,7 @@ create table if not exists ${t("returnLines")} (
   ${rl("line")} uuid not null references ${t("orderLines")} (${ol("id")}) on delete cascade,
   ${rl("quantity")} integer not null check (${rl("quantity")} > 0),
   primary key (${rl("return")}, ${rl("line")})
-);
+);${appUniqueIndex(ctx, "returnLines", ["return", "line"])}
 create index if not exists ${ctx.naming.rename("order_return_lines_line_idx")} on ${t("returnLines")} (${rl("line")});
 ${lockModuleTable(ctx, "returnLines", { read: true })}
 ${policy("returnLines", tenantRead("returnLines"))}

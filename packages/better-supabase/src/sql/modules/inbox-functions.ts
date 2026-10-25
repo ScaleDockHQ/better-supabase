@@ -2,8 +2,13 @@ import type { InboxCommand, InboxSql } from "./inbox-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { serviceGrant, fail } from "../shared.ts";
+import { inboxColumns, inboxWrites } from "./inbox-columns.ts";
 import { forbidden, missing } from "./inbox-names.ts";
-import { inboxReactFunction, inboxReadFunctions } from "./inbox-reads.ts";
+import {
+  inboxContactReadAt,
+  inboxReactFunction,
+  inboxReadFunctions,
+} from "./inbox-reads.ts";
 
 /** The SQL functions: the writes and the reads with joined rows. */
 export function inboxFunctions(
@@ -22,7 +27,6 @@ export function inboxFunctions(
   const ct = q.cols("contacts");
   const ci = q.cols("identities");
   const cv = q.cols("conversations");
-  const ev = q.cols("events");
   const dt = q.cols("details");
   const dl = q.cols("deliveries");
   const T = (name: string): string => q.t(name);
@@ -42,6 +46,9 @@ grant execute on function ${signature} to authenticated, service_role;`;
     `revoke execute on function ${signature} from public, anon, authenticated;`;
 
   const ctx = q.ctx;
+  const { has } = q;
+  const { or, present, columnsOf, valuesOf } = inboxColumns(q);
+  const w = inboxWrites(q);
 
   // Someone who writes, is assigned or reads joins the core conversation, so
   // its member row holds their read marker.
@@ -81,9 +88,18 @@ grant execute on function ${signature} to authenticated, service_role;`;
     audit: false,
   });
 
-  const log = (type: string, data = "'{}'::jsonb"): string =>
-    `insert into ${T("events")} (${ev("tenant")}, ${ev("conversation")}, ${ev("type")}, ${ev("actor")}, ${ev("data")})
-  values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, ${sqlString(type)}, (select auth.uid()), ${data});`;
+  const log = (type: string, data = "'{}'::jsonb"): string => {
+    const entries = present("events", [
+      ["tenant", `v_conv.${cv("tenant")}`],
+      ["conversation", `v_conv.${cv("id")}`],
+      ["type", sqlString(type)],
+      ["actor", "(select auth.uid())"],
+      ["data", data],
+    ]);
+
+    return `insert into ${T("events")} (${columnsOf("events", entries)})
+  values (${valuesOf(entries)});`;
+  };
 
   // Who to tell about the conversation: the assignee, or the inbox's members
   // while nobody is assigned.
@@ -122,26 +138,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     ${fail("INBOX_MESSAGE_TOO_LONG", `a message is at most ${String(q.maxBody)} characters`, "22023")}
   end if;`;
 
-  return `-- When the contact last read the conversation, for staff read receipts.
-create or replace function ${fn("inbox_contact_read_at")}(conversation uuid)
-returns timestamptz
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  return (
-    select k.${ck("lastReadAt")}
-    from ${T("conversations")} v
-    join ${T("contacts")} c on c.${ct("id")} = v.${cv("contact")}
-    join ${core.t("members")} k on k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = c.${ct("user")}
-    where v.${cv("id")} = inbox_contact_read_at.conversation
-      and (${service} or ${q.can(`v.${cv("tenant")}`, "read")})
-  );
-end;
-$$;
-${authed(`${fn("inbox_contact_read_at")}(uuid)`)}
+  return `${inboxContactReadAt(q)}
 
 -- A conversation with its contact and inbox, as the reads return it.
 create or replace function ${conversationJson}(conversation uuid)
@@ -152,8 +149,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select to_jsonb(v) || jsonb_build_object(
-      'contact', (select jsonb_build_object('id', c.${ct("id")}, 'name', c.${ct("name")}, 'email', c.${ct("email")}, 'phone', c.${ct("phone")}, 'avatar_url', c.${ct("avatarUrl")}, 'user_id', c.${ct("user")}) from ${T("contacts")} c where c.${ct("id")} = v.${cv("contact")}),
+    select ${q.json("conversations", "v")} || jsonb_build_object(
+      'contact', (select jsonb_build_object('id', c.${ct("id")}, 'name', ${or("contacts", "c", "name")}, 'email', ${or("contacts", "c", "email")}, 'phone', ${or("contacts", "c", "phone")}, 'avatar_url', ${or("contacts", "c", "avatarUrl")}, 'user_id', c.${ct("user")}) from ${T("contacts")} c where c.${ct("id")} = v.${cv("contact")}),
       'inbox', (select jsonb_build_object('id', i.${ib("id")}, 'name', i.${ib("name")}, 'channel', i.${ib("channel")}) from ${T("inboxes")} i where i.${ib("id")} = v.${cv("inbox")}),
       'last_read_at', (select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = (select auth.uid())),
       'contact_read_at', ${fn("inbox_contact_read_at")}(v.${cv("id")})
@@ -190,8 +187,8 @@ begin
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(x.item || to_jsonb(d) || jsonb_build_object('delivery', case when ${fn("inbox_note_readable")}(d.${dt("conversation")}) then (
-      select jsonb_build_object('status', l.${dl("status")}, 'channel', l.${dl("channel")}, 'error', l.${dl("error")}, 'updated_at', l.${dl("updatedAt")})
+    select coalesce(jsonb_agg(x.item || ${q.json("details", "d")} || jsonb_build_object('delivery', case when ${fn("inbox_note_readable")}(d.${dt("conversation")}) then (
+      select jsonb_build_object('status', l.${dl("status")}, 'channel', l.${dl("channel")}, 'error', ${or("deliveries", "l", "error")}, 'updated_at', l.${dl("updatedAt")})
       from ${T("deliveries")} l where l.${dl("message")} = d.${dt("message")}
       order by l.${dl("createdAt")} limit 1
     ) end) order by x.n), '[]'::jsonb)
@@ -214,10 +211,10 @@ begin
   if not (${service} or ${q.can("create_inbox.tenant", "manage")}) then
     ${forbidden("not allowed to manage inboxes")}
   end if;
-  insert into ${T("inboxes")} (${ib("tenant")}, ${ib("name")}, ${ib("channel")}, ${ib("settings")}, ${ib("botMode")}, ${ib("address")})
-  values (create_inbox.tenant, create_inbox.name, coalesce(create_inbox.channel, 'in_app'), coalesce(create_inbox.settings, '{}'::jsonb), coalesce(create_inbox.bot_mode, 'human'), create_inbox.address)
+  insert into ${T("inboxes")} (${columnsOf("inboxes", w.newInbox)})
+  values (${valuesOf(w.newInbox)})
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${q.json("inboxes", "v_row")};
 end;
 $$;
 ${authed(`${fn("create_inbox")}(${id}, text, text, jsonb, text, text)`)}
@@ -241,15 +238,10 @@ begin
     ${forbidden("not allowed to manage inboxes")}
   end if;
   update ${T("inboxes")} set
-    ${ib("name")} = coalesce(patch ->> 'name', ${ib("name")}),
-    ${ib("settings")} = ${ib("settings")} || coalesce(patch -> 'settings', '{}'::jsonb),
-    ${ib("botMode")} = coalesce(patch ->> 'bot_mode', ${ib("botMode")}),
-    ${ib("address")} = case when patch ? 'address' then patch ->> 'address' else ${ib("address")} end,
-    ${ib("installation")} = case when patch ? 'installation_id' then (patch ->> 'installation_id')::uuid else ${ib("installation")} end,
-    ${ib("archivedAt")} = case when patch ? 'archived' then (case when (patch ->> 'archived')::boolean then coalesce(${ib("archivedAt")}, now()) end) else ${ib("archivedAt")} end
+    ${w.inboxPatch.map(([column, value]) => `${ib(column)} = ${value}`).join(",\n    ")}
   where ${ib("id")} = update_inbox.inbox
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${q.json("inboxes", "v_row")};
 end;
 $$;
 ${authed(`${fn("update_inbox")}(uuid, jsonb)`)}
@@ -272,13 +264,13 @@ begin
     ${forbidden("not allowed to manage inboxes")}
   end if;
   if role is null then
-    delete from ${T("members")} m where m.${mb("inbox")} = set_inbox_member.inbox and m.${mb("user")} = member;
+    delete from ${T("members")} m where m.${mb("inbox")} = set_inbox_member.inbox and m.${mb("user")} = ${ctx.owns("members") ? "member" : "set_inbox_member.member"};
     return found;
   end if;
   if not ${ctx.scope.canUser("member", "v_tenant", q.key("read"))} then
     ${fail("INBOX_MEMBER_INVALID", "user cannot read this inbox", "22023")}
   end if;
-  insert into ${T("members")} (${mb("inbox")}, ${mb("user")}, ${mb("role")}) values (set_inbox_member.inbox, member, role)
+  insert into ${T("members")} (${mb("inbox")}, ${mb("user")}, ${mb("role")}) values (set_inbox_member.inbox, member, ${q.cast("members", "role", "role")})
   on conflict (${mb("inbox")}, ${mb("user")}) do update set ${mb("role")} = excluded.${mb("role")};
   return true;
 end;
@@ -303,7 +295,7 @@ begin
   begin
     insert into ${T("teams")} (${tm("tenant")}, ${tm("name")}) values (create_inbox_team.tenant, create_inbox_team.name)
     returning * into v_row;
-    return to_jsonb(v_row);
+    return ${q.json("teams", "v_row")};
   end;`
   }
 end;
@@ -335,7 +327,7 @@ begin
     ${forbidden("not allowed to manage inboxes")}
   end if;
   if not coalesce(present, true) then
-    delete from ${T("teamMembers")} t where t.${tmm("team")} = set_inbox_team_member.team and t.${tmm("user")} = member;
+    delete from ${T("teamMembers")} t where t.${tmm("team")} = set_inbox_team_member.team and t.${tmm("user")} = ${ctx.owns("teamMembers") ? "member" : "set_inbox_team_member.member"};
     return found;
   end if;
   insert into ${T("teamMembers")} (${tmm("team")}, ${tmm("user")}) values (set_inbox_team_member.team, member)
@@ -371,22 +363,21 @@ begin
   if v_contact.${ct("id")} is null and input ? 'user_id' then
     select * into v_contact from ${T("contacts")} c where c.${ct("tenant")} = inbox_resolve_contact.tenant and c.${ct("user")} = (input ->> 'user_id')::uuid;
   end if;
-  if v_contact.${ct("id")} is null and nullif(input ->> 'email', '') is not null then
+${
+  has("contacts", "email")
+    ? `  if v_contact.${ct("id")} is null and nullif(input ->> 'email', '') is not null then
     select * into v_contact from ${T("contacts")} c where c.${ct("tenant")} = inbox_resolve_contact.tenant and lower(c.${ct("email")}) = lower(input ->> 'email')
-    order by c.${ct("createdAt")} limit 1;
+    order by ${or("contacts", "c", "createdAt", `c.${ct("id")}`)} limit 1;
   end if;
-  if v_contact.${ct("id")} is null then
-    insert into ${T("contacts")} (${ct("tenant")}, ${ct("user")}, ${ct("name")}, ${ct("email")}, ${ct("phone")}, ${ct("avatarUrl")}, ${ct("metadata")})
-    values (inbox_resolve_contact.tenant, (input ->> 'user_id')::uuid, input ->> 'name', input ->> 'email', input ->> 'phone', input ->> 'avatar_url', coalesce(input -> 'metadata', '{}'::jsonb))
+`
+    : ""
+}  if v_contact.${ct("id")} is null then
+    insert into ${T("contacts")} (${columnsOf("contacts", w.newContact)})
+    values (${valuesOf(w.newContact)})
     returning * into v_contact;
   else
     update ${T("contacts")} c set
-      ${ct("name")} = coalesce(c.${ct("name")}, input ->> 'name'),
-      ${ct("email")} = coalesce(c.${ct("email")}, input ->> 'email'),
-      ${ct("phone")} = coalesce(c.${ct("phone")}, input ->> 'phone'),
-      ${ct("avatarUrl")} = coalesce(input ->> 'avatar_url', c.${ct("avatarUrl")}),
-      ${ct("user")} = coalesce(c.${ct("user")}, (input ->> 'user_id')::uuid),
-      ${ct("metadata")} = c.${ct("metadata")} || coalesce(input -> 'metadata', '{}'::jsonb)
+      ${w.contactPatch.map(([column, value]) => `${ct(column)} = ${value}`).join(",\n      ")}
     where c.${ct("id")} = v_contact.${ct("id")}
     returning * into v_contact;
   end if;
@@ -410,7 +401,11 @@ begin
   if not (${service} or ${q.can("upsert_contact.tenant", "reply")}) then
     ${forbidden("not allowed to edit contacts")}
   end if;
-  return to_jsonb(${fn("inbox_resolve_contact")}(upsert_contact.tenant, coalesce(input, '{}'::jsonb)));
+  return ${
+    ctx.owns("contacts")
+      ? `to_jsonb(${fn("inbox_resolve_contact")}(upsert_contact.tenant, coalesce(input, '{}'::jsonb)))`
+      : `(select ${q.json("contacts", "c")} from ${fn("inbox_resolve_contact")}(upsert_contact.tenant, coalesce(input, '{}'::jsonb)) c)`
+  };
 end;
 $$;
 ${authed(`${fn("upsert_contact")}(${id}, jsonb)`)}
@@ -465,10 +460,10 @@ begin
   values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning ${cm("id")} into v_id;
   perform ${core.fn("index_record_mentions")}(v_id);
-  insert into ${T("details")} (${dt("message")}, ${dt("tenant")}, ${dt("conversation")}, ${dt("direction")}, ${dt("authorType")}, ${dt("format")}, ${dt("externalId")}, ${dt("replyTo")}, ${dt("metadata")})
+  insert into ${T("details")} (${columnsOf("details", [...w.detailsHead, ...w.detailsTail])})
   values (
-    v_id, v_conv.${cv("tenant")}, v_conv.${cv("id")}, inbox_add_message.direction, inbox_add_message.author_type,
-    coalesce(input ->> 'format', 'text'), input ->> 'external_id', (input ->> 'reply_to')::uuid, coalesce(input -> 'metadata', '{}'::jsonb)
+    ${valuesOf(w.detailsHead)},
+    ${valuesOf(w.detailsTail)}
   );
   if cardinality(v_uploads) > 0 then
     update ${at.table("attachments")} x set ${a("subjectType")} = ${core.message}, ${a("subjectId")} = v_id::text
@@ -499,14 +494,26 @@ begin
   if v_kind = 'message' then
     v_reopened := inbox_add_message.direction = 'inbound' and v_conv.${cv("status")} in ('resolved', 'snoozed');
     update ${T("conversations")} set
-      ${cv("lastMessageAt")} = v_at,
-      ${cv("preview")} = left(v_body, 140),
+      ${cv("lastMessageAt")} = v_at,${
+        has("conversations", "preview")
+          ? `
+      ${cv("preview")} = left(v_body, 140),`
+          : ""
+      }${
+        has("conversations", "firstResponseAt")
+          ? `
       ${cv("firstResponseAt")} = case
         when ${cv("firstResponseAt")} is null and inbox_add_message.direction = 'outbound' and inbox_add_message.author_type in ('agent', 'bot') then v_at
-        else ${cv("firstResponseAt")} end,
+        else ${cv("firstResponseAt")} end,`
+          : ""
+      }
       ${cv("status")} = case when v_reopened then 'open' else ${cv("status")} end,
-      ${cv("snoozedUntil")} = case when v_reopened then null else ${cv("snoozedUntil")} end,
-      ${cv("resolvedAt")} = case when v_reopened then null else ${cv("resolvedAt")} end
+      ${cv("snoozedUntil")} = case when v_reopened then null else ${cv("snoozedUntil")} end${
+        has("conversations", "resolvedAt")
+          ? `,
+      ${cv("resolvedAt")} = case when v_reopened then null else ${cv("resolvedAt")} end`
+          : ""
+      }
     where ${cv("id")} = v_conv.${cv("id")}
     returning * into v_conv;
     if v_reopened then
@@ -576,14 +583,14 @@ declare
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
-  select * into v_inbox from ${T("inboxes")} where ${ib("id")} = start_conversation.inbox and ${ib("archivedAt")} is null;
+  select * into v_inbox from ${T("inboxes")} where ${ib("id")} = start_conversation.inbox${has("inboxes", "archivedAt") ? ` and ${ib("archivedAt")} is null` : ""};
   if not found then
     ${missing("inbox", "INBOX_NOT_FOUND")}
   end if;
   -- A signed-in caller who names no contact on a widget inbox is the
   -- visitor, staff included, so they can try their own widget.
   if not ${service} and (select auth.uid()) is not null and not (input ? 'contact')
-    and v_inbox.${ib("channel")} = 'in_app' and coalesce((v_inbox.${ib("settings")} ->> 'widget')::boolean, false) then
+    and v_inbox.${ib("channel")} = 'in_app' and coalesce((${or("inboxes", "v_inbox", "settings")} ->> 'widget')::boolean, false) then
     v_staff := false;
     v_contact_input := jsonb_build_object(
       'user_id', (select auth.uid()),
@@ -603,11 +610,11 @@ begin
   end if;
   v_contact := ${fn("inbox_resolve_contact")}(v_inbox.${ib("tenant")}, v_contact_input);
   ${openCore(`v_inbox.${ib("tenant")}`)}
-  insert into ${T("conversations")} (${cv("id")}, ${cv("tenant")}, ${cv("inbox")}, ${cv("contact")}, ${cv("subject")}, ${cv("priority")}, ${cv("botMode")}, ${cv("thread")}, ${cv("assignee")}, ${cv("metadata")})
+  insert into ${T("conversations")} (${columnsOf("conversations", [...w.startHead, ...w.startMid, ...w.startTail])})
   values (
-    v_id, v_inbox.${ib("tenant")}, v_inbox.${ib("id")}, v_contact.${ct("id")}, input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
-    coalesce(input ->> 'bot_mode', v_inbox.${ib("botMode")}), coalesce(input ->> 'thread_id', ${sqlString(`${q.topic}:`)} || v_id::text),
-    case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
+    ${valuesOf([...w.startHead, ...w.startMid])},
+    ${valuesOf(w.startTail.filter(([column]) => column === "botMode" || column === "thread"))},
+    ${valuesOf(w.startTail.filter(([column]) => column === "assignee" || column === "metadata"))}
   )
   returning * into v_conv;
   if v_contact.${ct("user")} is not null then
@@ -733,7 +740,7 @@ begin
     ${missing("inbox", "INBOX_NOT_FOUND")}
   end if;
   if v_contact_input ? 'external_id' and not v_contact_input ? 'identity' then
-    v_contact_input := v_contact_input || jsonb_build_object('identity', jsonb_build_object('channel', coalesce(v_contact_input ->> 'channel', v_inbox.${ib("channel")}), 'external_id', v_contact_input ->> 'external_id'));
+    v_contact_input := v_contact_input || jsonb_build_object('identity', jsonb_build_object('channel', coalesce(v_contact_input ->> 'channel', ${q.text("inboxes", `v_inbox.${ib("channel")}`)}), 'external_id', v_contact_input ->> 'external_id'));
   end if;
   select * into v_conv from ${T("conversations")}
   where ${cv("inbox")} = v_inbox.${ib("id")} and ${cv("thread")} = input ->> 'thread_id'
@@ -741,8 +748,8 @@ begin
   if not found then
     v_contact := ${fn("inbox_resolve_contact")}(v_inbox.${ib("tenant")}, v_contact_input);
     ${openCore(`v_inbox.${ib("tenant")}`)}
-    insert into ${T("conversations")} (${cv("id")}, ${cv("tenant")}, ${cv("inbox")}, ${cv("contact")}, ${cv("subject")}, ${cv("botMode")}, ${cv("thread")}, ${cv("metadata")})
-    values (v_id, v_inbox.${ib("tenant")}, v_inbox.${ib("id")}, v_contact.${ct("id")}, input ->> 'subject', v_inbox.${ib("botMode")}, input ->> 'thread_id', coalesce(input -> 'metadata', '{}'::jsonb))
+    insert into ${T("conversations")} (${columnsOf("conversations", w.inboundConversation)})
+    values (${valuesOf(w.inboundConversation)})
     returning * into v_conv;
     if v_contact.${ct("user")} is not null then
       ${join("v_id", `v_inbox.${ib("tenant")}`, `v_contact.${ct("user")}`)}
@@ -810,7 +817,7 @@ begin
         'actor', (select auth.uid()),
         'subject_type', 'conversation',
         'subject_id', v_conv.${cv("id")}::text,
-        'summary', v_conv.${cv("subject")},
+        'summary', ${or("conversations", "v_conv", "subject")},
         'recipients', to_jsonb(array[assignee]),
         'key', 'inbox.assigned:' || v_conv.${cv("id")}::text || ':' || assignee::text || ':' || extract(epoch from now())::text,
         'data', jsonb_build_object('conversationId', v_conv.${cv("id")})
@@ -842,9 +849,13 @@ begin
   end if;
   v_before := v_conv.${cv("status")};
   update ${T("conversations")} set
-    ${cv("status")} = set_conversation_status.status,
-    ${cv("snoozedUntil")} = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end,
-    ${cv("resolvedAt")} = case when set_conversation_status.status = 'resolved' then now() end
+    ${cv("status")} = ${q.cast("conversations", "status", "set_conversation_status.status")},
+    ${cv("snoozedUntil")} = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end${
+      has("conversations", "resolvedAt")
+        ? `,
+    ${cv("resolvedAt")} = case when set_conversation_status.status = 'resolved' then now() end`
+        : ""
+    }
   where ${cv("id")} = v_conv.${cv("id")}
   returning * into v_conv;
   if status = 'snoozed' then
@@ -881,7 +892,7 @@ begin
     ${forbidden("not allowed to change this conversation")}
   end if;
   v_before := v_conv.${cv("botMode")};
-  update ${T("conversations")} set ${cv("botMode")} = mode where ${cv("id")} = v_conv.${cv("id")} returning * into v_conv;
+  update ${T("conversations")} set ${cv("botMode")} = ${q.cast("conversations", "botMode", ctx.owns("conversations") ? "mode" : "set_bot_mode.mode")} where ${cv("id")} = v_conv.${cv("id")} returning * into v_conv;
   if v_before is distinct from mode then
     ${log("handoff", "jsonb_build_object('from', v_before, 'to', set_bot_mode.mode, 'reason', set_bot_mode.reason)")}
     if v_before = 'bot' and mode = 'human' then${notify(`jsonb_build_object(
@@ -890,7 +901,7 @@ begin
         'actor', (select auth.uid()),
         'subject_type', 'conversation',
         'subject_id', v_conv.${cv("id")}::text,
-        'summary', coalesce(set_bot_mode.reason, v_conv.${cv("preview")}),
+        'summary', coalesce(set_bot_mode.reason, ${or("conversations", "v_conv", "preview")}),
         'recipients', ${audience},
         'key', 'inbox.handoff:' || v_conv.${cv("id")}::text || ':' || extract(epoch from now())::text,
         'data', jsonb_build_object('conversationId', v_conv.${cv("id")}, 'reason', set_bot_mode.reason)

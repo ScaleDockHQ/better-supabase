@@ -10,40 +10,69 @@ import {
 } from "../shared.ts";
 import { approvalJson } from "./ai-chat-extras.ts";
 import { harnessSandbox, harnessSandboxSave } from "./ai-chat-sandboxes.ts";
+import {
+  asText,
+  assignments,
+  rowJson,
+  variableConflict,
+  writtenPairs,
+} from "./ai-chat-tables.ts";
 
-function runJson(names: AiChatNames, row: string): string {
-  const r = names.c.runs;
-
-  const keys: readonly (readonly [string, string])[] = [
-    ["id", r.id],
-    ["chat_id", r.chat],
-    ["owner_id", r.owner],
-    ["assistant_message_id", r.message],
-    ["stream_id", r.stream],
-    ["engine", r.engine],
-    ["external_run_id", r.externalRun],
-    ["model", r.model],
-    ["status", r.status],
-    ["usage", r.usage],
-    ["cost_micro_usd", r.cost],
-    ["error", r.error],
-    ["started_at", r.startedAt],
-    ["ended_at", r.endedAt],
-  ];
-
-  return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})`;
+function runJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "runs", row, [
+    ["id", "id"],
+    ["chat_id", "chat"],
+    ["owner_id", "owner"],
+    ["assistant_message_id", "message"],
+    ["stream_id", "stream"],
+    ["engine", "engine"],
+    ["external_run_id", "externalRun"],
+    ["model", "model"],
+    ["status", "status"],
+    ["usage", "usage"],
+    ["cost_micro_usd", "cost"],
+    ["error", "error"],
+    ["started_at", "startedAt"],
+    ["ended_at", "endedAt"],
+  ]);
 }
 
-function stepJson(names: AiChatNames, row: string): string {
-  const s = names.c.steps;
-
-  return `jsonb_build_object('id', ${row}.${s.id}, 'run_id', ${row}.${s.run}, 'chat_id', ${row}.${s.chat}, 'step_key', ${row}.${s.key}, 'label', ${row}.${s.label}, 'status', ${row}.${s.status}, 'detail', ${row}.${s.detail}, 'started_at', ${row}.${s.startedAt}, 'ended_at', ${row}.${s.endedAt})`;
+function stepJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "steps", row, [
+    ["id", "id"],
+    ["run_id", "run"],
+    ["chat_id", "chat"],
+    ["step_key", "key"],
+    ["label", "label"],
+    ["status", "status"],
+    ["detail", "detail", "'{}'::jsonb"],
+    ["started_at", "startedAt"],
+    ["ended_at", "endedAt"],
+  ]);
 }
 
-function harnessJson(names: AiChatNames, row: string): string {
-  const h = names.c.harness;
+function harnessJson(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  row: string,
+): string {
+  const json = (keys: readonly (readonly [string, string])[]): string =>
+    rowJson(ctx, "harness", row, keys).slice("jsonb_build_object(".length, -1);
 
-  return `jsonb_build_object('chat_id', ${row}.${h.chat}, 'harness_id', ${row}.${h.harness}, 'owner_id', ${row}.${h.owner}, 'resume_state', ${row}.${h.resume}, 'continue_state', ${row}.${h.continue}, 'sandbox_id', ${harnessSandbox(names, row)}, 'status', ${row}.${h.status}, 'lock_holder', ${row}.${h.holder}, 'locked_until', ${row}.${h.lockedUntil}, 'last_active_at', ${row}.${h.lastActiveAt}, 'created_at', ${row}.${h.createdAt}, 'updated_at', ${row}.${h.updatedAt})`;
+  return `jsonb_build_object(${json([
+    ["chat_id", "chat"],
+    ["harness_id", "harness"],
+    ["owner_id", "owner"],
+    ["resume_state", "resume"],
+    ["continue_state", "continue"],
+  ])}, 'sandbox_id', ${harnessSandbox(ctx, names, row)}, ${json([
+    ["status", "status"],
+    ["lock_holder", "holder"],
+    ["locked_until", "lockedUntil"],
+    ["last_active_at", "lastActiveAt"],
+    ["created_at", "createdAt"],
+    ["updated_at", "updatedAt"],
+  ])})`;
 }
 
 const serviceOnly = raise(
@@ -63,6 +92,20 @@ function runs(ctx: BlockSqlContext, names: AiChatNames): string {
   const noRun = (arg: string): string =>
     raise("No run %", "P0002", "AI_RUN_NOT_FOUND", arg);
 
+  const [stepColumns, stepValues] = writtenPairs(ctx, "steps", [
+    ["run", `v_run.${r.id}`],
+    ["chat", `v_run.${r.chat}`],
+    ["owner", `v_run.${r.owner}`],
+    ["key", "record_ai_run_step.step ->> 'key'"],
+    [
+      "label",
+      "\n    coalesce(nullif(record_ai_run_step.step ->> 'label', ''), record_ai_run_step.step ->> 'key')",
+    ],
+    ["status", `\n    ${ctx.cast("steps", "status", "v_status")}`],
+    ["detail", "v_detail"],
+    ["endedAt", "case when v_status <> 'running' then now() end"],
+  ]);
+
   return `-- One run, when the caller may read its chat.
 create or replace function ${fn("get_ai_run")}(run uuid)
 returns jsonb
@@ -78,7 +121,7 @@ begin
   if not found or not ${fn("ai_chat_can_read")}(v_run.${r.chat}) then
     ${noRun("get_ai_run.run")}
   end if;
-  return ${runJson(names, "v_run")};
+  return ${runJson(ctx, "v_run")};
 end;
 $$;
 ${userGrant(`${fn("get_ai_run")}(uuid)`)}
@@ -97,7 +140,7 @@ begin
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "list_ai_runs.chat")}
   end if;
   return (
-    select coalesce(jsonb_agg(${runJson(names, "y")} order by y.${r.startedAt} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${runJson(ctx, "y")} order by y.${r.startedAt} desc), '[]'::jsonb)
     from (
       select * from ${t.runs} x
       where (
@@ -106,7 +149,7 @@ begin
         )
         and (
           list_ai_runs.active is null
-          or (x.${r.status} in ('queued', 'running', 'cancel_requested')) = list_ai_runs.active
+          or (${asText(ctx, "runs", `x.${r.status}`)} in ('queued', 'running', 'cancel_requested')) = list_ai_runs.active
         )
       order by x.${r.startedAt} desc
       limit ${pageSize("list_ai_runs.size", 50, 200)}
@@ -149,7 +192,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.approval order by y.created desc), '[]'::jsonb)
   from (
-    select ${approvalJson(names, "x")} || jsonb_build_object('chat_title', c.${ch.title}) as approval, x.${a.createdAt} as created
+    select ${approvalJson(ctx, "x")} || jsonb_build_object('chat_title', c.${ch.title}) as approval, x.${a.createdAt} as created
     from ${t.approvals} x
     join ${t.chats} c on c.${ch.id} = x.${a.chat}
     where x.${a.owner} = (select auth.uid()) and x.${a.decision} is null
@@ -168,7 +211,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+${variableConflict(ctx, "steps")}
 declare
   v_run ${t.runs};
   v_row ${t.steps};
@@ -187,20 +230,19 @@ begin
     or jsonb_typeof(v_detail) <> 'object' then
     ${raise("A step needs a key, a status of running, done, error or skipped and an object detail", "22023", "AI_RUN_STEP_INVALID")}
   end if;
-  insert into ${t.steps} (${s.run}, ${s.chat}, ${s.owner}, ${s.key}, ${s.label}, ${s.status}, ${s.detail}, ${s.endedAt})
+  insert into ${t.steps} (${stepColumns})
   values (
-    v_run.${r.id}, v_run.${r.chat}, v_run.${r.owner}, record_ai_run_step.step ->> 'key',
-    coalesce(nullif(record_ai_run_step.step ->> 'label', ''), record_ai_run_step.step ->> 'key'),
-    v_status, v_detail, case when v_status <> 'running' then now() end
+    ${stepValues.replaceAll(", \n", ",\n")}
   )
   on conflict (${s.run}, ${s.key}) do update set
     ${s.label} = coalesce(nullif(record_ai_run_step.step ->> 'label', ''), ${t.steps}.${s.label}),
-    ${s.status} = excluded.${s.status},
-    ${s.detail} = ${t.steps}.${s.detail} || excluded.${s.detail},
-    ${s.endedAt} = case when excluded.${s.status} <> 'running' then coalesce(${t.steps}.${s.endedAt}, now()) end
+    ${s.status} = excluded.${s.status},${assignments(ctx, "steps", [
+      ["detail", () => `${t.steps}.${s.detail} || excluded.${s.detail}`],
+    ])}
+    ${s.endedAt} = case when ${asText(ctx, "steps", `excluded.${s.status}`)} <> 'running' then coalesce(${t.steps}.${s.endedAt}, now()) end
   returning * into v_row;
   perform ${fn("ai_chat_notify")}(v_run.${r.chat}, null, 'run.step', jsonb_build_object('runId', v_run.${r.id}, 'key', v_row.${s.key}, 'status', v_row.${s.status}), false);
-  return ${stepJson(names, "v_row")};
+  return ${stepJson(ctx, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("record_ai_run_step")}(uuid, jsonb)`)}
@@ -221,7 +263,7 @@ begin
     ${noRun("list_ai_run_steps.run")}
   end if;
   return (
-    select coalesce(jsonb_agg(${stepJson(names, "x")} order by x.${s.startedAt}, x.${s.id}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${stepJson(ctx, "x")} order by x.${s.startedAt}, x.${s.id}), '[]'::jsonb)
     from ${t.steps} x where x.${s.run} = v_run.${r.id}
   );
 end;
@@ -271,7 +313,7 @@ begin
   if not found then
     return null;
   end if;
-  return ${harnessJson(names, "v_row")};
+  return ${harnessJson(ctx, names, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("load_ai_harness_session")}(uuid, text)`)}
@@ -287,7 +329,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+${variableConflict(ctx, "harness", "sandboxes")}
 declare
   v_chat ${t.chats};
   v_row ${t.harness};
@@ -304,16 +346,25 @@ begin
     ${raise("Harness session % is locked", "55P03", "AI_HARNESS_LOCKED", "save_ai_harness_session.harness")}
   end if;
   update ${t.harness} x set
-    ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,
-    ${h.continue} = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end,
+    ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,${assignments(
+      ctx,
+      "harness",
+      [
+        [
+          "continue",
+          () =>
+            `case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end`,
+        ],
+      ],
+    )}
     -- A save without a status is a turn using the sandbox: an idle session
     -- turns active again.
-    ${h.status} = coalesce(v_status, case when x.${h.status} = 'idle' then 'active' else x.${h.status} end),
+    ${h.status} = coalesce(${ctx.cast("harness", "status", "v_status")}, case when ${asText(ctx, "harness", `x.${h.status}`)} = 'idle' then ${ctx.cast("harness", "status", "'active'")} else x.${h.status} end),
     ${h.lastActiveAt} = now(),
     ${h.updatedAt} = now()
   where x.${h.chat} = v_row.${h.chat} and x.${h.harness} = v_row.${h.harness}
-  returning * into v_row;${harnessSandboxSave(names, "save_ai_harness_session.fields")}
-  return ${harnessJson(names, "v_row")};
+  returning * into v_row;${harnessSandboxSave(ctx, names, "save_ai_harness_session.fields")}
+  return ${harnessJson(ctx, names, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("save_ai_harness_session")}(uuid, text, jsonb, text)`)}
@@ -326,7 +377,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+${variableConflict(ctx, "harness", "sandboxes")}
 declare
   v_chat ${t.chats};
   v_row ${t.harness};

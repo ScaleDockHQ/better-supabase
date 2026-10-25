@@ -221,122 +221,6 @@ describe("blocks over the app's tables", () => {
   });
 });
 
-// The tables a block can't build over the app's own table yet, by module. The
-// list only shrinks: a table that gains `app` has to leave it.
-const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
-  usage: ["counters", "events", "history", "distinct", "quotas"],
-  sso: [
-    "domains",
-    "providers",
-    "scimUsers",
-    "scimGroups",
-    "scimMembers",
-    "syncLog",
-  ],
-  workflows: ["schedules", "semaphores", "startRequests"],
-  "workflow-editor": [
-    "versions",
-    "triggers",
-    "webhookTokens",
-    "credentials",
-    "steps",
-    "alerts",
-    "alertFires",
-  ],
-  "chat-sdk-state": [
-    "subscriptions",
-    "locks",
-    "cache",
-    "lists",
-    "queues",
-    "installations",
-  ],
-  inbox: [
-    "inboxes",
-    "members",
-    "teams",
-    "teamMembers",
-    "contacts",
-    "identities",
-    "conversations",
-    "events",
-    "details",
-    "deliveries",
-    "inbound",
-    "templates",
-    "scheduled",
-  ],
-  "ai-chat": [
-    "projects",
-    "chats",
-    "messages",
-    "runs",
-    "approvals",
-    "policies",
-    "inputs",
-    "sources",
-    "feedback",
-    "shares",
-    "models",
-    "moderation",
-    "steps",
-    "sandboxes",
-    "harness",
-  ],
-  "ai-files": [
-    "files",
-    "providerFiles",
-    "documents",
-    "versions",
-    "suggestions",
-  ],
-  orders: [
-    "fulfillmentLines",
-    "returnLines",
-    "kitchenStations",
-    "kitchenRoutes",
-    "preparations",
-  ],
-  templates: ["workflows"],
-  contacts: ["personContacts"],
-  "oauth-server": ["clients", "grants", "codes", "devices", "revocations"],
-  automations: ["rules", "defaults", "versions", "evaluations", "fields"],
-  "vercel-marketplace": [
-    "installations",
-    "resources",
-    "plans",
-    "invoices",
-    "meterReports",
-  ],
-  ledger: ["balances", "holds"],
-  compliance: [
-    "frameworks",
-    "controls",
-    "evidence",
-    "tasks",
-    "policies",
-    "acknowledgements",
-  ],
-  incidents: [
-    "components",
-    "history",
-    "incidents",
-    "updates",
-    "impacts",
-    "postmortems",
-    "pages",
-  ],
-  messaging: ["edits", "reads", "recordMentions", "summaries"],
-  "mail-sync": [
-    "accounts",
-    "threads",
-    "messages",
-    "trackedLinks",
-    "tracking",
-    "links",
-  ],
-};
-
 // The tables a module creates without a `names.tables` entry, by module.
 const SPECLESS: Readonly<Record<string, readonly string[]>> = {
   // ADR 0098: the Workflow SDK owns the shape of its world's tables.
@@ -368,11 +252,7 @@ describe("every block table", () => {
           .map(([table]) => `${module}.${table}`),
     );
 
-    const allowed = Object.entries(NOT_ADOPTABLE).flatMap(([module, tables]) =>
-      tables.map((table) => `${module}.${table}`),
-    );
-
-    expect(missing).toEqual(allowed);
+    expect(missing).toEqual([]);
   });
 
   it("has a names.tables entry", () => {

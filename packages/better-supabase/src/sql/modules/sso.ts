@@ -1,14 +1,8 @@
-import type { SsoEvents } from "../../blocks/sso/events.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ScimSqlNames } from "./sso-scim-sql.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   memberAddedRecord,
   SERVICE_CALLER,
@@ -24,153 +18,13 @@ import {
   moduleOperations,
   roleNames,
 } from "./permissions-model.ts";
+import { NAMES } from "./sso-names.ts";
 import {
+  appRowJson,
   SCIM_SYNC_LOG_CONTRACT,
   scimSql,
   scimSyncLogSql,
 } from "./sso-scim-sql.ts";
-
-const EVENTS: BlockSqlEvents<SsoEvents> = {
-  "organization.member_removed": {
-    subject: "organizations",
-    payload: ["organizationId", "userId"],
-  },
-  "organization.member_added": {
-    subject: "organizations",
-    payload: ["organizationId", "userId", "role"],
-  },
-  "organization.role_changed": {
-    subject: "organizations",
-    payload: ["organizationId", "userId", "role", "previousRole"],
-  },
-  "organization.domain_added": {
-    subject: "organizations",
-    payload: ["organizationId", "domainId", "domain", "userId"],
-  },
-  "organization.domain_updated": {
-    subject: "organizations",
-    payload: ["organizationId", "domainId", "domain", "userId"],
-  },
-  "organization.domain_removed": {
-    subject: "organizations",
-    payload: ["organizationId", "domainId", "domain", "userId"],
-  },
-  "organization.domain_verified": {
-    subject: "organizations",
-    payload: ["organizationId", "domainId", "domain", "userId"],
-  },
-  "sso_provider.registered": {
-    subject: "organizations",
-    payload: ["organizationId", "providerId", "domains", "userId"],
-  },
-  "sso_provider.unregistered": {
-    subject: "organizations",
-    payload: ["organizationId", "providerId", "domains", "userId"],
-  },
-  "scim_user.saved": {
-    subject: "organizations",
-    payload: ["organizationId", "scimUserId"],
-  },
-  "scim_user.deleted": {
-    subject: "organizations",
-    payload: ["organizationId", "scimUserId"],
-  },
-  "scim_group.saved": {
-    subject: "organizations",
-    payload: ["organizationId", "scimGroupId"],
-  },
-  "scim_group.deleted": {
-    subject: "organizations",
-    payload: ["organizationId", "scimGroupId"],
-  },
-};
-
-const NAMES: BlockSqlNames = {
-  events: EVENTS,
-  options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles", "syncLog"],
-  hooks: [],
-  tables: {
-    domains: {
-      name: "organization_domains",
-      lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        domain: "domain",
-        token: "verification_token",
-        verifiedAt: "verified_at",
-        autoJoinRole: "auto_join_role",
-        enforceSso: "enforce_sso",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
-    },
-    providers: {
-      name: "organization_sso_providers",
-      lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        type: "type",
-        metadataUrl: "metadata_url",
-        domains: "domains",
-        createdAt: "created_at",
-      },
-    },
-    scimUsers: {
-      name: "scim_users",
-      lifecycle: { user: "user", tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        user: "user_id",
-        externalId: "external_id",
-        userName: "user_name",
-        displayName: "display_name",
-        givenName: "given_name",
-        familyName: "family_name",
-        email: "email",
-        emails: "emails",
-        active: "active",
-        version: "version",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-    },
-    scimGroups: {
-      name: "scim_groups",
-      lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        displayName: "display_name",
-        externalId: "external_id",
-        role: "role",
-        version: "version",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-    },
-    scimMembers: {
-      name: "scim_group_members",
-      columns: { group: "group_id", member: "scim_user_id" },
-    },
-    syncLog: {
-      name: "scim_sync_log",
-      columns: {
-        id: "id",
-        tenant: "organization_id",
-        operation: "operation",
-        resourceType: "resource_type",
-        resourceId: "resource_id",
-        status: "status",
-        error: "error",
-        requestId: "request_id",
-        createdAt: "created_at",
-      },
-    },
-  },
-};
 
 const PREFIX = /^_[a-z0-9][a-z0-9-]{0,61}$/;
 const DOMAIN = "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$";
@@ -292,8 +146,63 @@ function build(ctx: BlockSqlContext): string {
   const recordName = (domain: string): string =>
     `${sqlString(`${prefix}.`)} || ${domain}`;
 
+  const has = (table: string, column: string): boolean =>
+    ctx.has(table, column);
+
+  const line = (table: string, column: string, type: string): string =>
+    has(table, column) ? `  ${ctx.col(table, column)} ${type},\n` : "";
+
+  const ownKey = (table: string, name: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(ctx.naming.rename(name))} on ${ctx.table(table)} (${columns});`;
+
+  const domainJson = (row: string): string =>
+    ctx.owns("domains")
+      ? `to_jsonb(${row}) - ${sqlString(ctx.col("domains", "token").replaceAll('"', ""))}`
+      : appRowJson(ctx, "domains", row, {}, ["token"]);
+
+  const providerJson = (row: string, whole = row): string =>
+    ctx.owns("providers")
+      ? `to_jsonb(${whole})`
+      : appRowJson(ctx, "providers", row, {}, []);
+
+  const provided: [string, string][] = [
+    ["id", "register_sso_provider.provider"],
+    ["tenant", "register_sso_provider.tenant"],
+  ];
+
+  if (!ctx.owns("providers")) {
+    provided.push(["type", ctx.cast("providers", "type", "'saml'")]);
+  }
+
+  if (has("providers", "metadataUrl")) {
+    provided.push(["metadataUrl", "register_sso_provider.metadata_url"]);
+  }
+
+  const providerColumns = [...provided.map(([column]) => column), "domains"]
+    .map(cp)
+    .join(", ");
+
+  const providerValues = provided.map(([, value]) => value).join(", ");
+
+  const providerSet = ["metadataUrl", "domains"]
+    .filter((column) => has("providers", column))
+    .map((column) => `${cp(column)} = excluded.${cp(column)}`)
+    .join(", ");
+
+  const scimMissing = (
+    table: "scimUsers" | "scimGroups",
+    alias: string,
+  ): Record<string, string> => ({
+    updatedAt: `${alias}.${ctx.col(table, "createdAt")}`,
+  });
+
+  const asText = (table: string, value: string): string =>
+    ctx.owns(table) ? value : `${value}::text`;
+
   const withRecord = (row: string): string =>
-    `to_jsonb(${row}) - ${sqlString(ctx.col("domains", "token").replaceAll('"', ""))} || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${recordName(`${row}.${cd("domain")}`)}, 'value', 'better-supabase-domain-verification=' || ${row}.${cd("token")}))`;
+    `${domainJson(row)} || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${recordName(`${row}.${cd("domain")}`)}, 'value', 'better-supabase-domain-verification=' || ${row}.${cd("token")}))`;
 
   const memberEvent = (type: string, extra = ""): string =>
     ctx.record({
@@ -358,6 +267,12 @@ function build(ctx: BlockSqlContext): string {
     cm,
     serviceOnly,
     verifiedFor,
+    has,
+    role: (value) => ctx.cast("scimGroups", "role", value),
+    row: (table, alias) =>
+      ctx.owns(table)
+        ? `to_jsonb(${alias}.*)`
+        : appRowJson(ctx, table, alias, scimMissing(table, alias), []),
     record: (type, tenantId, row) =>
       ctx.record({
         type,
@@ -386,26 +301,22 @@ create table if not exists ${d} (
   ${cd("verifiedAt")} timestamptz,
   ${cd("autoJoinRole")} text check (${cd("autoJoinRole")} = any (${assignable})),
   ${cd("enforceSso")} boolean not null default false,
-  ${cd("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${cd("createdAt")} timestamptz not null default now(),
-  unique (${cd("tenant")}, ${cd("domain")}),
+${line("domains", "createdBy", "uuid references auth.users (id) on delete set null default auth.uid()")}${line("domains", "createdAt", "timestamptz not null default now()")}  unique (${cd("tenant")}, ${cd("domain")}),
   check (not ${cd("enforceSso")} or ${cd("verifiedAt")} is not null)
 );
 create unique index if not exists ${ctx.naming.rename("organization_domains_verified_idx")} on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
-create index if not exists ${ctx.naming.rename("organization_domains_created_by_idx")} on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
-${lockTable(d)}
+${has("domains", "createdBy") ? `create index if not exists ${ctx.naming.rename("organization_domains_created_by_idx")} on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;\n` : ""}${lockTable(d)}${ownKey("domains", "bsb_organization_domains_tenant_domain_key", `${cd("tenant")}, ${cd("domain")}`)}
 
 -- SAML identity providers registered with Supabase Auth for an organization.
 create table if not exists ${p} (
   ${cp("id")} uuid primary key,
   ${cp("tenant")} ${id} not null,
   ${cp("type")} text not null default 'saml' check (${cp("type")} = 'saml'),
-  ${cp("metadataUrl")} text,
-  ${cp("domains")} text[] not null default '{}',
+${line("providers", "metadataUrl", "text")}  ${cp("domains")} text[] not null default '{}',
   ${cp("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("organization_sso_providers_tenant_idx")} on ${p} (${cp("tenant")});
-${lockTable(p)}
+${lockTable(p)}${ownKey("providers", "bsb_organization_sso_providers_id_key", cp("id"))}
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
 -- A user links to an account whose confirmed email is at a verified domain
@@ -416,15 +327,11 @@ create table if not exists ${u} (
   ${cu("user")} uuid references auth.users (id) on delete set null,
   ${cu("externalId")} text,
   ${cu("userName")} text not null check (length(${cu("userName")}) between 1 and 320),
-  ${cu("displayName")} text,
-  ${cu("givenName")} text,
-  ${cu("familyName")} text,
-  ${cu("email")} text,
+${line("scimUsers", "displayName", "text")}${line("scimUsers", "givenName", "text")}${line("scimUsers", "familyName", "text")}  ${cu("email")} text,
   ${cu("emails")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${cu("emails")}) = 'array'),
   ${cu("active")} boolean not null default true,
   ${cu("version")} integer not null default 1,
-  ${cu("createdAt")} timestamptz not null default now(),
-  ${cu("updatedAt")} timestamptz not null default now()
+  ${cu("createdAt")} timestamptz not null default now()${has("scimUsers", "updatedAt") ? `,\n  ${cu("updatedAt")} timestamptz not null default now()` : ""}
 );
 create unique index if not exists scim_users_user_name_idx on ${u} (${cu("tenant")}, lower(${cu("userName")}));
 create unique index if not exists scim_users_external_id_idx on ${u} (${cu("tenant")}, ${cu("externalId")}) where ${cu("externalId")} is not null;
@@ -440,8 +347,7 @@ create table if not exists ${g} (
   ${cg("externalId")} text,
   ${cg("role")} text,
   ${cg("version")} integer not null default 1,
-  ${cg("createdAt")} timestamptz not null default now(),
-  ${cg("updatedAt")} timestamptz not null default now()
+  ${cg("createdAt")} timestamptz not null default now()${has("scimGroups", "updatedAt") ? `,\n  ${cg("updatedAt")} timestamptz not null default now()` : ""}
 );
 create unique index if not exists scim_groups_display_name_idx on ${g} (${cg("tenant")}, lower(${cg("displayName")}));
 create unique index if not exists scim_groups_external_id_idx on ${g} (${cg("tenant")}, ${cg("externalId")}) where ${cg("externalId")} is not null;
@@ -453,7 +359,7 @@ create table if not exists ${gm} (
   primary key (${cm("group")}, ${cm("member")})
 );
 create index if not exists scim_group_members_member_idx on ${gm} (${cm("member")});
-${lockTable(gm)}
+${lockTable(gm)}${ownKey("scimMembers", "bsb_scim_group_members_key", `${cm("group")}, ${cm("member")}`)}
 
 -- The role a SCIM group grants: groupRoles by name, else a group named
 -- like an assignable role, else none.
@@ -503,9 +409,9 @@ begin
     return;
   end if;
   select coalesce((
-    select sg.${cg("role")} from ${gm} sm join ${g} sg on sg.${cg("id")} = sm.${cm("group")}
+    select ${asText("scimGroups", `sg.${cg("role")}`)} from ${gm} sm join ${g} sg on sg.${cg("id")} = sm.${cm("group")}
     where sm.${cm("member")} = v_row.${cu("id")} and sg.${cg("role")} is not null
-    order by array_position(${assignable}, sg.${cg("role")})
+    order by array_position(${assignable}, ${asText("scimGroups", `sg.${cg("role")}`)})
     limit 1
   ), ${sqlString(roles.fallback)}) into v_role;
   if v_current is null then
@@ -607,7 +513,7 @@ begin
   if (update_organization_domain.enforce_sso or update_organization_domain.auto_join_role is not null) and v_row.${cd("verifiedAt")} is null then
     ${fail("SSO_DOMAIN_NOT_VERIFIED", "Verify the domain first", "22023")}
   end if;
-  update ${d} x set ${cd("autoJoinRole")} = update_organization_domain.auto_join_role, ${cd("enforceSso")} = update_organization_domain.enforce_sso
+  update ${d} x set ${cd("autoJoinRole")} = ${ctx.cast("domains", "autoJoinRole", "update_organization_domain.auto_join_role")}, ${cd("enforceSso")} = update_organization_domain.enforce_sso
   where x.${cd("id")} = v_row.${cd("id")}
   returning * into v_row;
   ${domainEvent("organization.domain_updated", "auth.uid()")}
@@ -697,21 +603,22 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${p};
 begin
   perform ${fn("check_sso_provider")}(register_sso_provider.tenant, register_sso_provider.domains, register_sso_provider.actor);
-  insert into ${p} as x (${cp("id")}, ${cp("tenant")}, ${cp("metadataUrl")}, ${cp("domains")})
-  values (register_sso_provider.provider, register_sso_provider.tenant, register_sso_provider.metadata_url,
+  insert into ${p} as x (${providerColumns})
+  values (${providerValues},
     (select array_agg(distinct lower(w.domain) order by lower(w.domain)) from unnest(register_sso_provider.domains) as w(domain)))
-  on conflict (${cp("id")}) do update set ${cp("metadataUrl")} = excluded.${cp("metadataUrl")}, ${cp("domains")} = excluded.${cp("domains")}
+  on conflict (${cp("id")}) do update set ${providerSet}
   where x.${cp("tenant")} = excluded.${cp("tenant")}
   returning * into v_row;
   if v_row.${cp("id")} is null then
     ${fail("SSO_FORBIDDEN", "The provider belongs to another organization")}
   end if;
   ${providerEvent("sso_provider.registered", "register_sso_provider.actor")}
-  return to_jsonb(v_row);
+  return ${providerJson("v_row")};
 end;
 $$;
 
@@ -735,7 +642,7 @@ begin
   if not ${actorCan(`v_row.${cp("tenant")}`, "sso_provider.actor")} then
     ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
-  return to_jsonb(v_row);
+  return ${providerJson("v_row")};
 end;
 $$;
 
@@ -759,7 +666,7 @@ begin
   end if;
   delete from ${p} x where x.${cp("id")} = v_row.${cp("id")};
   ${providerEvent("sso_provider.unregistered", "unregister_sso_provider.actor")}
-  return to_jsonb(v_row);
+  return ${providerJson("v_row")};
 end;
 $$;
 
@@ -775,7 +682,7 @@ begin
     ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${cp("createdAt")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${providerJson("x", "x.*")} order by x.${cp("createdAt")}), '[]'::jsonb)
     from ${p} x where x.${cp("tenant")} = list_sso_providers.tenant
   );
 end;
@@ -871,7 +778,7 @@ begin
       perform ${fn("scim_sync_member")}(v_scim.id);
     end loop;
     for v_join in
-      select x.${cd("tenant")} as tenant, x.${cd("autoJoinRole")} as role from ${d} x
+      select x.${cd("tenant")} as tenant, ${asText("domains", `x.${cd("autoJoinRole")}`)} as role from ${d} x
       where x.${cd("verifiedAt")} is not null and x.${cd("autoJoinRole")} is not null
         and x.${cd("domain")} = ${emailDomain("new.email")}
         and not exists (select 1 from ${u} y where y.${cu("tenant")} = x.${cd("tenant")} and y.${cu("user")} = new.id)

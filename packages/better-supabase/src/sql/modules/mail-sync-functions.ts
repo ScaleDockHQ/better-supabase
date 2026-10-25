@@ -68,7 +68,7 @@ begin
   where x.${h("id")} = v_thread;
   select coalesce(array_agg(distinct v.address), '{}') into v_addresses
   from ${t("messages")} y
-  cross join lateral unnest(array[y.${m("fromAddress")}] || y.${m("to")} || y.${m("cc")}) as v(address)
+  cross join lateral unnest(array[y.${m("fromAddress")}] || y.${m("to")}${n.has("messages", "cc") ? ` || y.${m("cc")}` : ""}) as v(address)
   where y.${m("thread")} = v_thread and v.address is not null and v.address <> v_own;
   ${insert(`select v_tenant, v_thread, ${sqlString(person)}, p.${pe("id")}::text
   from ${people} p
@@ -93,6 +93,15 @@ function engagementSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
   const log = ctx.of("activities").fn("log_engagement");
 
+  const thread = (column: string): string =>
+    n.has("threads", column) ? `x.${h(column)}` : "null::text";
+
+  const keep = n.has("threads", "engagement")
+    ? `
+  update ${t("threads")} x set ${h("engagement")} = (v_result ->> 'id')::uuid
+  where x.${h("id")} = v_row.id;`
+    : "";
+
   return `
 -- Logs or updates the thread's engagement; private mailboxes log none.
 create or replace function ${fn("log_mail_thread")}(thread uuid)
@@ -107,7 +116,7 @@ declare
   v_result jsonb;
   v_claims text;
 begin
-  select x.${h("id")} as id, x.${h("tenant")} as tenant, x.${h("subject")} as subject, x.${h("snippet")} as snippet,
+  select x.${h("id")} as id, x.${h("tenant")} as tenant, ${thread("subject")} as subject, ${thread("snippet")} as snippet,
     x.${h("lastMessageAt")} as at, k.${a("user")} as owner, k.${a("share")} as share
   into v_row
   from ${t("threads")} x join ${t("accounts")} k on k.${a("id")} = x.${h("account")}
@@ -115,7 +124,7 @@ begin
   if v_row.id is null or v_row.share <> 'records' then
     return;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by ${n.subjectOrder}), '[]'::jsonb)
   into v_subjects
   from ${t("links")} s where s.${l("thread")} = v_row.id;
   if jsonb_array_length(v_subjects) = 0 then
@@ -131,9 +140,7 @@ begin
     'doneAt', v_row.at,
     'externalRef', 'mail:' || v_row.id::text
   ), v_subjects);
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-  update ${t("threads")} x set ${h("engagement")} = (v_result ->> 'id')::uuid
-  where x.${h("id")} = v_row.id;
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);${keep}
 end;
 $$;
 ${internal(`${fn("log_mail_thread")}(uuid)`)}
@@ -141,7 +148,7 @@ ${internal(`${fn("log_mail_thread")}(uuid)`)}
 }
 
 /** Stores one message on its thread, deduplicated by provider and RFC id. */
-function storeSql(n: MailNames): string {
+function storeSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m } = n;
 
   const field = (key: string): string =>
@@ -149,6 +156,74 @@ function storeSql(n: MailNames): string {
 
   const addresses = (key: string): string =>
     `coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> ${sqlString(key)}) = 'array' then store_mail_message.message -> ${sqlString(key)} else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}')`;
+
+  const rfc = n.has("messages", "rfcId");
+
+  const values = (
+    [
+      ["tenant", "v_account.tenant"],
+      ["account", "v_account.id"],
+      ["thread", "v_thread"],
+      ["externalId", "v_external"],
+      ["rfcId", "v_rfc"],
+      ["direction", ctx.cast("messages", "direction", "v_direction")],
+      ["fromAddress", "v_from"],
+      [
+        "fromName",
+        "nullif(trim(store_mail_message.message -> 'from' ->> 'name'), '')",
+      ],
+      ["to", addresses("to")],
+      ["cc", addresses("cc")],
+      ["subject", field("subject")],
+      ["snippet", `left(${field("snippet")}, 500)`],
+      ["bodyText", "store_mail_message.message ->> 'text'"],
+      ["bodyHtml", "store_mail_message.message ->> 'html'"],
+      ["sentAt", "v_sent"],
+      ["templateVersion", "v_template::uuid"],
+      ["trackingHash", "case when v_direction = 'outbound' then v_hash end"],
+    ] as const
+  ).filter(([column]) => n.has("messages", column));
+
+  const breaks = {
+    column: new Set(["fromAddress", "templateVersion"]),
+    value: new Set(["fromAddress", "subject", "templateVersion"]),
+  };
+
+  const list = (side: "column" | "value"): string =>
+    values
+      .map((entry, index) => {
+        const text = side === "column" ? m(entry[0]) : entry[1];
+
+        if (index === 0) {
+          return text;
+        }
+
+        return breaks[side].has(entry[0]) ? `,\n    ${text}` : `, ${text}`;
+      })
+      .join("");
+
+  const own = (column: string): string =>
+    n.has("threads", column) ? `x.${h(column)}` : "null";
+
+  const touch = (
+    [
+      ["subject", () => `coalesce(${own("subject")}, ${field("subject")})`],
+      [
+        "snippet",
+        () =>
+          `case when x.${h("lastMessageAt")} is null or v_sent >= x.${h("lastMessageAt")} then left(${field("snippet")}, 500) else ${own("snippet")} end`,
+      ],
+      ["lastMessageAt", () => `greatest(x.${h("lastMessageAt")}, v_sent)`],
+      ["messageCount", () => `${own("messageCount")} + 1`],
+      ["updatedAt", () => "now()"],
+    ] as const
+  )
+    .filter(([column]) => n.has("threads", column))
+    .map(([column, value]) => `${h(column)} = ${value()}`);
+
+  const conflict = n.has("threads", "updatedAt")
+    ? `${h("updatedAt")} = now()`
+    : `${h("account")} = excluded.${h("account")}`;
 
   return `
 -- Stores a message on its account: message is { externalId, threadId,
@@ -189,33 +264,24 @@ begin
   end if;
   insert into ${t("threads")} (${h("tenant")}, ${h("account")}, ${h("externalId")})
   values (v_account.tenant, v_account.id, v_thread_ref)
-  on conflict (${h("account")}, ${h("externalId")}) do update set ${h("updatedAt")} = now()
+  on conflict (${h("account")}, ${h("externalId")}) do update set ${conflict}
   returning ${h("id")} into v_thread;
   select y.${m("id")} into v_id from ${t("messages")} y
   where y.${m("account")} = v_account.id
-    and (y.${m("externalId")} = v_external or (v_rfc is not null and y.${m("rfcId")} = v_rfc))
+    and (y.${m("externalId")} = v_external${rfc ? ` or (v_rfc is not null and y.${m("rfcId")} = v_rfc)` : ""})
   order by y.${m("externalId")} = v_external desc
   limit 1;
   if v_id is not null then
-    update ${t("messages")} y set ${m("externalId")} = v_external, ${m("rfcId")} = coalesce(v_rfc, y.${m("rfcId")})
+    update ${t("messages")} y set ${m("externalId")} = v_external${rfc ? `, ${m("rfcId")} = coalesce(v_rfc, y.${m("rfcId")})` : ""}
     where y.${m("id")} = v_id
       and not exists (select 1 from ${t("messages")} z where z.${m("account")} = v_account.id and z.${m("externalId")} = v_external and z.${m("id")} <> v_id);
     return jsonb_build_object('id', v_id, 'threadId', (select y.${m("thread")} from ${t("messages")} y where y.${m("id")} = v_id), 'created', false, 'direction', v_direction);
   end if;
-  insert into ${t("messages")} (${m("tenant")}, ${m("account")}, ${m("thread")}, ${m("externalId")}, ${m("rfcId")}, ${m("direction")},
-    ${m("fromAddress")}, ${m("fromName")}, ${m("to")}, ${m("cc")}, ${m("subject")}, ${m("snippet")}, ${m("bodyText")}, ${m("bodyHtml")}, ${m("sentAt")},
-    ${m("templateVersion")}, ${m("trackingHash")})
-  values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
-    v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), ${addresses("to")}, ${addresses("cc")},
-    ${field("subject")}, left(${field("snippet")}, 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
-    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
+  insert into ${t("messages")} (${list("column")})
+  values (${list("value")})
   returning ${m("id")} into v_id;
   update ${t("threads")} x set
-    ${h("subject")} = coalesce(x.${h("subject")}, ${field("subject")}),
-    ${h("snippet")} = case when x.${h("lastMessageAt")} is null or v_sent >= x.${h("lastMessageAt")} then left(${field("snippet")}, 500) else x.${h("snippet")} end,
-    ${h("lastMessageAt")} = greatest(x.${h("lastMessageAt")}, v_sent),
-    ${h("messageCount")} = x.${h("messageCount")} + 1,
-    ${h("updatedAt")} = now()
+    ${touch.join(",\n    ")}
   where x.${h("id")} = v_thread;
   return jsonb_build_object('id', v_id, 'threadId', v_thread, 'created', true, 'direction', v_direction);
 end;
@@ -226,6 +292,13 @@ ${internal(`${fn("store_mail_message")}(uuid, jsonb)`)}
 
 function accountSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a } = n;
+
+  const set = (column: string, value: string): string =>
+    n.has("accounts", column) ? `,\n    ${a(column)} = ${value}` : "";
+
+  const touched = n.has("accounts", "updatedAt")
+    ? `, ${a("updatedAt")} = now()`
+    : "";
 
   const record = (event: string, row: string): string =>
     ctx.record({
@@ -273,18 +346,16 @@ begin
   end if;
   ${tenantRefGuard("connect_mail_account.credential_ref", "connect_mail_account.tenant")}
   insert into ${t("accounts")} as x (${a("tenant")}, ${a("user")}, ${a("provider")}, ${a("address")}, ${a("credentialRef")}, ${a("share")})
-  values (connect_mail_account.tenant, auth.uid(), connect_mail_account.provider, v_address, connect_mail_account.credential_ref, coalesce(connect_mail_account.share, 'records'))
+  values (connect_mail_account.tenant, auth.uid(), connect_mail_account.provider, v_address, connect_mail_account.credential_ref, ${ctx.cast("accounts", "share", "coalesce(connect_mail_account.share, 'records')")})
   on conflict (${a("tenant")}, ${a("user")}, ${a("address")}) do update set
     ${a("provider")} = excluded.${a("provider")},
     ${a("credentialRef")} = excluded.${a("credentialRef")},
     ${a("share")} = excluded.${a("share")},
     ${a("status")} = 'active',
-    ${a("cursor")} = case when x.${a("provider")} = excluded.${a("provider")} then x.${a("cursor")} end,
-    ${a("lastError")} = null,
-    ${a("updatedAt")} = now()
+    ${a("cursor")} = case when x.${a("provider")} = excluded.${a("provider")} then x.${a("cursor")} end${set("lastError", "null")}${set("updatedAt", "now()")}
   returning * into v_row;
   ${record("mail_account.connected", "v_row")}
-  return to_jsonb(v_row);
+  return ${n.json("accounts", "v_row")};
 end;
 $$;
 ${userGrant(`${fn("connect_mail_account")}(${ctx.idType}, text, text, jsonb, text)`)}
@@ -304,18 +375,17 @@ begin
     ${fail("MAIL_SHARE_INVALID", "share is records or private", "22023")}
   end if;
   update ${t("accounts")} x set
-    ${a("share")} = coalesce(update_mail_account.share, x.${a("share")}),
+    ${a("share")} = coalesce(${ctx.cast("accounts", "share", "update_mail_account.share")}, x.${a("share")}),
     ${a("status")} = case
       when update_mail_account.paused then 'paused'
       when update_mail_account.paused = false and x.${a("status")} = 'paused' then 'active'
-      else x.${a("status")} end,
-    ${a("updatedAt")} = now()
+      else x.${a("status")} end${set("updatedAt", "now()")}
   where x.${a("id")} = update_mail_account.account and x.${a("user")} = auth.uid() and x.${a("status")} <> 'disconnected'
   returning * into v_row;
   if v_row.${a("id")} is null then
     ${fail("MAIL_ACCOUNT_NOT_FOUND", "no such mailbox of yours", "P0002")}
   end if;
-  return to_jsonb(v_row);
+  return ${n.json("accounts", "v_row")};
 end;
 $$;
 ${userGrant(`${fn("update_mail_account")}(uuid, text, boolean)`)}
@@ -340,7 +410,7 @@ begin
   if coalesce(disconnect_mail_account.purge, false) then
     delete from ${t("accounts")} x where x.${a("id")} = v_row.${a("id")};
   else
-    update ${t("accounts")} x set ${a("status")} = 'disconnected', ${a("cursor")} = null, ${a("updatedAt")} = now()
+    update ${t("accounts")} x set ${a("status")} = 'disconnected', ${a("cursor")} = null${touched}
     where x.${a("id")} = v_row.${a("id")};
   end if;
   ${record("mail_account.disconnected", "v_row")}
@@ -357,7 +427,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x) order by x.${a("createdAt")}, x.${a("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${n.json("accounts", "x")} order by ${n.has("accounts", "createdAt") ? `x.${a("createdAt")}, ` : ""}x.${a("id")}), '[]'::jsonb)
   from ${t("accounts")} x
   where x.${a("tenant")} = mail_accounts_of.tenant
 $$;
@@ -371,7 +441,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) from ${t("accounts")} x where x.${a("id")} = get_mail_account.account
+  select ${n.json("accounts", "x")} from ${t("accounts")} x where x.${a("id")} = get_mail_account.account
 $$;
 ${userGrant(`${fn("get_mail_account")}(uuid)`)}
 
@@ -389,7 +459,7 @@ begin
     ${fail("MAIL_FORBIDDEN", "only the service role syncs mailboxes")}
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(p) order by p.${a("lastSyncedAt")} nulls first, p.${a("id")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${n.json("accounts", "p")} order by p.${a("lastSyncedAt")} nulls first, p.${a("id")}), '[]'::jsonb)
     from (
       select * from ${t("accounts")} x
       where x.${a("status")} = 'active'
@@ -418,10 +488,8 @@ begin
     ${fail("MAIL_STATUS_INVALID", "status is active, paused or error", "22023")}
   end if;
   update ${t("accounts")} x set
-    ${a("status")} = set_mail_account_status.status,
-    ${a("lastError")} = left(set_mail_account_status.error, 1000),
-    ${a("lastSyncedAt")} = now(),
-    ${a("updatedAt")} = now()
+    ${a("status")} = ${ctx.cast("accounts", "status", "set_mail_account_status.status")}${set("lastError", "left(set_mail_account_status.error, 1000)")},
+    ${a("lastSyncedAt")} = now()${set("updatedAt", "now()")}
   where x.${a("id")} = set_mail_account_status.account and x.${a("status")} <> 'disconnected';
   return found;
 end;
@@ -433,8 +501,21 @@ ${serviceGrant(`${fn("set_mail_account_status")}(uuid, text, text)`)}
 function messageSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
 
+  const set = (table: string, column: string, value: string): string =>
+    n.has(table, column) ? `,\n    ${ctx.col(table, column)} = ${value}` : "";
+
+  const conflict = `on conflict (${l("thread")}, ${l("subjectType")}, ${l("subjectId")})`;
+
+  const manual = n.has("links", "source")
+    ? `insert into ${t("links")} (${l("tenant")}, ${l("thread")}, ${l("subjectType")}, ${l("subjectId")}, ${l("source")})
+    values (v_tenant, v_thread, v_item ->> 'type', v_item ->> 'id', ${ctx.cast("links", "source", "'manual'")})
+    ${conflict} do update set ${l("source")} = ${ctx.cast("links", "source", "'manual'")};`
+    : `insert into ${t("links")} (${l("tenant")}, ${l("thread")}, ${l("subjectType")}, ${l("subjectId")})
+    values (v_tenant, v_thread, v_item ->> 'type', v_item ->> 'id')
+    ${conflict} do nothing;`;
+
   const subjects = (thread: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}) from ${t("links")} s where s.${l("thread")} = ${thread}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by ${n.subjectOrder}) from ${t("links")} s where s.${l("thread")} = ${thread}), '[]'::jsonb)`;
 
   const match = ctx.installed("contacts")
     ? `perform ${fn("match_mail_thread")}(v_thread);`
@@ -514,9 +595,7 @@ begin
   update ${t("accounts")} x set
     ${a("cursor")} = coalesce(ingest_mail.next_cursor, x.${a("cursor")}),
     ${a("lastSyncedAt")} = now(),
-    ${a("status")} = case when x.${a("status")} = 'error' then 'active' else x.${a("status")} end,
-    ${a("lastError")} = null,
-    ${a("updatedAt")} = now()
+    ${a("status")} = case when x.${a("status")} = 'error' then 'active' else x.${a("status")} end${set("accounts", "lastError", "null")}${set("accounts", "updatedAt", "now()")}
   where x.${a("id")} = v_account.id;
   return jsonb_build_object('stored', jsonb_array_length(v_new), 'threads', coalesce(array_length(v_threads, 1), 0));
 end;
@@ -560,7 +639,7 @@ begin
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k.${a("address")} from ${t("accounts")} k where k.${a("id")} = v_account.id));
     ${record("mail_message.sent", "v_stored", "v_account")}
   end if;
-  return (select to_jsonb(y) from ${t("messages")} y where y.${n.m("id")} = (v_stored ->> 'id')::uuid);
+  return (select ${n.json("messages", "y")} from ${t("messages")} y where y.${n.m("id")} = (v_stored ->> 'id')::uuid);
 end;
 $$;
 ${userGrant(`${fn("record_sent_mail")}(uuid, jsonb)`)}
@@ -592,12 +671,10 @@ begin
     if not ${subjectInTenant(ctx, "(v_item ->> 'type')", "(v_item ->> 'id')", "v_tenant")} then
       ${fail("MAIL_SUBJECT_FORBIDDEN", "a subject is unknown or not readable in this organization", "42501")}
     end if;
-    insert into ${t("links")} (${l("tenant")}, ${l("thread")}, ${l("subjectType")}, ${l("subjectId")}, ${l("source")})
-    values (v_tenant, v_thread, v_item ->> 'type', v_item ->> 'id', 'manual')
-    on conflict (${l("thread")}, ${l("subjectType")}, ${l("subjectId")}) do update set ${l("source")} = 'manual';
+    ${manual}
   end loop;
   ${log}
-  return (select to_jsonb(x) || jsonb_build_object('subjects', ${subjects(`x.${h("id")}`)}) from ${t("threads")} x where x.${h("id")} = v_thread);
+  return (select ${n.json("threads", "x")} || jsonb_build_object('subjects', ${subjects(`x.${h("id")}`)}) from ${t("threads")} x where x.${h("id")} = v_thread);
 end;
 $$;
 ${userGrant(`${fn("link_mail_thread")}(uuid, jsonb)`)}
@@ -626,7 +703,7 @@ function readSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m, l } = n;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('address', (select k.${a("address")} from ${t("accounts")} k where k.${a("id")} = ${alias}.${h("account")}), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}) from ${t("links")} s where s.${l("thread")} = ${alias}.${h("id")}), '[]'::jsonb))`;
+    `${n.json("threads", alias)} || jsonb_build_object('address', (select k.${a("address")} from ${t("accounts")} k where k.${a("id")} = ${alias}.${h("account")}), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by ${n.subjectOrder}) from ${t("links")} s where s.${l("thread")} = ${alias}.${h("id")}), '[]'::jsonb))`;
 
   return `
 -- A record's threads the caller can see, the latest message first. before
@@ -682,7 +759,7 @@ security invoker
 set search_path = ''
 as $$
   select ${row("x")} || jsonb_build_object('messages', coalesce((
-    select jsonb_agg(to_jsonb(y) order by y.${m("sentAt")}, y.${m("id")})
+    select jsonb_agg(${n.json("messages", "y")} order by y.${m("sentAt")}, y.${m("id")})
     from ${t("messages")} y where y.${m("thread")} = x.${h("id")}
   ), '[]'::jsonb))
   from ${t("threads")} x
@@ -696,10 +773,65 @@ ${userGrant(`${fn("get_mail_thread")}(uuid)`)}
 function trackingSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, m, l, k, e } = n;
 
+  const events = (
+    [
+      ["tenant", "v_message.tenant"],
+      ["message", "v_message.id"],
+      ["kind", ctx.cast("tracking", "kind", "track_mail.kind")],
+      [
+        "position",
+        "case when track_mail.kind = 'click' then track_mail.link end",
+      ],
+      ["userAgent", "left(track_mail.user_agent, 300)"],
+    ] as const
+  ).filter(([column]) => n.has("tracking", column));
+
+  const counts = (
+    [
+      ["openedAt", () => `coalesce(y.${m("openedAt")}, now())`],
+      [
+        "openCount",
+        () =>
+          `y.${m("openCount")} + case when track_mail.kind = 'open' then 1 else 0 end`,
+      ],
+      [
+        "clickedAt",
+        () =>
+          `case when track_mail.kind = 'click' then coalesce(y.${m("clickedAt")}, now()) else y.${m("clickedAt")} end`,
+      ],
+      [
+        "clickCount",
+        () =>
+          `y.${m("clickCount")} + case when track_mail.kind = 'click' then 1 else 0 end`,
+      ],
+    ] as const
+  )
+    .filter(([column]) => n.has("messages", column))
+    .map(([column, value]) => `${m(column)} = ${value()}`);
+
+  const stats = n.has("messages", "templateVersion")
+    ? `return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y.${m("templateVersion")} as template, count(*) as sent, count(y.${m("openedAt")}) as opened, count(y.${m("clickedAt")}) as clicked,
+        count(*) filter (where exists (
+          select 1 from ${t("messages")} r
+          where r.${m("thread")} = y.${m("thread")} and r.${m("direction")} = 'inbound' and r.${m("sentAt")} > y.${m("sentAt")}
+        )) as replied
+      from ${t("messages")} y join ${t("accounts")} x on x.${a("id")} = y.${m("account")}
+      where y.${m("tenant")} = mail_template_stats.tenant and y.${m("direction")} = 'outbound'
+        and y.${m("templateVersion")} is not null
+        and (x.${a("share")} = 'records' or x.${a("user")} = auth.uid())
+        and (mail_template_stats.since is null or y.${m("sentAt")} >= mail_template_stats.since)
+      group by y.${m("templateVersion")}
+    ) p
+  );`
+    : "return '[]'::jsonb;";
+
   const record = (event: string, url: string, key: string): string =>
     ctx.record({
       type: event,
-      payload: `jsonb_build_object('organizationId', v_message.tenant, 'accountId', v_message.account, 'userId', v_message.owner, 'threadId', v_message.thread, 'messageId', v_message.id, 'templateVersionId', v_message.template, 'url', ${url}, 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}) from ${t("links")} s where s.${l("thread")} = v_message.thread), '[]'::jsonb))`,
+      payload: `jsonb_build_object('organizationId', v_message.tenant, 'accountId', v_message.account, 'userId', v_message.owner, 'threadId', v_message.thread, 'messageId', v_message.id, 'templateVersionId', v_message.template, 'url', ${url}, 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by ${n.subjectOrder}) from ${t("links")} s where s.${l("thread")} = v_message.thread), '[]'::jsonb))`,
       subject: `'mail-messages/' || v_message.id`,
       tenant: "v_message.tenant::text",
       key,
@@ -728,7 +860,7 @@ begin
     ${fail("MAIL_TRACKING_INVALID", "kind is open or click", "22023")}
   end if;
   select y.${m("id")} as id, y.${m("tenant")} as tenant, y.${m("account")} as account, y.${m("thread")} as thread,
-    y.${m("templateVersion")} as template, y.${m("openedAt")} as opened, x.${a("user")} as owner
+    ${n.has("messages", "templateVersion") ? `y.${m("templateVersion")}` : "null::uuid"} as template, y.${m("openedAt")} as opened, x.${a("user")} as owner
   into v_message
   from ${t("messages")} y join ${t("accounts")} x on x.${a("id")} = y.${m("account")}
   where y.${m("trackingHash")} = lower(track_mail.hash) and y.${m("direction")} = 'outbound';
@@ -743,14 +875,11 @@ begin
       return null;
     end if;
   end if;
-  insert into ${t("tracking")} (${e("tenant")}, ${e("message")}, ${e("kind")}, ${e("position")}, ${e("userAgent")})
-  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  insert into ${t("tracking")} (${events.map(([column]) => e(column)).join(", ")})
+  values (${events.map(([, value]) => value).join(", ")})
   returning ${e("id")} into v_event;
   update ${t("messages")} y set
-    ${m("openedAt")} = coalesce(y.${m("openedAt")}, now()),
-    ${m("openCount")} = y.${m("openCount")} + case when track_mail.kind = 'open' then 1 else 0 end,
-    ${m("clickedAt")} = case when track_mail.kind = 'click' then coalesce(y.${m("clickedAt")}, now()) else y.${m("clickedAt")} end,
-    ${m("clickCount")} = y.${m("clickCount")} + case when track_mail.kind = 'click' then 1 else 0 end
+    ${counts.join(",\n    ")}
   where y.${m("id")} = v_message.id;
   if track_mail.kind = 'click' then
     ${record("mail_message.clicked", "v_url", "'mail_message_clicked:' || v_event")}
@@ -775,22 +904,7 @@ begin
   if not ${ctx.scope.can("mail_template_stats.tenant", n.read)} then
     ${fail("MAIL_FORBIDDEN", "not allowed to read mail")}
   end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
-    from (
-      select y.${m("templateVersion")} as template, count(*) as sent, count(y.${m("openedAt")}) as opened, count(y.${m("clickedAt")}) as clicked,
-        count(*) filter (where exists (
-          select 1 from ${t("messages")} r
-          where r.${m("thread")} = y.${m("thread")} and r.${m("direction")} = 'inbound' and r.${m("sentAt")} > y.${m("sentAt")}
-        )) as replied
-      from ${t("messages")} y join ${t("accounts")} x on x.${a("id")} = y.${m("account")}
-      where y.${m("tenant")} = mail_template_stats.tenant and y.${m("direction")} = 'outbound'
-        and y.${m("templateVersion")} is not null
-        and (x.${a("share")} = 'records' or x.${a("user")} = auth.uid())
-        and (mail_template_stats.since is null or y.${m("sentAt")} >= mail_template_stats.since)
-      group by y.${m("templateVersion")}
-    ) p
-  );
+  ${stats}
 end;
 $$;
 ${userGrant(`${fn("mail_template_stats")}(${ctx.idType}, timestamptz)`)}
@@ -800,7 +914,7 @@ ${userGrant(`${fn("mail_template_stats")}(${ctx.idType}, timestamptz)`)}
 /** The mail-sync module's functions, after its tables. */
 export function mailSyncFunctions(ctx: BlockSqlContext, n: MailNames): string {
   return [
-    storeSql(n),
+    storeSql(ctx, n),
     ctx.installed("contacts") ? matchSql(ctx, n) : "",
     ctx.installed("activities") ? engagementSql(ctx, n) : "",
     accountSql(ctx, n),

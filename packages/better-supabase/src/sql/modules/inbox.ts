@@ -144,6 +144,25 @@ const TO_MESSAGING: BlockSqlUpgrade = {
   perform set_config('better_supabase.bsb_reactions_backfill', '', true);`;
     })();
 
+    const movedDetails = (
+      [
+        ["message", "x.id"],
+        ["tenant", `x.${mt}`],
+        ["conversation", "x.conversation_id"],
+        ["direction", q.cast("details", "direction", "x.direction")],
+        ["authorType", q.cast("details", "authorType", "x.author_type")],
+        [
+          "format",
+          q.has("details", "format")
+            ? q.cast("details", "format", "x.format")
+            : "null",
+        ],
+        ["externalId", "x.external_id"],
+        ["replyTo", "x.reply_to"],
+        ["metadata", "x.metadata"],
+      ] as const
+    ).filter(([column]) => q.has("details", column));
+
     return `-- The messaging tables and the inbox details, so the messages can move before the module files run.
 ${messagingTableDdl(m)}
 alter table ${msg} add column if not exists ${cm("kind")} text not null default 'message' check (${cm("kind")} in ('message', 'note'));
@@ -168,8 +187,8 @@ begin
   from ${messages} x
   order by x.created_at, x.id
   on conflict do nothing;
-  insert into ${q.t("details")} (${[dt("message"), dt("tenant"), dt("conversation"), dt("direction"), dt("authorType"), dt("format"), dt("externalId"), dt("replyTo"), dt("metadata")].join(", ")})
-  select x.id, x.${mt}, x.conversation_id, x.direction, x.author_type, x.format, x.external_id, x.reply_to, x.metadata
+  insert into ${q.t("details")} (${movedDetails.map(([column]) => dt(column)).join(", ")})
+  select ${movedDetails.map(([, value]) => value).join(", ")}
   from ${messages} x
   on conflict do nothing;
   insert into ${members} as k (${ck("conversation")}, ${ck("tenant")}, ${ck("user")}, ${ck("lastReadAt")})

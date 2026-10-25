@@ -7165,7 +7165,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:b065ca270d1f4e3c39a10626ba23c1bc59800d02d044406fe2033bd0ba5cd1a5
+-- @bsb-hash sha256:f24c993a0b7501fd865c770b0c10e51678c7097fed44da47f69feacd2aea3f79
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7376,92 +7376,84 @@ using (
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
 );
 
-create table if not exists "better_supabase"."message_edits" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
-  "body" text not null,
-  "document" jsonb,
-  "edited_by" uuid,
-  "edited_at" timestamptz not null default now()
-);
+-- better_supabase.message_edits is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."message_edits" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."message_edits" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."message_edits" add column if not exists "message_id" uuid references "better_supabase"."messages" ("id") on delete cascade;
+alter table "better_supabase"."message_edits" add column if not exists "body" text;
+alter table "better_supabase"."message_edits" add column if not exists "document" jsonb;
+alter table "better_supabase"."message_edits" add column if not exists "edited_by" uuid;
+alter table "better_supabase"."message_edits" add column if not exists "edited_at" timestamptz not null default now();
 create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
-revoke all on "better_supabase"."message_edits" from anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
-drop policy if exists message_edits_read on "better_supabase"."message_edits";
-create policy message_edits_read on "better_supabase"."message_edits" for select to authenticated
+drop policy if exists bsb_message_edits_select on "better_supabase"."message_edits";
+create policy bsb_message_edits_select on "better_supabase"."message_edits" for select to authenticated
 using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "better_supabase"."thread_reads" (
-  "tenant_id" uuid not null,
-  "user_id" uuid not null,
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
-  "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
-  "last_read_at" timestamptz not null default now(),
-  unique nulls not distinct ("user_id", "conversation_id", "thread_id")
-);
+-- better_supabase.thread_reads is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."thread_reads" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."thread_reads" add column if not exists "user_id" uuid;
+alter table "better_supabase"."thread_reads" add column if not exists "conversation_id" uuid references "better_supabase"."conversations" ("id") on delete cascade;
+alter table "better_supabase"."thread_reads" add column if not exists "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade;
+alter table "better_supabase"."thread_reads" add column if not exists "last_read_at" timestamptz not null default now();
+create unique index if not exists "thread_reads_user_id_conversation_id_thread_id_key" on "better_supabase"."thread_reads" ("user_id", "conversation_id", "thread_id") nulls not distinct;
 create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
 create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
-revoke all on "better_supabase"."thread_reads" from anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
-drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
-create policy thread_reads_read on "better_supabase"."thread_reads" for select to authenticated
+drop policy if exists bsb_thread_reads_select on "better_supabase"."thread_reads";
+create policy bsb_thread_reads_select on "better_supabase"."thread_reads" for select to authenticated
 using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "better_supabase"."message_record_mentions" (
-  "tenant_id" uuid not null,
-  "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
-  "subject_type" text not null,
-  "subject_id" text not null,
-  "created_at" timestamptz not null default now(),
-  primary key ("message_id", "subject_type", "subject_id")
-);
+-- better_supabase.message_record_mentions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."message_record_mentions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."message_record_mentions" add column if not exists "message_id" uuid references "better_supabase"."messages" ("id") on delete cascade;
+alter table "better_supabase"."message_record_mentions" add column if not exists "conversation_id" uuid references "better_supabase"."conversations" ("id") on delete cascade;
+alter table "better_supabase"."message_record_mentions" add column if not exists "subject_type" text;
+alter table "better_supabase"."message_record_mentions" add column if not exists "subject_id" text;
+alter table "better_supabase"."message_record_mentions" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "message_record_mentions_message_id_subject_type_subject_id_key" on "better_supabase"."message_record_mentions" ("message_id", "subject_type", "subject_id");
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
 create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
-revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
-drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
-create policy message_record_mentions_read on "better_supabase"."message_record_mentions" for select to authenticated
+drop policy if exists bsb_message_record_mentions_select on "better_supabase"."message_record_mentions";
+create policy bsb_message_record_mentions_select on "better_supabase"."message_record_mentions" for select to authenticated
 using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "better_supabase"."thread_summaries" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
-  "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
-  "summary" text not null check (char_length("summary") between 1 and 20000),
-  "model" text check (char_length("model") <= 200),
-  "message_count" integer not null default 0 check ("message_count" >= 0),
-  "through_at" timestamptz not null,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  unique nulls not distinct ("conversation_id", "thread_id")
-);
+-- better_supabase.thread_summaries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."thread_summaries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."thread_summaries" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."thread_summaries" add column if not exists "conversation_id" uuid references "better_supabase"."conversations" ("id") on delete cascade;
+alter table "better_supabase"."thread_summaries" add column if not exists "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade;
+alter table "better_supabase"."thread_summaries" add column if not exists "summary" text check (char_length("summary") between 1 and 20000);
+alter table "better_supabase"."thread_summaries" add column if not exists "model" text check (char_length("model") <= 200);
+alter table "better_supabase"."thread_summaries" add column if not exists "message_count" integer not null default 0 check ("message_count" >= 0);
+alter table "better_supabase"."thread_summaries" add column if not exists "through_at" timestamptz;
+alter table "better_supabase"."thread_summaries" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."thread_summaries" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "thread_summaries_conversation_id_thread_id_key" on "better_supabase"."thread_summaries" ("conversation_id", "thread_id") nulls not distinct;
 create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
-revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
-drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
-create policy thread_summaries_read on "better_supabase"."thread_summaries" for select to authenticated
+drop policy if exists bsb_thread_summaries_select on "better_supabase"."thread_summaries";
+create policy bsb_thread_summaries_select on "better_supabase"."thread_summaries" for select to authenticated
 using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
 -- Keeps the thread root's reply count, last reply and first three repliers,
@@ -8302,8 +8294,8 @@ begin
         using edit_message.message, edit_message.body;
     end if;
   end;
-  insert into "better_supabase"."message_edits" ("tenant_id", "message_id", "body", "document", "edited_by")
-  values (v_msg."tenant_id", v_msg."id", v_msg."body", v_msg."document", auth.uid());
+  insert into "better_supabase"."message_edits" ("tenant_id", "message_id", "body", "document", "edited_by", "edited_at")
+  values (v_msg."tenant_id", v_msg."id", v_msg."body", v_msg."document", auth.uid(), now());
   begin
     update "better_supabase"."messages" m set
       "body" = edit_message.body,
@@ -8539,7 +8531,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x) order by x."edited_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'message_id', x."message_id", 'body', x."body", 'document', x."document", 'edited_by', x."edited_by", 'edited_at', x."edited_at") order by x."edited_at" desc), '[]'::jsonb)
   from "better_supabase"."message_edits" x where x."message_id" = list_message_edits.message
 $$;
 revoke execute on function "better_supabase"."list_message_edits"(uuid) from public, anon;
@@ -8575,7 +8567,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(s) || jsonb_build_object(
+  select jsonb_build_object('id', s."id", 'tenant_id', s."tenant_id", 'conversation_id', s."conversation_id", 'thread_id', s."thread_id", 'summary', s."summary", 'model', s."model", 'message_count', s."message_count", 'through_at', s."through_at", 'created_at', s."created_at", 'updated_at', s."updated_at") || jsonb_build_object(
     'stale', exists (
       select 1 from "better_supabase"."messages" m
       where m."conversation_id" = s."conversation_id"
@@ -8638,9 +8630,9 @@ begin
     or save_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
-  insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
+  insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at", "updated_at")
   values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz, now())
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",

@@ -86,6 +86,18 @@ const MODULES = [
   "documents",
   "attachments",
   "data-lifecycle",
+  "ai-chat",
+  "inbox",
+  "chat-sdk-state",
+  "incidents",
+  "compliance",
+  "mail-sync",
+  "usage",
+  "oauth-server",
+  "sso",
+  "vercel-marketplace",
+  "automations",
+  "ai-files",
 ] as const;
 
 interface Setup {
@@ -99,8 +111,18 @@ const SETUP: Readonly<Partial<Record<(typeof MODULES)[number], Setup>>> = {
   activities: { with: ["ai-files"], options: { recordings: true } },
   attachments: { options: { offline: true } },
   billing: { options: { subscriptions: "webhook" } },
+  contacts: { with: ["inbox"] },
+  orders: { options: { kitchen: true } },
   push: { with: ["notifications"] },
   queue: { options: { backend: "table", scheduler: "drain" } },
+  sso: { options: { syncLog: true } },
+  templates: { with: ["workflow-editor"] },
+  usage: {
+    options: {
+      history: true,
+      meters: { "api.calls": {}, seats: { kind: "distinct" } },
+    },
+  },
 };
 
 const setupOf = (module: string): Setup =>

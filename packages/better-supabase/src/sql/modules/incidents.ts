@@ -79,6 +79,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     components: {
       name: "status_components",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -92,9 +93,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description", "group", "position", "createdAt", "updatedAt"],
+      typed: ["status"],
     },
     history: {
       name: "status_component_history",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -104,9 +108,11 @@ const NAMES: BlockSqlNames = {
         startedAt: "started_at",
         endedAt: "ended_at",
       },
+      typed: ["status"],
     },
     incidents: {
       name: "incidents",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -123,9 +129,18 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "description",
+        "commander",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["severity", "status"],
     },
     updates: {
       name: "incident_updates",
+      app: {},
       lifecycle: { tenant: "tenant", user: "author", export: true },
       columns: {
         id: "id",
@@ -137,9 +152,11 @@ const NAMES: BlockSqlNames = {
         author: "author_id",
         createdAt: "created_at",
       },
+      typed: ["status"],
     },
     impacts: {
       name: "incident_impacts",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -147,9 +164,11 @@ const NAMES: BlockSqlNames = {
         component: "component_id",
         impact: "impact",
       },
+      typed: ["impact"],
     },
     postmortems: {
       name: "incident_postmortems",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -166,9 +185,20 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "impact",
+        "rootCause",
+        "resolution",
+        "actionItems",
+        "author",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
     },
     pages: {
       name: "status_pages",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -180,6 +210,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description", "createdAt", "updatedAt"],
     },
   },
 };
@@ -208,10 +239,23 @@ function tables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
-  const readPolicy = (logical: string, tenant: string): string =>
-    `drop policy if exists ${name(logical, "read")} on ${ctx.table(logical)};
-create policy ${name(logical, "read")} on ${ctx.table(logical)} for select to authenticated
+  const opt = (logical: string, column: string, line: () => string): string =>
+    ctx.has(logical, column) ? `\n  ${line()},` : "";
+
+  const readPolicy = (logical: string, tenant: string): string => {
+    const policy = ctx.owns(logical)
+      ? name(logical, "read")
+      : sqlIdent(`bsb_${ctx.tableName(logical).name}_read`);
+
+    return `drop policy if exists ${policy} on ${ctx.table(logical)};
+create policy ${policy} on ${ctx.table(logical)} for select to authenticated
   using (${ctx.scope.check(tenant, read)});`;
+  };
+
+  const appKey = (logical: string, what: string, columns: string): string =>
+    ctx.owns(logical)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(logical).name}_${what}_key`)} on ${ctx.table(logical)} (${columns});`;
 
   return `
 -- The services a status page reports on. status follows the worst impact of
@@ -219,18 +263,13 @@ create policy ${name(logical, "read")} on ${ctx.table(logical)} for select to au
 create table if not exists ${components} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${ctx.idType} not null,
-  ${c("name")} text not null check (length(${c("name")}) between 1 and 200),
-  ${c("description")} text check (${c("description")} is null or length(${c("description")}) <= 2000),
-  ${c("group")} text check (${c("group")} is null or length(${c("group")}) <= 100),
+  ${c("name")} text not null check (length(${c("name")}) between 1 and 200),${opt("components", "description", () => `${c("description")} text check (${c("description")} is null or length(${c("description")}) <= 2000)`)}${opt("components", "group", () => `${c("group")} text check (${c("group")} is null or length(${c("group")}) <= 100)`)}
   -- Whether the component shows on the public status page.
   ${c("public")} boolean not null default true,
-  ${c("status")} text not null default 'operational' check (${c("status")} in (${list(COMPONENT_STATUSES)})),
-  ${c("position")} integer not null default 0,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("updatedAt")} timestamptz not null default now(),
+  ${c("status")} text not null default 'operational' check (${c("status")} in (${list(COMPONENT_STATUSES)})),${opt("components", "position", () => `${c("position")} integer not null default 0`)}${opt("components", "createdAt", () => `${c("createdAt")} timestamptz not null default now()`)}${opt("components", "updatedAt", () => `${c("updatedAt")} timestamptz not null default now()`)}
   unique (${c("tenant")}, ${c("id")})
-);
-create index if not exists ${name("components", "tenant_idx")} on ${components} (${c("tenant")}, ${c("position")});
+);${appKey("components", "tenant_id", `${c("tenant")}, ${c("id")}`)}
+create index if not exists ${name("components", "tenant_idx")} on ${components} (${c("tenant")}${ctx.has("components", "position") ? `, ${c("position")}` : ""});
 ${lockTable(components, { read: true })}
 ${readPolicy("components", c("tenant"))}
 
@@ -253,26 +292,30 @@ ${readPolicy("history", h("tenant"))}
 create table if not exists ${incidents} (
   ${i("id")} uuid primary key default gen_random_uuid(),
   ${i("tenant")} ${ctx.idType} not null,
-  ${i("title")} text not null check (length(${i("title")}) between 1 and 200),
+  ${i("title")} text not null check (length(${i("title")}) between 1 and 200),${
+    ctx.has("incidents", "description")
+      ? `
   -- Internal detail; the public status page never shows it.
-  ${i("description")} text check (${i("description")} is null or length(${i("description")}) <= 10000),
+  ${i("description")} text check (${i("description")} is null or length(${i("description")}) <= 10000),`
+      : ""
+  }
   ${i("severity")} text not null default 'sev3' check (${i("severity")} in (${list(INCIDENT_SEVERITIES)})),
   ${i("status")} text not null default 'investigating' check (${i("status")} in (${list(INCIDENT_STATUSES)})),
   -- Whether the incident, its public updates and its published postmortem
   -- summary show on the public status page.
-  ${i("public")} boolean not null default false,
-  ${i("commander")} uuid,
+  ${i("public")} boolean not null default false,${opt("incidents", "commander", () => `${i("commander")} uuid`)}
   ${i("startedAt")} timestamptz not null default now(),
-  ${i("resolvedAt")} timestamptz,
-  ${i("createdBy")} uuid,
-  ${i("createdAt")} timestamptz not null default now(),
-  ${i("updatedAt")} timestamptz not null default now(),
+  ${i("resolvedAt")} timestamptz,${opt("incidents", "createdBy", () => `${i("createdBy")} uuid`)}${opt("incidents", "createdAt", () => `${i("createdAt")} timestamptz not null default now()`)}${opt("incidents", "updatedAt", () => `${i("updatedAt")} timestamptz not null default now()`)}
   check ((${i("status")} = 'resolved') = (${i("resolvedAt")} is not null)),
   unique (${i("tenant")}, ${i("id")})
-);${addExtraColumns(incidents, extras)}
+);${addExtraColumns(incidents, extras)}${appKey("incidents", "tenant_id", `${i("tenant")}, ${i("id")}`)}
 create index if not exists ${name("incidents", "tenant_idx")} on ${incidents} (${i("tenant")}, ${i("startedAt")} desc);
-create index if not exists ${name("incidents", "open_idx")} on ${incidents} (${i("tenant")}) where ${i("status")} <> 'resolved';
-create index if not exists ${name("incidents", "commander_idx")} on ${incidents} (${i("tenant")}, ${i("commander")}) where ${i("commander")} is not null;
+create index if not exists ${name("incidents", "open_idx")} on ${incidents} (${i("tenant")}) where ${i("status")} <> 'resolved';${
+    ctx.has("incidents", "commander")
+      ? `
+create index if not exists ${name("incidents", "commander_idx")} on ${incidents} (${i("tenant")}, ${i("commander")}) where ${i("commander")} is not null;`
+      : ""
+  }
 ${lockTable(incidents, { read: true })}
 ${readPolicy("incidents", i("tenant"))}
 
@@ -302,7 +345,7 @@ create table if not exists ${impacts} (
   primary key (${m("incident")}, ${m("component")}),
   foreign key (${m("tenant")}, ${m("incident")}) references ${incidents} (${i("tenant")}, ${i("id")}) on delete cascade,
   foreign key (${m("tenant")}, ${m("component")}) references ${components} (${c("tenant")}, ${c("id")}) on delete cascade
-);
+);${appKey("impacts", "incident_component", `${m("incident")}, ${m("component")}`)}
 create index if not exists ${name("impacts", "parent_idx")} on ${impacts} (${m("tenant")}, ${m("incident")});
 create index if not exists ${name("impacts", "component_idx")} on ${impacts} (${m("tenant")}, ${m("component")});
 ${lockTable(impacts, { read: true })}
@@ -313,18 +356,11 @@ create table if not exists ${postmortems} (
   ${pm("tenant")} ${ctx.idType} not null,
   ${pm("incident")} uuid not null unique,
   -- The only postmortem field a public incident's status page shows.
-  ${pm("summary")} text check (${pm("summary")} is null or length(${pm("summary")}) <= 4000),
-  ${pm("impact")} text check (${pm("impact")} is null or length(${pm("impact")}) <= 10000),
-  ${pm("rootCause")} text check (${pm("rootCause")} is null or length(${pm("rootCause")}) <= 10000),
-  ${pm("resolution")} text check (${pm("resolution")} is null or length(${pm("resolution")}) <= 10000),
-  ${pm("actionItems")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${pm("actionItems")}) = 'array'),
+  ${pm("summary")} text check (${pm("summary")} is null or length(${pm("summary")}) <= 4000),${opt("postmortems", "impact", () => `${pm("impact")} text check (${pm("impact")} is null or length(${pm("impact")}) <= 10000)`)}${opt("postmortems", "rootCause", () => `${pm("rootCause")} text check (${pm("rootCause")} is null or length(${pm("rootCause")}) <= 10000)`)}${opt("postmortems", "resolution", () => `${pm("resolution")} text check (${pm("resolution")} is null or length(${pm("resolution")}) <= 10000)`)}${opt("postmortems", "actionItems", () => `${pm("actionItems")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${pm("actionItems")}) = 'array')`)}
   ${pm("status")} text not null default 'draft' check (${pm("status")} in ('draft', 'published')),
-  ${pm("publishedAt")} timestamptz,
-  ${pm("author")} uuid,
-  ${pm("createdAt")} timestamptz not null default now(),
-  ${pm("updatedAt")} timestamptz not null default now(),
+  ${pm("publishedAt")} timestamptz,${opt("postmortems", "author", () => `${pm("author")} uuid`)}${opt("postmortems", "createdAt", () => `${pm("createdAt")} timestamptz not null default now()`)}${opt("postmortems", "updatedAt", () => `${pm("updatedAt")} timestamptz not null default now()`)}
   foreign key (${pm("tenant")}, ${pm("incident")}) references ${incidents} (${i("tenant")}, ${i("id")}) on delete cascade
-);
+);${appKey("postmortems", "incident", pm("incident"))}
 create index if not exists ${name("postmortems", "tenant_idx")} on ${postmortems} (${pm("tenant")}, ${pm("incident")});
 ${lockTable(postmortems, { read: true })}
 ${readPolicy("postmortems", pm("tenant"))}
@@ -335,12 +371,19 @@ create table if not exists ${pages} (
   ${g("id")} uuid primary key default gen_random_uuid(),
   ${g("tenant")} ${ctx.idType} not null unique,
   ${g("slug")} text not null unique check (${g("slug")} ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  ${g("title")} text not null check (length(${g("title")}) between 1 and 200),
-  ${g("description")} text check (${g("description")} is null or length(${g("description")}) <= 2000),
-  ${g("published")} boolean not null default false,
-  ${g("createdAt")} timestamptz not null default now(),
-  ${g("updatedAt")} timestamptz not null default now()
-);
+  ${g("title")} text not null check (length(${g("title")}) between 1 and 200),${opt("pages", "description", () => `${g("description")} text check (${g("description")} is null or length(${g("description")}) <= 2000)`)}
+  ${g("published")} boolean not null default false${
+    ctx.has("pages", "createdAt")
+      ? `,
+  ${g("createdAt")} timestamptz not null default now()`
+      : ""
+  }${
+    ctx.has("pages", "updatedAt")
+      ? `,
+  ${g("updatedAt")} timestamptz not null default now()`
+      : ""
+  }
+);${appKey("pages", "tenant", g("tenant"))}${appKey("pages", "slug", g("slug"))}
 ${lockTable(pages, { read: true })}
 ${readPolicy("pages", g("tenant"))}
 `;

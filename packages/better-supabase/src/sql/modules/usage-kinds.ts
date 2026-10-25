@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { UsageMeter } from "./usage-meters.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { isMeterTable, metersOf } from "./usage-meters.ts";
@@ -63,10 +63,17 @@ create table if not exists ${distinct} (
   ${dc("tenant")} ${id} not null,
   ${dc("meter")} text not null,
   ${dc("periodStart")} date not null,
-  ${dc("subject")} text not null,
-  ${dc("firstSeen")} timestamptz not null default now(),
+  ${dc("subject")} text not null,${
+    ctx.has("distinct", "firstSeen")
+      ? `\n  ${dc("firstSeen")} timestamptz not null default now(),`
+      : ""
+  }
   primary key (${dc("tenant")}, ${dc("meter")}, ${dc("periodStart")}, ${dc("subject")})
-);
+);${
+    ctx.owns("distinct")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("distinct").name}_subject_key`)} on ${distinct} (${dc("tenant")}, ${dc("meter")}, ${dc("periodStart")}, ${dc("subject")});`
+  }
 alter table ${distinct} enable row level security;
 revoke all on ${distinct} from public, anon, authenticated;
 grant all on ${distinct} to service_role;
@@ -130,7 +137,7 @@ function computedSql(ctx: BlockSqlContext, kinds: UsageKinds): string {
         where o.${cc("tenant")} = r.tenant and o.${cc("meter")} = ${sqlString(meter)}
           and o.${cc("day")} >= v_since and o.${cc("day")} < v_today), 0)))
       on conflict (${cc("tenant")}, ${cc("meter")}, ${cc("day")}) do update
-        set ${cc("value")} = excluded.${cc("value")}, ${cc("updatedAt")} = now();
+        set ${cc("value")} = excluded.${cc("value")}${ctx.has("counters", "updatedAt") ? `, ${cc("updatedAt")} = now()` : ""};
       v_rows := v_rows + 1;
     end loop;
   end if;`,

@@ -1,144 +1,29 @@
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
-  lockTable,
   raise,
-  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { contract, FILE_KEYS } from "./ai-files-contract.ts";
+import {
+  DOCUMENTS,
+  FILES,
+  NAMES,
+  PROVIDER_FILES,
+  SUGGESTIONS,
+  VERSIONS,
+} from "./ai-files-names.ts";
+import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-
-/** The keys a file read returns, which no extra column may shadow. */
-const FILE_KEYS: readonly string[] = [
-  "id",
-  "organization_id",
-  "owner_id",
-  "chat_id",
-  "project_id",
-  "bucket",
-  "path",
-  "media_type",
-  "filename",
-  "byte_size",
-  "sha256",
-  "status",
-  "source",
-  "created_at",
-  "uploaded_at",
-  "expires_at",
-  "fields",
-];
-
-const FILES = {
-  id: "id",
-  tenant: "organization_id",
-  owner: "owner_id",
-  chat: "chat_id",
-  project: "project_id",
-  bucket: "bucket",
-  path: "path",
-  mediaType: "media_type",
-  filename: "filename",
-  size: "byte_size",
-  sha256: "sha256",
-  status: "status",
-  source: "source",
-  createdAt: "created_at",
-  uploadedAt: "uploaded_at",
-  expiresAt: "expires_at",
-} as const;
-
-const PROVIDER_FILES = {
-  file: "file_id",
-  provider: "provider",
-  reference: "reference",
-  expiresAt: "expires_at",
-  createdAt: "created_at",
-} as const;
-
-const DOCUMENTS = {
-  id: "id",
-  tenant: "organization_id",
-  owner: "owner_id",
-  chat: "chat_id",
-  kind: "kind",
-  title: "title",
-  version: "current_version",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-} as const;
-
-const VERSIONS = {
-  document: "document_id",
-  version: "version",
-  content: "content",
-  storagePath: "storage_path",
-  message: "created_by_message_id",
-  createdBy: "created_by",
-  createdAt: "created_at",
-} as const;
-
-const SUGGESTIONS = {
-  id: "id",
-  document: "document_id",
-  version: "version",
-  original: "original_text",
-  suggested: "suggested_text",
-  description: "description",
-  createdBy: "created_by",
-  createdAt: "created_at",
-  resolvedAt: "resolved_at",
-  accepted: "accepted",
-} as const;
-
-const NAMES: BlockSqlNames = {
-  entities: {
-    document: { table: "documents", singular: "ai_document", primary: true },
-  },
-  options: [
-    "bucket",
-    "maxSize",
-    "allowedMimeTypes",
-    "pendingTtl",
-    "extraColumns",
-  ],
-  tables: {
-    files: {
-      name: "ai_files",
-      columns: FILES,
-      lifecycle: { user: "owner", tenant: "tenant" },
-    },
-    providerFiles: { name: "ai_provider_files", columns: PROVIDER_FILES },
-    documents: {
-      name: "ai_documents",
-      columns: DOCUMENTS,
-      lifecycle: { user: "owner", tenant: "tenant" },
-    },
-    versions: {
-      name: "ai_document_versions",
-      columns: VERSIONS,
-      lifecycle: { user: "createdBy" },
-    },
-    suggestions: {
-      name: "ai_suggestions",
-      columns: SUGGESTIONS,
-      lifecycle: { user: "createdBy" },
-    },
-  },
-};
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 const BUCKET = /^[a-z0-9._-]{1,100}$/;
@@ -185,6 +70,7 @@ function bucketOptions(ctx: BlockSqlContext): BucketOptions {
 
 type Columns<T> = { readonly [K in keyof T]: string };
 
+/** Each column's quoted name, empty for one the app's table lacks. */
 function columnsOf<T extends Readonly<Record<string, string>>>(
   ctx: BlockSqlContext,
   table: string,
@@ -192,9 +78,14 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
 ): Columns<T> {
   // SAFETY: the keys are spec's own keys, each mapped to its quoted name.
   return Object.fromEntries(
-    Object.keys(spec).map((key) => [key, ctx.col(table, key)]),
+    Object.keys(spec).map((key) => [
+      key,
+      ctx.has(table, key) ? ctx.col(table, key) : "",
+    ]),
   ) as Columns<T>;
 }
+
+type Pair = readonly [string, string];
 
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
@@ -236,8 +127,56 @@ function build(ctx: BlockSqlContext): string {
   const policy = (name: string): string => `bsb_ai_files_${name}`;
   const extras = ctx.extraColumns("files", FILE_KEYS);
 
+  const tablePolicy = (table: string, name: string): string =>
+    ctx.owns(table) ? name : `bsb_${name}`;
+
+  const or = (
+    table: string,
+    row: string,
+    logical: string,
+    missing: string,
+  ): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : missing;
+
+  const present = (table: string, pairs: readonly Pair[]): readonly Pair[] =>
+    pairs.filter(([logical]) => ctx.has(table, logical));
+
+  const columnList = (table: string, pairs: readonly Pair[]): string =>
+    present(table, pairs)
+      .map(([logical]) => ctx.col(table, logical))
+      .join(", ");
+
+  const valueList = (table: string, pairs: readonly Pair[]): string =>
+    present(table, pairs)
+      .map(([, value]) => value)
+      .join(", ");
+
+  const sets = (
+    table: string,
+    pairs: readonly Pair[],
+    separator: string,
+  ): string =>
+    present(table, pairs)
+      .map(([logical, value]) => `${ctx.col(table, logical)} = ${value}`)
+      .join(separator);
+
+  // A null logical name marks a table constraint.
+  const create = (
+    table: string,
+    entries: readonly (readonly [string | null, string])[],
+  ): string =>
+    `create table if not exists ${ctx.table(table)} (
+  ${entries
+    .filter(([logical]) => logical === null || ctx.has(table, logical))
+    .map(([, text]) => text)
+    .join(",\n  ")}
+);`;
+
+  const index = (table: string, logical: string, text: string): string =>
+    ctx.has(table, logical) ? `\n${text}` : "";
+
   const fileJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${or("files", row, "project", "null")}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${or("files", row, "sha256", "null")}, 'status', ${row}.${f.status}, 'source', ${or("files", row, "source", "'upload'")}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${or("files", row, "uploadedAt", "null")}, 'expires_at', ${or("files", row, "expiresAt", "null")}${extraFieldsJson(row, extras)})`;
 
   const setExtras = (name: string): string =>
     writeExtraColumns(
@@ -249,13 +188,13 @@ function build(ctx: BlockSqlContext): string {
     );
 
   const documentJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'chat_id', ${row}.${d.chat}, 'kind', ${row}.${d.kind}, 'title', ${row}.${d.title}, 'current_version', ${row}.${d.version}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
+    `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'chat_id', ${row}.${d.chat}, 'kind', ${row}.${d.kind}, 'title', ${row}.${d.title}, 'current_version', ${row}.${d.version}, 'created_at', ${or("documents", row, "createdAt", "null")}, 'updated_at', ${or("documents", row, "updatedAt", "null")})`;
 
   const versionJson = (row: string): string =>
-    `jsonb_build_object('document_id', ${row}.${v.document}, 'version', ${row}.${v.version}, 'content', ${row}.${v.content}, 'storage_path', ${row}.${v.storagePath}, 'created_by_message_id', ${row}.${v.message}, 'created_by', ${row}.${v.createdBy}, 'created_at', ${row}.${v.createdAt})`;
+    `jsonb_build_object('document_id', ${row}.${v.document}, 'version', ${row}.${v.version}, 'content', ${row}.${v.content}, 'storage_path', ${or("versions", row, "storagePath", "null")}, 'created_by_message_id', ${or("versions", row, "message", "null")}, 'created_by', ${or("versions", row, "createdBy", "null")}, 'created_at', ${or("versions", row, "createdAt", "null")})`;
 
   const suggestionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${sg.id}, 'document_id', ${row}.${sg.document}, 'version', ${row}.${sg.version}, 'original_text', ${row}.${sg.original}, 'suggested_text', ${row}.${sg.suggested}, 'description', ${row}.${sg.description}, 'created_by', ${row}.${sg.createdBy}, 'created_at', ${row}.${sg.createdAt}, 'resolved_at', ${row}.${sg.resolvedAt}, 'accepted', ${row}.${sg.accepted})`;
+    `jsonb_build_object('id', ${row}.${sg.id}, 'document_id', ${row}.${sg.document}, 'version', ${row}.${sg.version}, 'original_text', ${row}.${sg.original}, 'suggested_text', ${row}.${sg.suggested}, 'description', ${or("suggestions", row, "description", "null")}, 'created_by', ${or("suggestions", row, "createdBy", "null")}, 'created_at', ${or("suggestions", row, "createdAt", "null")}, 'resolved_at', ${row}.${sg.resolvedAt}, 'accepted', ${row}.${sg.accepted})`;
 
   // The owner, an ai_chat admin of the organization, or a reader of the chat
   // the file or document belongs to.
@@ -273,6 +212,98 @@ function build(ctx: BlockSqlContext): string {
   const ownDocument = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
 
+  const reserveInsert: readonly Pair[] = [
+    ["tenant", "reserve_ai_file.tenant"],
+    ["owner", "auth.uid()"],
+    ["chat", "reserve_ai_file.chat_id"],
+    ["project", "reserve_ai_file.project_id"],
+    ["bucket", bucketLiteral],
+    ["filename", "reserve_ai_file.filename"],
+    ["mediaType", "lower(reserve_ai_file.media_type)"],
+    ["size", "reserve_ai_file.byte_size"],
+  ];
+
+  const confirmSets: readonly Pair[] = [
+    ["status", ctx.cast("files", "status", "'ready'")],
+    ["uploadedAt", "now()"],
+    ["size", `coalesce(v_size, x.${f.size})`],
+    ["sha256", `coalesce(lower(confirm_ai_file.sha256), x.${f.sha256})`],
+  ];
+
+  const storeInsert: readonly Pair[] = [
+    ["tenant", "store_ai_file.tenant"],
+    ["owner", "store_ai_file.owner"],
+    ["chat", "store_ai_file.chat_id"],
+    ["bucket", bucketLiteral],
+    ["filename", "store_ai_file.filename"],
+    ["mediaType", "lower(store_ai_file.media_type)"],
+    ["size", "store_ai_file.byte_size"],
+    ["status", ctx.cast("files", "status", "'ready'")],
+    [
+      "source",
+      ctx.has("files", "source")
+        ? ctx.cast(
+            "files",
+            "source",
+            "coalesce(store_ai_file.source, 'generated')",
+          )
+        : "",
+    ],
+    ["sha256", "lower(store_ai_file.sha256)"],
+    ["uploadedAt", "now()"],
+  ];
+
+  const providerInsert: readonly Pair[] = [
+    ["file", "set_ai_provider_file.file_id"],
+    ["provider", "set_ai_provider_file.provider"],
+    ["reference", "set_ai_provider_file.reference"],
+    ["expiresAt", "set_ai_provider_file.expires_at"],
+  ];
+
+  const providerSets: readonly Pair[] = [
+    ["reference", `excluded.${pf.reference}`],
+    ["expiresAt", `excluded.${pf.expiresAt}`],
+    ["createdAt", "now()"],
+  ];
+
+  const providerKey = ctx.owns("providerFiles")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("providerFiles").name}_file_key`)} on ${providerFiles} (${pf.file}, ${pf.provider});`;
+
+  const expiring = ctx.has("providerFiles", "expiresAt")
+    ? `  select coalesce(jsonb_agg(jsonb_build_object('file_id', p.${pf.file}, 'provider', p.${pf.provider}, 'reference', p.${pf.reference}, 'expires_at', p.${pf.expiresAt})), '[]'::jsonb)
+  from (
+    select * from ${providerFiles}
+    where ${pf.expiresAt} is not null and ${pf.expiresAt} <= now() + coalesce(horizon, interval '1 day')
+    order by ${pf.expiresAt}
+    limit greatest(coalesce(batch, 100), 1)
+  ) p`
+    : "  select '[]'::jsonb";
+
+  const versionInsert = (
+    version: string,
+    content: string,
+    storagePath: string,
+    message: string,
+    createdBy: string,
+  ): readonly Pair[] => [
+    ["document", `v_row.${d.id}`],
+    ["version", version],
+    ["content", content],
+    ["storagePath", storagePath],
+    ["message", message],
+    ["createdBy", createdBy],
+  ];
+
+  const suggestionInsert: readonly Pair[] = [
+    ["document", `v_doc.${d.id}`],
+    ["version", `v_doc.${d.version}`],
+    ["original", "suggest_ai_document_edit.original_text"],
+    ["suggested", "suggest_ai_document_edit.suggested_text"],
+    ["description", "suggest_ai_document_edit.description"],
+    ["createdBy", "auth.uid()"],
+  ];
+
   const docNotFound = raise(
     "document % not found",
     "P0002",
@@ -285,114 +316,158 @@ function build(ctx: BlockSqlContext): string {
 -- provider's file API returned for them. Objects live in the private
 -- ${bucket} bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists ${files} (
-  ${f.id} uuid primary key default gen_random_uuid(),
-  ${f.tenant} ${id} not null,
-  ${f.owner} uuid not null references auth.users (id) on delete cascade,
-  ${f.chat} uuid,
-  ${f.project} uuid,
-  ${f.bucket} text not null,
-  ${f.filename} text not null check (length(${f.filename}) >= 1 and length(${f.filename}) <= 255 and ${f.filename} !~ '[/\\\\]' and ${f.filename} not in ('.', '..')),
-  ${f.path} text generated always as (${f.tenant}::text || '/' || ${f.owner}::text || '/' || ${f.id}::text || '/' || ${f.filename}) stored,
-  ${f.mediaType} text not null check (${f.mediaType} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  ${f.size} bigint not null check (${f.size} between 0 and ${String(maxSize)}),
-  ${f.sha256} text check (${f.sha256} ~ '^[0-9a-f]{64}$'),
-  ${f.status} text not null default 'pending' check (${f.status} in ('pending', 'ready', 'failed')),
-  ${f.source} text not null default 'upload' check (${f.source} in ('upload', 'generated', 'provider')),
-  ${f.createdAt} timestamptz not null default now(),
-  ${f.uploadedAt} timestamptz,
-  ${f.expiresAt} timestamptz
-);
+${create("files", [
+  ["id", `${f.id} uuid primary key default gen_random_uuid()`],
+  ["tenant", `${f.tenant} ${id} not null`],
+  [
+    "owner",
+    `${f.owner} uuid not null references auth.users (id) on delete cascade`,
+  ],
+  ["chat", `${f.chat} uuid`],
+  ["project", `${f.project} uuid`],
+  ["bucket", `${f.bucket} text not null`],
+  [
+    "filename",
+    `${f.filename} text not null check (length(${f.filename}) >= 1 and length(${f.filename}) <= 255 and ${f.filename} !~ '[/\\\\]' and ${f.filename} not in ('.', '..'))`,
+  ],
+  [
+    "path",
+    `${f.path} text generated always as (${f.tenant}::text || '/' || ${f.owner}::text || '/' || ${f.id}::text || '/' || ${f.filename}) stored`,
+  ],
+  [
+    "mediaType",
+    `${f.mediaType} text not null check (${f.mediaType} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$')`,
+  ],
+  [
+    "size",
+    `${f.size} bigint not null check (${f.size} between 0 and ${String(maxSize)})`,
+  ],
+  ["sha256", `${f.sha256} text check (${f.sha256} ~ '^[0-9a-f]{64}$')`],
+  [
+    "status",
+    `${f.status} text not null default 'pending' check (${f.status} in ('pending', 'ready', 'failed'))`,
+  ],
+  [
+    "source",
+    `${f.source} text not null default 'upload' check (${f.source} in ('upload', 'generated', 'provider'))`,
+  ],
+  ["createdAt", `${f.createdAt} timestamptz not null default now()`],
+  ["uploadedAt", `${f.uploadedAt} timestamptz`],
+  ["expiresAt", `${f.expiresAt} timestamptz`],
+])}
 create unique index if not exists ai_files_object_idx on ${files} (${f.bucket}, ${f.path});
 create index if not exists ai_files_owner_idx on ${files} (${f.owner});
 create index if not exists ai_files_tenant_idx on ${files} (${f.tenant});
 create index if not exists ai_files_chat_idx on ${files} (${f.chat}) where ${f.chat} is not null;
 create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';${addExtraColumns(files, extras)}
-alter table ${files} enable row level security;
-${revokeTable(files)}
-grant select on ${files} to authenticated;
-grant all on ${files} to service_role;
-drop policy if exists ai_files_read on ${files};
-create policy ai_files_read on ${files} for select to authenticated
+${lockModuleTable(ctx, "files", { read: true })}
+drop policy if exists ${tablePolicy("files", "ai_files_read")} on ${files};
+create policy ${tablePolicy("files", "ai_files_read")} on ${files} for select to authenticated
   using (${readable("", f.owner, f.tenant, f.chat)});
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists ${providerFiles} (
-  ${pf.file} uuid not null references ${files} (${f.id}) on delete cascade,
-  ${pf.provider} text not null check (length(${pf.provider}) between 1 and 100),
-  ${pf.reference} text not null check (length(${pf.reference}) between 1 and 2000),
-  ${pf.expiresAt} timestamptz,
-  ${pf.createdAt} timestamptz not null default now(),
-  primary key (${pf.file}, ${pf.provider})
-);
-create index if not exists ai_provider_files_expires_idx on ${providerFiles} (${pf.expiresAt}) where ${pf.expiresAt} is not null;
-${lockTable(providerFiles)}
+${create("providerFiles", [
+  [
+    "file",
+    `${pf.file} uuid not null references ${files} (${f.id}) on delete cascade`,
+  ],
+  [
+    "provider",
+    `${pf.provider} text not null check (length(${pf.provider}) between 1 and 100)`,
+  ],
+  [
+    "reference",
+    `${pf.reference} text not null check (length(${pf.reference}) between 1 and 2000)`,
+  ],
+  ["expiresAt", `${pf.expiresAt} timestamptz`],
+  ["createdAt", `${pf.createdAt} timestamptz not null default now()`],
+  [null, `primary key (${pf.file}, ${pf.provider})`],
+])}${providerKey}${index("providerFiles", "expiresAt", `create index if not exists ai_provider_files_expires_idx on ${providerFiles} (${pf.expiresAt}) where ${pf.expiresAt} is not null;`)}
+${lockModuleTable(ctx, "providerFiles")}
 
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images), with every version kept.
-create table if not exists ${documents} (
-  ${d.id} uuid primary key default gen_random_uuid(),
-  ${d.tenant} ${id} not null,
-  ${d.owner} uuid not null references auth.users (id) on delete cascade,
-  ${d.chat} uuid,
-  ${d.kind} text not null check (${d.kind} in ('text', 'code', 'sheet', 'image')),
-  ${d.title} text not null check (length(${d.title}) between 1 and 500),
-  ${d.version} integer not null default 1 check (${d.version} >= 1),
-  ${d.createdAt} timestamptz not null default now(),
-  ${d.updatedAt} timestamptz not null default now()
-);
+${create("documents", [
+  ["id", `${d.id} uuid primary key default gen_random_uuid()`],
+  ["tenant", `${d.tenant} ${id} not null`],
+  [
+    "owner",
+    `${d.owner} uuid not null references auth.users (id) on delete cascade`,
+  ],
+  ["chat", `${d.chat} uuid`],
+  [
+    "kind",
+    `${d.kind} text not null check (${d.kind} in ('text', 'code', 'sheet', 'image'))`,
+  ],
+  [
+    "title",
+    `${d.title} text not null check (length(${d.title}) between 1 and 500)`,
+  ],
+  [
+    "version",
+    `${d.version} integer not null default 1 check (${d.version} >= 1)`,
+  ],
+  ["createdAt", `${d.createdAt} timestamptz not null default now()`],
+  ["updatedAt", `${d.updatedAt} timestamptz not null default now()`],
+])}
 create index if not exists ${ctx.naming.rename("ai_documents_owner_idx")} on ${documents} (${d.owner});
 create index if not exists ${ctx.naming.rename("ai_documents_tenant_idx")} on ${documents} (${d.tenant});
 create index if not exists ${ctx.naming.rename("ai_documents_chat_idx")} on ${documents} (${d.chat}) where ${d.chat} is not null;
-alter table ${documents} enable row level security;
-${revokeTable(documents)}
-grant select on ${documents} to authenticated;
-grant all on ${documents} to service_role;
-drop policy if exists ${ctx.naming.rename("ai_documents_read")} on ${documents};
-create policy ${ctx.naming.rename("ai_documents_read")} on ${documents} for select to authenticated
+${lockModuleTable(ctx, "documents", { read: true })}
+drop policy if exists ${tablePolicy("documents", ctx.naming.rename("ai_documents_read"))} on ${documents};
+create policy ${tablePolicy("documents", ctx.naming.rename("ai_documents_read"))} on ${documents} for select to authenticated
   using (${readable("", d.owner, d.tenant, d.chat)});
 
-create table if not exists ${versions} (
-  ${v.document} uuid not null references ${documents} (${d.id}) on delete cascade,
-  ${v.version} integer not null check (${v.version} >= 1),
-  ${v.content} text,
-  ${v.storagePath} text,
-  ${v.message} text,
-  ${v.createdBy} uuid references auth.users (id) on delete set null,
-  ${v.createdAt} timestamptz not null default now(),
-  primary key (${v.document}, ${v.version}),
-  check (${v.content} is not null or ${v.storagePath} is not null)
-);
-create index if not exists ${ctx.naming.rename("ai_document_versions_created_by_idx")} on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;
-alter table ${versions} enable row level security;
-${revokeTable(versions)}
-grant select on ${versions} to authenticated;
-grant all on ${versions} to service_role;
-drop policy if exists ${ctx.naming.rename("ai_document_versions_read")} on ${versions};
-create policy ${ctx.naming.rename("ai_document_versions_read")} on ${versions} for select to authenticated
+${create("versions", [
+  [
+    "document",
+    `${v.document} uuid not null references ${documents} (${d.id}) on delete cascade`,
+  ],
+  ["version", `${v.version} integer not null check (${v.version} >= 1)`],
+  ["content", `${v.content} text`],
+  ["storagePath", `${v.storagePath} text`],
+  ["message", `${v.message} text`],
+  [
+    "createdBy",
+    `${v.createdBy} uuid references auth.users (id) on delete set null`,
+  ],
+  ["createdAt", `${v.createdAt} timestamptz not null default now()`],
+  [null, `primary key (${v.document}, ${v.version})`],
+  [
+    null,
+    ctx.has("versions", "storagePath")
+      ? `check (${v.content} is not null or ${v.storagePath} is not null)`
+      : `check (${v.content} is not null)`,
+  ],
+])}${index("versions", "createdBy", `create index if not exists ${ctx.naming.rename("ai_document_versions_created_by_idx")} on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;`)}
+${lockModuleTable(ctx, "versions", { read: true })}
+drop policy if exists ${tablePolicy("versions", ctx.naming.rename("ai_document_versions_read"))} on ${versions};
+create policy ${tablePolicy("versions", ctx.naming.rename("ai_document_versions_read"))} on ${versions} for select to authenticated
   using (exists (select 1 from ${documents} doc where doc.${d.id} = ${v.document}));
 
-create table if not exists ${suggestions} (
-  ${sg.id} uuid primary key default gen_random_uuid(),
-  ${sg.document} uuid not null references ${documents} (${d.id}) on delete cascade,
-  ${sg.version} integer not null,
-  ${sg.original} text not null,
-  ${sg.suggested} text not null,
-  ${sg.description} text,
-  ${sg.createdBy} uuid references auth.users (id) on delete set null,
-  ${sg.createdAt} timestamptz not null default now(),
-  ${sg.resolvedAt} timestamptz,
-  ${sg.accepted} boolean
-);
-create index if not exists ai_suggestions_document_idx on ${suggestions} (${sg.document});
-create index if not exists ai_suggestions_created_by_idx on ${suggestions} (${sg.createdBy}) where ${sg.createdBy} is not null;
-alter table ${suggestions} enable row level security;
-${revokeTable(suggestions)}
-grant select on ${suggestions} to authenticated;
-grant all on ${suggestions} to service_role;
-drop policy if exists ai_suggestions_read on ${suggestions};
-create policy ai_suggestions_read on ${suggestions} for select to authenticated
+${create("suggestions", [
+  ["id", `${sg.id} uuid primary key default gen_random_uuid()`],
+  [
+    "document",
+    `${sg.document} uuid not null references ${documents} (${d.id}) on delete cascade`,
+  ],
+  ["version", `${sg.version} integer not null`],
+  ["original", `${sg.original} text not null`],
+  ["suggested", `${sg.suggested} text not null`],
+  ["description", `${sg.description} text`],
+  [
+    "createdBy",
+    `${sg.createdBy} uuid references auth.users (id) on delete set null`,
+  ],
+  ["createdAt", `${sg.createdAt} timestamptz not null default now()`],
+  ["resolvedAt", `${sg.resolvedAt} timestamptz`],
+  ["accepted", `${sg.accepted} boolean`],
+])}
+create index if not exists ai_suggestions_document_idx on ${suggestions} (${sg.document});${index("suggestions", "createdBy", `create index if not exists ai_suggestions_created_by_idx on ${suggestions} (${sg.createdBy}) where ${sg.createdBy} is not null;`)}
+${lockModuleTable(ctx, "suggestions", { read: true })}
+drop policy if exists ${tablePolicy("suggestions", "ai_suggestions_read")} on ${suggestions};
+create policy ${tablePolicy("suggestions", "ai_suggestions_read")} on ${suggestions} for select to authenticated
   using (exists (select 1 from ${documents} doc where doc.${d.id} = ${sg.document}));
 
 -- Whether the caller may run action (insert, select or delete) on the
@@ -456,8 +531,8 @@ begin
   if byte_size < 0 or byte_size > ${String(maxSize)} then
     ${raise("files are limited to % bytes", "22023", "AI_FILE_TOO_LARGE", String(maxSize))}
   end if;${mimeCheck}
-  insert into ${files} (${f.tenant}, ${f.owner}, ${f.chat}, ${f.project}, ${f.bucket}, ${f.filename}, ${f.mediaType}, ${f.size})
-  values (reserve_ai_file.tenant, auth.uid(), reserve_ai_file.chat_id, reserve_ai_file.project_id, ${bucketLiteral}, reserve_ai_file.filename, lower(reserve_ai_file.media_type), reserve_ai_file.byte_size)
+  insert into ${files} (${columnList("files", reserveInsert)})
+  values (${valueList("files", reserveInsert)})
   returning * into v_row;${setExtras("reserve_ai_file")}
   return ${fileJson("v_row")};
 end;
@@ -488,10 +563,7 @@ begin
     ${raise("file % has no uploaded object yet", "P0001", "AI_FILE_NOT_UPLOADED", "file_id")}
   end if;
   update ${files} x set
-    ${f.status} = 'ready',
-    ${f.uploadedAt} = now(),
-    ${f.size} = coalesce(v_size, x.${f.size}),
-    ${f.sha256} = coalesce(lower(confirm_ai_file.sha256), x.${f.sha256})
+    ${sets("files", confirmSets, ",\n    ")}
   where x.${f.id} = v_row.${f.id}
   returning * into v_row;
   return ${fileJson("v_row")};
@@ -577,8 +649,8 @@ as $$
 declare
   v_row ${files}%rowtype;
 begin
-  insert into ${files} (${f.tenant}, ${f.owner}, ${f.chat}, ${f.bucket}, ${f.filename}, ${f.mediaType}, ${f.size}, ${f.status}, ${f.source}, ${f.sha256}, ${f.uploadedAt})
-  values (store_ai_file.tenant, store_ai_file.owner, store_ai_file.chat_id, ${bucketLiteral}, store_ai_file.filename, lower(store_ai_file.media_type), store_ai_file.byte_size, 'ready', coalesce(store_ai_file.source, 'generated'), lower(store_ai_file.sha256), now())
+  insert into ${files} (${columnList("files", storeInsert)})
+  values (${valueList("files", storeInsert)})
   returning * into v_row;${setExtras("store_ai_file")}
   return ${fileJson("v_row")};
 end;
@@ -590,10 +662,10 @@ returns boolean
 language sql
 set search_path = ''
 as $$
-  insert into ${providerFiles} (${pf.file}, ${pf.provider}, ${pf.reference}, ${pf.expiresAt})
-  values (set_ai_provider_file.file_id, set_ai_provider_file.provider, set_ai_provider_file.reference, set_ai_provider_file.expires_at)
+  insert into ${providerFiles} (${columnList("providerFiles", providerInsert)})
+  values (${valueList("providerFiles", providerInsert)})
   on conflict (${pf.file}, ${pf.provider}) do update
-    set ${pf.reference} = excluded.${pf.reference}, ${pf.expiresAt} = excluded.${pf.expiresAt}, ${pf.createdAt} = now()
+    set ${sets("providerFiles", providerSets, ", ")}
   returning true
 $$;
 ${serviceGrant(`${fn("set_ai_provider_file")}(uuid, text, text, timestamptz)`)}
@@ -605,10 +677,14 @@ language sql
 stable
 set search_path = ''
 as $$
-  select jsonb_build_object('file_id', p.${pf.file}, 'provider', p.${pf.provider}, 'reference', p.${pf.reference}, 'expires_at', p.${pf.expiresAt})
+  select jsonb_build_object('file_id', p.${pf.file}, 'provider', p.${pf.provider}, 'reference', p.${pf.reference}, 'expires_at', ${or("providerFiles", "p", "expiresAt", "null")})
   from ${providerFiles} p
-  where p.${pf.file} = get_ai_provider_file.file_id and p.${pf.provider} = get_ai_provider_file.provider
-    and (p.${pf.expiresAt} is null or p.${pf.expiresAt} > now())
+  where p.${pf.file} = get_ai_provider_file.file_id and p.${pf.provider} = get_ai_provider_file.provider${
+    ctx.has("providerFiles", "expiresAt")
+      ? `
+    and (p.${pf.expiresAt} is null or p.${pf.expiresAt} > now())`
+      : ""
+  }
 $$;
 ${serviceGrant(`${fn("get_ai_provider_file")}(uuid, text)`)}
 
@@ -619,13 +695,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('file_id', p.${pf.file}, 'provider', p.${pf.provider}, 'reference', p.${pf.reference}, 'expires_at', p.${pf.expiresAt})), '[]'::jsonb)
-  from (
-    select * from ${providerFiles}
-    where ${pf.expiresAt} is not null and ${pf.expiresAt} <= now() + coalesce(horizon, interval '1 day')
-    order by ${pf.expiresAt}
-    limit greatest(coalesce(batch, 100), 1)
-  ) p
+${expiring}
 $$;
 ${serviceGrant(`${fn("expiring_ai_provider_files")}(interval, integer)`)}
 
@@ -642,13 +712,12 @@ declare
 begin
   with doomed as (
     select x.${f.id} from ${files} x
-    where (x.${f.status} = 'pending' and x.${f.createdAt} <= now() - coalesce(older_than, interval ${sqlString(pendingTtl)}))
-      or x.${f.expiresAt} <= now()${
-        ctx.installed("ai-chat")
-          ? `
+    where (x.${f.status} = 'pending' and x.${f.createdAt} <= now() - coalesce(older_than, interval ${sqlString(pendingTtl)}))${ctx.has("files", "expiresAt") ? `\n      or x.${f.expiresAt} <= now()` : ""}${
+      ctx.installed("ai-chat")
+        ? `
       or (x.${f.chat} is not null and not exists (select 1 from ${ctx.of("ai-chat").table("chats")} ch where ch.${ctx.of("ai-chat").col("chats", "id")} = x.${f.chat}))`
-          : ""
-      }
+        : ""
+    }
     limit greatest(coalesce(batch, 500), 1)
   ),
   gone as (
@@ -686,10 +755,10 @@ begin
     ${raise("you may not create documents here", "42501", "AI_DOCUMENT_FORBIDDEN")}
   end if;
   insert into ${documents} (${d.tenant}, ${d.owner}, ${d.chat}, ${d.kind}, ${d.title})
-  values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
+  values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, ${ctx.cast("documents", "kind", "create_ai_document.kind")}, create_ai_document.title)
   returning * into v_row;
-  insert into ${versions} (${v.document}, ${v.version}, ${v.content}, ${v.storagePath}, ${v.message}, ${v.createdBy})
-  values (v_row.${d.id}, 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  insert into ${versions} (${columnList("versions", versionInsert("1", "create_ai_document.content", "create_ai_document.storage_path", "create_ai_document.message_id", "v_owner"))})
+  values (${valueList("versions", versionInsert("1", "create_ai_document.content", "create_ai_document.storage_path", "create_ai_document.message_id", "v_owner"))});
   return ${documentJson("v_row")};
 end;
 $$;
@@ -720,12 +789,18 @@ begin
   if expected_version is not null and expected_version <> v_row.${d.version} then
     ${raise("document % is at version %", "40001", "AI_DOCUMENT_CONFLICT", "document_id", `v_row.${d.version}`)}
   end if;
-  insert into ${versions} (${v.document}, ${v.version}, ${v.content}, ${v.storagePath}, ${v.message}, ${v.createdBy})
-  values (v_row.${d.id}, v_row.${d.version} + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  insert into ${versions} (${columnList("versions", versionInsert(`v_row.${d.version} + 1`, "update_ai_document.content", "update_ai_document.storage_path", "update_ai_document.message_id", "auth.uid()"))})
+  values (${valueList("versions", versionInsert(`v_row.${d.version} + 1`, "update_ai_document.content", "update_ai_document.storage_path", "update_ai_document.message_id", "auth.uid()"))});
   update ${documents} x set
-    ${d.version} = v_row.${d.version} + 1,
-    ${d.title} = coalesce(update_ai_document.title, x.${d.title}),
-    ${d.updatedAt} = now()
+    ${sets(
+      "documents",
+      [
+        ["version", `v_row.${d.version} + 1`],
+        ["title", `coalesce(update_ai_document.title, x.${d.title})`],
+        ["updatedAt", "now()"],
+      ],
+      ",\n    ",
+    )}
   where x.${d.id} = v_row.${d.id}
   returning * into v_row;
   return ${documentJson("v_row")};
@@ -752,9 +827,16 @@ begin
   if not found then
     ${raise("document % has no version %", "P0002", "AI_DOCUMENT_VERSION_NOT_FOUND", "document_id", "rollback_ai_document.version")}
   end if;
-  insert into ${versions} (${v.document}, ${v.version}, ${v.content}, ${v.storagePath}, ${v.message}, ${v.createdBy})
-  values (v_row.${d.id}, v_row.${d.version} + 1, v_old.${v.content}, v_old.${v.storagePath}, null, auth.uid());
-  update ${documents} x set ${d.version} = v_row.${d.version} + 1, ${d.updatedAt} = now()
+  insert into ${versions} (${columnList("versions", versionInsert(`v_row.${d.version} + 1`, `v_old.${v.content}`, `v_old.${v.storagePath}`, "null", "auth.uid()"))})
+  values (${valueList("versions", versionInsert(`v_row.${d.version} + 1`, `v_old.${v.content}`, `v_old.${v.storagePath}`, "null", "auth.uid()"))});
+  update ${documents} x set ${sets(
+    "documents",
+    [
+      ["version", `v_row.${d.version} + 1`],
+      ["updatedAt", "now()"],
+    ],
+    ", ",
+  )}
   where x.${d.id} = v_row.${d.id}
   returning * into v_row;
   return ${documentJson("v_row")};
@@ -769,7 +851,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select ${documentJson("x")} || jsonb_build_object('content', vv.${v.content}, 'storage_path', vv.${v.storagePath})
+  select ${documentJson("x")} || jsonb_build_object('content', vv.${v.content}, 'storage_path', ${or("versions", "vv", "storagePath", "null")})
   from ${documents} x
   join ${versions} vv on vv.${v.document} = x.${d.id} and vv.${v.version} = x.${d.version}
   where x.${d.id} = get_ai_document.document_id
@@ -805,8 +887,8 @@ begin
   if not found or not (${SERVICE_CALLER} or ${readable("v_doc.", d.owner, d.tenant, d.chat)}) then
     ${docNotFound}
   end if;
-  insert into ${suggestions} (${sg.document}, ${sg.version}, ${sg.original}, ${sg.suggested}, ${sg.description}, ${sg.createdBy})
-  values (v_doc.${d.id}, v_doc.${d.version}, suggest_ai_document_edit.original_text, suggest_ai_document_edit.suggested_text, suggest_ai_document_edit.description, auth.uid())
+  insert into ${suggestions} (${columnList("suggestions", suggestionInsert)})
+  values (${valueList("suggestions", suggestionInsert)})
   returning * into v_row;
   return ${suggestionJson("v_row")};
 end;
@@ -820,7 +902,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${suggestionJson("x")} order by x.${sg.createdAt}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${suggestionJson("x")} order by x.${sg.createdAt || sg.version}), '[]'::jsonb)
   from ${suggestions} x
   where x.${sg.document} = list_ai_suggestions.document_id
     and (not coalesce(open_only, true) or x.${sg.resolvedAt} is null)
@@ -891,83 +973,6 @@ function data(ctx: BlockSqlContext): string {
   return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (${sqlString(bucket)}, ${sqlString(bucket)}, false, ${String(maxSize)}, ${mimeArray})
 on conflict (id) do nothing;`;
-}
-
-function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
-  const extra = extraFieldsArg(ctx.extraColumns("files", FILE_KEYS)).contract;
-
-  return [
-    {
-      name: "reserve_ai_file",
-      args: ["{id}", "text", "text", "bigint", "uuid", "uuid", ...extra],
-      returns: "jsonb",
-    },
-    { name: "confirm_ai_file", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "get_ai_file", args: ["uuid"], returns: "jsonb" },
-    { name: "get_ai_file_by_path", args: ["text", "text"], returns: "jsonb" },
-    { name: "list_ai_files", args: ["uuid"], returns: "jsonb" },
-    { name: "delete_ai_file", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "store_ai_file",
-      args: [
-        "{id}",
-        "uuid",
-        "text",
-        "text",
-        "bigint",
-        "uuid",
-        "text",
-        "text",
-        ...extra,
-      ],
-      returns: "jsonb",
-    },
-    {
-      name: "set_ai_provider_file",
-      args: ["uuid", "text", "text", "timestamptz"],
-      returns: "boolean",
-    },
-    { name: "get_ai_provider_file", args: ["uuid", "text"], returns: "jsonb" },
-    {
-      name: "expiring_ai_provider_files",
-      args: ["interval", "integer"],
-      returns: "jsonb",
-    },
-    { name: "purge_ai_files", args: ["interval", "integer"], returns: "jsonb" },
-    {
-      name: "create_ai_document",
-      args: ["{id}", "text", "text", "text", "uuid", "text", "uuid", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "update_ai_document",
-      args: ["uuid", "text", "text", "text", "integer", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "rollback_ai_document",
-      args: ["uuid", "integer"],
-      returns: "jsonb",
-    },
-    { name: "get_ai_document", args: ["uuid"], returns: "jsonb" },
-    { name: "list_ai_document_versions", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "suggest_ai_document_edit",
-      args: ["uuid", "text", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_ai_suggestions",
-      args: ["uuid", "boolean"],
-      returns: "jsonb",
-    },
-    {
-      name: "resolve_ai_suggestion",
-      args: ["uuid", "boolean"],
-      returns: "jsonb",
-    },
-    { name: "delete_ai_document", args: ["uuid"], returns: "boolean" },
-  ];
 }
 
 export const AI_FILES: BlockSqlDefinition = {

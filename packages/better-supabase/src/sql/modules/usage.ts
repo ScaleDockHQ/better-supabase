@@ -10,12 +10,9 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   defaultPartition,
   defaultPartitionName,
-  dropExpiredPartitions,
   fail,
   lockTable,
   MONTHLY_PARTITIONS,
-  PARTITION_VARIABLES,
-  pageSize,
   raise,
   registerPartitions,
   revokeTable,
@@ -23,6 +20,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./permissions-model.ts";
+import { usageHistorySql } from "./usage-history.ts";
 import {
   usageKindsContract,
   usageKindsSql,
@@ -42,6 +40,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     counters: {
       name: "usage_counters",
+      app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
@@ -51,9 +50,11 @@ const NAMES: BlockSqlNames = {
         reported: "reported_value",
         updatedAt: "updated_at",
       },
+      optional: ["reported", "updatedAt"],
     },
     events: {
       name: "usage_events",
+      app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
@@ -65,6 +66,7 @@ const NAMES: BlockSqlNames = {
     },
     history: {
       name: "usage_history",
+      app: { writes: false },
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
@@ -76,9 +78,11 @@ const NAMES: BlockSqlNames = {
         metadata: "metadata",
         recordedAt: "recorded_at",
       },
+      optional: ["source", "metadata"],
     },
     distinct: {
       name: "usage_distinct",
+      app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
@@ -87,9 +91,11 @@ const NAMES: BlockSqlNames = {
         subject: "subject",
         firstSeen: "first_seen",
       },
+      optional: ["firstSeen"],
     },
     quotas: {
       name: "usage_quotas",
+      app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -100,6 +106,8 @@ const NAMES: BlockSqlNames = {
         period: "period",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
+      typed: ["period"],
     },
   },
 };
@@ -119,7 +127,40 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const history = ctx.table("history");
   const hc = (logical: string): string => ctx.col("history", logical);
   const keepHistory = ctx.flag("history", false);
-  const partitioned = keepHistory && ctx.flag("partitioned", false);
+
+  // The app's history table stays as the app made it: the module neither
+  // converts nor partitions it.
+  const partitioned =
+    keepHistory && ctx.owns("history") && ctx.flag("partitioned", false);
+
+  const hasCounter = (logical: string): boolean => ctx.has("counters", logical);
+
+  const hasHistory = (logical: string): boolean => ctx.has("history", logical);
+
+  const counterTouch = hasCounter("updatedAt")
+    ? `, ${cc("updatedAt")} = now()`
+    : "";
+
+  const quotaPeriod = (alias: string): string =>
+    ctx.owns("quotas")
+      ? `${alias}.${qc("period")}`
+      : `${alias}.${qc("period")}::text`;
+
+  const historyColumns = [
+    "tenant",
+    "meter",
+    "quantity",
+    "actor",
+    "source",
+    "metadata",
+  ].filter(hasHistory);
+
+  const historyValues: Readonly<Record<string, string>> = {
+    actor: `case when ${SERVICE_CALLER} then coalesce(record_usage.actor, auth.uid()) else auth.uid() end`,
+    source: "record_usage.source",
+    metadata: "coalesce(record_usage.metadata, '{}')",
+  };
+
   const historySequence = `${ctx.schema}.${ctx.naming.rename("usage_history_id_seq")}`;
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("usage");
@@ -216,16 +257,34 @@ create table if not exists ${counters} (
   ${cc("tenant")} ${id} not null,
   ${cc("meter")} text not null check (${cc("meter")} ~ ${METER}),
   ${cc("day")} date not null,
-  ${cc("value")} numeric not null default 0 check (${cc("value")} >= 0),
-  ${cc("reported")} numeric not null default 0 check (${cc("reported")} >= 0),
-  ${cc("updatedAt")} timestamptz not null default now(),
+  ${cc("value")} numeric not null default 0 check (${cc("value")} >= 0),${
+    hasCounter("reported")
+      ? `\n  ${cc("reported")} numeric not null default 0 check (${cc("reported")} >= 0),`
+      : ""
+  }${
+    hasCounter("updatedAt")
+      ? `\n  ${cc("updatedAt")} timestamptz not null default now(),`
+      : ""
+  }
   primary key (${cc("tenant")}, ${cc("meter")}, ${cc("day")})
-);
+);${
+    ctx.owns("counters")
+      ? `
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
-alter table ${counters} alter column ${cc("value")} type numeric;
-alter table ${counters} alter column ${cc("reported")} type numeric;
+alter table ${counters} alter column ${cc("value")} type numeric;${
+          hasCounter("reported")
+            ? `\nalter table ${counters} alter column ${cc("reported")} type numeric;`
+            : ""
+        }`
+      : `
+create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("counters").name}_day_key`)} on ${counters} (${cc("tenant")}, ${cc("meter")}, ${cc("day")});`
+  }${
+    hasCounter("reported")
+      ? `
 create index if not exists usage_counters_unreported_idx on ${counters} (${cc("day")})
-  where ${cc("value")} > ${cc("reported")};
+  where ${cc("value")} > ${cc("reported")};`
+      : ""
+  }
 alter table ${counters} enable row level security;
 ${revokeTable(counters)}
 grant select on ${counters} to authenticated;
@@ -243,7 +302,11 @@ create table if not exists ${events} (
   ${ec("recordedAt")} timestamptz not null default now(),
   primary key (${ec("tenant")}, ${ec("meter")}, ${ec("key")})
 );
-alter table ${events} alter column ${ec("quantity")} type numeric;
+${
+  ctx.owns("events")
+    ? `alter table ${events} alter column ${ec("quantity")} type numeric;`
+    : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("events").name}_key_key`)} on ${events} (${ec("tenant")}, ${ec("meter")}, ${ec("key")});`
+}
 ${
   keepHistory
     ? `
@@ -259,9 +322,15 @@ ${
   ${hc("tenant")} ${id} not null,
   ${hc("meter")} text not null,
   ${hc("quantity")} numeric not null,
-  ${hc("actor")} uuid,
-  ${hc("source")} text check (length(${hc("source")}) <= 200),
-  ${hc("metadata")} jsonb not null default '{}',
+  ${hc("actor")} uuid,${
+    hasHistory("source")
+      ? `\n  ${hc("source")} text check (length(${hc("source")}) <= 200),`
+      : ""
+  }${
+    hasHistory("metadata")
+      ? `\n  ${hc("metadata")} jsonb not null default '{}',`
+      : ""
+  }
   ${hc("recordedAt")} timestamptz not null default now()${
     partitioned
       ? `,
@@ -302,15 +371,22 @@ create table if not exists ${quotas} (
   ${qc("plan")} text,
   ${qc("meter")} text not null check (${qc("meter")} ~ ${METER}),
   ${qc("limit")} numeric check (${qc("limit")} >= 0),
-  ${qc("period")} text not null default 'month' check (${periodCheck}),
-  ${qc("createdAt")} timestamptz not null default now(),
+  ${qc("period")} text not null default 'month' check (${periodCheck}),${
+    ctx.has("quotas", "createdAt")
+      ? `\n  ${qc("createdAt")} timestamptz not null default now(),`
+      : ""
+  }
   check ((${qc("tenant")} is null) <> (${qc("plan")} is null)),
   unique nulls not distinct (${qc("tenant")}, ${qc("plan")}, ${qc("meter")})
-);
+);${
+    ctx.owns("quotas")
+      ? `
 alter table ${quotas} alter column ${qc("limit")} type numeric;
 alter table ${quotas} alter column ${qc("limit")} drop not null;
 alter table ${quotas} drop constraint if exists ${periodConstraint};
-alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});
+alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});`
+      : ""
+  }
 alter table ${quotas} enable row level security;
 ${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
@@ -340,7 +416,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select q.${qc("limit")}, q.${qc("period")}
+  select q.${qc("limit")}, ${quotaPeriod("q")}
   from ${quotas} q
   where q.${qc("meter")} = usage_quota.meter
     and (q.${qc("tenant")} = usage_quota.tenant or (q.${qc("tenant")} is null and (${planMatches})))
@@ -569,13 +645,20 @@ begin
   insert into ${counters} as c (${cc("tenant")}, ${cc("meter")}, ${cc("day")}, ${cc("value")})
   values (tenant, meter, today, quantity)
   on conflict (${cc("tenant")}, ${cc("meter")}, ${cc("day")}) do update
-    set ${cc("value")} = c.${cc("value")} + excluded.${cc("value")}, ${cc("updatedAt")} = now();${
+    set ${cc("value")} = c.${cc("value")} + excluded.${cc("value")}${counterTouch};${
       keepHistory
         ? `
-  insert into ${history} (${hc("tenant")}, ${hc("meter")}, ${hc("quantity")}, ${hc("actor")}, ${hc("source")}, ${hc("metadata")})
+  insert into ${history} (${historyColumns.map(hc).join(", ")})
   values (tenant, meter, quantity,
-    case when ${SERVICE_CALLER} then coalesce(record_usage.actor, auth.uid()) else auth.uid() end,
-    record_usage.source, coalesce(record_usage.metadata, '{}'));`
+    ${[
+      historyValues["actor"]!,
+      historyColumns
+        .slice(4)
+        .map((column) => historyValues[column]!)
+        .join(", "),
+    ]
+      .filter((line) => line !== "")
+      .join(",\n    ")});`
         : ""
     }
   return ${outcome("true")};
@@ -705,7 +788,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
+${
+  hasCounter("reported")
+    ? `  select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c.${cc("tenant")},
     'meter', c.${cc("meter")},
     'day', c.${cc("day")},
@@ -732,7 +817,9 @@ as $$
   left join lateral ${fn("usage_quota")}(c.${cc("tenant")}, c.${cc("meter")}) q on true
   cross join lateral (
     select ${fn("usage_window_start")}(c.${cc("tenant")}, q.period, c.${cc("day")}) as since
-  ) w
+  ) w`
+    : "  select '[]'::jsonb"
+}
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -742,126 +829,21 @@ language sql
 security definer
 set search_path = ''
 as $$
-  with updated as (
+${
+  hasCounter("reported")
+    ? `  with updated as (
     update ${counters} c set ${cc("reported")} = greatest(c.${cc("reported")}, mark_usage_reported.value)
     where c.${cc("tenant")} = mark_usage_reported.tenant
       and c.${cc("meter")} = mark_usage_reported.meter
       and c.${cc("day")} = mark_usage_reported.day
     returning 1
   )
-  select exists (select 1 from updated)
-$$;
-
--- A tenant's usage history, newest first, of one meter when given, before
--- before_id for the next page. [] without options.history. Needs usage.read.
-create or replace function ${fn("usage_history")}(tenant ${id}, meter text default null, max_rows integer default 100, before_id bigint default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if not ${canRead("tenant")} then
-    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
-  end if;
-  ${
-    keepHistory
-      ? `return (
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'id', h.${hc("id")}, 'meter', h.${hc("meter")}, 'quantity', h.${hc("quantity")},
-      'actor', h.${hc("actor")}, 'source', h.${hc("source")}, 'metadata', h.${hc("metadata")},
-      'recorded_at', h.${hc("recordedAt")}
-    ) order by h.${hc("id")} desc), '[]'::jsonb)
-    from (
-      select * from ${history} h
-      where h.${hc("tenant")} = usage_history.tenant
-        and (usage_history.meter is null or h.${hc("meter")} = usage_history.meter)
-        and (before_id is null or h.${hc("id")} < before_id)
-      order by h.${hc("id")} desc
-      limit ${pageSize("max_rows", 100, 1000)}
-    ) h
-  );`
-      : "return '[]'::jsonb;"
-  }
-end;
-$$;
-
--- Who and what used a meter in the current window of its quota period:
--- [{ actor, source, quantity }], largest first. [] without options.history.
-create or replace function ${fn("usage_breakdown")}(tenant ${id}, meter text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  quota record;
-  win record;
-begin
-  if not ${canRead("tenant")} then
-    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
-  end if;
-  select * into quota from ${fn("usage_quota")}(tenant, meter);
-  select * into win from ${fn("usage_window")}(tenant, coalesce(quota.period, 'month'));
-  ${
-    keepHistory
-      ? `return (
-    select coalesce(jsonb_agg(jsonb_build_object('actor', b.actor, 'source', b.source, 'quantity', b.quantity) order by b.quantity desc), '[]'::jsonb)
-    from (
-      select h.${hc("actor")} as actor, h.${hc("source")} as source, sum(h.${hc("quantity")}) as quantity
-      from ${history} h
-      where h.${hc("tenant")} = usage_breakdown.tenant and h.${hc("meter")} = usage_breakdown.meter
-        and h.${hc("recordedAt")} >= win.starts_at and h.${hc("recordedAt")} < win.ends_at
-      group by 1, 2
-    ) b
-  );`
-      : "return '[]'::jsonb;"
-  }
-end;
-$$;
-
--- Deletes up to batch history rows older than older_than; returns how many.
-create or replace function ${fn("purge_usage_history")}(older_than interval default '400 days', batch integer default 10000)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-${
-  keepHistory
-    ? `declare
-  purged integer;${
-    partitioned
-      ? `
-  v_dropped integer := 0;${PARTITION_VARIABLES}`
-      : ""
-  }
-begin${
-        partitioned
-          ? `
-  -- Whole months past every tenant's retention go at once.
-  ${dropExpiredPartitions({ table: history, cutoff: ctx.cutoff("usage", "older_than"), purged: "v_dropped" })}`
-          : ""
-      }
-  with gone as (
-    delete from ${history} where ${hc("id")} in (
-      select h.${hc("id")} from ${history} h
-      where ${ctx.expired("usage", { at: `h.${hc("recordedAt")}`, tenant: `h.${hc("tenant")}`, fallback: "older_than" })}
-      order by h.${hc("id")} limit batch
-    )
-    returning 1
-  )
-  select count(*)::integer into purged from gone;
-  return purged${partitioned ? " + v_dropped" : ""};
-end;`
-    : `begin
-  return 0;
-end;`
+  select exists (select 1 from updated)`
+    : "  select false"
 }
 $$;
 
+${usageHistorySql(ctx, { canRead, partitioned })}
 -- Deletes up to batch idempotency keys older than older_than; returns how
 -- many. A retry with a purged key counts again, so keep them longer than
 -- any client retries.

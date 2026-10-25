@@ -26,9 +26,22 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const audience = `case when v_conv.${cv("assignee")} is not null then to_jsonb(array[v_conv.${cv("assignee")}])
     else coalesce((select jsonb_agg(m.${mb("user")}) from ${T("members")} m where m.${mb("inbox")} = v_conv.${cv("inbox")}), '[]'::jsonb) end`;
 
-  const log = (type: string, actor: string, data: string): string =>
-    `insert into ${T("events")} (${ev("tenant")}, ${ev("conversation")}, ${ev("type")}, ${ev("actor")}, ${ev("data")})
-    values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, '${type}', ${actor}, ${data});`;
+  const log = (type: string, actor: string, data: string): string => {
+    const entries = [
+      ["tenant", `v_conv.${cv("tenant")}`],
+      ["conversation", `v_conv.${cv("id")}`],
+      ["type", `'${type}'`],
+      ["actor", actor],
+      ["data", data],
+    ].filter(([column = ""]) => q.has("events", column));
+
+    return `insert into ${T("events")} (${entries.map(([column = ""]) => ev(column)).join(", ")})
+    values (${entries.map(([, value]) => value).join(", ")});`;
+  };
+
+  const summary = ["subject", "preview"]
+    .filter((column) => q.has("conversations", column))
+    .map((column) => `v_conv.${cv(column)}`);
 
   const woken = ctx.record({
     type: "inbox_conversation.unsnoozed",
@@ -46,7 +59,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
       'tenant', v_conv.${cv("tenant")},
       'subject_type', 'conversation',
       'subject_id', v_conv.${cv("id")}::text,
-      'summary', coalesce(v_conv.${cv("subject")}, v_conv.${cv("preview")}),
+      'summary', ${summary.length > 0 ? `coalesce(${summary.join(", ")})` : "null"},
       'recipients', ${audience},
       'key', 'inbox.snooze_ended:' || v_conv.${cv("id")}::text || ':' || extract(epoch from v_until)::text,
       'data', jsonb_build_object('conversationId', v_conv.${cv("id")})
@@ -148,7 +161,7 @@ begin
   values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, (select auth.uid()), v_input, schedule_inbox_message.scheduled_for)
   returning * into v_row;
   ${publishJob("v_row")}
-  return to_jsonb(v_row);
+  return ${q.json("scheduled", "v_row")};
 end;
 $$;
 ${authed(`${fn("schedule_inbox_message")}(uuid, jsonb, timestamptz)`)}
@@ -161,7 +174,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(s) order by s.${sm("scheduledFor")}, s.${sm("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${q.json("scheduled", "s")} order by s.${sm("scheduledFor")}, s.${sm("id")}), '[]'::jsonb)
   from ${T("scheduled")} s
   where s.${sm("author")} = (select auth.uid())
     and (list_scheduled_inbox_messages.conversation is null or s.${sm("conversation")} = list_scheduled_inbox_messages.conversation);
@@ -184,7 +197,7 @@ begin
   where ${sm("id")} = v_row.${sm("id")}
   returning * into v_row;
   ${publishJob("v_row")}
-  return to_jsonb(v_row);
+  return ${q.json("scheduled", "v_row")};
 end;
 $$;
 ${authed(`${fn("reschedule_inbox_message")}(uuid, timestamptz)`)}

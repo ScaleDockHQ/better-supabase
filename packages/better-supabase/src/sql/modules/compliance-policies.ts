@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { optionalField } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The policy and acknowledgement functions of the `controls` module. */
@@ -22,6 +23,14 @@ export function policyFunctions(ctx: BlockSqlContext): string {
   const mu = members.col("memberships", "user");
   const versions = ctx.of("versions");
   const policyType = sqlString(ctx.resolved.entityNaming.rename("policy"));
+  const owner = ctx.has("policies", "owner");
+
+  const field = (row: string, column: string): string =>
+    optionalField(ctx, "policies", row, column);
+
+  const touch = ctx.has("policies", "updatedAt")
+    ? `, ${p("updatedAt")} = now()`
+    : "";
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -38,7 +47,7 @@ export function policyFunctions(ctx: BlockSqlContext): string {
     `(select count(*) from ${acks} ack join ${memberships} am on am.${mt} = ack.${a("tenant")} and am.${mu} = ack.${a("user")} where ack.${a("policy")} = ${row}.${p("id")} and ack.${a("version")} = ${row}.${p("currentVersion")})`;
 
   const policyJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'title', ${row}.${p("title")}, 'ownerId', ${row}.${p("owner")}, 'requiresAcknowledgement', ${row}.${p("requiresAck")}, 'versionId', ${row}.${p("currentVersion")}, 'versionNumber', ${row}.${p("versionNumber")}, 'publishedAt', ${row}.${p("publishedAt")}, 'archivedAt', ${row}.${p("archivedAt")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")}, 'acknowledgedAt', ${mine(row)}, 'acknowledgedCount', ${acknowledged(row)}, 'memberCount', (select count(*) from ${memberships} pm where pm.${mt} = ${row}.${p("tenant")}))`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'title', ${row}.${p("title")}, 'ownerId', ${field(row, "owner")}, 'requiresAcknowledgement', ${row}.${p("requiresAck")}, 'versionId', ${row}.${p("currentVersion")}, 'versionNumber', ${row}.${p("versionNumber")}, 'publishedAt', ${row}.${p("publishedAt")}, 'archivedAt', ${row}.${p("archivedAt")}, 'createdAt', ${field(row, "createdAt")}, 'updatedAt', ${field(row, "updatedAt")}, 'acknowledgedAt', ${mine(row)}, 'acknowledgedCount', ${acknowledged(row)}, 'memberCount', (select count(*) from ${memberships} pm where pm.${mt} = ${row}.${p("tenant")}))`;
 
   const policyRecord = (
     type: string,
@@ -74,21 +83,25 @@ begin
   if not ${allowed("save_policy.tenant", manage)} then
     ${forbidden("not allowed to manage policies")}
   end if;
-  if save_policy.owner_id is not null and not exists (
+${
+  owner
+    ? `  if save_policy.owner_id is not null and not exists (
     select 1 from ${memberships} m where m.${mt} = save_policy.tenant and m.${mu} = save_policy.owner_id
   ) then
     ${fail("POLICY_INVALID", "the owner must be a member of the organization", "22023")}
   end if;
-  if save_policy.policy_id is null then
-    insert into ${policies} (${p("tenant")}, ${p("key")}, ${p("title")}, ${p("owner")}, ${p("requiresAck")})
-    values (save_policy.tenant, save_policy.key, trim(save_policy.title), save_policy.owner_id, coalesce(save_policy.requires_acknowledgement, true))
+`
+    : ""
+}  if save_policy.policy_id is null then
+    insert into ${policies} (${p("tenant")}, ${p("key")}, ${p("title")}${owner ? `, ${p("owner")}` : ""}, ${p("requiresAck")})
+    values (save_policy.tenant, save_policy.key, trim(save_policy.title)${owner ? ", save_policy.owner_id" : ""}, coalesce(save_policy.requires_acknowledgement, true))
     on conflict (${p("tenant")}, ${p("key")}) do update
-      set ${p("title")} = excluded.${p("title")}, ${p("owner")} = excluded.${p("owner")},
-        ${p("requiresAck")} = excluded.${p("requiresAck")}, ${p("updatedAt")} = now()
+      set ${p("title")} = excluded.${p("title")}${owner ? `, ${p("owner")} = excluded.${p("owner")}` : ""},
+        ${p("requiresAck")} = excluded.${p("requiresAck")}${touch}
     returning * into v_row;
   else
-    update ${policies} x set ${p("key")} = save_policy.key, ${p("title")} = trim(save_policy.title), ${p("owner")} = save_policy.owner_id,
-      ${p("requiresAck")} = coalesce(save_policy.requires_acknowledgement, true), ${p("updatedAt")} = now()
+    update ${policies} x set ${p("key")} = save_policy.key, ${p("title")} = trim(save_policy.title)${owner ? `, ${p("owner")} = save_policy.owner_id` : ""},
+      ${p("requiresAck")} = coalesce(save_policy.requires_acknowledgement, true)${touch}
       where x.${p("id")} = save_policy.policy_id and x.${p("tenant")} = save_policy.tenant
       returning * into v_row;
     if not found then
@@ -130,7 +143,7 @@ begin
     null, coalesce(publish_policy.label, v_row.${p("title")}), 'manual', true, auth.uid()
   );
   update ${policies} x set ${p("currentVersion")} = (v_version ->> 'id')::uuid,
-    ${p("versionNumber")} = (v_version ->> 'number')::integer, ${p("publishedAt")} = now(), ${p("updatedAt")} = now()
+    ${p("versionNumber")} = (v_version ->> 'number')::integer, ${p("publishedAt")} = now()${touch}
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
   ${policyRecord(
@@ -159,7 +172,7 @@ begin
   if not ${allowed(`v_row.${p("tenant")}`, manage)} then
     ${forbidden("not allowed to manage policies")}
   end if;
-  update ${policies} x set ${p("archivedAt")} = coalesce(x.${p("archivedAt")}, now()), ${p("updatedAt")} = now()
+  update ${policies} x set ${p("archivedAt")} = coalesce(x.${p("archivedAt")}, now())${touch}
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
   return ${policyJson("v_row")};

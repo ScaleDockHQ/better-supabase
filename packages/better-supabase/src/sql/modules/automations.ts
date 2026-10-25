@@ -9,17 +9,17 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SUBJECT_TYPE_SQL_PATTERN } from "../../core/subject-type.ts";
 import { sqlString } from "../../core/template.ts";
-import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import {
-  fail,
-  lockTable,
-  raise,
-  SERVICE_CALLER,
-  schemaPreamble,
-} from "../shared.ts";
-import { defaultRulesSql } from "./automations-defaults-sql.ts";
+import { fail, raise, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
+import {
+  ACTION_KIND,
+  columnOf,
+  rulesTablesSql,
+  SUBJECT_TYPE,
+  TRIGGER,
+} from "./automations-tables.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const RULE_PAYLOAD = [
@@ -57,6 +57,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     rules: {
       name: "rules",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -77,9 +78,17 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         defaultKey: "default_key",
       },
+      optional: [
+        "description",
+        "stopProcessing",
+        "createdBy",
+        "updatedBy",
+        "defaultKey",
+      ],
     },
     defaults: {
       name: "rule_defaults",
+      app: { writes: false },
       columns: {
         key: "key",
         block: "block",
@@ -95,6 +104,7 @@ const NAMES: BlockSqlNames = {
     },
     versions: {
       name: "rule_versions",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         rule: "rule_id",
@@ -106,9 +116,11 @@ const NAMES: BlockSqlNames = {
         savedBy: "saved_by",
         savedAt: "saved_at",
       },
+      optional: ["savedBy"],
     },
     evaluations: {
       name: "rule_evaluations",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -124,9 +136,12 @@ const NAMES: BlockSqlNames = {
         evaluatedBy: "evaluated_by",
         evaluatedAt: "evaluated_at",
       },
+      optional: ["subjectId", "results", "evaluatedBy"],
+      typed: ["mode"],
     },
     fields: {
       name: "rule_fields",
+      app: {},
       columns: {
         subjectType: "subject_type",
         id: "field_id",
@@ -141,14 +156,18 @@ const NAMES: BlockSqlNames = {
         position: "position",
         updatedAt: "updated_at",
       },
+      optional: [
+        "description",
+        "nullable",
+        "options",
+        "operators",
+        "position",
+        "updatedAt",
+      ],
+      typed: ["type"],
     },
   },
 };
-
-const SUBJECT_TYPE = SUBJECT_TYPE_SQL_PATTERN;
-const TRIGGER = "^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$";
-const ACTION_KIND = "^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$";
-const FIELD_ID = "^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$";
 
 function limitOf(ctx: BlockSqlContext, name: string, fallback: number): number {
   const value = ctx.number(name, fallback);
@@ -173,12 +192,44 @@ function build(ctx: BlockSqlContext): string {
   const v = ctx.table("versions");
   const e = ctx.table("evaluations");
   const f = ctx.table("fields");
-  const r = (column: string): string => ctx.col("rules", column);
-  const rv = (column: string): string => ctx.col("versions", column);
-  const re = (column: string): string => ctx.col("evaluations", column);
-  const rf = (column: string): string => ctx.col("fields", column);
-  const d = ctx.table("defaults");
-  const rd = (column: string): string => ctx.col("defaults", column);
+  const r = columnOf(ctx, "rules");
+  const rv = columnOf(ctx, "versions");
+  const re = columnOf(ctx, "evaluations");
+  const rf = columnOf(ctx, "fields");
+
+  const columnOr = (
+    table: string,
+    row: string,
+    column: string,
+    missing: string,
+  ): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : missing;
+
+  // A third entry is what goes before the value instead of ", ".
+  const present = (
+    table: string,
+    pairs: readonly (readonly [string, string, string?])[],
+  ): readonly (readonly [string, string, string?])[] =>
+    pairs.filter(([column]) => ctx.has(table, column));
+
+  const values = (
+    pairs: readonly (readonly [string, string, string?])[],
+  ): string =>
+    pairs
+      .map(([, value, before], index) =>
+        index === 0 ? value : `${before ?? ", "}${value}`,
+      )
+      .join("");
+
+  const sets = (
+    table: string,
+    pairs: readonly (readonly [string, string])[],
+    separator: string,
+  ): string =>
+    present(table, pairs)
+      .map(([column, value]) => `${ctx.col(table, column)} = ${value}`)
+      .join(separator);
+
   const keys = moduleOperations("automations");
   const read = ctx.permission("read", keys.read);
   const edit = ctx.permission("edit", keys.edit);
@@ -199,13 +250,69 @@ function build(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or (case when ${enabled} then ${ctx.scope.can(tenant, publish)} else ${ctx.scope.can(tenant, edit)} end))`;
 
   const ruleJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'trigger', ${row}.${r("trigger")}, 'name', ${row}.${r("name")}, 'description', ${row}.${r("description")}, 'conditions', ${row}.${r("conditions")}, 'actions', ${row}.${r("actions")}, 'enabled', ${row}.${r("enabled")}, 'stopProcessing', ${row}.${r("stopProcessing")}, 'rank', ${row}.${r("rank")}, 'version', ${row}.${r("version")}, 'createdBy', ${row}.${r("createdBy")}, 'updatedBy', ${row}.${r("updatedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}, 'defaultKey', ${row}.${r("defaultKey")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'trigger', ${row}.${r("trigger")}, 'name', ${row}.${r("name")}, 'description', ${columnOr("rules", row, "description", "null")}, 'conditions', ${row}.${r("conditions")}, 'actions', ${row}.${r("actions")}, 'enabled', ${row}.${r("enabled")}, 'stopProcessing', ${columnOr("rules", row, "stopProcessing", "false")}, 'rank', ${row}.${r("rank")}, 'version', ${row}.${r("version")}, 'createdBy', ${columnOr("rules", row, "createdBy", "null")}, 'updatedBy', ${columnOr("rules", row, "updatedBy", "null")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}, 'defaultKey', ${columnOr("rules", row, "defaultKey", "null")})`;
 
   const fieldJson = (row: string): string =>
-    `jsonb_build_object('subjectType', ${row}.${rf("subjectType")}, 'id', ${row}.${rf("id")}, 'label', ${row}.${rf("label")}, 'description', ${row}.${rf("description")}, 'type', ${row}.${rf("type")}, 'column', ${row}.${rf("path")}, 'columnType', ${row}.${rf("columnType")}, 'nullable', ${row}.${rf("nullable")}, 'options', ${row}.${rf("options")}, 'operators', ${row}.${rf("operators")})`;
+    `jsonb_build_object('subjectType', ${row}.${rf("subjectType")}, 'id', ${row}.${rf("id")}, 'label', ${row}.${rf("label")}, 'description', ${columnOr("fields", row, "description", "null")}, 'type', ${row}.${rf("type")}, 'column', ${row}.${rf("path")}, 'columnType', ${row}.${rf("columnType")}, 'nullable', ${columnOr("fields", row, "nullable", "true")}, 'options', ${columnOr("fields", row, "options", "null")}, 'operators', ${columnOr("fields", row, "operators", "null")})`;
 
   const evaluationJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${re("id")}::text, 'organizationId', ${row}.${re("tenant")}, 'ruleId', ${row}.${re("rule")}, 'version', ${row}.${re("version")}, 'subjectType', ${row}.${re("subjectType")}, 'subjectId', ${row}.${re("subjectId")}, 'trigger', ${row}.${re("trigger")}, 'matched', ${row}.${re("matched")}, 'results', ${row}.${re("results")}, 'mode', ${row}.${re("mode")}, 'evaluatedBy', ${row}.${re("evaluatedBy")}, 'evaluatedAt', ${row}.${re("evaluatedAt")})`;
+    `jsonb_build_object('id', ${row}.${re("id")}::text, 'organizationId', ${row}.${re("tenant")}, 'ruleId', ${row}.${re("rule")}, 'version', ${row}.${re("version")}, 'subjectType', ${row}.${re("subjectType")}, 'subjectId', ${columnOr("evaluations", row, "subjectId", "null")}, 'trigger', ${row}.${re("trigger")}, 'matched', ${row}.${re("matched")}, 'results', ${columnOr("evaluations", row, "results", "'{}'::jsonb")}, 'mode', ${row}.${re("mode")}, 'evaluatedBy', ${columnOr("evaluations", row, "evaluatedBy", "null")}, 'evaluatedAt', ${row}.${re("evaluatedAt")})`;
+
+  const fieldInsert = present("fields", [
+    ["subjectType", "sync_rule_fields.subject_type"],
+    ["id", "x.value ->> 'id'"],
+    ["label", "coalesce(x.value ->> 'label', x.value ->> 'id')"],
+    ["description", "x.value ->> 'description'"],
+    ["type", ctx.cast("fields", "type", "x.value ->> 'type'"), ",\n    "],
+    ["path", "coalesce(x.value ->> 'column', x.value ->> 'id')"],
+    ["columnType", "coalesce(x.value ->> 'columnType', 'text')"],
+    [
+      "nullable",
+      "coalesce((x.value ->> 'nullable')::boolean, true)",
+      ",\n    ",
+    ],
+    ["options", "x.value -> 'options'"],
+    ["operators", "x.value -> 'operators'"],
+    ["position", "x.n::integer"],
+  ]);
+
+  const ruleInsert = present("rules", [
+    ["tenant", "save_rule.tenant"],
+    ["subjectType", "v_subject_type"],
+    ["trigger", "v_trigger"],
+    ["name", "v_name"],
+    ["description", "v_description"],
+    ["conditions", "v_conditions"],
+    ["actions", "v_actions"],
+    ["enabled", "v_enabled"],
+    ["stopProcessing", "v_stop"],
+  ]);
+
+  const saveVersion = saveVersionSql(ctx);
+
+  const stopWhenMatched = ctx.has("rules", "stopProcessing")
+    ? `\n      exit when v_rule.${r("stopProcessing")};`
+    : "";
+
+  const evaluationInsert = present("evaluations", [
+    ["tenant", `v_rule.${r("tenant")}`],
+    ["rule", `v_rule.${r("id")}`],
+    ["version", `v_rule.${r("version")}`],
+    ["subjectType", `v_rule.${r("subjectType")}`],
+    ["subjectId", "record_rule_evaluation.subject_id"],
+    ["trigger", `v_rule.${r("trigger")}`],
+    ["matched", "coalesce(record_rule_evaluation.matched, false)", ",\n    "],
+    ["results", "coalesce(record_rule_evaluation.results, '{}'::jsonb)"],
+    [
+      "mode",
+      ctx.cast(
+        "evaluations",
+        "mode",
+        "coalesce(record_rule_evaluation.mode, 'live')",
+      ),
+    ],
+    ["evaluatedBy", "auth.uid()"],
+  ]);
 
   const ruleEvent = (type: string, row: string, actor = "auth.uid()"): string =>
     ctx.record({
@@ -302,104 +409,7 @@ grant execute on function ${signature} to service_role;`,
   ].join("\n");
 
   return `${schemaPreamble(ctx)}
--- Tenant rules: a FilterQuery over a subject type's fields, tested when the
--- trigger event happens, and the actions the app runs when it matches.
-create table if not exists ${t} (
-  ${r("id")} uuid primary key default gen_random_uuid(),
-  ${r("tenant")} ${id} not null,
-  ${r("subjectType")} text not null check (${r("subjectType")} ~ ${sqlString(SUBJECT_TYPE)}),
-  ${r("trigger")} text not null check (length(${r("trigger")}) <= 128 and ${r("trigger")} ~ ${sqlString(TRIGGER)}),
-  ${r("name")} text not null check (length(${r("name")}) between 1 and 200),
-  ${r("description")} text check (length(${r("description")}) <= 2000),
-  ${r("conditions")} jsonb not null,
-  ${r("actions")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${r("actions")}) = 'array'),
-  ${r("enabled")} boolean not null default false,
-  ${r("stopProcessing")} boolean not null default false,
-  ${r("rank")} text collate "C" not null default 'V',
-  ${r("version")} integer not null default 1,
-  ${r("createdBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${r("updatedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now()
-);
-create index if not exists ${ctx.naming.rename("rules_trigger_idx")} on ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("rank")});
-create index if not exists ${ctx.naming.rename("rules_created_by_idx")} on ${t} (${r("createdBy")}) where ${r("createdBy")} is not null;
-create index if not exists ${ctx.naming.rename("rules_updated_by_idx")} on ${t} (${r("updatedBy")}) where ${r("updatedBy")} is not null;
-alter table ${t} add column if not exists ${r("defaultKey")} text;
-create unique index if not exists ${ctx.naming.rename("rules_default_key_idx")} on ${t} (${r("tenant")}, ${r("defaultKey")}) where ${r("defaultKey")} is not null;
-${lockTable(t)}
-
--- The automations blocks ship (defineBlock automations). Each organization
--- gets its own copy in rules the first time its rules run or are listed, and
--- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists ${d} (
-  ${rd("key")} text primary key check (length(${rd("key")}) <= 128 and ${rd("key")} ~ ${sqlString(ACTION_KIND)}),
-  ${rd("block")} text not null,
-  ${rd("subjectType")} text not null check (${rd("subjectType")} ~ ${sqlString(SUBJECT_TYPE)}),
-  ${rd("trigger")} text not null check (length(${rd("trigger")}) <= 128 and ${rd("trigger")} ~ ${sqlString(TRIGGER)}),
-  ${rd("name")} text not null check (length(${rd("name")}) between 1 and 200),
-  ${rd("description")} text check (length(${rd("description")}) <= 2000),
-  ${rd("conditions")} jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  ${rd("actions")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${rd("actions")}) = 'array'),
-  ${rd("enabled")} boolean not null default true,
-  ${rd("updatedAt")} timestamptz not null default now()
-);
-${lockTable(d)}
-
--- Every saved version of a rule's conditions and actions.
-create table if not exists ${v} (
-  ${rv("rule")} uuid not null references ${t} (${r("id")}) on delete cascade,
-  ${rv("version")} integer not null,
-  ${rv("tenant")} ${id} not null,
-  ${rv("name")} text not null,
-  ${rv("conditions")} jsonb not null,
-  ${rv("actions")} jsonb not null,
-  ${rv("savedBy")} uuid,
-  ${rv("savedAt")} timestamptz not null default now(),
-  primary key (${rv("rule")}, ${rv("version")})
-);
-create index if not exists ${ctx.naming.rename("rule_versions_tenant_idx")} on ${v} (${rv("tenant")});
-${lockTable(v)}
-
--- Live and test evaluations: which rule version saw which subject, and the
--- truth of every condition and group.
-create table if not exists ${e} (
-  ${re("id")} bigint generated always as identity primary key,
-  ${re("tenant")} ${id} not null,
-  ${re("rule")} uuid not null references ${t} (${r("id")}) on delete cascade,
-  ${re("version")} integer not null,
-  ${re("subjectType")} text not null,
-  ${re("subjectId")} text,
-  ${re("trigger")} text not null,
-  ${re("matched")} boolean not null,
-  ${re("results")} jsonb not null default '{}'::jsonb,
-  ${re("mode")} text not null default 'live' check (${re("mode")} in ('live', 'test')),
-  ${re("evaluatedBy")} uuid,
-  ${re("evaluatedAt")} timestamptz not null default now()
-);
-create index if not exists ${ctx.naming.rename("rule_evaluations_rule_idx")} on ${e} (${re("rule")}, ${re("evaluatedAt")} desc);
-create index if not exists ${ctx.naming.rename("rule_evaluations_tenant_idx")} on ${e} (${re("tenant")}, ${re("evaluatedAt")} desc);
-${lockTable(e)}
-
--- The fields rules may test, per subject type. The app declares them in code
--- (defineRuleFields) and syncs them with the service role.
-create table if not exists ${f} (
-  ${rf("subjectType")} text not null check (${rf("subjectType")} ~ ${sqlString(SUBJECT_TYPE)}),
-  ${rf("id")} text not null check (length(${rf("id")}) <= 128 and ${rf("id")} ~ ${sqlString(FIELD_ID)}),
-  ${rf("label")} text not null,
-  ${rf("description")} text,
-  ${rf("type")} text not null check (${rf("type")} in (${Object.keys(FILTER_OPERATORS).map(sqlString).join(", ")})),
-  ${rf("path")} text not null check (${rf("path")} ~ ${sqlString(FIELD_ID)}),
-  ${rf("columnType")} text not null,
-  ${rf("nullable")} boolean not null default true,
-  ${rf("options")} jsonb,
-  ${rf("operators")} jsonb,
-  ${rf("position")} integer not null default 0,
-  ${rf("updatedAt")} timestamptz not null default now(),
-  primary key (${rf("subjectType")}, ${rf("id")}),
-  check (${rf("type")} <> 'date' or ${rf("columnType")} in ('date', 'timestamp', 'timestamptz'))
-);
-${lockTable(f)}
+${rulesTablesSql(ctx)}
 
 ${rulesEvaluator(ctx)}
 
@@ -489,22 +499,23 @@ begin
   if jsonb_typeof(fields) is distinct from 'array' then
     ${fail("RULE_FIELDS_INVALID", "fields must be an array", "22023")}
   end if;
-  insert into ${f} (${rf("subjectType")}, ${rf("id")}, ${rf("label")}, ${rf("description")}, ${rf("type")}, ${rf("path")}, ${rf("columnType")}, ${rf("nullable")}, ${rf("options")}, ${rf("operators")}, ${rf("position")})
-  select sync_rule_fields.subject_type, x.value ->> 'id', coalesce(x.value ->> 'label', x.value ->> 'id'), x.value ->> 'description',
-    x.value ->> 'type', coalesce(x.value ->> 'column', x.value ->> 'id'), coalesce(x.value ->> 'columnType', 'text'),
-    coalesce((x.value ->> 'nullable')::boolean, true), x.value -> 'options', x.value -> 'operators', x.n::integer
+  insert into ${f} (${fieldInsert.map(([column]) => rf(column)).join(", ")})
+  select ${values(fieldInsert)}
   from jsonb_array_elements(fields) with ordinality x(value, n)
   on conflict (${rf("subjectType")}, ${rf("id")}) do update set
-    ${rf("label")} = excluded.${rf("label")},
-    ${rf("description")} = excluded.${rf("description")},
-    ${rf("type")} = excluded.${rf("type")},
-    ${rf("path")} = excluded.${rf("path")},
-    ${rf("columnType")} = excluded.${rf("columnType")},
-    ${rf("nullable")} = excluded.${rf("nullable")},
-    ${rf("options")} = excluded.${rf("options")},
-    ${rf("operators")} = excluded.${rf("operators")},
-    ${rf("position")} = excluded.${rf("position")},
-    ${rf("updatedAt")} = now();
+    ${sets(
+      "fields",
+      [
+        ...fieldInsert
+          .filter(([column]) => column !== "subjectType" && column !== "id")
+          .map(([column]): readonly [string, string] => [
+            column,
+            `excluded.${rf(column)}`,
+          ]),
+        ["updatedAt", "now()"],
+      ],
+      ",\n    ",
+    )};
   delete from ${f} x
   where x.${rf("subjectType")} = sync_rule_fields.subject_type
     and not exists (select 1 from jsonb_array_elements(fields) y where y.value ->> 'id' = x.${rf("id")});
@@ -523,7 +534,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${fieldJson("x")} order by x.${rf("subjectType")}, x.${rf("position")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${fieldJson("x")} order by x.${rf("subjectType")}, x.${ctx.has("fields", "position") ? rf("position") : rf("id")}), '[]'::jsonb)
   from ${f} x
   where rule_fields_list.subject_type is null or x.${rf("subjectType")} = rule_fields_list.subject_type
 $$;
@@ -538,7 +549,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(x.${rf("id")}, jsonb_build_object(
     'type', x.${rf("type")}, 'column', x.${rf("path")}, 'columnType', x.${rf("columnType")},
-    'nullable', x.${rf("nullable")}, 'operators', x.${rf("operators")}
+    'nullable', ${columnOr("fields", "x", "nullable", "true")}, 'operators', ${columnOr("fields", "x", "operators", "null")}
   )), '{}'::jsonb)
   from ${f} x where x.${rf("subjectType")} = rule_field_map.subject_type
 $$;
@@ -589,11 +600,11 @@ begin
   v_subject_type := coalesce(v_old.${r("subjectType")}, rule ->> 'subjectType');
   v_trigger := coalesce(rule ->> 'trigger', v_old.${r("trigger")});
   v_name := coalesce(nullif(trim(rule ->> 'name'), ''), v_old.${r("name")});
-  v_description := case when rule ? 'description' then nullif(trim(rule ->> 'description'), '') else v_old.${r("description")} end;
+  v_description := case when rule ? 'description' then nullif(trim(rule ->> 'description'), '') else ${columnOr("rules", "v_old", "description", "null")} end;
   v_conditions := coalesce(rule -> 'conditions', v_old.${r("conditions")}, '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb);
   v_actions := coalesce(rule -> 'actions', v_old.${r("actions")}, '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old.${r("enabled")}, false);
-  v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old.${r("stopProcessing")}, false);
+  v_stop := coalesce((rule ->> 'stopProcessing')::boolean, ${columnOr("rules", "v_old", "stopProcessing", "null")}, false);
   if not ${canKey("save_rule.tenant", `(v_enabled or coalesce(v_old.${r("enabled")}, false))`)} then
     ${raise("You need % to save this rule", "42501", "RULE_FORBIDDEN", keyFor(`(v_enabled or coalesce(v_old.${r("enabled")}, false))`))}
   end if;
@@ -607,7 +618,7 @@ begin
     ${fail("RULE_INVALID", "A rule needs a name of at most 200 characters", "22023")}
   end if;
   v_fields := ${fn("rule_field_map")}(v_subject_type);
-  if v_fields = '{}'::jsonb and v_old.${r("defaultKey")} is null then
+  if v_fields = '{}'::jsonb${ctx.has("rules", "defaultKey") ? ` and v_old.${r("defaultKey")} is null` : ""} then
     ${raise("No rule fields for %; sync them first", "22023", "RULE_SUBJECT_UNKNOWN", "v_subject_type")}
   end if;
   perform ${fn("rule_check")}(v_conditions, v_fields, 1);
@@ -622,33 +633,37 @@ begin
     end if;
   end loop;
   if v_old.${r("id")} is null then
-    insert into ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("name")}, ${r("description")}, ${r("conditions")}, ${r("actions")}, ${r("enabled")}, ${r("stopProcessing")}, ${r("rank")})
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    insert into ${t} (${[...ruleInsert.map(([column]) => r(column)), r("rank")].join(", ")})
+    values (${values(ruleInsert)},
       ${rankAfter(`(select max(x.${r("rank")} collate "C") from ${t} x where x.${r("tenant")} = save_rule.tenant and x.${r("subjectType")} = v_subject_type)`)})
     returning * into v_row;
   elsif v_old.${r("trigger")} = v_trigger and v_old.${r("name")} = v_name
-    and v_old.${r("description")} is not distinct from v_description
+    and ${columnOr("rules", "v_old", "description", "null::text")} is not distinct from v_description
     and v_old.${r("conditions")} = v_conditions and v_old.${r("actions")} = v_actions
-    and v_old.${r("enabled")} = v_enabled and v_old.${r("stopProcessing")} = v_stop then
+    and v_old.${r("enabled")} = v_enabled and ${columnOr("rules", "v_old", "stopProcessing", "false")} = v_stop then
     return ${ruleJson("v_old")};
   else
     update ${t} x set
-      ${r("trigger")} = v_trigger,
-      ${r("name")} = v_name,
-      ${r("description")} = v_description,
-      ${r("conditions")} = v_conditions,
-      ${r("actions")} = v_actions,
-      ${r("enabled")} = v_enabled,
-      ${r("stopProcessing")} = v_stop,
-      ${r("version")} = x.${r("version")} + 1,
-      ${r("updatedBy")} = auth.uid(),
-      ${r("updatedAt")} = now()
+      ${sets(
+        "rules",
+        [
+          ["trigger", "v_trigger"],
+          ["name", "v_name"],
+          ["description", "v_description"],
+          ["conditions", "v_conditions"],
+          ["actions", "v_actions"],
+          ["enabled", "v_enabled"],
+          ["stopProcessing", "v_stop"],
+          ["version", `x.${r("version")} + 1`],
+          ["updatedBy", "auth.uid()"],
+          ["updatedAt", "now()"],
+        ],
+        ",\n      ",
+      )}
     where x.${r("id")} = v_old.${r("id")}
     returning * into v_row;
   end if;
-  insert into ${v} (${rv("rule")}, ${rv("version")}, ${rv("tenant")}, ${rv("name")}, ${rv("conditions")}, ${rv("actions")}, ${rv("savedBy")})
-  values (v_row.${r("id")}, v_row.${r("version")}, v_row.${r("tenant")}, v_row.${r("name")}, v_row.${r("conditions")}, v_row.${r("actions")}, auth.uid())
-  on conflict do nothing;
+  ${saveVersion}
   ${ruleEvent("rule.saved", "v_row")}
   if v_row.${r("enabled")} and not coalesce(v_old.${r("enabled")}, false) then
     ${ruleEvent("rule.enabled", "v_row")}
@@ -721,7 +736,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object(
       'ruleId', x.${rv("rule")}, 'version', x.${rv("version")}, 'name', x.${rv("name")},
       'conditions', x.${rv("conditions")}, 'actions', x.${rv("actions")},
-      'savedBy', x.${rv("savedBy")}, 'savedAt', x.${rv("savedAt")}
+      'savedBy', ${columnOr("versions", "x", "savedBy", "null")}, 'savedAt', x.${rv("savedAt")}
     ) order by x.${rv("version")} desc), '[]'::jsonb)
     from ${v} x where x.${rv("rule")} = rule_versions_list.id
   );
@@ -748,7 +763,15 @@ begin
   if v_row.${r("enabled")} = coalesce(set_rule_enabled.enabled, false) then
     return ${ruleJson("v_row")};
   end if;
-  update ${t} x set ${r("enabled")} = coalesce(set_rule_enabled.enabled, false), ${r("updatedBy")} = auth.uid(), ${r("updatedAt")} = now()
+  update ${t} x set ${sets(
+    "rules",
+    [
+      ["enabled", "coalesce(set_rule_enabled.enabled, false)"],
+      ["updatedBy", "auth.uid()"],
+      ["updatedAt", "now()"],
+    ],
+    ", ",
+  )}
   where x.${r("id")} = v_row.${r("id")} returning * into v_row;
   if v_row.${r("enabled")} then
     ${ruleEvent("rule.enabled", "v_row")}
@@ -800,10 +823,14 @@ begin
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, admin)} then
     return false;
   end if;
-  if v_row.${r("defaultKey")} is not null then
+${
+  ctx.has("rules", "defaultKey")
+    ? `  if v_row.${r("defaultKey")} is not null then
     ${fail("RULE_DEFAULT", "A block ships this automation; turn it off instead of removing it", "22023")}
   end if;
-  delete from ${t} x where x.${r("id")} = v_row.${r("id")};
+`
+    : ""
+}  delete from ${t} x where x.${r("id")} = v_row.${r("id")};
   ${ruleEvent("rule.removed", "v_row")}
   return true;
 end;
@@ -836,8 +863,7 @@ begin
   loop
     v_result := ${fn("rule_evaluate")}(v_rule.${r("conditions")}, matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', ${ruleJson("v_rule")}, 'results', v_result -> 'results'));
-      exit when v_rule.${r("stopProcessing")};
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', ${ruleJson("v_rule")}, 'results', v_result -> 'results'));${stopWhenMatched}
     end if;
   end loop;
   return v_matches;
@@ -869,9 +895,8 @@ begin
   if not ${can(`v_rule.${r("tenant")}`, edit)} then
     ${fail("RULE_FORBIDDEN", "Testing rules needs the edit permission")}
   end if;
-  insert into ${e} (${re("tenant")}, ${re("rule")}, ${re("version")}, ${re("subjectType")}, ${re("subjectId")}, ${re("trigger")}, ${re("matched")}, ${re("results")}, ${re("mode")}, ${re("evaluatedBy")})
-  values (v_rule.${r("tenant")}, v_rule.${r("id")}, v_rule.${r("version")}, v_rule.${r("subjectType")}, record_rule_evaluation.subject_id, v_rule.${r("trigger")},
-    coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
+  insert into ${e} (${evaluationInsert.map(([column]) => re(column)).join(", ")})
+  values (${values(evaluationInsert)})
   returning * into v_row;
   if v_row.${re("mode")} = 'live' and v_row.${re("matched")} then
     ${matchedEvent}
@@ -914,8 +939,7 @@ begin
     v_result := ${fn("rule_evaluate")}(v_rule.${r("conditions")}, run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform ${fn("record_rule_evaluation")}(v_rule.${r("id")}, run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', ${ruleJson("v_rule")}, 'results', v_result -> 'results'));
-      exit when v_rule.${r("stopProcessing")};
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', ${ruleJson("v_rule")}, 'results', v_result -> 'results'));${stopWhenMatched}
     end if;
   end loop;
   return v_matches;

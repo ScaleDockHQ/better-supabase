@@ -36,6 +36,8 @@ export function builderStartsSql(ctx: BlockSqlContext, s: BuilderSql): string {
     callable,
     definitionJson,
     versionJson,
+    draftColumn,
+    draftValue,
     scoped,
     forked,
     subjectTyped,
@@ -81,8 +83,8 @@ export function builderStartsSql(ctx: BlockSqlContext, s: BuilderSql): string {
   insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}${subjectTyped ? `, ${cd("subjectTypes")}` : ""}, ${cd("forkedFrom")}, ${cd("forkedFromVersion")}, ${cd("createdBy")})
   values (tenant, slug, v_src.${cd("name")}, v_src.${cd("description")}${subjectTyped ? `, v_src.${cd("subjectTypes")}` : ""}, v_src.${cd("id")}, v_version.${cv("version")}, (select auth.uid()))
   returning * into v_row;
-  insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")})
-  values (v_row.${cd("id")}, 1, v_version.${cv("graph")}, v_version.${cv("inputSchema")}, (select auth.uid()));
+  insert into ${v} (${cv("definition")}, ${cv("version")}, ${cv("graph")}, ${cv("inputSchema")}, ${cv("createdBy")}${draftColumn})
+  values (v_row.${cd("id")}, 1, v_version.${cv("graph")}, v_version.${cv("inputSchema")}, (select auth.uid())${draftValue});
   return ${definitionJson("v_row")} || jsonb_build_object('draft', true, 'upstreamVersion', v_version.${cv("version")}, 'behind', false);`;
 
   return `-- What a run of definition starts from: the tenant it runs in and the

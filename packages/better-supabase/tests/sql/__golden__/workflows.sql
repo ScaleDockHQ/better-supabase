@@ -3928,7 +3928,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:a553ab25118a427a2b5f7ecefa91bec44424188f598da0b24a4695ef90f19ef7
+-- @bsb-hash sha256:581d202fbb6d6d98c7357ff9b74f1b22b990e5f17e8b9350ab47e6caaaff475f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4049,82 +4049,63 @@ create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs" for 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "better_supabase"."workflow_schedules" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
-  "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC',
-  "next_run_at" timestamptz not null,
-  "last_run_at" timestamptz,
-  "locked_until" timestamptz,
-  "paused" boolean not null default false,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  constraint workflow_schedules_tenant_name_key unique nulls not distinct ("tenant_id", "name")
-);
+-- better_supabase.workflow_schedules is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_schedules" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_schedules" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."workflow_schedules" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "workflow" text check (length("workflow") between 1 and 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "input" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."workflow_schedules" add column if not exists "cron" text check (length("cron") between 1 and 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "timezone" text not null default 'UTC';
+alter table "better_supabase"."workflow_schedules" add column if not exists "next_run_at" timestamptz;
+alter table "better_supabase"."workflow_schedules" add column if not exists "last_run_at" timestamptz;
+alter table "better_supabase"."workflow_schedules" add column if not exists "locked_until" timestamptz;
+alter table "better_supabase"."workflow_schedules" add column if not exists "paused" boolean not null default false;
+alter table "better_supabase"."workflow_schedules" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_schedules" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "workflow_schedules_tenant_id_name_key" on "better_supabase"."workflow_schedules" ("tenant_id", "name") nulls not distinct;
 create index if not exists workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
 create index if not exists workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
 alter table "better_supabase"."workflow_schedules" enable row level security;
-revoke all on "better_supabase"."workflow_schedules" from anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules" for select to authenticated
+drop policy if exists bsb_workflow_schedules_select on "better_supabase"."workflow_schedules";
+create policy bsb_workflow_schedules_select on "better_supabase"."workflow_schedules" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
-  "acquired_at" timestamptz not null default now(),
-  "expires_at" timestamptz not null,
-  primary key ("key", "holder")
-);
+-- better_supabase.workflow_semaphores is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_semaphores" add column if not exists "key" text check (length("key") between 1 and 200);
+alter table "better_supabase"."workflow_semaphores" add column if not exists "holder" text check (length("holder") between 1 and 200);
+alter table "better_supabase"."workflow_semaphores" add column if not exists "acquired_at" timestamptz not null default now();
+alter table "better_supabase"."workflow_semaphores" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."workflow_semaphores" enable row level security;
-revoke all on "better_supabase"."workflow_semaphores" from anon, authenticated;
 grant all on "better_supabase"."workflow_semaphores" to service_role;
 
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "better_supabase"."workflow_start_requests" (
-  "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
-  "input" jsonb not null default '[]'::jsonb,
-  "tenant_id" uuid,
-  "actor_id" uuid references auth.users (id) on delete set null,
-  "concurrency" integer check ("concurrency" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'started', 'superseded', 'dropped')),
-  "not_before" timestamptz not null default now(),
-  "claimed_until" timestamptz,
-  "run_id" text,
-  "created_at" timestamptz not null default now(),
-  "started_at" timestamptz
-);
+-- better_supabase.workflow_start_requests is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_start_requests" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_start_requests" add column if not exists "key" text check (length("key") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "workflow" text check (length("workflow") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "input" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."workflow_start_requests" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."workflow_start_requests" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_start_requests" add column if not exists "concurrency" integer check ("concurrency" > 0);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'started', 'superseded', 'dropped'));
+alter table "better_supabase"."workflow_start_requests" add column if not exists "not_before" timestamptz not null default now();
+alter table "better_supabase"."workflow_start_requests" add column if not exists "claimed_until" timestamptz;
+alter table "better_supabase"."workflow_start_requests" add column if not exists "run_id" text;
+alter table "better_supabase"."workflow_start_requests" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."workflow_start_requests" add column if not exists "started_at" timestamptz;
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
 alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
 alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
 alter table "better_supabase"."workflow_start_requests" enable row level security;
-revoke all on "better_supabase"."workflow_start_requests" from anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
@@ -4435,19 +4416,19 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."workflow_schedules"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_workflow_schedule.tenant is not null and coalesce(better_supabase.can('tenant', create_workflow_schedule.tenant, 'workflow.admin'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
-  values (tenant, name, workflow, coalesce(payload -> 'input', '[]'::jsonb), cron, coalesce(timezone, 'UTC'), next_run, (select auth.uid()))
-  on conflict on constraint workflow_schedules_tenant_name_key do update set
+  values (create_workflow_schedule.tenant, create_workflow_schedule.name, create_workflow_schedule.workflow, coalesce(create_workflow_schedule.payload -> 'input', '[]'::jsonb), create_workflow_schedule.cron, coalesce(create_workflow_schedule.timezone, 'UTC'), create_workflow_schedule.next_run, (select auth.uid()))
+  on conflict ("tenant_id", "name") do update set
     "workflow" = excluded."workflow",
     "input" = excluded."input",
     "cron" = excluded."cron",
@@ -4698,7 +4679,7 @@ begin
     return jsonb_build_object('id', null, 'status', 'dropped');
   end if;
   if debounce is not null then
-    update "better_supabase"."workflow_start_requests" x set "status" = 'superseded'
+    update "better_supabase"."workflow_start_requests" x set "status" = better_supabase.as_column_type('superseded', (null::"better_supabase"."workflow_start_requests")."status")
     where x."key" = key and x."status" = 'pending'
       and (x."claimed_until" is null or x."claimed_until" < now());
   end if;
@@ -4765,7 +4746,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  update "better_supabase"."workflow_start_requests" x set "status" = 'started', "run_id" = run, "started_at" = now(), "claimed_until" = null
+  update "better_supabase"."workflow_start_requests" x set "status" = better_supabase.as_column_type('started', (null::"better_supabase"."workflow_start_requests")."status"), "run_id" = run, "started_at" = now(), "claimed_until" = null
   where x."id" = request and x."status" = 'pending';
   return found;
 end;

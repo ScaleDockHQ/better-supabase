@@ -118,6 +118,8 @@ const NAMES: BlockSqlNames = {
     },
     workflows: {
       name: "template_workflows",
+      app: {},
+      optional: ["enabled", "createdBy", "createdAt"],
       columns: {
         id: "id",
         template: "template_id",

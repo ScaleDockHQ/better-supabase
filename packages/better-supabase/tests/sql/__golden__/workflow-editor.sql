@@ -8373,7 +8373,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:6a729e5b35a423795fc50d211da5900b956783b8eeb631dae7cba7f992beafb7
+-- @bsb-hash sha256:d752c7106f56a18b38a94759556befc37e1218db3266f86103c3b6d2c783b0bc
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8521,18 +8521,16 @@ drop policy if exists bsb_workflow_definition_grants_select on "better_supabase"
 create policy bsb_workflow_definition_grants_select on "better_supabase"."workflow_definition_grants" for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_versions" (
-  "id" uuid primary key default gen_random_uuid(),
-  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "version" integer not null check ("version" > 0),
-  "graph" jsonb not null default '{"nodes": [], "edges": []}'::jsonb,
-  "compiled" jsonb,
-  "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  "published_at" timestamptz,
-  constraint workflow_versions_definition_version_key unique ("definition_id", "version")
-);
+-- better_supabase.workflow_versions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_versions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_versions" add column if not exists "definition_id" uuid references "better_supabase"."workflow_definitions" ("id") on delete cascade;
+alter table "better_supabase"."workflow_versions" add column if not exists "version" integer check ("version" > 0);
+alter table "better_supabase"."workflow_versions" add column if not exists "graph" jsonb not null default '{"nodes": [], "edges": []}'::jsonb;
+alter table "better_supabase"."workflow_versions" add column if not exists "compiled" jsonb;
+alter table "better_supabase"."workflow_versions" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived'));
+alter table "better_supabase"."workflow_versions" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_versions" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."workflow_versions" add column if not exists "published_at" timestamptz;
 -- Who published a version and with which rights: its steps run as that
 -- user, narrowed to permissions, or as the app's service principal when an
 -- organization owns it (published by the service role). A deleted user
@@ -8549,87 +8547,77 @@ create unique index if not exists workflow_versions_one_draft_idx on "better_sup
 create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
 create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
-revoke all on "better_supabase"."workflow_versions" from anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
-drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
-create policy workflow_versions_read on "better_supabase"."workflow_versions" for select to authenticated
+drop policy if exists bsb_workflow_versions_select on "better_supabase"."workflow_versions";
+create policy bsb_workflow_versions_select on "better_supabase"."workflow_versions" for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
 -- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
-create table if not exists "better_supabase"."workflow_triggers" (
-  "id" uuid primary key default gen_random_uuid(),
-  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
-  "config" jsonb not null default '{}'::jsonb,
-  "enabled" boolean not null default true,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now()
-);
+-- better_supabase.workflow_triggers is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_triggers" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_triggers" add column if not exists "definition_id" uuid references "better_supabase"."workflow_definitions" ("id") on delete cascade;
+alter table "better_supabase"."workflow_triggers" add column if not exists "kind" text check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat'));
+alter table "better_supabase"."workflow_triggers" add column if not exists "config" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."workflow_triggers" add column if not exists "enabled" boolean not null default true;
+alter table "better_supabase"."workflow_triggers" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."workflow_triggers" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists workflow_triggers_definition_idx on "better_supabase"."workflow_triggers" ("definition_id");
-create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
-  where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
-revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
-drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers" for select to authenticated
+drop policy if exists bsb_workflow_triggers_select on "better_supabase"."workflow_triggers";
+create policy bsb_workflow_triggers_select on "better_supabase"."workflow_triggers" for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_webhook_tokens" (
-  "token_hash" bytea primary key,
-  "trigger_id" uuid not null unique references "better_supabase"."workflow_triggers" ("id") on delete cascade,
-  "created_at" timestamptz not null default now()
-);
+-- better_supabase.workflow_webhook_tokens is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_webhook_tokens" add column if not exists "token_hash" bytea;
+alter table "better_supabase"."workflow_webhook_tokens" add column if not exists "trigger_id" uuid references "better_supabase"."workflow_triggers" ("id") on delete cascade;
+alter table "better_supabase"."workflow_webhook_tokens" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."workflow_webhook_tokens" enable row level security;
-revoke all on "better_supabase"."workflow_webhook_tokens" from anon, authenticated;
 grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 
 -- Credentials the steps of a tenant's workflows use. A row names the secret
 -- with a credential_ref that a CredentialProvider resolves; it never holds
 -- the secret, so graphs and run state never see a token.
-create table if not exists "better_supabase"."workflow_credentials" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
-  "scopes" text[] not null default '{}',
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  constraint workflow_credentials_tenant_name_key unique nulls not distinct ("tenant_id", "name")
-);
+-- better_supabase.workflow_credentials is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_credentials" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_credentials" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."workflow_credentials" add column if not exists "kind" text check (length("kind") between 1 and 100);
+alter table "better_supabase"."workflow_credentials" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."workflow_credentials" add column if not exists "credential_ref" jsonb check (jsonb_typeof("credential_ref" -> 'provider') = 'string');
+alter table "better_supabase"."workflow_credentials" add column if not exists "scopes" text[] not null default '{}';
+alter table "better_supabase"."workflow_credentials" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_credentials" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "workflow_credentials_tenant_id_name_key" on "better_supabase"."workflow_credentials" ("tenant_id", "name") nulls not distinct;
 create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
-revoke all on "better_supabase"."workflow_credentials" from anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
-drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials" for select to authenticated
+drop policy if exists bsb_workflow_credentials_select on "better_supabase"."workflow_credentials";
+create policy bsb_workflow_credentials_select on "better_supabase"."workflow_credentials" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
-create table if not exists "better_supabase"."workflow_step_library" (
-  "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
-  "description" text,
-  "input_schema" jsonb not null default '{}'::jsonb,
-  "output_schema" jsonb not null default '{}'::jsonb,
-  "credential_kind" text,
-  "updated_at" timestamptz not null default now()
-);
+-- better_supabase.workflow_step_library is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_step_library" add column if not exists "name" text check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$');
+alter table "better_supabase"."workflow_step_library" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."workflow_step_library" add column if not exists "description" text;
+alter table "better_supabase"."workflow_step_library" add column if not exists "input_schema" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."workflow_step_library" add column if not exists "output_schema" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."workflow_step_library" add column if not exists "credential_kind" text;
+alter table "better_supabase"."workflow_step_library" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "workflow_step_library_name_key" on "better_supabase"."workflow_step_library" ("name");
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
   check (length("operation") between 1 and 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
-drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+drop policy if exists bsb_workflow_step_library_select on "better_supabase"."workflow_step_library";
+create policy bsb_workflow_step_library_select on "better_supabase"."workflow_step_library" for select to authenticated using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 -- better_supabase.workflow_node_runs is the app's table: this block adds only the columns it needs.
@@ -8652,35 +8640,30 @@ create policy bsb_workflow_node_runs_select on "better_supabase"."workflow_node_
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
 -- fires once per run and writes a workflow_alert.triggered outbox event.
-create table if not exists "better_supabase"."workflow_alerts" (
-  "id" uuid primary key default gen_random_uuid(),
-  "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "on_event" text not null check ("on_event" in ('failed', 'slow')),
-  "threshold" interval,
-  "channel" jsonb not null default '{}'::jsonb,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  constraint workflow_alerts_threshold_check check ("on_event" <> 'slow' or "threshold" > interval '0')
-);
+-- better_supabase.workflow_alerts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_alerts" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."workflow_alerts" add column if not exists "definition_id" uuid references "better_supabase"."workflow_definitions" ("id") on delete cascade;
+alter table "better_supabase"."workflow_alerts" add column if not exists "on_event" text check ("on_event" in ('failed', 'slow'));
+alter table "better_supabase"."workflow_alerts" add column if not exists "threshold" interval;
+alter table "better_supabase"."workflow_alerts" add column if not exists "channel" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."workflow_alerts" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_alerts" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
-revoke all on "better_supabase"."workflow_alerts" from anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
-drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts" for select to authenticated
+drop policy if exists bsb_workflow_alerts_select on "better_supabase"."workflow_alerts";
+create policy bsb_workflow_alerts_select on "better_supabase"."workflow_alerts" for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_alert_fires" (
-  "alert_id" uuid not null references "better_supabase"."workflow_alerts" ("id") on delete cascade,
-  "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "fired_at" timestamptz not null default now(),
-  primary key ("alert_id", "run_id")
-);
+-- better_supabase.workflow_alert_fires is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."workflow_alert_fires" add column if not exists "alert_id" uuid references "better_supabase"."workflow_alerts" ("id") on delete cascade;
+alter table "better_supabase"."workflow_alert_fires" add column if not exists "run_id" uuid references "better_supabase"."workflow_runs" ("id") on delete cascade;
+alter table "better_supabase"."workflow_alert_fires" add column if not exists "fired_at" timestamptz not null default now();
+create unique index if not exists "workflow_alert_fires_alert_id_run_id_key" on "better_supabase"."workflow_alert_fires" ("alert_id", "run_id");
 create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
-revoke all on "better_supabase"."workflow_alert_fires" from anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
 
 -- Problems that keep a graph from being published, as messages; empty when
@@ -8978,14 +8961,14 @@ begin
   where x."definition_id" = definition and x."status" = 'draft'
   returning * into v_row;
   if not found then
-    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
+    insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by", "status")
     values (
       definition,
       coalesce((select max(y."version") from "better_supabase"."workflow_versions" y where y."definition_id" = definition), 0) + 1,
       graph,
       coalesce(input_schema, (select y."input_schema" from "better_supabase"."workflow_versions" y
         where y."definition_id" = definition order by y."version" desc limit 1)),
-      (select auth.uid())
+      (select auth.uid()), better_supabase.as_column_type('draft', (null::"better_supabase"."workflow_versions")."status")
     )
     returning * into v_row;
   end if;
@@ -9180,14 +9163,14 @@ begin
           detail = jsonb_build_object('permissions', to_jsonb(v_missing))::text;
     end if;
   end if;
-  update "better_supabase"."workflow_versions" x set "status" = 'archived'
+  update "better_supabase"."workflow_versions" x set "status" = better_supabase.as_column_type('archived', (null::"better_supabase"."workflow_versions")."status")
   where x."definition_id" = v_row."definition_id" and x."status" = 'published';
   update "better_supabase"."workflow_versions" x set
-    "status" = 'published',
+    "status" = better_supabase.as_column_type('published', (null::"better_supabase"."workflow_versions")."status"),
     "compiled" = compiled,
     "published_at" = now(),
     "published_by" = case when v_service then null else (select auth.uid()) end,
-    "owner_kind" = case when v_service then 'organization' else 'user' end,
+    "owner_kind" = better_supabase.as_column_type(case when v_service then 'organization' else 'user' end, (null::"better_supabase"."workflow_versions")."owner_kind"),
     "permissions" = v_permissions
   where x."id" = v_row."id"
   returning * into v_row;
@@ -9531,8 +9514,8 @@ begin
   insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "forked_from", "forked_from_version", "created_by")
   values (tenant, slug, v_src."name", v_src."description", v_src."subject_types", v_src."id", v_version."version", (select auth.uid()))
   returning * into v_row;
-  insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by")
-  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()));
+  insert into "better_supabase"."workflow_versions" ("definition_id", "version", "graph", "input_schema", "created_by", "status")
+  values (v_row."id", 1, v_version."graph", v_version."input_schema", (select auth.uid()), better_supabase.as_column_type('draft', (null::"better_supabase"."workflow_versions")."status"));
   return jsonb_build_object(
     'id', v_row."id",
     'tenant', v_row."tenant_id",
@@ -9701,11 +9684,11 @@ begin
   end if;
   if trigger is null then
     insert into "better_supabase"."workflow_triggers" ("definition_id", "kind", "config", "enabled")
-    values (definition, kind, coalesce(config, '{}'::jsonb), coalesce(enabled, true))
+    values (definition, better_supabase.as_column_type(kind, (null::"better_supabase"."workflow_triggers")."kind"), coalesce(config, '{}'::jsonb), coalesce(enabled, true))
     returning * into v_row;
   else
     update "better_supabase"."workflow_triggers" x set
-      "kind" = kind,
+      "kind" = better_supabase.as_column_type(kind, (null::"better_supabase"."workflow_triggers")."kind"),
       "config" = coalesce(config, '{}'::jsonb),
       "enabled" = coalesce(enabled, true),
       "updated_at" = now()
@@ -9870,14 +9853,14 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."workflow_credentials"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_workflow_credential.tenant is not null and coalesce(better_supabase.can('tenant', save_workflow_credential.tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
@@ -9886,8 +9869,8 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
-  values (tenant, kind, name, ref, coalesce(scopes, '{}'), (select auth.uid()))
-  on conflict on constraint workflow_credentials_tenant_name_key do update set
+  values (save_workflow_credential.tenant, save_workflow_credential.kind, save_workflow_credential.name, save_workflow_credential.ref, coalesce(save_workflow_credential.scopes, '{}'), (select auth.uid()))
+  on conflict ("tenant_id", "name") do update set
     "kind" = excluded."kind",
     "credential_ref" = excluded."credential_ref",
     "scopes" = excluded."scopes"
@@ -10143,10 +10126,10 @@ begin
   end if;
   if alert is null then
     insert into "better_supabase"."workflow_alerts" ("definition_id", "on_event", "threshold", "channel", "created_by")
-    values (definition, on_event, threshold, coalesce(channel, '{}'::jsonb), (select auth.uid()))
+    values (definition, better_supabase.as_column_type(on_event, (null::"better_supabase"."workflow_alerts")."on_event"), threshold, coalesce(channel, '{}'::jsonb), (select auth.uid()))
     returning * into v_row;
   else
-    update "better_supabase"."workflow_alerts" x set "on_event" = on_event, "threshold" = threshold, "channel" = coalesce(channel, '{}'::jsonb)
+    update "better_supabase"."workflow_alerts" x set "on_event" = better_supabase.as_column_type(on_event, (null::"better_supabase"."workflow_alerts")."on_event"), "threshold" = threshold, "channel" = coalesce(channel, '{}'::jsonb)
     where x."id" = alert and x."definition_id" = definition
     returning * into v_row;
     if not found then

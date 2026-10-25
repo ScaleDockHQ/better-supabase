@@ -20,10 +20,65 @@ export function inboxServiceFunctions(q: InboxSql): string {
   const ct = q.cols("contacts");
   const T = (name: string): string => q.t(name);
   const service = q.service;
+  const { has } = q;
+
+  const delivery = (
+    [
+      ["tenant", `m.${dt("tenant")}`],
+      ["message", `m.${dt("message")}`],
+      ["channel", "record_delivery.channel"],
+      ["externalId", "record_delivery.external_id"],
+      [
+        "status",
+        q.cast(
+          "deliveries",
+          "status",
+          "coalesce(record_delivery.status, 'sent')",
+        ),
+      ],
+      ["error", "record_delivery.error"],
+      ["attempts", "1"],
+    ] as const
+  ).filter(([column]) => has("deliveries", column));
+
+  const template = (
+    [
+      ["tenant", "tenant"],
+      ["inbox", "(input ->> 'inbox_id')::uuid"],
+      ["name", "input ->> 'name'"],
+      ["channel", "input ->> 'channel'"],
+      ["language", "coalesce(input ->> 'language', 'en')"],
+      ["body", "input ->> 'body'"],
+      ["variables", "coalesce(input -> 'variables', '[]'::jsonb)"],
+      ["externalId", "input ->> 'external_id'"],
+    ] as const
+  ).filter(([column]) => has("templates", column));
 
   const authed = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
+
+  // The app's tables keep their own foreign keys, so the module's cascades
+  // from the contact and the core conversation may not reach them.
+  const unlinked = (
+    [
+      [
+        "deliveries",
+        `${dl("message")} in (select d.${dt("message")} from ${T("details")} d where d.${dt("conversation")} = any (v_ids))`,
+      ],
+      ["events", `${q.cols("events")("conversation")} = any (v_ids)`],
+      ["scheduled", `${q.cols("scheduled")("conversation")} = any (v_ids)`],
+      ["details", `${dt("conversation")} = any (v_ids)`],
+      ["conversations", `${cv("id")} = any (v_ids)`],
+      [
+        "identities",
+        `${q.cols("identities")("contact")} = purge_contact.contact`,
+      ],
+    ] as const
+  )
+    .filter(([table]) => !q.ctx.owns(table))
+    .map(([table, where]) => `\n  delete from ${T(table)} where ${where};`)
+    .join("");
 
   return `-- After posting an outbound message on its channel: records the platform's
 -- id and the status.
@@ -36,19 +91,27 @@ as $$
 declare
   v_row ${T("deliveries")}%rowtype;
 begin
-  insert into ${T("deliveries")} as d (${dl("tenant")}, ${dl("message")}, ${dl("channel")}, ${dl("externalId")}, ${dl("status")}, ${dl("error")}, ${dl("attempts")})
-  select m.${dt("tenant")}, m.${dt("message")}, record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1
+  insert into ${T("deliveries")} as d (${delivery.map(([column]) => dl(column)).join(", ")})
+  select ${delivery.map(([, value]) => value).join(", ")}
   from ${T("details")} m where m.${dt("message")} = record_delivery.message
   on conflict (${dl("message")}, ${dl("channel")}) do update set
     ${dl("externalId")} = coalesce(excluded.${dl("externalId")}, d.${dl("externalId")}),
-    ${dl("status")} = excluded.${dl("status")},
-    ${dl("error")} = excluded.${dl("error")},
-    ${dl("attempts")} = d.${dl("attempts")} + 1
+    ${dl("status")} = excluded.${dl("status")}${
+      has("deliveries", "error")
+        ? `,
+    ${dl("error")} = excluded.${dl("error")}`
+        : ""
+    }${
+      has("deliveries", "attempts")
+        ? `,
+    ${dl("attempts")} = d.${dl("attempts")} + 1`
+        : ""
+    }
   returning * into v_row;
   if v_row.${dl("id")} is null then
     ${missing("message", "MESSAGE_NOT_FOUND")}
   end if;
-  return to_jsonb(v_row);
+  return ${q.json("deliveries", "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("record_delivery")}(uuid, text, text, text, text)`)}
@@ -65,11 +128,11 @@ as $$
 declare
   v_count integer;
 begin
-  update ${T("deliveries")} d set ${dl("status")} = status, ${dl("error")} = coalesce(error, d.${dl("error")})
+  update ${T("deliveries")} d set ${dl("status")} = ${q.cast("deliveries", "status", "status")}${has("deliveries", "error") ? `, ${dl("error")} = coalesce(error, d.${dl("error")})` : ""}
   where d.${dl("channel")} = channel and d.${dl("externalId")} = external_id
     and (case status when 'failed' then d.${dl("status")} in ('queued', 'sent')
       else array_position(array['queued', 'sent', 'delivered', 'read'], status)
-        > coalesce(array_position(array['queued', 'sent', 'delivered', 'read'], d.${dl("status")}), 0) end);
+        > coalesce(array_position(array['queued', 'sent', 'delivered', 'read'], ${q.text("deliveries", `d.${dl("status")}`)}), 0) end);
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -108,10 +171,18 @@ as $$
 #variable_conflict use_variable
 begin
   update ${T("inbound")} e set
-    ${ie("status")} = status,
-    ${ie("error")} = error,
-    ${ie("attempts")} = e.${ie("attempts")} + 1,
-    ${ie("processedAt")} = case when status in ('processed', 'ignored') then now() else e.${ie("processedAt")} end
+    ${ie("status")} = ${q.cast("inbound", "status", "status")},${
+      has("inbound", "error")
+        ? `
+    ${ie("error")} = error,`
+        : ""
+    }
+    ${ie("attempts")} = e.${ie("attempts")} + 1${
+      has("inbound", "processedAt")
+        ? `,
+    ${ie("processedAt")} = case when status in ('processed', 'ignored') then now() else e.${ie("processedAt")} end`
+        : ""
+    }
   where e.${ie("id")} = event;
   return found;
 end;
@@ -125,7 +196,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(e) order by e.${ie("receivedAt")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${q.json("inbound", "e")} order by e.${ie("receivedAt")}), '[]'::jsonb)
   from (
     select * from ${T("inbound")} x
     where x.${ie("status")} in ('received', 'failed') and x.${ie("attempts")} < coalesce(max_attempts, 5)
@@ -169,15 +240,15 @@ begin
   if not (${service} or ${q.can("tenant", "manage")}) then
     ${forbidden("not allowed to manage templates")}
   end if;
-  insert into ${T("templates")} as t (${tp("tenant")}, ${tp("inbox")}, ${tp("name")}, ${tp("channel")}, ${tp("language")}, ${tp("body")}, ${tp("variables")}, ${tp("externalId")})
-  values (tenant, (input ->> 'inbox_id')::uuid, input ->> 'name', input ->> 'channel', coalesce(input ->> 'language', 'en'), input ->> 'body', coalesce(input -> 'variables', '[]'::jsonb), input ->> 'external_id')
+  insert into ${T("templates")} as t (${template.map(([column]) => tp(column)).join(", ")})
+  values (${template.map(([, value]) => value).join(", ")})
   on conflict (${tp("tenant")}, ${tp("channel")}, ${tp("name")}, ${tp("language")}) do update set
-    ${tp("inbox")} = excluded.${tp("inbox")},
-    ${tp("body")} = excluded.${tp("body")},
-    ${tp("variables")} = excluded.${tp("variables")},
-    ${tp("externalId")} = excluded.${tp("externalId")}
+    ${["inbox", "body", "variables", "externalId"]
+      .filter((column) => has("templates", column))
+      .map((column) => `${tp(column)} = excluded.${tp(column)}`)
+      .join(",\n    ")}
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${q.json("templates", "v_row")};
 end;
 $$;
 ${authed(`${fn("upsert_message_template")}(${id}, jsonb)`)}
@@ -237,7 +308,7 @@ begin
     returning x.${a("bucket")} as bucket, x.${a("path")} as path, x.${a("uploadedAt")} as uploaded_at
   )
   select coalesce(jsonb_agg(jsonb_build_object('bucket', g.bucket, 'path', g.path)) filter (where g.uploaded_at is not null), '[]'::jsonb)
-  into v_paths from gone g;
+  into v_paths from gone g;${unlinked}
   delete from ${q.core.t("conversations")} k where k.${q.core.cols("conversations")("id")} = any (v_ids);
   delete from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
   return jsonb_build_object('conversations', cardinality(v_ids), 'messages', v_messages, 'attachments', v_paths);

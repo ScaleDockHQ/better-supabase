@@ -1,0 +1,452 @@
+import type { BlockSqlContext } from "../context.ts";
+import type { AiChatNames } from "./ai-chat.ts";
+
+import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
+import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
+import { addExtraColumns, lockTable } from "../shared.ts";
+
+/** Every status an `ai_runs` row can have, as a SQL list. */
+export const AI_RUN_STATES: string = [
+  "queued",
+  "running",
+  "cancel_requested",
+  ...FINAL,
+]
+  .map(sqlString)
+  .join(", ");
+
+/**
+ * `row.column` of the logical ai-chat `table`, or `fallback` when the app's
+ * table lacks the optional column.
+ */
+export function columnOr(
+  ctx: BlockSqlContext,
+  table: string,
+  row: string,
+  column: string,
+  fallback = "null",
+): string {
+  return ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : fallback;
+}
+
+/**
+ * `jsonb_build_object` of `row` with a key per entry: `[key, column]` reads the
+ * column, `[key, column, fallback]` reads `fallback` when the app's table lacks
+ * the optional column.
+ */
+export function rowJson(
+  ctx: BlockSqlContext,
+  table: string,
+  row: string,
+  keys: readonly (readonly [string, string, string?])[],
+  extra = "",
+): string {
+  return `jsonb_build_object(${keys.map(([key, column, fallback]) => `'${key}', ${columnOr(ctx, table, row, column, fallback)}`).join(", ")}${extra})`;
+}
+
+/**
+ * The quoted columns and values of the pairs whose column `table` has, for an
+ * insert: `[columns, values]`, each joined with `, `. A value that starts with
+ * a newline starts a new line of the values list.
+ */
+export function writtenPairs(
+  ctx: BlockSqlContext,
+  table: string,
+  pairs: readonly (readonly [string, string])[],
+): readonly [string, string] {
+  const kept = pairs.filter(([column]) => ctx.has(table, column));
+
+  return [
+    kept.map(([column]) => ctx.col(table, column)).join(", "),
+    kept
+      .map(([, value]) => value)
+      .join(", ")
+      .replaceAll(", \n", ",\n"),
+  ];
+}
+
+/**
+ * A `column = value,` line for each pair whose column `table` has, for an
+ * update's set list, each after the previous line's comma.
+ */
+export function assignments(
+  ctx: BlockSqlContext,
+  table: string,
+  pairs: readonly (readonly [string, () => string])[],
+  indent = "    ",
+): string {
+  return pairs
+    .filter(([column]) => ctx.has(table, column))
+    .map(
+      ([column, value]) => `\n${indent}${ctx.col(table, column)} = ${value()},`,
+    )
+    .join("");
+}
+
+/**
+ * `expression`, read from a typed column of `table`, as text over the app's
+ * table, whose column may be an enum or a domain.
+ */
+export function asText(
+  ctx: BlockSqlContext,
+  table: string,
+  expression: string,
+): string {
+  return ctx.owns(table) ? expression : `${expression}::text`;
+}
+
+/**
+ * The `#variable_conflict` of a function writing `tables`: the app's column
+ * names may match a parameter's, so over an app table columns win, and every
+ * parameter is qualified with the function's name.
+ */
+export function variableConflict(
+  ctx: BlockSqlContext,
+  ...tables: readonly string[]
+): string {
+  return `#variable_conflict ${tables.every((table) => ctx.owns(table)) ? "use_variable" : "use_column"}`;
+}
+
+/**
+ * A unique index over `columns` of the app's `table`, which `insert ... on
+ * conflict` needs since the render drops the module's own keys there. Empty on
+ * the module's own table, whose primary key or unique constraint serves.
+ */
+export function appKey(
+  ctx: BlockSqlContext,
+  table: string,
+  what: string,
+  columns: readonly string[],
+): string {
+  if (ctx.owns(table)) {
+    return "";
+  }
+
+  return `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns.map((column) => ctx.col(table, column)).join(", ")});`;
+}
+
+/** The ai-chat tables, their indexes and policies. */
+export function aiChatTables(ctx: BlockSqlContext, names: AiChatNames): string {
+  const id = ctx.idType;
+  const { c, t, perm } = names;
+  const p = c.projects;
+  const ch = c.chats;
+  const m = c.messages;
+  const r = c.runs;
+  const a = c.approvals;
+  const po = c.policies;
+  const i = c.inputs;
+  const s = c.sources;
+  const f = c.feedback;
+  const sh = c.shares;
+  const mo = c.models;
+  const md = c.moderation;
+  const rs = c.steps;
+  const hs = c.harness;
+
+  /**
+   * The line of an optional column, after the previous line's comma, or with
+   * its own leading comma when it is the table's last line.
+   */
+  const opt =
+    (table: string) =>
+    (column: string, definition: (name: string) => string, last = false) => {
+      if (!ctx.has(table, column)) {
+        return "";
+      }
+
+      const line = `\n  ${ctx.col(table, column)} ${definition(ctx.col(table, column))}`;
+
+      return last ? `,${line}` : `${line},`;
+    };
+
+  const partTypes = AI_MESSAGE_PART_TYPES.map(
+    (type) => `@.type == "${type}"`,
+  ).join(" || ");
+
+  const textParts = `jsonb_path_query_array(${m.parts}, '$[*] ? (@.type == "text").text')`;
+  const visible = ctx.scope.check(ch.tenant, perm.read);
+  const pOpt = opt("projects");
+  const chOpt = opt("chats");
+  const mOpt = opt("messages");
+  const rOpt = opt("runs");
+  const aOpt = opt("approvals");
+  const iOpt = opt("inputs");
+  const sOpt = opt("sources");
+  const fOpt = opt("feedback");
+  const moOpt = opt("models");
+  const mdOpt = opt("moderation");
+  const hsOpt = opt("harness");
+
+  return `-- Projects group chats and carry instructions and a default model.
+create table if not exists ${t.projects} (
+  ${p.id} uuid primary key default gen_random_uuid(),
+  ${p.tenant} ${id} not null,
+  ${p.owner} uuid not null references auth.users (id) on delete cascade,
+  ${p.name} text not null check (length(${p.name}) between 1 and 200),
+  ${p.instructions} text not null default '' check (length(${p.instructions}) <= 20000),
+  ${p.model} text check (length(${p.model}) <= 200),${pOpt("pinned", () => "boolean not null default false")}${pOpt("archivedAt", () => "timestamptz")}${pOpt("createdAt", () => "timestamptz not null default now()")}
+  ${p.updatedAt} timestamptz not null default now()
+);
+create index if not exists ${ctx.naming.rename("ai_projects_owner_idx")} on ${t.projects} (${p.owner}, ${p.tenant});
+${lockTable(t.projects)}
+grant select on ${t.projects} to authenticated;
+drop policy if exists ${ctx.naming.rename("ai_projects_owner_read")} on ${t.projects};
+create policy ${ctx.naming.rename("ai_projects_owner_read")} on ${t.projects} for select to authenticated
+  using (${p.owner} = (select auth.uid()));
+
+-- One row per conversation. current_leaf_id is the message the chat shows;
+-- active_stream_id is the reply being written, claimed compare-and-set.
+create table if not exists ${t.chats} (
+  ${ch.id} uuid primary key default gen_random_uuid(),
+  ${ch.tenant} ${id} not null,
+  ${ch.owner} uuid not null references auth.users (id) on delete cascade,
+  ${ch.project} uuid references ${t.projects} (${p.id}) on delete set null,${chOpt("agent", (name) => `text check (length(${name}) <= 200)`)}
+  ${ch.title} text not null default '' check (length(${ch.title}) <= 300),
+  ${ch.model} text check (length(${ch.model}) <= 200),
+  ${ch.visibility} text not null default 'private' check (${ch.visibility} in ('private', 'organization')),${chOpt("pinned", () => "boolean not null default false")}${chOpt("archivedAt", () => "timestamptz")}
+  ${ch.temporary} boolean not null default false,
+  ${ch.expiresAt} timestamptz,
+  ${ch.leaf} text,
+  ${ch.activeStream} text,
+  ${ch.activeRun} uuid,
+  ${ch.lastMessageAt} timestamptz not null default clock_timestamp(),${chOpt("createdAt", () => "timestamptz not null default now()")}
+  ${ch.updatedAt} timestamptz not null default now(),
+  ${ch.search} tsvector generated always as (to_tsvector('simple'::regconfig, ${ch.title})) stored,
+  check (not ${ch.temporary} or ${ch.expiresAt} is not null)
+);
+create index if not exists ${ctx.naming.rename("ai_chats_owner_idx")} on ${t.chats} (${ch.owner}, ${ch.lastMessageAt} desc, ${ch.id} desc);
+create index if not exists ${ctx.naming.rename("ai_chats_tenant_idx")} on ${t.chats} (${ch.tenant});
+create index if not exists ${ctx.naming.rename("ai_chats_project_idx")} on ${t.chats} (${ch.project});
+create index if not exists ${ctx.naming.rename("ai_chats_expires_idx")} on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
+create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.chats} using gin (${ch.search});${addExtraColumns(t.chats, names.chatExtras)}
+${lockTable(t.chats)}
+grant select on ${t.chats} to authenticated;
+drop policy if exists ${ctx.naming.rename("ai_chats_read")} on ${t.chats};
+create policy ${ctx.naming.rename("ai_chats_read")} on ${t.chats} for select to authenticated
+  using (
+    ${ch.owner} = (select auth.uid())
+    or (${asText(ctx, "chats", ch.visibility)} = 'organization' and ${visible})
+  );
+
+-- The message tree: (chat_id, id) is the key, parent_id the previous turn.
+-- Editing a prompt or regenerating a reply adds a sibling, never an update.
+-- parts holds the canonical AI message parts; native the SDK's own shape.
+create table if not exists ${t.messages} (
+  ${m.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${m.id} text not null check (length(${m.id}) between 1 and 200),
+  ${m.parent} text,
+  ${m.owner} uuid not null,
+  ${m.role} text not null check (${m.role} in ('system', 'user', 'assistant', 'tool')),
+  ${m.parts} jsonb not null default '[]' check (
+    jsonb_typeof(${m.parts}) = 'array'
+    and not jsonb_path_exists(${m.parts}, '$[*] ? (!(${partTypes}))')
+  ),${mOpt("format", (name) => `text not null default 'canonical' check (length(${name}) between 1 and 50)`)}${mOpt("native", () => "jsonb")}${mOpt("metadata", (name) => `jsonb not null default '{}' check (jsonb_typeof(${name}) = 'object')`)}${mOpt("model", () => "text")}
+  ${m.status} text not null default 'complete' check (${m.status} in ('complete', 'aborted', 'error')),
+  ${m.seq} bigint generated always as identity,
+  ${m.createdAt} timestamptz not null default now(),
+  ${m.search} tsvector generated always as (to_tsvector('simple'::regconfig, ${textParts})) stored,
+  primary key (${m.chat}, ${m.id}),
+  foreign key (${m.chat}, ${m.parent}) references ${t.messages} (${m.chat}, ${m.id}) on delete cascade
+);
+create index if not exists ai_messages_parent_idx on ${t.messages} (${m.chat}, ${m.parent});
+create index if not exists ai_messages_owner_idx on ${t.messages} (${m.owner});
+create index if not exists ai_messages_search_idx on ${t.messages} using gin (${m.search});${appKey(ctx, "messages", "id", ["chat", "id"])}
+${lockTable(t.messages)}
+grant select on ${t.messages} to authenticated;
+drop policy if exists ai_messages_read on ${t.messages};
+create policy ai_messages_read on ${t.messages} for select to authenticated
+  using (${m.chat} in (select x.${ch.id} from ${t.chats} x));
+
+-- One generation: the stream it wrote, its usage and cost.
+create table if not exists ${t.runs} (
+  ${r.id} uuid primary key default gen_random_uuid(),
+  ${r.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${r.owner} uuid not null,
+  ${r.message} text,
+  ${r.stream} text,
+  ${r.engine} text not null default 'ai-sdk' check (length(${r.engine}) between 1 and 50),
+  ${r.externalRun} text check (length(${r.externalRun}) <= 200),
+  ${r.model} text,
+  ${r.status} text not null default 'running' check (${r.status} in (${AI_RUN_STATES})),${rOpt("generation", () => "text")}
+  ${r.usage} jsonb not null default '{}' check (jsonb_typeof(${r.usage}) = 'object'),${rOpt("cost", (name) => `bigint check (${name} >= 0)`)}${rOpt("error", () => "text")}
+  ${r.startedAt} timestamptz not null default now(),
+  ${r.endedAt} timestamptz
+);
+create index if not exists ai_runs_chat_idx on ${t.runs} (${r.chat}, ${r.startedAt} desc);
+create index if not exists ai_runs_owner_idx on ${t.runs} (${r.owner});${ctx.has("runs", "generation") ? `\ncreate index if not exists ai_runs_generation_idx on ${t.runs} (${r.generation}) where ${r.generation} is not null;` : ""}
+create index if not exists ai_runs_external_idx on ${t.runs} (${r.engine}, ${r.externalRun}) where ${r.externalRun} is not null;
+${lockTable(t.runs)}
+grant select on ${t.runs} to authenticated;
+drop policy if exists ai_runs_owner_read on ${t.runs};
+create policy ai_runs_owner_read on ${t.runs} for select to authenticated
+  using (${r.owner} = (select auth.uid()));
+
+-- Tool calls that wait for a person: requested by the server, decided once.
+create table if not exists ${t.approvals} (
+  ${a.id} text primary key check (length(${a.id}) between 1 and 200),
+  ${a.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${a.owner} uuid not null,
+  ${a.run} uuid references ${t.runs} (${r.id}) on delete set null,${aOpt("message", () => "text")}
+  ${a.tool} text not null check (length(${a.tool}) between 1 and 200),
+  ${a.toolCall} text not null,${aOpt("input", () => "jsonb")}
+  ${a.decision} text check (${a.decision} in ('approved', 'denied')),${aOpt("reason", (name) => `text check (length(${name}) <= 2000)`)}${aOpt("signature", () => "text")}${aOpt("decidedBy", () => "uuid")}
+  ${a.decidedAt} timestamptz,
+  ${a.createdAt} timestamptz not null default now()
+);
+create index if not exists ai_tool_approvals_chat_idx on ${t.approvals} (${a.chat});
+create index if not exists ai_tool_approvals_run_idx on ${t.approvals} (${a.run});
+create index if not exists ai_tool_approvals_owner_idx on ${t.approvals} (${a.owner});${appKey(ctx, "approvals", "id", ["id"])}
+${lockTable(t.approvals)}
+grant select on ${t.approvals} to authenticated;
+drop policy if exists ai_tool_approvals_owner_read on ${t.approvals};
+create policy ai_tool_approvals_owner_read on ${t.approvals} for select to authenticated
+  using (${a.owner} = (select auth.uid()));
+
+-- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
+-- runs (deny).
+create table if not exists ${t.policies} (
+  ${po.tenant} ${id} not null,
+  ${po.tool} text not null check (length(${po.tool}) between 1 and 200),
+  ${po.policy} text not null check (${po.policy} in ('auto', 'ask', 'deny')),${opt("policies")("updatedAt", () => "timestamptz not null default now()")}
+  primary key (${po.tenant}, ${po.tool})
+);${appKey(ctx, "policies", "tool", ["tenant", "tool"])}
+${lockTable(t.policies)}
+
+-- A question the model asked the user mid-run (a form or a choice).
+create table if not exists ${t.inputs} (
+  ${i.id} uuid primary key default gen_random_uuid(),
+  ${i.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${i.owner} uuid not null,
+  ${i.run} uuid references ${t.runs} (${r.id}) on delete set null,${iOpt("toolCall", () => "text")}
+  ${i.question} text not null check (length(${i.question}) between 1 and 2000),${iOpt("schema", () => "jsonb")}
+  ${i.answer} jsonb,
+  ${i.answeredAt} timestamptz${iOpt("createdAt", () => "timestamptz not null default now()", true)}
+);
+create index if not exists ai_pending_inputs_chat_idx on ${t.inputs} (${i.chat});
+create index if not exists ai_pending_inputs_run_idx on ${t.inputs} (${i.run});
+create index if not exists ai_pending_inputs_owner_idx on ${t.inputs} (${i.owner});
+${lockTable(t.inputs)}
+grant select on ${t.inputs} to authenticated;
+drop policy if exists ai_pending_inputs_owner_read on ${t.inputs};
+create policy ai_pending_inputs_owner_read on ${t.inputs} for select to authenticated
+  using (${i.owner} = (select auth.uid()));
+
+-- The sources a reply cited, copied out of its parts when it is saved.
+create table if not exists ${t.sources} (
+  ${s.chat} uuid not null,
+  ${s.message} text not null,
+  ${s.source} text not null,
+  ${s.kind} text not null default 'url' check (${s.kind} in ('url', 'document')),
+  ${s.url} text,${sOpt("title", () => "text")}${sOpt("metadata", () => "jsonb")}
+  primary key (${s.chat}, ${s.message}, ${s.source}),
+  foreign key (${s.chat}, ${s.message}) references ${t.messages} (${m.chat}, ${m.id}) on delete cascade
+);
+${lockTable(t.sources)}
+grant select on ${t.sources} to authenticated;
+drop policy if exists ai_message_sources_read on ${t.sources};
+create policy ai_message_sources_read on ${t.sources} for select to authenticated
+  using (${s.chat} in (select x.${ch.id} from ${t.chats} x));
+
+-- Thumbs up (1) or down (-1) on a reply, one per user.
+create table if not exists ${t.feedback} (
+  ${f.chat} uuid not null,
+  ${f.message} text not null,
+  ${f.user} uuid not null references auth.users (id) on delete cascade,
+  ${f.rating} smallint not null check (${f.rating} in (-1, 1)),${fOpt("reason", (name) => `text check (length(${name}) <= 200)`)}${fOpt("comment", (name) => `text check (length(${name}) <= 4000)`)}${fOpt("createdAt", () => "timestamptz not null default now()")}${fOpt("updatedAt", () => "timestamptz not null default now()")}
+  primary key (${f.chat}, ${f.message}, ${f.user}),
+  foreign key (${f.chat}, ${f.message}) references ${t.messages} (${m.chat}, ${m.id}) on delete cascade
+);
+create index if not exists ai_message_feedback_user_idx on ${t.feedback} (${f.user});${appKey(ctx, "feedback", "user", ["chat", "message", "user"])}
+${lockTable(t.feedback)}
+grant select on ${t.feedback} to authenticated;
+drop policy if exists ai_message_feedback_own_read on ${t.feedback};
+create policy ai_message_feedback_own_read on ${t.feedback} for select to authenticated
+  using (${f.user} = (select auth.uid()));
+
+-- A read-only link to one branch of a chat. Only the SHA-256 of the token is
+-- stored; the token is returned once.
+create table if not exists ${t.shares} (
+  ${sh.id} uuid primary key default gen_random_uuid(),
+  ${sh.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${sh.tokenHash} text not null unique check (${sh.tokenHash} ~ '^[0-9a-f]{64}$'),
+  ${sh.leaf} text not null,
+  ${sh.createdBy} uuid not null references auth.users (id) on delete cascade,
+  ${sh.createdAt} timestamptz not null default now(),
+  ${sh.revokedAt} timestamptz
+);
+create index if not exists ${ctx.naming.rename("ai_chat_shares_chat_idx")} on ${t.shares} (${sh.chat});
+create index if not exists ${ctx.naming.rename("ai_chat_shares_created_by_idx")} on ${t.shares} (${sh.createdBy});${appKey(ctx, "shares", "token", ["tokenHash"])}
+${lockTable(t.shares)}
+
+-- The models a tenant may pick, refreshed from the gateway. plans limits a
+-- model to tenants with one of those entitlements; empty means everyone.
+create table if not exists ${t.models} (
+  ${mo.id} text primary key check (length(${mo.id}) between 1 and 200),
+  ${mo.provider} text not null default '',
+  ${mo.name} text not null default '',${moOpt("pricing", () => "jsonb not null default '{}'")}${moOpt("capabilities", () => "jsonb not null default '{}'")}
+  ${mo.plans} text[] not null default '{}',
+  ${mo.enabled} boolean not null default true${moOpt("refreshedAt", () => "timestamptz not null default now()", true)}
+);${appKey(ctx, "models", "id", ["id"])}
+${lockTable(t.models)}
+
+-- What moderation decided about an input, an output or a tool call.
+create table if not exists ${t.moderation} (
+  ${md.id} uuid primary key default gen_random_uuid(),
+  ${md.tenant} ${id} not null,
+  ${md.chat} uuid references ${t.chats} (${ch.id}) on delete set null,${mdOpt("message", () => "text")}
+  ${md.user} uuid references auth.users (id) on delete set null,
+  ${md.stage} text not null check (${md.stage} in ('input', 'output', 'tool')),
+  ${md.category} text not null check (length(${md.category}) between 1 and 100),${mdOpt("score", () => "real")}
+  ${md.action} text not null check (${md.action} in ('allow', 'flag', 'redact', 'block')),
+  ${md.createdAt} timestamptz not null default now()
+);
+create index if not exists ai_moderation_events_tenant_idx on ${t.moderation} (${md.tenant}, ${md.createdAt} desc);
+create index if not exists ai_moderation_events_chat_idx on ${t.moderation} (${md.chat});
+create index if not exists ai_moderation_events_user_idx on ${t.moderation} (${md.user});
+${lockTable(t.moderation)}
+
+-- The progress of a long run, one row per step key, so a reload shows it.
+create table if not exists ${t.steps} (
+  ${rs.id} uuid primary key default gen_random_uuid(),
+  ${rs.run} uuid not null references ${t.runs} (${r.id}) on delete cascade,
+  ${rs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${rs.owner} uuid not null,
+  ${rs.key} text not null check (length(${rs.key}) between 1 and 200),
+  ${rs.label} text not null check (length(${rs.label}) between 1 and 300),
+  ${rs.status} text not null default 'running' check (${rs.status} in ('running', 'done', 'error', 'skipped')),${opt("steps")("detail", (name) => `jsonb not null default '{}' check (jsonb_typeof(${name}) = 'object')`)}
+  ${rs.startedAt} timestamptz not null default now(),
+  ${rs.endedAt} timestamptz,
+  unique (${rs.run}, ${rs.key})
+);
+create index if not exists ai_run_steps_chat_idx on ${t.steps} (${rs.chat});
+create index if not exists ai_run_steps_owner_idx on ${t.steps} (${rs.owner});${appKey(ctx, "steps", "key", ["run", "key"])}
+${lockTable(t.steps)}
+grant select on ${t.steps} to authenticated;
+drop policy if exists ai_run_steps_owner_read on ${t.steps};
+create policy ai_run_steps_owner_read on ${t.steps} for select to authenticated
+  using (${rs.owner} = (select auth.uid()));
+
+-- What a coding-agent harness needs to pick up a chat again: its resume and
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- keep two turns from driving one sandbox. Experimental.
+create table if not exists ${t.harness} (
+  ${hs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${hs.harness} text not null check (length(${hs.harness}) between 1 and 200),
+  ${hs.owner} uuid not null,
+  ${hs.resume} jsonb,${hsOpt("continue", () => "jsonb")}
+  ${hs.status} text not null default 'active' check (${hs.status} in ('active', 'idle', 'stopped', 'error')),
+  ${hs.holder} text check (length(${hs.holder}) <= 200),
+  ${hs.lockedUntil} timestamptz,
+  ${hs.lastActiveAt} timestamptz not null default now(),${hsOpt("createdAt", () => "timestamptz not null default now()")}
+  ${hs.updatedAt} timestamptz not null default now(),
+  primary key (${hs.chat}, ${hs.harness})
+);
+create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.owner});
+create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active';${appKey(ctx, "harness", "harness", ["chat", "harness"])}
+${lockTable(t.harness)}
+-- Resume state can carry harness credentials and sandbox ids, so only the
+-- service role reads it, through load_ai_harness_session.
+drop policy if exists ai_harness_sessions_owner_read on ${t.harness};`;
+}

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:6537a51f958704a6a552633e9fe781a35998906225f8df3c09e625add3bcd866
+-- @bsb-hash sha256:7a60a6b1ef2350da0a2633490df89853c9e0d8d7a423ed43b8570944a1730d99
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -411,6 +411,7 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."workspace_sso_providers";
 begin

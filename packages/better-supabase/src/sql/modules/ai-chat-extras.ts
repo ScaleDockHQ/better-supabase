@@ -11,6 +11,14 @@ import {
   userGrant,
   pageSize,
 } from "../shared.ts";
+import {
+  asText,
+  assignments,
+  columnOr,
+  rowJson,
+  variableConflict,
+  writtenPairs,
+} from "./ai-chat-tables.ts";
 import { linkedPolicy } from "./approvals.ts";
 import { AI_TOOL_APPROVAL, approverCheck } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
@@ -22,28 +30,67 @@ import { READ_ONLY_GUARD } from "./drive-kit.ts";
 export const AI_TOOL_SUBJECT = "ai_tool_approval";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
-export function approvalJson(names: AiChatNames, row: string): string {
-  const a = names.c.approvals;
-
-  return `jsonb_build_object('approval_id', ${row}.${a.id}, 'chat_id', ${row}.${a.chat}, 'run_id', ${row}.${a.run}, 'message_id', ${row}.${a.message}, 'tool', ${row}.${a.tool}, 'tool_call_id', ${row}.${a.toolCall}, 'input', ${row}.${a.input}, 'decision', ${row}.${a.decision}, 'reason', ${row}.${a.reason}, 'signature', ${row}.${a.signature}, 'decided_by', ${row}.${a.decidedBy}, 'decided_at', ${row}.${a.decidedAt}, 'created_at', ${row}.${a.createdAt})`;
+export function approvalJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "approvals", row, [
+    ["approval_id", "id"],
+    ["chat_id", "chat"],
+    ["run_id", "run"],
+    ["message_id", "message"],
+    ["tool", "tool"],
+    ["tool_call_id", "toolCall"],
+    ["input", "input"],
+    ["decision", "decision"],
+    ["reason", "reason"],
+    ["signature", "signature"],
+    ["decided_by", "decidedBy"],
+    ["decided_at", "decidedAt"],
+    ["created_at", "createdAt"],
+  ]);
 }
 
-function inputJson(names: AiChatNames, row: string): string {
-  const i = names.c.inputs;
-
-  return `jsonb_build_object('id', ${row}.${i.id}, 'chat_id', ${row}.${i.chat}, 'run_id', ${row}.${i.run}, 'tool_call_id', ${row}.${i.toolCall}, 'question', ${row}.${i.question}, 'schema', ${row}.${i.schema}, 'answer', ${row}.${i.answer}, 'answered_at', ${row}.${i.answeredAt}, 'created_at', ${row}.${i.createdAt})`;
+function inputJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "inputs", row, [
+    ["id", "id"],
+    ["chat_id", "chat"],
+    ["run_id", "run"],
+    ["tool_call_id", "toolCall"],
+    ["question", "question"],
+    ["schema", "schema"],
+    ["answer", "answer"],
+    ["answered_at", "answeredAt"],
+    ["created_at", "createdAt"],
+  ]);
 }
 
-function modelJson(names: AiChatNames, row: string): string {
-  const mo = names.c.models;
-
-  return `jsonb_build_object('model_id', ${row}.${mo.id}, 'provider', ${row}.${mo.provider}, 'name', ${row}.${mo.name}, 'pricing', ${row}.${mo.pricing}, 'capabilities', ${row}.${mo.capabilities}, 'plans', to_jsonb(${row}.${mo.plans}), 'enabled', ${row}.${mo.enabled}, 'refreshed_at', ${row}.${mo.refreshedAt})`;
+function modelJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "models", row, [
+    ["model_id", "id"],
+    ["provider", "provider"],
+    ["name", "name"],
+    ["pricing", "pricing", "'{}'::jsonb"],
+    ["capabilities", "capabilities", "'{}'::jsonb"],
+    ["plans", "plans"],
+    ["enabled", "enabled"],
+    ["refreshed_at", "refreshedAt"],
+  ]).replace(
+    `'plans', ${row}.${ctx.col("models", "plans")}`,
+    `'plans', to_jsonb(${row}.${ctx.col("models", "plans")})`,
+  );
 }
 
-function moderationJson(names: AiChatNames, row: string): string {
-  const md = names.c.moderation;
-
-  return `jsonb_build_object('id', ${row}.${md.id}, 'organization_id', ${row}.${md.tenant}, 'chat_id', ${row}.${md.chat}, 'message_id', ${row}.${md.message}, 'user_id', ${row}.${md.user}, 'stage', ${row}.${md.stage}, 'category', ${row}.${md.category}, 'score', ${row}.${md.score}, 'action', ${row}.${md.action}, 'created_at', ${row}.${md.createdAt})`;
+function moderationJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "moderation", row, [
+    ["id", "id"],
+    ["organization_id", "tenant"],
+    ["chat_id", "chat"],
+    ["message_id", "message"],
+    ["user_id", "user"],
+    ["stage", "stage"],
+    ["category", "category"],
+    ["score", "score"],
+    ["action", "action"],
+    ["created_at", "createdAt"],
+  ]);
 }
 
 /**
@@ -105,6 +152,30 @@ function approvals(
 
   const provider = toolApprover(ctx, names, layout);
 
+  const field = (key: string): string =>
+    `record_ai_tool_approval.approval ->> '${key}'`;
+
+  const [approvalColumns, approvalValues] = writtenPairs(ctx, "approvals", [
+    ["id", `\n    ${field("approval_id")}`],
+    ["chat", `v_chat.${ch.id}`],
+    ["owner", `v_chat.${ch.owner}`],
+    ["run", `\n    (${field("run_id")})::uuid`],
+    ["message", field("message_id")],
+    ["tool", `\n    ${field("tool")}`],
+    ["toolCall", field("tool_call_id")],
+    ["input", "\n    record_ai_tool_approval.approval -> 'input'"],
+    ["signature", field("signature")],
+  ]);
+
+  const [inputColumns, inputValues] = writtenPairs(ctx, "inputs", [
+    ["chat", `\n    v_chat.${ch.id}`],
+    ["owner", `v_chat.${ch.owner}`],
+    ["run", "(open_ai_pending_input.input ->> 'run_id')::uuid"],
+    ["toolCall", "\n    open_ai_pending_input.input ->> 'tool_call_id'"],
+    ["question", "open_ai_pending_input.input ->> 'question'"],
+    ["schema", "\n    open_ai_pending_input.input -> 'schema'"],
+  ]);
+
   const linked =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
       ? ctx.of("approvals")
@@ -156,7 +227,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+${variableConflict(ctx, "approvals")}
 declare
   v_chat ${t.chats};
   v_row ${t.approvals};
@@ -168,12 +239,8 @@ begin
   if not found then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "record_ai_tool_approval.chat")}
   end if;
-  insert into ${t.approvals} (${a.id}, ${a.chat}, ${a.owner}, ${a.run}, ${a.message}, ${a.tool}, ${a.toolCall}, ${a.input}, ${a.signature})
-  values (
-    record_ai_tool_approval.approval ->> 'approval_id', v_chat.${ch.id}, v_chat.${ch.owner},
-    (record_ai_tool_approval.approval ->> 'run_id')::uuid, record_ai_tool_approval.approval ->> 'message_id',
-    record_ai_tool_approval.approval ->> 'tool', record_ai_tool_approval.approval ->> 'tool_call_id',
-    record_ai_tool_approval.approval -> 'input', record_ai_tool_approval.approval ->> 'signature'
+  insert into ${t.approvals} (${approvalColumns})
+  values (${approvalValues}
   )
   on conflict (${a.id}) do nothing;
   select * into v_row from ${t.approvals} x where x.${a.id} = record_ai_tool_approval.approval ->> 'approval_id';
@@ -190,11 +257,11 @@ begin
   ) then
     perform ${linked.fn("open_approval")}(
       v_chat.${ch.tenant}, ${sqlString(AI_TOOL_SUBJECT)}, v_row.${a.id}, 'run', ${linkedPolicy()}, null,
-      jsonb_build_object('chatId', v_chat.${ch.id}, 'tool', v_row.${a.tool}, 'toolCallId', v_row.${a.toolCall}, 'input', v_row.${a.input})
+      jsonb_build_object('chatId', v_chat.${ch.id}, 'tool', v_row.${a.tool}, 'toolCallId', v_row.${a.toolCall}, 'input', ${columnOr(ctx, "approvals", "v_row", "input")})
     );
   end if;`
   }
-  return ${approvalJson(names, "v_row")};
+  return ${approvalJson(ctx, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("record_ai_tool_approval")}(uuid, jsonb)`)}
@@ -220,15 +287,20 @@ begin
     ${raise("Approve or deny", "22023", "AI_APPROVAL_INVALID")}
   end if;
   if v_row.${a.decision} is not null then
-    if v_row.${a.decision} = v_decision then
-      return ${approvalJson(names, "v_row")};
+    if ${asText(ctx, "approvals", `v_row.${a.decision}`)} = v_decision then
+      return ${approvalJson(ctx, "v_row")};
     end if;
     ${raise("Approval % was already %", "P0001", "AI_APPROVAL_DECIDED", `v_row.${a.id}`, `v_row.${a.decision}`)}
   end if;
   update ${t.approvals} x set
-    ${a.decision} = v_decision,
-    ${a.reason} = apply_ai_tool_approval.reason,
-    ${a.decidedBy} = auth.uid(),
+    ${a.decision} = ${ctx.cast("approvals", "decision", "v_decision")},${assignments(
+      ctx,
+      "approvals",
+      [
+        ["reason", () => "apply_ai_tool_approval.reason"],
+        ["decidedBy", () => "auth.uid()"],
+      ],
+    )}
     ${a.decidedAt} = now()
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;
@@ -240,7 +312,7 @@ begin
   perform ${linked.fn("approval_settle")}(${sqlString(AI_TOOL_SUBJECT)}, v_row.${a.id}, 'run',
     case when apply_ai_tool_approval.approved then 'approved' else 'rejected' end, auth.uid(), apply_ai_tool_approval.reason);`
   }
-  return ${approvalJson(names, "v_row")};
+  return ${approvalJson(ctx, "v_row")};
 end;
 $$;
 revoke execute on function ${fn("apply_ai_tool_approval")}(text, boolean, text) from public, anon, authenticated;
@@ -297,7 +369,7 @@ begin
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "get_ai_tool_approvals.chat")}
   end if;
   return (
-    select coalesce(jsonb_agg(${approvalJson(names, "x")} order by x.${a.createdAt}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${approvalJson(ctx, "x")} order by x.${a.createdAt}), '[]'::jsonb)
     from ${t.approvals} x
     where x.${a.chat} = get_ai_tool_approvals.chat
       and (get_ai_tool_approvals.ids is null or x.${a.id} = any (get_ai_tool_approvals.ids))
@@ -325,8 +397,8 @@ begin
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
   insert into ${t.policies} (${po.tenant}, ${po.tool}, ${po.policy})
-  values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
-  on conflict (${po.tenant}, ${po.tool}) do update set ${po.policy} = excluded.${po.policy}, ${po.updatedAt} = now();
+  values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, ${ctx.cast("policies", "policy", "set_ai_tool_policy.policy")})
+  on conflict (${po.tenant}, ${po.tool}) do update set ${po.policy} = excluded.${po.policy}${ctx.has("policies", "updatedAt") ? `, ${po.updatedAt} = now()` : ""};
   ${policyEvent}
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
@@ -372,15 +444,12 @@ begin
   if not found then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "open_ai_pending_input.chat")}
   end if;
-  insert into ${t.inputs} (${i.chat}, ${i.owner}, ${i.run}, ${i.toolCall}, ${i.question}, ${i.schema})
-  values (
-    v_chat.${ch.id}, v_chat.${ch.owner}, (open_ai_pending_input.input ->> 'run_id')::uuid,
-    open_ai_pending_input.input ->> 'tool_call_id', open_ai_pending_input.input ->> 'question',
-    open_ai_pending_input.input -> 'schema'
+  insert into ${t.inputs} (${inputColumns})
+  values (${inputValues}
   )
   returning * into v_row;
   perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, null, 'input.requested', jsonb_build_object('inputId', v_row.${i.id}), false);
-  return ${inputJson(names, "v_row")};
+  return ${inputJson(ctx, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("open_ai_pending_input")}(uuid, jsonb)`)}
@@ -406,7 +475,7 @@ begin
   where x.${i.id} = v_row.${i.id}
   returning * into v_row;
   perform ${fn("ai_chat_notify")}(v_row.${i.chat}, null, 'input.answered', jsonb_build_object('inputId', v_row.${i.id}), false);
-  return ${inputJson(names, "v_row")};
+  return ${inputJson(ctx, "v_row")};
 end;
 $$;
 ${userGrant(`${fn("answer_ai_pending_input")}(uuid, jsonb)`)}`;
@@ -448,6 +517,23 @@ function sharing(ctx: BlockSqlContext, names: AiChatNames): string {
     },
   });
 
+  const [ratingColumns, ratingValues] = writtenPairs(ctx, "feedback", [
+    ["chat", "rate_ai_message.chat"],
+    ["message", "rate_ai_message.message_id"],
+    ["user", "auth.uid()"],
+    ["rating", "rate_ai_message.rating"],
+    ["reason", "rate_ai_message.reason"],
+    ["comment", "rate_ai_message.comment"],
+  ]);
+
+  const rated = [
+    `${f.rating} = excluded.${f.rating}`,
+    ...(["reason", "comment"] as const)
+      .filter((column) => ctx.has("feedback", column))
+      .map((column) => `${f[column]} = excluded.${f[column]}`),
+    ...(ctx.has("feedback", "updatedAt") ? [`${f.updatedAt} = now()`] : []),
+  ].join(", ");
+
   const hash = (token: string): string =>
     `encode(sha256(convert_to(${token}, 'UTF8')), 'hex')`;
 
@@ -472,10 +558,10 @@ begin
     where x.${f.chat} = rate_ai_message.chat and x.${f.message} = rate_ai_message.message_id and x.${f.user} = auth.uid();
     return null;
   end if;
-  insert into ${t.feedback} (${f.chat}, ${f.message}, ${f.user}, ${f.rating}, ${f.reason}, ${f.comment})
-  values (rate_ai_message.chat, rate_ai_message.message_id, auth.uid(), rate_ai_message.rating, rate_ai_message.reason, rate_ai_message.comment)
+  insert into ${t.feedback} (${ratingColumns})
+  values (${ratingValues})
   on conflict (${f.chat}, ${f.message}, ${f.user}) do update set
-    ${f.rating} = excluded.${f.rating}, ${f.reason} = excluded.${f.reason}, ${f.comment} = excluded.${f.comment}, ${f.updatedAt} = now();
+    ${rated};
   return jsonb_build_object('chat_id', rate_ai_message.chat, 'message_id', rate_ai_message.message_id, 'rating', rate_ai_message.rating, 'reason', rate_ai_message.reason, 'comment', rate_ai_message.comment);
 end;
 $$;
@@ -589,7 +675,7 @@ begin
   end if;
   select * into v_chat from ${t.chats} x where x.${ch.id} = v_share.${sh.chat};
   return jsonb_build_object(
-    'chat', jsonb_build_object('id', v_chat.${ch.id}, 'title', v_chat.${ch.title}, 'model', v_chat.${ch.model}, 'created_at', v_chat.${ch.createdAt}),
+    'chat', jsonb_build_object('id', v_chat.${ch.id}, 'title', v_chat.${ch.title}, 'model', v_chat.${ch.model}, 'created_at', ${columnOr(ctx, "chats", "v_chat", "createdAt")}),
     'leaf_id', v_share.${sh.leaf},
     'messages', ${fn("ai_message_path_of")}(v_chat.${ch.id}, v_share.${sh.leaf}, false)
   );
@@ -621,6 +707,42 @@ function catalog(ctx: BlockSqlContext, names: AiChatNames): string {
     "AI_CHAT_FORBIDDEN",
   );
 
+  const [modelColumns, modelValues] = writtenPairs(ctx, "models", [
+    ["id", "\n    e ->> 'id'"],
+    [
+      "provider",
+      "\n    coalesce(e ->> 'provider', split_part(e ->> 'id', '/', 1))",
+    ],
+    ["name", "\n    coalesce(e ->> 'name', e ->> 'id')"],
+    ["pricing", "\n    coalesce(e -> 'pricing', '{}'::jsonb)"],
+    ["capabilities", "\n    coalesce(e -> 'capabilities', '{}'::jsonb)"],
+    [
+      "plans",
+      "\n    coalesce(array(select jsonb_array_elements_text(e -> 'plans')), '{}'::text[])",
+    ],
+    ["enabled", "\n    coalesce((e ->> 'enabled')::boolean, true)"],
+  ]);
+
+  const [eventColumns, eventValues] = writtenPairs(ctx, "moderation", [
+    [
+      "tenant",
+      `\n    (record_ai_moderation_event.event ->> 'organization_id')::${ctx.idType}`,
+    ],
+    ["chat", "\n    (record_ai_moderation_event.event ->> 'chat_id')::uuid"],
+    ["message", "\n    record_ai_moderation_event.event ->> 'message_id'"],
+    ["user", "\n    (record_ai_moderation_event.event ->> 'user_id')::uuid"],
+    [
+      "stage",
+      `\n    ${ctx.cast("moderation", "stage", "record_ai_moderation_event.event ->> 'stage'")}`,
+    ],
+    ["category", "\n    record_ai_moderation_event.event ->> 'category'"],
+    ["score", "\n    (record_ai_moderation_event.event ->> 'score')::real"],
+    [
+      "action",
+      `\n    ${ctx.cast("moderation", "action", "record_ai_moderation_event.event ->> 'action'")}`,
+    ],
+  ]);
+
   return `-- Upserts models from the gateway (the service role only): models is an
 -- array, or an object whose models key holds one. Each element holds id, and optionally provider, name, pricing, capabilities, plans and
 -- enabled. prune deletes the models missing from the list.
@@ -641,23 +763,19 @@ begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
   end if;
-  insert into ${t.models} (${mo.id}, ${mo.provider}, ${mo.name}, ${mo.pricing}, ${mo.capabilities}, ${mo.plans}, ${mo.enabled})
-  select
-    e ->> 'id',
-    coalesce(e ->> 'provider', split_part(e ->> 'id', '/', 1)),
-    coalesce(e ->> 'name', e ->> 'id'),
-    coalesce(e -> 'pricing', '{}'::jsonb),
-    coalesce(e -> 'capabilities', '{}'::jsonb),
-    coalesce(array(select jsonb_array_elements_text(e -> 'plans')), '{}'::text[]),
-    coalesce((e ->> 'enabled')::boolean, true)
+  insert into ${t.models} (${modelColumns})
+  select${modelValues.replaceAll(", \n", ",\n")}
   from jsonb_array_elements(v_models) e
   where nullif(e ->> 'id', '') is not null
   on conflict (${mo.id}) do update set
     ${mo.provider} = excluded.${mo.provider},
-    ${mo.name} = excluded.${mo.name},
-    ${mo.pricing} = excluded.${mo.pricing},
-    ${mo.capabilities} = excluded.${mo.capabilities},
-    ${mo.refreshedAt} = now();
+    ${mo.name} = excluded.${mo.name}${["pricing", "capabilities", "refreshedAt"]
+      .filter((column) => ctx.has("models", column))
+      .map(
+        (column) =>
+          `,\n    ${ctx.col("models", column)} = ${column === "refreshedAt" ? "now()" : `excluded.${ctx.col("models", column)}`}`,
+      )
+      .join("")};
   get diagnostics v_count = row_count;
   if upsert_ai_models.prune then
     delete from ${t.models} x
@@ -684,7 +802,7 @@ begin
     v_tenant := null;
   end if;
   return (
-    select coalesce(jsonb_agg(${modelJson(names, "x")} order by x.${mo.provider}, x.${mo.name}), '[]'::jsonb)
+    select coalesce(jsonb_agg(${modelJson(ctx, "x")} order by x.${mo.provider}, x.${mo.name}), '[]'::jsonb)
     from ${t.models} x
     where x.${mo.enabled} and (cardinality(x.${mo.plans}) = 0 or ${planned})
   );
@@ -707,19 +825,11 @@ begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
   end if;
-  insert into ${t.moderation} (${md.tenant}, ${md.chat}, ${md.message}, ${md.user}, ${md.stage}, ${md.category}, ${md.score}, ${md.action})
-  values (
-    (record_ai_moderation_event.event ->> 'organization_id')::${ctx.idType},
-    (record_ai_moderation_event.event ->> 'chat_id')::uuid,
-    record_ai_moderation_event.event ->> 'message_id',
-    (record_ai_moderation_event.event ->> 'user_id')::uuid,
-    record_ai_moderation_event.event ->> 'stage',
-    record_ai_moderation_event.event ->> 'category',
-    (record_ai_moderation_event.event ->> 'score')::real,
-    record_ai_moderation_event.event ->> 'action'
+  insert into ${t.moderation} (${eventColumns})
+  values (${eventValues}
   )
   returning * into v_row;
-  return ${moderationJson(names, "v_row")};
+  return ${moderationJson(ctx, "v_row")};
 end;
 $$;
 ${serviceGrant(`${fn("record_ai_moderation_event")}(jsonb)`)}
@@ -737,7 +847,7 @@ begin
     ${raise("You may not review moderation here", "42501", "AI_CHAT_FORBIDDEN")}
   end if;
   return (
-    select coalesce(jsonb_agg(${moderationJson(names, "page")} order by page.${md.createdAt} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(${moderationJson(ctx, "page")} order by page.${md.createdAt} desc), '[]'::jsonb)
     from (
       select * from ${t.moderation} x
       where x.${md.tenant} = list_ai_moderation_events.tenant

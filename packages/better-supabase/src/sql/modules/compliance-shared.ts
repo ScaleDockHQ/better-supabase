@@ -11,3 +11,12 @@ export function evidenceAttachments(
     ? ctx.of("attachments")
     : undefined;
 }
+
+/** `row.column`, or null when the app's table lacks the optional column. */
+export const optionalField = (
+  ctx: BlockSqlContext,
+  table: string,
+  row: string,
+  column: string,
+): string =>
+  ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : "null";

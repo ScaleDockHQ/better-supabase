@@ -2,8 +2,9 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, lockTable, pageSize, userGrant } from "../shared.ts";
+import { fail, pageSize, userGrant } from "../shared.ts";
 import { columns, orderFields, orderPayload } from "./orders-shared.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 
 /** A line's preparation states, in kitchen order. */
 const PREPARATION_STATES = ["queued", "preparing", "ready", "served"] as const;
@@ -15,6 +16,7 @@ export const KITCHEN_TOPIC = "kitchen";
 export const KITCHEN_TABLES = {
   kitchenStations: {
     name: "kitchen_stations",
+    app: {},
     columns: {
       id: "id",
       tenant: "tenant_id",
@@ -29,6 +31,7 @@ export const KITCHEN_TABLES = {
   },
   kitchenRoutes: {
     name: "kitchen_routes",
+    app: {},
     columns: {
       product: "product_id",
       tenant: "tenant_id",
@@ -37,6 +40,7 @@ export const KITCHEN_TABLES = {
   },
   preparations: {
     name: "order_line_preparations",
+    app: {},
     columns: {
       line: "order_line_id",
       tenant: "tenant_id",
@@ -51,6 +55,8 @@ export const KITCHEN_TABLES = {
       updatedAt: "updated_at",
       updatedBy: "updated_by",
     },
+    optional: ["note", "updatedBy"],
+    typed: ["state"],
   },
 } as const;
 
@@ -61,6 +67,9 @@ export const kitchenOn = (ctx: BlockSqlContext): boolean =>
 const STATES = `array[${PREPARATION_STATES.map(sqlString).join(", ")}]`;
 
 const rank = (state: string): string => `array_position(${STATES}, ${state})`;
+
+/** Lines of an order sent to the kitchen. */
+const PREPARATIONS = "preparations";
 
 /**
  * Kitchen stations, line preparation states and the reads a kitchen display and
@@ -77,6 +86,13 @@ export function kitchenSql(ctx: BlockSqlContext, names: OrdersNames): string {
   const lp = columns(ctx, "preparations");
   const products = `${catalog.table("products")} (${catalog.col("products", "id")})`;
   const { scope, manage, read, prepare } = names;
+  const has = (column: string): boolean => ctx.has(PREPARATIONS, column);
+
+  const stateOf = (alias: string): string =>
+    asText(ctx, PREPARATIONS, `${alias}.${lp("state")}`);
+
+  const note = (alias: string): string =>
+    has("note") ? `${alias}.${lp("note")}` : "null::text";
 
   const readable = (column: string): string =>
     `${column} in (select ${scope.ids(read)}) or ${column} in (select ${scope.ids(prepare)})`;
@@ -96,7 +112,7 @@ using (${readable(ctx.col(table, "tenant"))});`;
     `jsonb_build_object('id', ${alias}.${ks("id")}, 'organizationId', ${alias}.${ks("tenant")}, 'key', ${alias}.${ks("key")}, 'name', ${alias}.${ks("name")}, 'position', ${alias}.${ks("position")}, 'isDefault', ${alias}.${ks("isDefault")}, 'active', ${alias}.${ks("active")}, 'productIds', coalesce((select jsonb_agg(r.${kr("product")} order by r.${kr("product")}) from ${t("kitchenRoutes")} r where r.${kr("station")} = ${alias}.${ks("id")}), '[]'::jsonb), 'createdAt', ${alias}.${ks("createdAt")}, 'updatedAt', ${alias}.${ks("updatedAt")})`;
 
   const lineJson = (prep: string, line: string): string =>
-    `jsonb_build_object('lineId', ${prep}.${lp("line")}, 'orderId', ${prep}.${lp("order")}, 'stationId', ${prep}.${lp("station")}, 'title', ${line}.${ol("title")}, 'sku', ${line}.${ol("sku")}, 'quantity', ${line}.${ol("quantity")}, 'position', ${line}.${ol("position")}, 'state', ${prep}.${lp("state")}, 'note', ${prep}.${lp("note")}, 'queuedAt', ${prep}.${lp("queuedAt")}, 'startedAt', ${prep}.${lp("startedAt")}, 'readyAt', ${prep}.${lp("readyAt")}, 'servedAt', ${prep}.${lp("servedAt")})`;
+    `jsonb_build_object('lineId', ${prep}.${lp("line")}, 'orderId', ${prep}.${lp("order")}, 'stationId', ${prep}.${lp("station")}, 'title', ${line}.${ol("title")}, 'sku', ${line}.${ol("sku")}, 'quantity', ${line}.${ol("quantity")}, 'position', ${line}.${ol("position")}, 'state', ${stateOf(prep)}, 'note', ${note(prep)}, 'queuedAt', ${prep}.${lp("queuedAt")}, 'startedAt', ${prep}.${lp("startedAt")}, 'readyAt', ${prep}.${lp("readyAt")}, 'servedAt', ${prep}.${lp("servedAt")})`;
 
   const progress = (order: string): string => {
     const event = (type: string): string =>
@@ -113,7 +129,7 @@ using (${readable(ctx.col(table, "tenant"))});`;
       });
 
     return `select ${orderFields(ctx, "x")} into v_order from ${t("orders")} x where x.${o("id")} = ${order};
-  select min(${rank(`p.${lp("state")}`)}) into v_least from ${t("preparations")} p where p.${lp("order")} = ${order};
+  select min(${rank(stateOf("p"))}) into v_least from ${t("preparations")} p where p.${lp("order")} = ${order};
   if v_least >= ${rank("'ready'")} then
     ${event("order.prepared")}
   end if;
@@ -126,9 +142,13 @@ using (${readable(ctx.col(table, "tenant"))});`;
     `${lp("startedAt")} = case when ${rank(state)} >= 2 then coalesce(p.${lp("startedAt")}, now()) end,
     ${lp("readyAt")} = case when ${rank(state)} >= 3 then coalesce(p.${lp("readyAt")}, now()) end,
     ${lp("servedAt")} = case when ${rank(state)} >= 4 then coalesce(p.${lp("servedAt")}, now()) end,
-    ${lp("state")} = ${state},
-    ${lp("updatedAt")} = now(),
-    ${lp("updatedBy")} = auth.uid()`;
+    ${lp("state")} = ${ctx.cast(PREPARATIONS, "state", state)},
+    ${lp("updatedAt")} = now()${
+      has("updatedBy")
+        ? `,
+    ${lp("updatedBy")} = auth.uid()`
+        : ""
+    }`;
 
   const receive = ctx.trigger("kitchen_receive");
   const changed = ctx.trigger("order_line_preparations_broadcast");
@@ -150,16 +170,16 @@ create table if not exists ${t("kitchenStations")} (
   unique (${ks("tenant")}, ${ks("key")})
 );
 create unique index if not exists kitchen_stations_default_idx on ${t("kitchenStations")} (${ks("tenant")}) where ${ks("isDefault")};
-${lockTable(t("kitchenStations"), { read: true })}
+${lockModuleTable(ctx, "kitchenStations", { read: true })}
 ${policy("kitchenStations")}
 
 create table if not exists ${t("kitchenRoutes")} (
   ${kr("product")} uuid primary key references ${products} on delete cascade,
   ${kr("tenant")} ${ctx.idType} not null,
   ${kr("station")} uuid not null references ${t("kitchenStations")} (${ks("id")}) on delete cascade
-);
+);${appUniqueIndex(ctx, "kitchenRoutes", ["product"])}
 create index if not exists kitchen_routes_station_idx on ${t("kitchenRoutes")} (${kr("station")});
-${lockTable(t("kitchenRoutes"), { read: true })}
+${lockModuleTable(ctx, "kitchenRoutes", { read: true })}
 ${policy("kitchenRoutes")}
 
 -- Where each line of an order sent to the kitchen is: queued, preparing,
@@ -169,19 +189,27 @@ create table if not exists ${t("preparations")} (
   ${lp("tenant")} ${ctx.idType} not null,
   ${lp("order")} uuid not null references ${t("orders")} (${o("id")}) on delete cascade,
   ${lp("station")} uuid references ${t("kitchenStations")} (${ks("id")}) on delete set null,
-  ${lp("state")} text not null default 'queued' check (${lp("state")} in (${PREPARATION_STATES.map(sqlString).join(", ")})),
-  ${lp("note")} text check (length(${lp("note")}) <= 500),
+  ${lp("state")} text not null default 'queued' check (${lp("state")} in (${PREPARATION_STATES.map(sqlString).join(", ")})),${
+    has("note")
+      ? `
+  ${lp("note")} text check (length(${lp("note")}) <= 500),`
+      : ""
+  }
   ${lp("queuedAt")} timestamptz not null default now(),
   ${lp("startedAt")} timestamptz,
   ${lp("readyAt")} timestamptz,
   ${lp("servedAt")} timestamptz,
-  ${lp("updatedAt")} timestamptz not null default now(),
-  ${lp("updatedBy")} uuid
-);
+  ${lp("updatedAt")} timestamptz not null default now()${
+    has("updatedBy")
+      ? `,
+  ${lp("updatedBy")} uuid`
+      : ""
+  }
+);${appUniqueIndex(ctx, PREPARATIONS, ["line"])}
 create index if not exists order_line_preparations_order_idx on ${t("preparations")} (${lp("order")});
 create index if not exists order_line_preparations_station_idx on ${t("preparations")} (${lp("station")});
 create index if not exists order_line_preparations_open_idx on ${t("preparations")} (${lp("tenant")}, ${lp("queuedAt")}) where ${lp("state")} <> 'served';
-${lockTable(t("preparations"), { read: true })}
+${lockModuleTable(ctx, PREPARATIONS, { read: true })}
 ${policy("preparations")}
 
 -- Pings kitchen:{tenant} with the line, its order, station and state, so a
@@ -199,7 +227,7 @@ begin
   ${ctx.broadcast(
     `${sqlString(prefix)} || new.${lp("tenant")}::text`,
     "'preparation'",
-    `jsonb_build_object('lineId', new.${lp("line")}, 'orderId', new.${lp("order")}, 'stationId', new.${lp("station")}, 'state', new.${lp("state")})`,
+    `jsonb_build_object('lineId', new.${lp("line")}, 'orderId', new.${lp("order")}, 'stationId', new.${lp("station")}, 'state', ${stateOf("new")})`,
   )}
   return null;
 end;
@@ -345,14 +373,17 @@ begin
   if notes is not null and jsonb_typeof(notes) <> 'object' then
     ${fail("ORDERS_KITCHEN_NOTES_INVALID", "notes must map line ids to text", "22023")}
   end if;
-  insert into ${t("preparations")} (${lp("line")}, ${lp("tenant")}, ${lp("order")}, ${lp("station")}, ${lp("note")}, ${lp("updatedBy")})
+  insert into ${t("preparations")} (${lp("line")}, ${lp("tenant")}, ${lp("order")}, ${lp("station")}${has("note") ? `, ${lp("note")}` : ""}${has("updatedBy") ? `, ${lp("updatedBy")}` : ""})
   select l.${ol("id")}, v_order.tenant, v_order.id,
     coalesce(
       (select s.${ks("id")} from ${t("kitchenRoutes")} r join ${t("kitchenStations")} s on s.${ks("id")} = r.${kr("station")} where r.${kr("product")} = l.${ol("product")} and s.${ks("active")}),
       (select s.${ks("id")} from ${t("kitchenStations")} s where s.${ks("tenant")} = v_order.tenant and s.${ks("isDefault")} and s.${ks("active")})
-    ),
-    left(nullif(trim(send_order_to_kitchen.notes ->> l.${ol("id")}::text), ''), 500),
-    auth.uid()
+    )${
+      has("note")
+        ? `,
+    left(nullif(trim(send_order_to_kitchen.notes ->> l.${ol("id")}::text), ''), 500)`
+        : ""
+    }${has("updatedBy") ? ",\n    auth.uid()" : ""}
   from ${t("orderLines")} l
   where l.${ol("order")} = v_order.id
   on conflict (${lp("line")}) do nothing;
@@ -424,7 +455,7 @@ begin
     ${stamp("bump_kitchen_ticket.state")}
   where p.${lp("order")} = v_order.id
     and (bump_kitchen_ticket.station is null or p.${lp("station")} = bump_kitchen_ticket.station)
-    and ${rank(`p.${lp("state")}`)} < ${rank("bump_kitchen_ticket.state")};
+    and ${rank(stateOf("p"))} < ${rank("bump_kitchen_ticket.state")};
   get diagnostics v_count = row_count;
   if v_count > 0 then
     ${progress("v_order.id")}
@@ -456,7 +487,7 @@ as $$
     join ${t("orders")} o on o.${o("id")} = p.${lp("order")}
     where p.${lp("tenant")} = kitchen_queue.tenant
       and (kitchen_queue.station is null or p.${lp("station")} = kitchen_queue.station)
-      and p.${lp("state")} = any (coalesce(kitchen_queue.states, array['queued', 'preparing', 'ready']))
+      and ${stateOf("p")} = any (coalesce(kitchen_queue.states, array['queued', 'preparing', 'ready']))
     group by o.${o("id")}, o.${o("number")}
     order by min(p.${lp("queuedAt")}), o.${o("id")}
     limit ${pageSize("kitchen_queue.page_size", 100, 500)}
@@ -480,7 +511,7 @@ as $$
       'number', o.${o("number")},
       'customerId', o.${o("customer")},
       'status', o.${o("status")},
-      'state', (${STATES})[min(${rank(`p.${lp("state")}`)})],
+      'state', (${STATES})[min(${rank(stateOf("p"))})],
       'sentAt', min(p.${lp("queuedAt")}),
       'readyAt', case when bool_and(p.${lp("readyAt")} is not null) then max(p.${lp("readyAt")}) end,
       'servedAt', case when bool_and(p.${lp("servedAt")} is not null) then max(p.${lp("servedAt")}) end,

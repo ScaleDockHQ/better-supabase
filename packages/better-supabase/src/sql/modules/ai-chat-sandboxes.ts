@@ -3,36 +3,48 @@ import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { raise, serviceGrant, userGrant, revokeTable } from "../shared.ts";
+import {
+  appKey,
+  asText,
+  assignments,
+  rowJson,
+  writtenPairs,
+} from "./ai-chat-tables.ts";
 
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
 /** The provider a harness session's sandbox gets when the save names none. */
 const HARNESS_SANDBOX_PROVIDER = "harness";
 
-function sandboxJson(names: AiChatNames, row: string): string {
-  const s = names.c.sandboxes;
+function sandboxJson(ctx: BlockSqlContext, row: string): string {
+  return rowJson(ctx, "sandboxes", row, [
+    ["id", "id"],
+    ["organization_id", "tenant"],
+    ["user_id", "user"],
+    ["chat_id", "chat"],
+    ["harness_id", "harness"],
+    ["provider", "provider"],
+    ["sandbox_id", "sandbox"],
+    ["container_id", "container"],
+    ["status", "status"],
+    ["metadata", "metadata", "'{}'::jsonb"],
+    ["idle_seconds", "idleSeconds"],
+    ["error", "error"],
+    ["last_used_at", "lastUsedAt"],
+    ["expires_at", "expiresAt"],
+    ["stopped_at", "stoppedAt"],
+    ["created_at", "createdAt"],
+    ["updated_at", "updatedAt"],
+  ]);
+}
 
-  const keys = [
-    ["id", s.id],
-    ["organization_id", s.tenant],
-    ["user_id", s.user],
-    ["chat_id", s.chat],
-    ["harness_id", s.harness],
-    ["provider", s.provider],
-    ["sandbox_id", s.sandbox],
-    ["container_id", s.container],
-    ["status", s.status],
-    ["metadata", s.metadata],
-    ["idle_seconds", s.idleSeconds],
-    ["error", s.error],
-    ["last_used_at", s.lastUsedAt],
-    ["expires_at", s.expiresAt],
-    ["stopped_at", s.stoppedAt],
-    ["created_at", s.createdAt],
-    ["updated_at", s.updatedAt],
-  ] as const;
-
-  return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})`;
+/** `alias.status`, compared as text over the app's sandboxes table. */
+function sandboxStatus(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  alias: string,
+): string {
+  return asText(ctx, "sandboxes", `${alias}.${names.c.sandboxes.status}`);
 }
 
 /**
@@ -51,6 +63,11 @@ export function sandboxTable(
   const s = names.c.sandboxes;
   const sandboxes = t.sandboxes;
 
+  const optional = (column: string, definition: () => string): string =>
+    ctx.has("sandboxes", column)
+      ? `\n  ${ctx.col("sandboxes", column)} ${definition()},`
+      : "";
+
   return `-- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
@@ -61,12 +78,9 @@ create table if not exists ${sandboxes} (
   ${s.chat} uuid,
   ${s.harness} text check (length(${s.harness}) between 1 and 200),
   ${s.provider} text not null check (${s.provider} ~ '${SLUG}'),
-  ${s.sandbox} text not null check (length(${s.sandbox}) between 1 and 200),
-  ${s.container} text check (length(${s.container}) <= 200),
-  ${s.status} text not null default 'running' check (${s.status} in ('running', 'stopping', 'stopped')),
-  ${s.metadata} jsonb not null default '{}' check (jsonb_typeof(${s.metadata}) = 'object'),
-  ${s.idleSeconds} integer not null default ${String(names.sandboxIdleAfter)} check (${s.idleSeconds} > 0),
-  ${s.error} text check (length(${s.error}) <= 4000),
+  ${s.sandbox} text not null check (length(${s.sandbox}) between 1 and 200),${optional("container", () => `text check (length(${s.container}) <= 200)`)}
+  ${s.status} text not null default 'running' check (${s.status} in ('running', 'stopping', 'stopped')),${optional("metadata", () => `jsonb not null default '{}' check (jsonb_typeof(${s.metadata}) = 'object')`)}
+  ${s.idleSeconds} integer not null default ${String(names.sandboxIdleAfter)} check (${s.idleSeconds} > 0),${optional("error", () => `text check (length(${s.error}) <= 4000)`)}
   ${s.lastUsedAt} timestamptz not null default now(),
   ${s.expiresAt} timestamptz,
   ${s.stoppedAt} timestamptz,
@@ -74,7 +88,7 @@ create table if not exists ${sandboxes} (
   ${s.updatedAt} timestamptz not null default now(),
   unique (${s.provider}, ${s.sandbox})
 );${adapt}
-create index if not exists ai_sandboxes_open_idx on ${sandboxes} (${s.lastUsedAt}) where ${s.status} <> 'stopped';
+create index if not exists ai_sandboxes_open_idx on ${sandboxes} (${s.lastUsedAt}) where ${s.status} <> 'stopped';${appKey(ctx, "sandboxes", "sandbox", ["provider", "sandbox"])}
 create index if not exists ai_sandboxes_chat_idx on ${sandboxes} (${s.chat});
 create index if not exists ai_sandboxes_harness_idx on ${sandboxes} (${s.chat}, ${s.harness}) where ${s.harness} is not null;
 create index if not exists ai_sandboxes_tenant_idx on ${sandboxes} (${s.tenant});
@@ -89,11 +103,15 @@ create policy ai_sandboxes_read on ${sandboxes} for select to authenticated
 }
 
 /** The running sandbox id of a harness session, as a SQL expression. */
-export function harnessSandbox(names: AiChatNames, row: string): string {
+export function harnessSandbox(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  row: string,
+): string {
   const s = names.c.sandboxes;
   const h = names.c.harness;
 
-  return `(select y.${s.sandbox} from ${names.t.sandboxes} y where y.${s.chat} = ${row}.${h.chat} and y.${s.harness} = ${row}.${h.harness} and y.${s.status} <> 'stopped' order by y.${s.lastUsedAt} desc limit 1)`;
+  return `(select y.${s.sandbox} from ${names.t.sandboxes} y where y.${s.chat} = ${row}.${h.chat} and y.${s.harness} = ${row}.${h.harness} and ${sandboxStatus(ctx, names, "y")} <> 'stopped' order by y.${s.lastUsedAt} desc limit 1)`;
 }
 
 /**
@@ -101,7 +119,11 @@ export function harnessSandbox(names: AiChatNames, row: string): string {
  * registers (or reuses) the session's sandbox, `null` marks its sandboxes
  * stopped. Runs with `v_chat` and `v_row` (the locked session) set.
  */
-export function harnessSandboxSave(names: AiChatNames, fields: string): string {
+export function harnessSandboxSave(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  fields: string,
+): string {
   const s = names.c.sandboxes;
   const h = names.c.harness;
   const ch = names.c.chats;
@@ -110,16 +132,15 @@ export function harnessSandboxSave(names: AiChatNames, fields: string): string {
   return `
   if ${fields} ? 'sandbox_id' then
     if nullif(${fields} ->> 'sandbox_id', '') is null then
-      update ${sandboxes} y set ${s.status} = 'stopped', ${s.stoppedAt} = now(), ${s.updatedAt} = now()
-      where y.${s.chat} = v_row.${h.chat} and y.${s.harness} = v_row.${h.harness} and y.${s.status} <> 'stopped';
+      update ${sandboxes} y set ${s.status} = ${ctx.cast("sandboxes", "status", "'stopped'")}, ${s.stoppedAt} = now(), ${s.updatedAt} = now()
+      where y.${s.chat} = v_row.${h.chat} and y.${s.harness} = v_row.${h.harness} and ${sandboxStatus(ctx, names, "y")} <> 'stopped';
     else
       insert into ${sandboxes} as cur (${s.tenant}, ${s.user}, ${s.chat}, ${s.harness}, ${s.provider}, ${s.sandbox})
       values (v_chat.${ch.tenant}, v_chat.${ch.owner}, v_chat.${ch.id}, v_row.${h.harness}, coalesce(nullif(${fields} ->> 'sandbox_provider', ''), '${HARNESS_SANDBOX_PROVIDER}'), ${fields} ->> 'sandbox_id')
       on conflict (${s.provider}, ${s.sandbox}) do update set
         ${s.chat} = excluded.${s.chat},
         ${s.harness} = excluded.${s.harness},
-        ${s.status} = 'running',
-        ${s.error} = null,
+        ${s.status} = ${ctx.cast("sandboxes", "status", "'running'")},${assignments(ctx, "sandboxes", [["error", () => "null"]], "        ")}
         ${s.stoppedAt} = null,
         ${s.lastUsedAt} = now(),
         ${s.updatedAt} = now()
@@ -130,7 +151,7 @@ export function harnessSandboxSave(names: AiChatNames, fields: string): string {
     end if;
   elsif ${fields} ->> 'status' is null then
     update ${sandboxes} y set ${s.lastUsedAt} = now(), ${s.updatedAt} = now()
-    where y.${s.chat} = v_row.${h.chat} and y.${s.harness} = v_row.${h.harness} and y.${s.status} = 'running';
+    where y.${s.chat} = v_row.${h.chat} and y.${s.harness} = v_row.${h.harness} and ${sandboxStatus(ctx, names, "y")} = 'running';
   end if;`;
 }
 
@@ -144,7 +165,25 @@ export function sandboxFunctions(
   const s = names.c.sandboxes;
   const h = names.c.harness;
   const sandboxes = names.t.sandboxes;
-  const json = (row: string): string => sandboxJson(names, row);
+  const json = (row: string): string => sandboxJson(ctx, row);
+  const status = (alias: string): string => sandboxStatus(ctx, names, alias);
+  const as = (value: string): string => ctx.cast("sandboxes", "status", value);
+
+  const [registerColumns, registerValues] = writtenPairs(ctx, "sandboxes", [
+    ["tenant", "\n    register_ai_sandbox.tenant"],
+    ["user", "\n    (v_fields ->> 'user_id')::uuid"],
+    ["chat", "\n    (v_fields ->> 'chat_id')::uuid"],
+    ["harness", "\n    v_fields ->> 'harness_id'"],
+    ["provider", "\n    register_ai_sandbox.provider"],
+    ["sandbox", "\n    register_ai_sandbox.sandbox_id"],
+    ["container", "\n    v_fields ->> 'container_id'"],
+    ["metadata", "\n    coalesce(v_fields -> 'metadata', '{}')"],
+    [
+      "idleSeconds",
+      `\n    coalesce((v_fields ->> 'idle_seconds')::integer, ${String(names.sandboxIdleAfter)})`,
+    ],
+    ["expiresAt", "\n    (v_fields ->> 'expires_at')::timestamptz"],
+  ]);
 
   return `-- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -160,28 +199,28 @@ declare
   v_row ${sandboxes}%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into ${sandboxes} as cur (${s.tenant}, ${s.user}, ${s.chat}, ${s.harness}, ${s.provider}, ${s.sandbox}, ${s.container}, ${s.metadata}, ${s.idleSeconds}, ${s.expiresAt})
-  values (
-    register_ai_sandbox.tenant,
-    (v_fields ->> 'user_id')::uuid,
-    (v_fields ->> 'chat_id')::uuid,
-    v_fields ->> 'harness_id',
-    register_ai_sandbox.provider,
-    register_ai_sandbox.sandbox_id,
-    v_fields ->> 'container_id',
-    coalesce(v_fields -> 'metadata', '{}'),
-    coalesce((v_fields ->> 'idle_seconds')::integer, ${String(names.sandboxIdleAfter)}),
-    (v_fields ->> 'expires_at')::timestamptz
+  insert into ${sandboxes} as cur (${registerColumns})
+  values (${registerValues}
   )
-  on conflict (${s.provider}, ${s.sandbox}) do update set
-    ${s.container} = coalesce(excluded.${s.container}, cur.${s.container}),
+  on conflict (${s.provider}, ${s.sandbox}) do update set${assignments(
+    ctx,
+    "sandboxes",
+    [
+      [
+        "container",
+        () => `coalesce(excluded.${s.container}, cur.${s.container})`,
+      ],
+    ],
+  )}
     ${s.chat} = coalesce(excluded.${s.chat}, cur.${s.chat}),
-    ${s.harness} = coalesce(excluded.${s.harness}, cur.${s.harness}),
-    ${s.metadata} = cur.${s.metadata} || excluded.${s.metadata},
+    ${s.harness} = coalesce(excluded.${s.harness}, cur.${s.harness}),${assignments(
+      ctx,
+      "sandboxes",
+      [["metadata", () => `cur.${s.metadata} || excluded.${s.metadata}`]],
+    )}
     ${s.idleSeconds} = excluded.${s.idleSeconds},
     ${s.expiresAt} = coalesce(excluded.${s.expiresAt}, cur.${s.expiresAt}),
-    ${s.status} = 'running',
-    ${s.error} = null,
+    ${s.status} = ${as("'running'")},${assignments(ctx, "sandboxes", [["error", () => "null"]])}
     ${s.stoppedAt} = null,
     ${s.lastUsedAt} = now(),
     ${s.updatedAt} = now()
@@ -204,7 +243,7 @@ set search_path = ''
 as $$
 begin
   update ${sandboxes} x set ${s.lastUsedAt} = now(), ${s.updatedAt} = now()
-  where x.${s.id} = touch_ai_sandbox.id and x.${s.status} = 'running';
+  where x.${s.id} = touch_ai_sandbox.id and ${status("x")} = 'running';
   return found;
 end;
 $$;
@@ -219,7 +258,7 @@ security definer
 set search_path = ''
 as $$
   select ${json("x")} from ${sandboxes} x
-  where x.${s.chat} = ai_sandbox_for.chat_id and x.${s.provider} = ai_sandbox_for.provider and x.${s.status} = 'running'
+  where x.${s.chat} = ai_sandbox_for.chat_id and x.${s.provider} = ai_sandbox_for.provider and ${status("x")} = 'running'
     and (x.${s.expiresAt} is null or x.${s.expiresAt} > now())
   order by x.${s.lastUsedAt} desc
   limit 1
@@ -241,8 +280,8 @@ declare
 begin
   with due as (
     select y.${s.id} from ${sandboxes} y
-    where ((y.${s.status} = 'running' and (y.${s.lastUsedAt} + make_interval(secs => y.${s.idleSeconds}) <= now() or y.${s.expiresAt} <= now()))
-       or (y.${s.status} = 'stopping' and y.${s.updatedAt} <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
+    where ((${status("y")} = 'running' and (y.${s.lastUsedAt} + make_interval(secs => y.${s.idleSeconds}) <= now() or y.${s.expiresAt} <= now()))
+       or (${status("y")} = 'stopping' and y.${s.updatedAt} <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from ${names.t.harness} z
         where z.${h.chat} = y.${s.chat} and z.${h.harness} = y.${s.harness} and z.${h.lockedUntil} > now()
@@ -251,7 +290,7 @@ begin
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
     for update skip locked
   ), claimed as (
-    update ${sandboxes} x set ${s.status} = 'stopping', ${s.updatedAt} = now()
+    update ${sandboxes} x set ${s.status} = ${as("'stopping'")}, ${s.updatedAt} = now()
     from due where x.${s.id} = due.${s.id}
     returning x.*
   )
@@ -275,22 +314,25 @@ declare
   v_row ${sandboxes}%rowtype;
 begin
   update ${sandboxes} x set
-    ${s.status} = case when finish_ai_sandbox_stop.stopped then 'stopped' else 'running' end,
-    ${s.stoppedAt} = case when finish_ai_sandbox_stop.stopped then now() else null end,
-    ${s.error} = left(finish_ai_sandbox_stop.error, 4000),
+    ${s.status} = ${as("case when finish_ai_sandbox_stop.stopped then 'stopped' else 'running' end")},
+    ${s.stoppedAt} = case when finish_ai_sandbox_stop.stopped then now() else null end,${assignments(
+      ctx,
+      "sandboxes",
+      [["error", () => "left(finish_ai_sandbox_stop.error, 4000)"]],
+    )}
     ${s.updatedAt} = now()
-  where x.${s.id} = finish_ai_sandbox_stop.id and x.${s.status} = 'stopping'
+  where x.${s.id} = finish_ai_sandbox_stop.id and ${status("x")} = 'stopping'
   returning x.* into v_row;
   if not found then
     return false;
   end if;
   if finish_ai_sandbox_stop.stopped and v_row.${s.harness} is not null then
-    update ${names.t.harness} z set ${h.status} = 'stopped', ${h.updatedAt} = now()
+    update ${names.t.harness} z set ${h.status} = ${ctx.cast("harness", "status", "'stopped'")}, ${h.updatedAt} = now()
     where z.${h.chat} = v_row.${s.chat} and z.${h.harness} = v_row.${s.harness}
-      and z.${h.status} in ('active', 'idle')
+      and ${asText(ctx, "harness", `z.${h.status}`)} in ('active', 'idle')
       and not exists (
         select 1 from ${sandboxes} y
-        where y.${s.chat} = v_row.${s.chat} and y.${s.harness} = v_row.${s.harness} and y.${s.status} <> 'stopped'
+        where y.${s.chat} = v_row.${s.chat} and y.${s.harness} = v_row.${s.harness} and ${status("y")} <> 'stopped'
       );
   end if;
   return true;
@@ -328,12 +370,19 @@ export function upgradeSandboxes(
   // The ai-chat 1 column, which the current layout no longer names.
   const sandbox = "sandbox_id";
 
-  return `${sandboxTable(
+  const table = sandboxTable(
     ctx,
     names,
     `
 alter table ${names.t.sandboxes} add column if not exists ${s.harness} text check (length(${s.harness}) between 1 and 200);`,
-  )}
+  );
+
+  // An app's harness table never had the ai-chat 1 column.
+  if (!ctx.owns("harness")) {
+    return table;
+  }
+
+  return `${table}
 do $$
 begin
   if exists (
@@ -343,7 +392,7 @@ begin
     execute $sql$
       insert into ${names.t.sandboxes} (${s.tenant}, ${s.user}, ${s.chat}, ${s.harness}, ${s.provider}, ${s.sandbox}, ${s.status}, ${s.lastUsedAt}, ${s.stoppedAt}, ${s.createdAt})
       select c.${ch.tenant}, x.${h.owner}, x.${h.chat}, x.${h.harness}, '${HARNESS_SANDBOX_PROVIDER}', x.${sandbox},
-        case when x.${h.status} = 'stopped' then 'stopped' else 'running' end,
+        ${ctx.cast("sandboxes", "status", `case when x.${h.status} = 'stopped' then 'stopped' else 'running' end`)},
         x.${h.lastActiveAt},
         case when x.${h.status} = 'stopped' then x.${h.updatedAt} end,
         x.${h.createdAt}

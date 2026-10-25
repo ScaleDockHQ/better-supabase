@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { mailSyncFunctions } from "./mail-sync-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -81,6 +82,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     accounts: {
       name: "mail_accounts",
+      app: { writes: false },
       lifecycle: {
         tenant: "tenant",
         user: "user",
@@ -102,9 +104,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["lastError", "createdAt", "updatedAt"],
+      typed: ["share", "status"],
     },
     threads: {
       name: "mail_threads",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -119,9 +124,18 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "subject",
+        "snippet",
+        "messageCount",
+        "engagement",
+        "createdAt",
+        "updatedAt",
+      ],
     },
     messages: {
       name: "mail_messages",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -148,9 +162,24 @@ const NAMES: BlockSqlNames = {
         clickCount: "click_count",
         createdAt: "created_at",
       },
+      optional: [
+        "rfcId",
+        "fromName",
+        "cc",
+        "subject",
+        "snippet",
+        "bodyText",
+        "bodyHtml",
+        "templateVersion",
+        "openCount",
+        "clickCount",
+        "createdAt",
+      ],
+      typed: ["direction"],
     },
     trackedLinks: {
       name: "mail_tracked_links",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -160,9 +189,11 @@ const NAMES: BlockSqlNames = {
         clickCount: "click_count",
         createdAt: "created_at",
       },
+      optional: ["createdAt"],
     },
     tracking: {
       name: "mail_tracking_events",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -173,9 +204,12 @@ const NAMES: BlockSqlNames = {
         userAgent: "user_agent",
         occurredAt: "occurred_at",
       },
+      optional: ["position", "userAgent"],
+      typed: ["kind"],
     },
     links: {
       name: "mail_thread_subjects",
+      app: { writes: false },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -185,6 +219,8 @@ const NAMES: BlockSqlNames = {
         source: "source",
         createdAt: "created_at",
       },
+      optional: ["source", "createdAt"],
+      typed: ["source"],
     },
   },
 };
@@ -201,6 +237,12 @@ export interface MailNames {
   readonly l: (column: string) => string;
   readonly k: (column: string) => string;
   readonly e: (column: string) => string;
+  /** Whether the table has the column (an app's table may map it to null). */
+  readonly has: (table: string, column: string) => boolean;
+  /** A row as JSON, with the module's column names over an app's table. */
+  readonly json: (table: string, alias: string) => string;
+  /** The `order by` of a thread's subjects, `s` being the links alias. */
+  readonly subjectOrder: string;
   readonly read: string;
   readonly connect: string;
   readonly send: string;
@@ -219,6 +261,21 @@ function names(ctx: BlockSqlContext): MailNames {
     );
   }
 
+  const json = (table: string, alias: string): string => {
+    if (ctx.owns(table)) {
+      return `to_jsonb(${alias})`;
+    }
+
+    const columns = Object.entries(NAMES.tables[table]?.columns ?? {}).map(
+      ([logical, name]) =>
+        `${sqlString(name)}, ${ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : "null"}`,
+    );
+
+    return `jsonb_build_object(${columns.join(", ")})`;
+  };
+
+  const link = (column: string): string => `s.${ctx.col("links", column)}`;
+
   return {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -228,6 +285,13 @@ function names(ctx: BlockSqlContext): MailNames {
     l: (column) => ctx.col("links", column),
     k: (column) => ctx.col("trackedLinks", column),
     e: (column) => ctx.col("tracking", column),
+    has: (table, column) => ctx.has(table, column),
+    json,
+    subjectOrder: [
+      ...(ctx.has("links", "createdAt") ? [link("createdAt")] : []),
+      link("subjectType"),
+      link("subjectId"),
+    ].join(", "),
     read: ctx.permission("read", keys.read),
     connect: ctx.permission("connect", keys.connect),
     send: ctx.permission("send", keys.send),
@@ -248,6 +312,18 @@ function tables(ctx: BlockSqlContext, n: MailNames): string {
 
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
+  const line = (
+    table: string,
+    column: string,
+    sql: (name: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${sql(ctx.col(table, column))}` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${t(table)} (${columns});`;
+
   return `create table if not exists ${t("accounts")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.idType} not null,
@@ -258,12 +334,9 @@ function tables(ctx: BlockSqlContext, n: MailNames): string {
   ${a("share")} text not null default 'records' check (${a("share")} in ('records', 'private')),
   ${a("status")} text not null default 'active' check (${a("status")} in ('active', 'paused', 'error', 'disconnected')),
   ${a("cursor")} text,
-  ${a("lastSyncedAt")} timestamptz,
-  ${a("lastError")} text,
-  ${a("createdAt")} timestamptz not null default now(),
-  ${a("updatedAt")} timestamptz not null default now(),
+  ${a("lastSyncedAt")} timestamptz,${line("accounts", "lastError", (c) => `${c} text,`)}${line("accounts", "createdAt", (c) => `${c} timestamptz not null default now(),`)}${line("accounts", "updatedAt", (c) => `${c} timestamptz not null default now(),`)}
   unique (${a("tenant")}, ${a("user")}, ${a("address")})
-);
+);${unique("accounts", "address", `${a("tenant")}, ${a("user")}, ${a("address")}`)}
 create index if not exists ${ctx.naming.rename("mail_accounts_user_idx")} on ${t("accounts")} (${a("user")});
 create index if not exists ${ctx.naming.rename("mail_accounts_due_idx")} on ${t("accounts")} (${a("lastSyncedAt")} nulls first) where ${a("status")} = 'active';
 ${lockTable(t("accounts"), { read: true })}
@@ -271,57 +344,36 @@ create table if not exists ${t("threads")} (
   ${h("id")} uuid primary key default gen_random_uuid(),
   ${h("tenant")} ${ctx.idType} not null,
   ${h("account")} uuid not null references ${t("accounts")} (${a("id")}) on delete cascade,
-  ${h("externalId")} text not null,
-  ${h("subject")} text,
-  ${h("snippet")} text,
-  ${h("lastMessageAt")} timestamptz,
-  ${h("messageCount")} integer not null default 0,
-  ${h("engagement")} uuid${engagement},
-  ${h("createdAt")} timestamptz not null default now(),
-  ${h("updatedAt")} timestamptz not null default now(),
+  ${h("externalId")} text not null,${line("threads", "subject", (c) => `${c} text,`)}${line("threads", "snippet", (c) => `${c} text,`)}
+  ${h("lastMessageAt")} timestamptz,${line("threads", "messageCount", (c) => `${c} integer not null default 0,`)}${line("threads", "engagement", (c) => `${c} uuid${engagement},`)}${line("threads", "createdAt", (c) => `${c} timestamptz not null default now(),`)}${line("threads", "updatedAt", (c) => `${c} timestamptz not null default now(),`)}
   unique (${h("account")}, ${h("externalId")})
-);
+);${unique("threads", "external", `${h("account")}, ${h("externalId")}`)}
 create index if not exists ${ctx.naming.rename("mail_threads_tenant_recent_idx")} on ${t("threads")} (${h("tenant")}, ${h("lastMessageAt")} desc);
-create index if not exists ${ctx.naming.rename("mail_threads_engagement_idx")} on ${t("threads")} (${h("engagement")}) where ${h("engagement")} is not null;
-${lockTable(t("threads"), { read: true })}
+${ctx.has("threads", "engagement") ? `create index if not exists ${ctx.naming.rename("mail_threads_engagement_idx")} on ${t("threads")} (${h("engagement")}) where ${h("engagement")} is not null;\n` : ""}${lockTable(t("threads"), { read: true })}
 create table if not exists ${t("messages")} (
   ${m("id")} uuid primary key default gen_random_uuid(),
   ${m("tenant")} ${ctx.idType} not null,
   ${m("account")} uuid not null references ${t("accounts")} (${a("id")}) on delete cascade,
   ${m("thread")} uuid not null references ${t("threads")} (${h("id")}) on delete cascade,
-  ${m("externalId")} text not null,
-  ${m("rfcId")} text,
+  ${m("externalId")} text not null,${line("messages", "rfcId", (c) => `${c} text,`)}
   ${m("direction")} text not null check (${m("direction")} in ('inbound', 'outbound')),
-  ${m("fromAddress")} text,
-  ${m("fromName")} text,
-  ${m("to")} text[] not null default '{}',
-  ${m("cc")} text[] not null default '{}',
-  ${m("subject")} text,
-  ${m("snippet")} text,
-  ${m("bodyText")} text,
-  ${m("bodyHtml")} text,
-  ${m("sentAt")} timestamptz not null,
-  ${m("templateVersion")} uuid,
+  ${m("fromAddress")} text,${line("messages", "fromName", (c) => `${c} text,`)}
+  ${m("to")} text[] not null default '{}',${line("messages", "cc", (c) => `${c} text[] not null default '{}',`)}${line("messages", "subject", (c) => `${c} text,`)}${line("messages", "snippet", (c) => `${c} text,`)}${line("messages", "bodyText", (c) => `${c} text,`)}${line("messages", "bodyHtml", (c) => `${c} text,`)}
+  ${m("sentAt")} timestamptz not null,${line("messages", "templateVersion", (c) => `${c} uuid,`)}
   ${m("trackingHash")} text check (${m("trackingHash")} ~ '^[0-9a-f]{64}$'),
-  ${m("openedAt")} timestamptz,
-  ${m("openCount")} integer not null default 0,
-  ${m("clickedAt")} timestamptz,
-  ${m("clickCount")} integer not null default 0,
-  ${m("createdAt")} timestamptz not null default now(),
+  ${m("openedAt")} timestamptz,${line("messages", "openCount", (c) => `${c} integer not null default 0,`)}
+  ${m("clickedAt")} timestamptz,${line("messages", "clickCount", (c) => `${c} integer not null default 0,`)}${line("messages", "createdAt", (c) => `${c} timestamptz not null default now(),`)}
   unique (${m("account")}, ${m("externalId")})
 );
 create index if not exists ${ctx.naming.rename("mail_messages_thread_idx")} on ${t("messages")} (${m("thread")}, ${m("sentAt")});
-create index if not exists ${ctx.naming.rename("mail_messages_rfc_idx")} on ${t("messages")} (${m("account")}, ${m("rfcId")}) where ${m("rfcId")} is not null;
-create unique index if not exists ${ctx.naming.rename("mail_messages_tracking_idx")} on ${t("messages")} (${m("trackingHash")}) where ${m("trackingHash")} is not null;
-create index if not exists ${ctx.naming.rename("mail_messages_template_idx")} on ${t("messages")} (${m("tenant")}, ${m("templateVersion")}) where ${m("templateVersion")} is not null;
-${lockTable(t("messages"), { read: true })}
+${ctx.has("messages", "rfcId") ? `create index if not exists ${ctx.naming.rename("mail_messages_rfc_idx")} on ${t("messages")} (${m("account")}, ${m("rfcId")}) where ${m("rfcId")} is not null;\n` : ""}create unique index if not exists ${ctx.naming.rename("mail_messages_tracking_idx")} on ${t("messages")} (${m("trackingHash")}) where ${m("trackingHash")} is not null;
+${ctx.has("messages", "templateVersion") ? `create index if not exists ${ctx.naming.rename("mail_messages_template_idx")} on ${t("messages")} (${m("tenant")}, ${m("templateVersion")}) where ${m("templateVersion")} is not null;\n` : ""}${lockTable(t("messages"), { read: true })}
 create table if not exists ${t("trackedLinks")} (
   ${k("tenant")} ${ctx.idType} not null,
   ${k("message")} uuid not null references ${t("messages")} (${m("id")}) on delete cascade,
   ${k("position")} integer not null check (${k("position")} >= 0),
   ${k("url")} text not null check (${k("url")} ~* '^https?://' and length(${k("url")}) <= 2048),
-  ${k("clickCount")} integer not null default 0,
-  ${k("createdAt")} timestamptz not null default now(),
+  ${k("clickCount")} integer not null default 0,${line("trackedLinks", "createdAt", (c) => `${c} timestamptz not null default now(),`)}
   primary key (${k("message")}, ${k("position")})
 );
 ${lockTable(t("trackedLinks"), { read: true })}
@@ -329,9 +381,7 @@ create table if not exists ${t("tracking")} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
   ${e("message")} uuid not null references ${t("messages")} (${m("id")}) on delete cascade,
-  ${e("kind")} text not null check (${e("kind")} in ('open', 'click')),
-  ${e("position")} integer,
-  ${e("userAgent")} text check (length(${e("userAgent")}) <= 300),
+  ${e("kind")} text not null check (${e("kind")} in ('open', 'click')),${line("tracking", "position", (c) => `${c} integer,`)}${line("tracking", "userAgent", (c) => `${c} text check (length(${c}) <= 300),`)}
   ${e("occurredAt")} timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("mail_tracking_events_message_idx")} on ${t("tracking")} (${e("message")}, ${e("occurredAt")});
@@ -340,11 +390,9 @@ create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
   ${l("thread")} uuid not null references ${t("threads")} (${h("id")}) on delete cascade,
   ${l("subjectType")} text not null,
-  ${l("subjectId")} text not null,
-  ${l("source")} text not null default 'match' check (${l("source")} in ('match', 'manual')),
-  ${l("createdAt")} timestamptz not null default now(),
+  ${l("subjectId")} text not null,${line("links", "source", (c) => `${c} text not null default 'match' check (${c} in ('match', 'manual')),`)}${line("links", "createdAt", (c) => `${c} timestamptz not null default now(),`)}
   primary key (${l("thread")}, ${l("subjectType")}, ${l("subjectId")})
-);
+);${unique("links", "subject", `${l("thread")}, ${l("subjectType")}, ${l("subjectId")}`)}
 create index if not exists ${ctx.naming.rename("mail_thread_subjects_subject_idx")} on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
 ${lockTable(t("links"), { read: true })}
 

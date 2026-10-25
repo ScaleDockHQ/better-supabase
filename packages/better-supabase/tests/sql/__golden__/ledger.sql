@@ -4024,7 +4024,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:4184cb57f5050d71d53eec0591b86bc533ced7218e5b59195e275379048d4e78
+-- @bsb-hash sha256:b5f08ed548cf41498842e503fb0257719d5b06017126cd817bec1b18bcf6483f
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4159,31 +4159,29 @@ alter table "better_supabase"."ledger_entries" add column if not exists "created
 create index if not exists "ledger_entries_account_idx" on "better_supabase"."ledger_entries" ("account_id", "created_at" desc);
 create index if not exists "ledger_entries_transaction_idx" on "better_supabase"."ledger_entries" ("transaction_id");
 
-create table if not exists "better_supabase"."ledger_balances" (
-  "account_id" uuid primary key references "better_supabase"."ledger_accounts" ("id") on delete cascade,
-  "tenant_id" uuid not null,
-  "balance" bigint not null default 0,
-  -- The sum of the account's active holds.
-  "held" bigint not null default 0 check ("held" >= 0),
-  "available" bigint generated always as ("balance" - "held") stored,
-  "updated_at" timestamptz not null default now()
-);
+-- better_supabase.ledger_balances is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."ledger_balances" add column if not exists "account_id" uuid references "better_supabase"."ledger_accounts" ("id") on delete cascade;
+alter table "better_supabase"."ledger_balances" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."ledger_balances" add column if not exists "balance" bigint not null default 0;
+alter table "better_supabase"."ledger_balances" add column if not exists "held" bigint not null default 0 check ("held" >= 0);
+alter table "better_supabase"."ledger_balances" add column if not exists "available" bigint generated always as ("balance" - "held") stored;
+alter table "better_supabase"."ledger_balances" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "ledger_balances_account_id_key" on "better_supabase"."ledger_balances" ("account_id");
 create index if not exists "ledger_balances_tenant_idx" on "better_supabase"."ledger_balances" ("tenant_id");
 
-create table if not exists "better_supabase"."ledger_holds" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "account_id" uuid not null references "better_supabase"."ledger_accounts" ("id") on delete restrict,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'active' check ("status" in ('active', 'captured', 'released', 'expired')),
-  "reference_type" text,
-  "reference_id" text,
-  "expires_at" timestamptz,
-  "transaction_id" uuid references "better_supabase"."ledger_transactions" ("id") on delete restrict,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now()
-);
+-- better_supabase.ledger_holds is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."ledger_holds" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."ledger_holds" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."ledger_holds" add column if not exists "account_id" uuid references "better_supabase"."ledger_accounts" ("id") on delete restrict;
+alter table "better_supabase"."ledger_holds" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."ledger_holds" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'captured', 'released', 'expired'));
+alter table "better_supabase"."ledger_holds" add column if not exists "reference_type" text;
+alter table "better_supabase"."ledger_holds" add column if not exists "reference_id" text;
+alter table "better_supabase"."ledger_holds" add column if not exists "expires_at" timestamptz;
+alter table "better_supabase"."ledger_holds" add column if not exists "transaction_id" uuid references "better_supabase"."ledger_transactions" ("id") on delete restrict;
+alter table "better_supabase"."ledger_holds" add column if not exists "created_by" uuid;
+alter table "better_supabase"."ledger_holds" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."ledger_holds" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "ledger_holds_account_idx" on "better_supabase"."ledger_holds" ("account_id", "status");
 create index if not exists "ledger_holds_transaction_idx" on "better_supabase"."ledger_holds" ("transaction_id") where "transaction_id" is not null;
 create index if not exists "ledger_holds_expiry_idx" on "better_supabase"."ledger_holds" ("expires_at") where "status" = 'active' and "expires_at" is not null;
@@ -4232,18 +4230,16 @@ drop policy if exists bsb_ledger_entries_select on "better_supabase"."ledger_ent
 create policy bsb_ledger_entries_select on "better_supabase"."ledger_entries" for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_balances" enable row level security;
-revoke all on "better_supabase"."ledger_balances" from anon, authenticated;
 grant select on "better_supabase"."ledger_balances" to authenticated;
 grant all on "better_supabase"."ledger_balances" to service_role;
-drop policy if exists "ledger_balances_read" on "better_supabase"."ledger_balances";
-create policy "ledger_balances_read" on "better_supabase"."ledger_balances" for select to authenticated
+drop policy if exists bsb_ledger_balances_select on "better_supabase"."ledger_balances";
+create policy bsb_ledger_balances_select on "better_supabase"."ledger_balances" for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_holds" enable row level security;
-revoke all on "better_supabase"."ledger_holds" from anon, authenticated;
 grant select on "better_supabase"."ledger_holds" to authenticated;
 grant all on "better_supabase"."ledger_holds" to service_role;
-drop policy if exists "ledger_holds_read" on "better_supabase"."ledger_holds";
-create policy "ledger_holds_read" on "better_supabase"."ledger_holds" for select to authenticated
+drop policy if exists bsb_ledger_holds_select on "better_supabase"."ledger_holds";
+create policy bsb_ledger_holds_select on "better_supabase"."ledger_holds" for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 
 -- Entries and transactions are append-only: a reversal posts the opposite.
@@ -4613,8 +4609,8 @@ begin
   end if;
   update "better_supabase"."ledger_balances" x set "held" = x."held" + ledger_hold.amount, "updated_at" = now()
     where x."account_id" = v_account."id";
-  insert into "better_supabase"."ledger_holds" ("tenant_id", "account_id", "amount", "reference_type", "reference_id", "expires_at", "created_by")
-  values (v_account."tenant_id", v_account."id", ledger_hold.amount, ledger_hold.reference_type, ledger_hold.reference_id, ledger_hold.expires_at, auth.uid())
+  insert into "better_supabase"."ledger_holds" ("tenant_id", "account_id", "amount", "status", "reference_type", "reference_id", "expires_at", "created_by")
+  values (v_account."tenant_id", v_account."id", ledger_hold.amount, better_supabase.as_column_type('active', (null::"better_supabase"."ledger_holds")."status"), ledger_hold.reference_type, ledger_hold.reference_id, ledger_hold.expires_at, auth.uid())
   returning * into v_row;
   null;
   return v_row;
@@ -4670,7 +4666,7 @@ begin
   end if;
   update "better_supabase"."ledger_balances" x set "held" = x."held" - v_row."amount", "updated_at" = now()
     where x."account_id" = v_row."account_id";
-  update "better_supabase"."ledger_holds" x set "status" = ledger_unhold.status, "updated_at" = now()
+  update "better_supabase"."ledger_holds" x set "status" = better_supabase.as_column_type(ledger_unhold.status, (null::"better_supabase"."ledger_holds")."status"), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   return v_row;

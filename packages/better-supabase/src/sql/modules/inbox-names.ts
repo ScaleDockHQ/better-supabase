@@ -108,6 +108,15 @@ export const INBOX_NAMES: BlockSqlNames = {
   tables: {
     inboxes: {
       name: "inboxes",
+      app: {},
+      optional: [
+        "address",
+        "installation",
+        "settings",
+        "createdAt",
+        "archivedAt",
+      ],
+      typed: ["channel", "botMode"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -125,6 +134,9 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     members: {
       name: "inbox_members",
+      app: {},
+      optional: ["createdAt"],
+      typed: ["role"],
       lifecycle: { user: "user" },
       columns: {
         inbox: "inbox_id",
@@ -135,6 +147,8 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     teams: {
       name: "inbox_teams",
+      app: {},
+      optional: ["createdAt"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -145,11 +159,22 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     teamMembers: {
       name: "inbox_team_members",
+      app: {},
+      optional: ["createdAt"],
       lifecycle: { user: "user" },
       columns: { team: "team_id", user: "user_id", createdAt: "created_at" },
     },
     contacts: {
       name: "contacts",
+      app: {},
+      optional: [
+        "name",
+        "email",
+        "phone",
+        "avatarUrl",
+        "metadata",
+        "createdAt",
+      ],
       lifecycle: { tenant: "tenant", user: "user" },
       columns: {
         id: "id",
@@ -166,6 +191,8 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     identities: {
       name: "contact_identities",
+      app: {},
+      optional: ["createdAt"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -178,6 +205,16 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     conversations: {
       name: "inbox_conversations",
+      app: {},
+      optional: [
+        "subject",
+        "priority",
+        "preview",
+        "firstResponseAt",
+        "resolvedAt",
+        "metadata",
+      ],
+      typed: ["status", "priority", "botMode"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -203,6 +240,8 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     events: {
       name: "conversation_events",
+      app: {},
+      optional: ["actor", "data"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -216,6 +255,9 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     details: {
       name: "inbox_message_details",
+      app: {},
+      optional: ["format", "replyTo", "metadata"],
+      typed: ["direction", "authorType", "format"],
       lifecycle: { tenant: "tenant" },
       columns: {
         message: "message_id",
@@ -231,6 +273,9 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     deliveries: {
       name: "message_deliveries",
+      app: {},
+      optional: ["error", "attempts"],
+      typed: ["status"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -247,6 +292,9 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     inbound: {
       name: "inbound_events",
+      app: {},
+      optional: ["error", "processedAt"],
+      typed: ["status"],
       lifecycle: { tenant: "tenant", omit: ["headers"] },
       columns: {
         id: "id",
@@ -265,6 +313,8 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     templates: {
       name: "message_templates",
+      app: {},
+      optional: ["variables", "externalId"],
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -282,6 +332,8 @@ export const INBOX_NAMES: BlockSqlNames = {
     },
     scheduled: {
       name: "scheduled_inbox_messages",
+      app: {},
+      optional: ["createdAt"],
       lifecycle: { tenant: "tenant", user: "author" },
       columns: {
         id: "id",
@@ -309,6 +361,33 @@ export const INBOX_NAMES: BlockSqlNames = {
 type Action = keyof BlockSqlOperations<"inbox">;
 
 const NAME = /^[a-z][a-z0-9_-]{0,30}$/;
+
+/** What a row's JSON holds for an optional column the app's table lacks. */
+const JSON_FALLBACKS: Readonly<Record<string, string>> = {
+  settings: "'{}'::jsonb",
+  metadata: "'{}'::jsonb",
+  data: "'{}'::jsonb",
+  variables: "'[]'::jsonb",
+  format: "'text'",
+  priority: "'normal'",
+  attempts: "0",
+};
+
+function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
+  if (ctx.owns(table)) {
+    return `to_jsonb(${alias})`;
+  }
+
+  const columns = INBOX_NAMES.tables[table]?.columns ?? {};
+
+  return `jsonb_build_object(${Object.entries(columns)
+    .map(
+      ([logical, name]) =>
+        `${sqlString(name)}, ${ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : (JSON_FALLBACKS[logical] ?? "null")}`,
+    )
+    .join(", ")})`;
+}
+
 const QUEUE = /^[a-z][a-z0-9_]{0,40}$/;
 
 /** The table, column and permission helpers the inbox SQL shares. */
@@ -319,6 +398,21 @@ export interface InboxSql {
   readonly t: (table: string) => string;
   /** A column accessor for one table. */
   readonly cols: (table: string) => (column: string) => string;
+  /** Whether a logical column exists (the app's table may lack it). */
+  readonly has: (table: string, column: string) => boolean;
+  /** `value`, a text expression, as the type of a typed column. */
+  readonly cast: (table: string, column: string, value: string) => string;
+  /**
+   * `expr`, a typed column of `table`, as text: on the app's table it may be an
+   * enum, which neither compares with text nor joins a text array.
+   */
+  readonly text: (table: string, expr: string) => string;
+  /**
+   * The row `alias` of `table` as JSON under the default column names: the
+   * reads return it as it is on the module's table, and build it column by
+   * column over the app's, which has other names and its own columns.
+   */
+  readonly json: (table: string, alias: string) => string;
   /** The permission key literal of an action. */
   readonly key: (action: Action) => string;
   /** `can()` for the caller on a tenant expression. */
@@ -434,6 +528,10 @@ export function inboxSql(
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     cols: (table) => (column) => ctx.col(table, column),
+    has: (table, column) => ctx.has(table, column),
+    cast: (table, column, value) => ctx.cast(table, column, value),
+    text: (table, expr) => (ctx.owns(table) ? expr : `${expr}::text`),
+    json: (table, alias) => rowJson(ctx, table, alias),
     key,
     can: (tenant, action) => ctx.can("tenant", tenant, key(action)),
     command: (tenant, name, action) =>

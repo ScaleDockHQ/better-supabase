@@ -8034,7 +8034,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:552b5997286ba86d4dc8d73f2ee1ceeddec222a9233a8994736b6052b5df253b
+-- @bsb-hash sha256:d0c7fe1c9721ae3bc5a0302391c7af463d4baad8057b62cfc82c8049abac42bb
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8324,20 +8324,18 @@ drop policy if exists bsb_fulfillments_select on "better_supabase"."fulfillments
 create policy bsb_fulfillments_select on "better_supabase"."fulfillments" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."fulfillment_lines" (
-  "tenant_id" uuid not null,
-  "fulfillment_id" uuid not null references "better_supabase"."fulfillments" ("id") on delete cascade,
-  "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  primary key ("fulfillment_id", "order_line_id")
-);
+-- better_supabase.fulfillment_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."fulfillment_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."fulfillment_lines" add column if not exists "fulfillment_id" uuid references "better_supabase"."fulfillments" ("id") on delete cascade;
+alter table "better_supabase"."fulfillment_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
+alter table "better_supabase"."fulfillment_lines" add column if not exists "quantity" integer check ("quantity" > 0);
+create unique index if not exists "fulfillment_lines_fulfillment_id_order_line_id_key" on "better_supabase"."fulfillment_lines" ("fulfillment_id", "order_line_id");
 create index if not exists fulfillment_lines_line_idx on "better_supabase"."fulfillment_lines" ("order_line_id");
 alter table "better_supabase"."fulfillment_lines" enable row level security;
-revoke all on "better_supabase"."fulfillment_lines" from anon, authenticated;
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
-drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines" for select to authenticated
+drop policy if exists bsb_fulfillment_lines_select on "better_supabase"."fulfillment_lines";
+create policy bsb_fulfillment_lines_select on "better_supabase"."fulfillment_lines" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.order_returns is the app's table: this block adds only the columns it needs.
@@ -8357,20 +8355,18 @@ drop policy if exists bsb_order_returns_select on "better_supabase"."order_retur
 create policy bsb_order_returns_select on "better_supabase"."order_returns" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."order_return_lines" (
-  "tenant_id" uuid not null,
-  "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
-  "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  primary key ("return_id", "order_line_id")
-);
+-- better_supabase.order_return_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."order_return_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."order_return_lines" add column if not exists "return_id" uuid references "better_supabase"."order_returns" ("id") on delete cascade;
+alter table "better_supabase"."order_return_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
+alter table "better_supabase"."order_return_lines" add column if not exists "quantity" integer check ("quantity" > 0);
+create unique index if not exists "order_return_lines_return_id_order_line_id_key" on "better_supabase"."order_return_lines" ("return_id", "order_line_id");
 create index if not exists order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
 alter table "better_supabase"."order_return_lines" enable row level security;
-revoke all on "better_supabase"."order_return_lines" from anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
-create policy order_return_lines_read on "better_supabase"."order_return_lines" for select to authenticated
+drop policy if exists bsb_order_return_lines_select on "better_supabase"."order_return_lines";
+create policy bsb_order_return_lines_select on "better_supabase"."order_return_lines" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.order_refunds is the app's table: this block adds only the columns it needs.
