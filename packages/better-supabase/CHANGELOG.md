@@ -1,5 +1,14 @@
 # better-supabase
 
+## 0.20.0
+
+### Minor Changes
+
+- [#388](https://github.com/ScaleDockHQ/better-supabase/pull/388) [`ccc9c1d`](https://github.com/ScaleDockHQ/better-supabase/commit/ccc9c1d176dc1d07ce22afc95f1fe4b36bf35667) Thanks [@mick340](https://github.com/mick340)! - Block clients built from a `Db` get its Storage:
+  
+  - `db.<block>` and `db.$blocks.<block>` clients, `blockSet.client(db, key)` and `createBlockClient(db, block)` pass `db.$storage` to the block as `storage` when the `Db` has Storage, so `db.$blocks.attachments`, `db.$blocks.dataLifecycle`, ai-files and drive read, sign and remove files as the `Db`'s caller instead of failing without one. A `storage` you pass through `options` or `.with({ storage })` still wins.
+  - `BlockContext`, `BlockClientOptions` and `CreateBlocksOptions` take `storage`, and the options `.using(create)` passes its creator hold it.
+
 ## 0.19.0
 
 ### Minor Changes
