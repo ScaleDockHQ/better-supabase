@@ -106,6 +106,36 @@ describe("adoptedColumnProblems", () => {
     expect(secrets("column")).not.toContain("vaultId");
   });
 
+  it("passes an enum locale on the app's profiles table, which the module casts", () => {
+    const files = [
+      {
+        text: `create type public.app_locale as enum ('en', 'nl', 'de');
+create table public.profiles (
+  id uuid primary key,
+  email text,
+  username text,
+  locale public.app_locale not null default 'en',
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);`,
+      },
+    ];
+
+    expect(
+      adoptedColumnProblems(
+        {
+          profiles: {
+            tables: { profiles: "public.profiles" },
+            columns: { profiles: { locale: "locale" } },
+          },
+        },
+        files,
+        ["public"],
+        { "public.profiles": "supabase/schemas/profiles.sql" },
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses an enum column the module writes as text, and passes one it casts", () => {
     const files = [
       {

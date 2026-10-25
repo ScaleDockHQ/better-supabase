@@ -6,7 +6,7 @@ import type {
 } from "./context.ts";
 
 import { sqlIdent } from "../core/template.ts";
-import { asColumnType } from "./column-type.ts";
+import { asColumnType, tryColumnType } from "./column-type.ts";
 import { UNMAPPED_COLUMN, UNMAPPED_TABLE } from "./over-app-tables.ts";
 
 interface Ownership {
@@ -100,7 +100,7 @@ export function tableOwnership(
           ? `${UNMAPPED_COLUMN}${table}.${logical}`
           : requiredColumn(table, logical),
       ),
-    cast: (table, logical, value) => {
+    cast: (table, logical, value, invalid = "raise") => {
       if (input.tables[table]?.typed?.includes(logical) !== true) {
         throw new TypeError(
           `Module "${input.module}" casts ${table}.${logical}, which its names.tables.${table}.typed doesn't list`,
@@ -113,7 +113,7 @@ export function tableOwnership(
 
       const parts = input.tableName(table);
 
-      return asColumnType(
+      return (invalid === "null" ? tryColumnType : asColumnType)(
         `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`,
         requiredColumn(table, logical),
         value,

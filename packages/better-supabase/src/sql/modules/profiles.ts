@@ -71,6 +71,7 @@ const NAMES: BlockSqlNames = {
       ],
       // An `extraColumns.locale` declared before version 3 keeps its column.
       yieldsToExtra: ["locale"],
+      typed: ["locale"],
     },
   },
   hooks: [
@@ -256,6 +257,15 @@ function syncValues(ctx: BlockSqlContext): Map<string, string> {
         );
       }
     }
+  }
+
+  const fromLocale = hasLocale(ctx) ? values.get(col("locale")) : undefined;
+
+  if (fromLocale !== undefined) {
+    values.set(
+      col("locale"),
+      ctx.cast("profiles", "locale", fromLocale, "null"),
+    );
   }
 
   if (has("email")) {
@@ -995,8 +1005,12 @@ function selfUpdates(ctx: BlockSqlContext): string {
       const quoted = ctx.col("profiles", logical);
       const key = sqlString(profilePhysical(ctx, logical));
       const extract = logical === "onboarding" ? "->" : "->>";
+      const value = `update_my_profile.attrs ${extract} ${key}`;
 
-      return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ${extract} ${key} else p.${quoted} end`;
+      const written =
+        logical === "locale" ? ctx.cast("profiles", logical, value) : value;
+
+      return `${quoted} = case when update_my_profile.attrs ? ${key} then ${written} else p.${quoted} end`;
     }),
     ...extras,
   ].join(",\n    ");

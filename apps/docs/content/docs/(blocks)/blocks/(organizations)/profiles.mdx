@@ -43,6 +43,16 @@ map `columns: { locale: "language" }` to an existing column; an app that
 already declares a `locale` in `extraColumns` keeps that column, and
 notifications reads it.
 
+Your `locale` column may be an enum or a domain, such as
+`locale public.app_locale`. The module writes it through
+`better_supabase.as_column_type` and notifications reads it as text, so
+`update_my_profile` with a label the enum lacks fails with Postgres error
+`22P02`. When `options.metadata` maps a metadata key to `locale`, a sign-up
+whose value the type rejects gets a null `locale` through
+`better_supabase.try_column_type`, as it would without the key, so the
+sign-up never fails on it. Keep that column nullable or leave it out of
+`metadata`.
+
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
 or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another
 profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a

@@ -1309,8 +1309,8 @@ string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
 The columns the module casts to their declared type may stay enums or
-domains: status columns, the tags `kind` and `subjectType`, and the numbering
-`entity`. `upgrade` and
+domains: status columns, the tags `kind` and `subjectType`, the numbering
+`entity` and the profiles `locale`. `upgrade` and
 `better-supabase add --adopt` refuse the same columns when the schema files declare
 the enum. See
 [existing tables](/docs/blocks/sql#over-your-own-tables).

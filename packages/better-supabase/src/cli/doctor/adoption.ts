@@ -172,7 +172,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "error",
     title: "Enum column of the app's that a module writes as text",
     description:
-      "A module writes a text parameter or computed text value into a column of the app's table that the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind` and the numbering `entity`, may be enums.",
+      "A module writes a text parameter or computed text value into a column of the app's table that the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind`, the numbering `entity` and the profiles `locale`, may be enums.",
     check: (context) => {
       const { tables } = catalogOf(context);
 
