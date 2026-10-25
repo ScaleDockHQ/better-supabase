@@ -1,5 +1,17 @@
 # better-supabase
 
+## 0.15.1
+
+### Patch Changes
+
+- [#370](https://github.com/ScaleDockHQ/better-supabase/pull/370) [`59c3b27`](https://github.com/ScaleDockHQ/better-supabase/commit/59c3b27342d8cba675f2ecc12569680a2f39acd7) Thanks [@martijn00](https://github.com/martijn00)! - A block runs over a view of yours again, as `ownership: "adopt"` did in 0.14. When your schema files or the snapshot create a view or materialized view at a block table's name (its default name, or the one `blocks.<name>.tables` maps), the block writes no table DDL for it: no `create table`, added columns, constraints, indexes, row level security, grants or policies. It still writes the functions that read the view. An optional column the view lacks counts as mapped to `null`, and a required one stops `upgrade` with an error that names the view and the column. A view at the name of a table only the block keeps is still an error. Doctor reports a block whose API writes through a view Postgres can't update (BS349). `organization_member_role` now leaves out disabled memberships, like the other membership checks. `better-supabase/sql` exports `declaredViews` and `adoptedViews`.
+
+- [#370](https://github.com/ScaleDockHQ/better-supabase/pull/370) [`68764f3`](https://github.com/ScaleDockHQ/better-supabase/commit/68764f34f6198794c14c36aeddd62707ea69c445) Thanks [@martijn00](https://github.com/martijn00)! - `codemod 0.15` no longer leaves a script running the same command twice. It rewrites both `sql sync` and `sql upgrade` to `upgrade`, so a `package.json` script or a workflow `run:` step that called both now calls `upgrade` once. Only identical commands next to each other and joined by `&&` collapse.
+
+- [#370](https://github.com/ScaleDockHQ/better-supabase/pull/370) [`68764f3`](https://github.com/ScaleDockHQ/better-supabase/commit/68764f34f6198794c14c36aeddd62707ea69c445) Thanks [@martijn00](https://github.com/martijn00)! - `codemod 0.15` lists the lines of your own SQL that name a `bs_` object the upgrade migration renames to `bsb_`: your pgTAP tests (`sql.testsDir`), the schema files no block wrote, and your newest migration. Each line shows under "Check these by hand" with its file and line. The codemod never rewrites SQL, since a migration you pushed must not change.
+
+- [#370](https://github.com/ScaleDockHQ/better-supabase/pull/370) [`0dfead3`](https://github.com/ScaleDockHQ/better-supabase/commit/0dfead3c4e766b327b680b01d8f499a1e4081916) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/server` exports `PERMISSION_CAP_CLAIM` (`bsb_permission_cap`), the claim an `authorization.automation.runAs` hook puts the permission cap under. Through 0.15, `cap_allows` and `permissionCapOf` also read the 0.14 name, `bs_permission_cap`, when the new claim is missing, so a hook or a queued job that still carries the old name keeps its cap instead of running uncapped. `runAs` warns once when it gets only the old name.
+
 ## 0.15.0
 
 ### Minor Changes
