@@ -323,6 +323,46 @@ that function's arguments. It:
   cache key: `getCustomers(organizationId)` calls
   `bsb.cached({ tenant: organizationId })`.
 
+### With your own cacheLife
+
+When a scope calls `cacheLife` more than once, Next.js combines the calls
+field by field and keeps the smallest `stale` and the smallest `revalidate`.
+A profile of your own next to `bsb.cached()` can make the entry shorter,
+but it can never keep it past what the token allows.
+
+Take a 15-minute profile in a project whose access tokens last 900 seconds:
+
+```ts title="src/features/customers/customer-queries.ts"
+import { cacheLife } from "next/cache";
+
+export async function getCustomer(id: string) {
+  "use cache: private";
+  cacheLife({ stale: 900, revalidate: 900, expire: 3600 });
+  const { db } = await bsb.cached({ tables: ["customers"], id });
+  return db.customers.get(id).orThrow();
+}
+```
+
+`bsb.cached()` adds `stale: sessionStale(session)`, which is the seconds
+left on the token capped at `max` (300 by default). On a fresh token the
+entry goes stale after 300 seconds, not 900. With
+`bsb.cached({ life: { max: 900 } })` it goes stale when the token expires:
+600 seconds for a token issued 300 seconds ago. With fewer than 30 seconds
+left the stale time is 0, so the entry is not reused. Your profile's
+`revalidate` and `expire` still apply, since `bsb.cached()` only sets them
+when you pass them in `life`.
+
+Prefer `life` on `bsb.cached()` over a second `cacheLife` call, so one call
+holds the whole lifetime:
+
+```ts
+const { db } = await bsb.cached({
+  tables: ["customers"],
+  id,
+  life: { max: 900, revalidate: 900, expire: 3600 },
+});
+```
+
 ### Permission snapshots
 
 Cache what the UI needs to know about the caller's permissions the same way.

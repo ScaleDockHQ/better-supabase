@@ -71,7 +71,9 @@ export async function getIslandSession() {
 
 `bsb.cached()` reads the snapshot from the memo, sets `cacheLife` so the
 entry never outlives the token, and tags it with `sessionTag(userId)` and
-`sessionIdTag(sessionId)`.
+`sessionIdTag(sessionId)`. A `cacheLife` of your own in the same scope can
+only shorten the entry, because Next.js keeps the smallest `stale` of the
+calls ([with your own cacheLife](/docs/frameworks/next-cache-components#with-your-own-cachelife)).
 
 ## 3. Pass plain values into cached readers
 

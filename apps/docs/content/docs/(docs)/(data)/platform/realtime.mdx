@@ -710,6 +710,31 @@ using sub = notifications.subscribe(
   process. Each topic is one stream per browser tab, so serve the route over
   HTTP/2.
 
+### Hosting the relay
+
+On a serverless host, every open stream is a function invocation that runs
+until the stream ends. A tab with two subscribed topics keeps two
+invocations open, and each instance joins its own upstream channels.
+
+`maxDurationMs` (240000) ends each stream before the common 300-second
+function limit, and the client reconnects, so a tab opens a new invocation
+about every four minutes per topic. Keep `maxDurationMs` below your
+platform's limit (`maxDuration` on the route in Next.js). Each reconnect
+checks access again and makes live queries refetch.
+
+On Vercel Fluid Compute, concurrent streams share an instance and you pay
+for active CPU, so a stream that only sends a heartbeat every 25 seconds
+uses little CPU. Each stream still holds instance memory and counts as an
+invocation per reconnect: estimate open tabs times topics times 15
+reconnects an hour.
+
+Prefer direct Realtime, where the browser joins with its own token, when
+the browser has a Supabase session: it costs no function time and needs no
+reconnect cycle. Keep the relay for support sessions and cookie-only apps,
+which is what `useRealtimeRelay` does without `when: "always"`. When many
+tabs follow many topics through the relay, run it on a long-lived Node
+server instead of in functions.
+
 `realtimeTopicAccess(postgres, { claims, topic, action })` runs the same
 policy check on its own.
 
