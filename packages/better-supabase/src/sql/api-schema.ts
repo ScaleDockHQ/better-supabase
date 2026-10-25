@@ -4,8 +4,8 @@ import { sqlIdent } from "../core/template.ts";
 export interface ModuleApi {
   readonly schema: string;
   /**
-   * Function names to wrap; every function granted to the API roles when
-   * missing.
+   * Function names to wrap besides the ones the module's TypeScript client
+   * calls; every function granted to the API roles when missing.
    */
   readonly functions?: readonly string[];
 }
@@ -255,7 +255,9 @@ grant execute on function ${target}(${types}) to ${grant.roles.join(", ")};`;
  * calls the service functions, such as `flag_definitions`, with a service-role
  * client. The module's `internal` helpers (granted only so its policies and
  * triggers can call them as the client) get no wrapper, and a wrapper an
- * earlier version wrote for one is dropped.
+ * earlier version wrote for one is dropped. The `client` functions, which the
+ * module's TypeScript client calls over a transport, keep their wrappers when
+ * `api.functions` lists fewer.
  */
 export function apiWrappers(
   sql: string,
@@ -263,6 +265,7 @@ export function apiWrappers(
   api: ModuleApi,
   module: string,
   internal: readonly string[] = [],
+  client: readonly string[] = [],
 ): string {
   if (api.schema === source) {
     throw new TypeError(
@@ -277,7 +280,9 @@ export function apiWrappers(
   const grants = granted.filter(
     (grant) =>
       !internal.includes(grant.name) &&
-      (!api.functions || api.functions.includes(grant.name)),
+      (!api.functions ||
+        api.functions.includes(grant.name) ||
+        client.includes(grant.name)),
   );
 
   for (const name of api.functions ?? []) {

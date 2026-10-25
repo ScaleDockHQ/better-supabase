@@ -596,7 +596,10 @@ blocks: {
 `add` then writes a `security invoker` function in `api` for each module
 function that `anon`, `authenticated` or `service_role` may execute, or only
 those listed in `functions`, with the same name and arguments, granted to the
-same of those roles. The wrapper runs as the caller, so the module's own
+same of those roles. A list in `functions` adds to the functions the block's
+TypeScript client calls, which always get a wrapper: with
+`functions: ["check_rate_limit"]`, `rate-limit` still writes
+`check_rate_limits` for `checkAll` and `purge_rate_limits` for `purge`. The wrapper runs as the caller, so the module's own
 permission checks and RLS still apply, and a service function such as
 `flag_definitions` stays callable by `service_role` only. Each wrapper
 revokes execute from `public` and from every API role it isn't meant for,
