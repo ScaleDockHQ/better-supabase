@@ -90,6 +90,13 @@ Each client runs through the `Db`'s executor, so it acts as the same caller
 so `db.$with({ tenant })` and every request get their own. The browser client
 of `createClient` gets the same properties on `bsb.db`.
 
+Blocks that keep files (attachments, ai-files, drive and data-lifecycle) get
+the `Db`'s Storage as `storage`, so `db.$blocks.attachments.download(id)`
+signs its URL as the same caller and the bucket policies apply. A `Db`
+connected without Storage passes none. A `storage` you pass yourself, through
+`.with({ storage })`, `blockSet.client(db, key, { storage })` or
+`createBlockClient`, wins over the `Db`'s.
+
 When a table already holds the property, such as an app `tasks` table next to
 the `tasks` block, the table keeps `db.tasks` and the instance is on
 `db.$blocks.tasks`. `db.$blocks` holds every instance. `db.$api(fn, args)`
@@ -248,7 +255,8 @@ creator's type parameters, such as the notification `types` or the metric
 definitions, or passes what the creator needs from your code:
 `settingsBlock.using((options) => createSettings({ ...options, settings }))`.
 Settings from an earlier `with` still reach the creator and the block's
-ports.
+ports. The options hold the shared ones, so a client built from a `Db` with
+Storage finds the caller's Storage in `options.storage`.
 
 ## Transports
 

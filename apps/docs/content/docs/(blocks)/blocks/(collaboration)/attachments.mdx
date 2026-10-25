@@ -213,6 +213,10 @@ export async function startUpload(projectId: string, file: FileMeta) {
 }
 ```
 
+On a `Db` with the block installed through `.blocks()`, `db.attachments` (or
+`db.$blocks.attachments`) is the same client with the `Db`'s transport,
+organization and Storage (`db.$storage`), so you pass none of them.
+
 The first argument is the record as a `RecordRef` (`{ type, id }`), or
 `null` for a file without one. The tenant comes from the block's `tenant`
 option, an organization id or a function that returns the current one;

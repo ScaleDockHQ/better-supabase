@@ -18,6 +18,7 @@ import type { BlockInstanceSurface } from "../core/db-blocks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
+import type { StorageApi } from "../storage/storage-api.ts";
 import type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
@@ -42,6 +43,12 @@ export interface BlockContext extends BlockOptions {
   readonly credentials?: CredentialProvider;
   /** `betterSupabase.events`, for the block events of the blocks that emit them. */
   readonly events?: EventHub;
+  /**
+   * The caller's Storage, so the bucket policies apply: `db.$storage` for a
+   * client built from a `Db` that has one. Attachments, ai-files, drive and
+   * data-lifecycle read and write files through it.
+   */
+  readonly storage?: StorageApi;
 }
 
 export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
@@ -71,6 +78,7 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
 /** The part of a `Db` that `createBlockClient` reads. */
 export interface BlockClientSource extends DbTransportSource {
   readonly $context?: { readonly tenant?: string | undefined };
+  readonly $storage?: StorageApi;
 }
 
 /** Options for `createBlockClient` and `BlockSet.client`. */
@@ -80,6 +88,8 @@ export interface BlockClientOptions extends Omit<
 > {
   /** Default `dbTransport(db)`. */
   readonly transport?: BlockContext["transport"];
+  /** Default `db.$storage`, when the `Db` has Storage. */
+  readonly storage?: StorageApi;
   /** `blockConfig` from `blocks.generated.ts`; `BlockSet.client` passes it. */
   readonly config?: GeneratedBlocks;
   /**
@@ -178,8 +188,10 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
   /**
    * One block's client over a `Db`, built with the generated config: its calls
    * run through `dbTransport(db)` and act in the `Db`'s tenant
-   * (`db.$context.tenant`) unless `options.tenant` names one. The blocks it
-   * consumes ports from are built on demand.
+   * (`db.$context.tenant`) unless `options.tenant` names one, and it reads
+   * files through `db.$storage` when the `Db` has Storage unless
+   * `options.storage` names another. The blocks it consumes ports from are
+   * built on demand.
    *
    * ```ts
    * const comments = blockSet.client(ctx.db, "comments");
@@ -372,8 +384,10 @@ export function createBlocks<const B extends BlockMap>(
 /**
  * One block's client over a `Db`: its calls run through `dbTransport(db)` and
  * act in the `Db`'s tenant (`db.$context.tenant`) unless `options.tenant` names
- * one. Pass `config: blockConfig` so it calls the schema and function names
- * `gen` wrote; `BlockSet.client(db, key)` does that for you.
+ * one, and it uses `db.$storage` when the `Db` has Storage unless
+ * `options.storage` names another. Pass `config: blockConfig` so it calls the
+ * schema and function names `gen` wrote; `BlockSet.client(db, key)` does that
+ * for you.
  *
  * ```ts
  * const comments = createBlockClient(ctx.db, commentsBlock, {
@@ -406,13 +420,24 @@ function clientContext(
   options: BlockClientOptions & { readonly hooks?: object },
 ): CreateBlocksOptions & { readonly hooks?: object } {
   const { hooks, instance: _instance, ...rest } = options;
+  const storage = rest.storage ?? storageOf(db);
 
   return {
     tenant: () => db.$context?.tenant,
     ...rest,
     transport: rest.transport ?? dbTransport(db),
+    ...(storage === undefined ? {} : { storage }),
     ...(hooks === undefined ? {} : { hooks }),
   };
+}
+
+/** `db.$storage`, or `undefined` when the `Db` was connected without Storage. */
+function storageOf(db: BlockClientSource): StorageApi | undefined {
+  try {
+    return db.$storage;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A port a consumer takes from one provider. */

@@ -44,6 +44,7 @@ import {
   runBindingWrite,
 } from "../records/record-type.ts";
 import { loadTimeline } from "../records/timeline.ts";
+import { isStorageApi } from "../storage/storage-api.ts";
 import { invalidateBinding, recordTag, bindingTag } from "./records.ts";
 
 /**
@@ -161,7 +162,7 @@ function clientOptions(
 
   return {
     ...(feature.config === undefined ? {} : { config: feature.config }),
-    ...(storage === undefined ? {} : { storage }),
+    ...(isStorageApi(storage) ? { storage } : {}),
   };
 }
 

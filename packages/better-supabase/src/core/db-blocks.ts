@@ -18,8 +18,8 @@ export interface DbBlockSource {
   /** The keys in `blocks.generated.ts` of the instances that have a client. */
   readonly instances: readonly string[];
   /**
-   * One instance's client over `db`: its calls run through `db`'s executor and
-   * act in `db.$context.tenant`.
+   * One instance's client over `db`: its calls run through `db`'s executor, act
+   * in `db.$context.tenant` and use `db.$storage` when `db` has Storage.
    */
   client(
     db: object,

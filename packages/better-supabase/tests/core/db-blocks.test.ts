@@ -1,7 +1,10 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import type { BlockContext } from "../../src/blocks/index.ts";
+import type { BlockContext, UsingOptions } from "../../src/blocks/index.ts";
+import type { StorageApi } from "../../src/storage/storage-api.ts";
 
+import { attachmentsBlock } from "../../src/blocks/attachments/index.ts";
+import { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/index.ts";
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { instanceProperty } from "../../src/core/instance-property.ts";
@@ -166,5 +169,149 @@ describe("block instances on db", () => {
     void db.leadscoring;
     // @ts-expect-error a definition without blocks has no $api
     void defineSupabase(schema).connect(executor, {}).$api;
+  });
+});
+
+describe("block instances and the Db's storage", () => {
+  const signed: unknown[][] = [];
+
+  const bucketApi = (bucket: string) => ({
+    createSignedUrl: (path: string, ttl: number) => {
+      signed.push([bucket, path, ttl]);
+
+      return Promise.resolve({
+        data: { signedUrl: `https://s/${bucket}/${path}` },
+        error: null,
+      });
+    },
+  });
+
+  // SAFETY: the blocks below only call createSignedUrl.
+  const storage = { from: bucketApi } as unknown as StorageApi;
+
+  const rows: Record<string, unknown> = {
+    get_attachment: {
+      id: "a1",
+      organization_id: "org-1",
+      subject_type: "project",
+      subject_id: "p1",
+      bucket: "attachments",
+      object_path: "org-1/attachments/a1",
+      name: "plan.pdf",
+      mime_type: "application/pdf",
+      size: "2048",
+      status: "clean",
+      uploaded_by: "u1",
+      created_at: "2026-10-06T12:00:00Z",
+      uploaded_at: "2026-10-06T12:00:05Z",
+    },
+    get_data_export: {
+      id: "x1",
+      subject: "user",
+      user_id: "u1",
+      status: "ready",
+      bucket: "data-exports",
+      files: ["x1/public.projects.ndjson"],
+      requested_at: "2026-10-06T12:00:00Z",
+      completed_at: "2026-10-06T12:01:00Z",
+      expires_at: "2026-10-13T12:01:00Z",
+    },
+  };
+
+  const files = {
+    name: "fake",
+    execute: async () => ok({ rows: [], count: 0 }),
+    rpc: async (fn: string) => ok(rows[fn]),
+  };
+
+  const storageProbe = defineBlock({
+    name: "probe",
+    create: (context: BlockContext) => ({ storage: context.storage }),
+    category: "work",
+  });
+
+  const fileBlocks = defineBlocks(
+    {
+      attachments: { schema: "better_supabase", options: {} },
+      "data-lifecycle": { schema: "better_supabase", options: {} },
+      probe: { schema: "better_supabase", options: {} },
+    },
+    {
+      attachments: attachmentsBlock,
+      "data-lifecycle": dataLifecycleBlock,
+      probe: storageProbe,
+    },
+  );
+
+  const withFiles = defineSupabase(schema).blocks(fileBlocks);
+
+  it("signs attachment downloads through db.$storage", async () => {
+    signed.length = 0;
+    const db = withFiles.connect(files, { tenant: "org-1" }, { storage });
+
+    const { signedUrl } = await db.$blocks.attachments.download("a1").orThrow();
+
+    expect(signedUrl).toBe("https://s/attachments/org-1/attachments/a1");
+    expect(signed).toEqual([["attachments", "org-1/attachments/a1", 300]]);
+  });
+
+  it("signs export files through db.$storage", async () => {
+    signed.length = 0;
+    const db = withFiles.connect(files, {}, { storage });
+
+    const download = await db.$blocks.dataLifecycle.download("x1").orThrow();
+
+    expect(download.files).toEqual([
+      {
+        table: "public.projects",
+        url: "https://s/data-exports/x1/public.projects.ndjson",
+      },
+    ]);
+    expect(signed[0]?.[0]).toBe("data-exports");
+  });
+
+  it("passes no storage when the Db has none, and an explicit one wins", () => {
+    const bare = withFiles.connect(files, {});
+    const db = withFiles.connect(files, {}, { storage });
+    // SAFETY: only compared by identity.
+    const other = { from: bucketApi } as unknown as StorageApi;
+
+    expect(bare.$blocks.probe.storage).toBeUndefined();
+    expect(db.$blocks.probe.storage).toBe(db.$storage);
+    expect(fileBlocks.client(db, "probe").storage).toBe(db.$storage);
+    expect(fileBlocks.client(db, "probe", { storage: other }).storage).toBe(
+      other,
+    );
+
+    const pinned = defineSupabase(schema)
+      .blocks(
+        defineBlocks(
+          { probe: { schema: "better_supabase", options: {} } },
+          { probe: storageProbe.with({ storage: other }) },
+        ),
+      )
+      .connect(files, {}, { storage });
+
+    expect(pinned.probe.storage).toBe(other);
+  });
+
+  it("gives using creators the Db's storage", () => {
+    const db = defineSupabase(schema)
+      .blocks(
+        defineBlocks(
+          { probe: { schema: "better_supabase", options: {} } },
+          {
+            probe: storageProbe.using((options) => ({
+              bucket: options.storage?.from("avatars"),
+            })),
+          },
+        ),
+      )
+      .connect(files, {}, { storage });
+
+    expect(db.probe.bucket).toBeDefined();
+    expectTypeOf<UsingOptions<{}>["storage"]>().toEqualTypeOf<
+      StorageApi | undefined
+    >();
   });
 });
