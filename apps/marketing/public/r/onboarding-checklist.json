@@ -4,7 +4,7 @@
   "title": "Onboarding checklist",
   "description": "lib/onboarding.ts: a getting-started checklist definition to edit, shared by the config and useOnboarding.",
   "dependencies": [
-    "better-supabase@^0.15.1"
+    "better-supabase@^0.16.0"
   ],
   "files": [
     {
