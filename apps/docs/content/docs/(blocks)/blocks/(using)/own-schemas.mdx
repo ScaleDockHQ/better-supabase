@@ -93,6 +93,59 @@ On tenant tables, a restrictive `bsb_tenant_scope` policy keeps every row
 inside the caller's organizations, so your own permissive policy can't widen
 access beyond them.
 
+## Views
+
+A view or materialized view of yours counts as yours the same way a table
+does: when your files or the snapshot create it at a block table's default
+name, or at the name `blocks.<name>.tables` maps it to. This lets a block
+read rows you keep in another shape, such as organization memberships kept
+in one table with a `scope` column:
+
+```sql title="supabase/schemas/010_memberships.sql"
+create view public.organization_memberships with (security_invoker = true) as
+select distinct on (scope_id, user_id) scope_id as organization_id, user_id, role, created_at
+from public.memberships where scope = 'organization'
+order by scope_id, user_id, created_at, role;
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    memberships: { tables: { memberships: "public.organization_memberships" } },
+    "share-links": {},
+  },
+});
+```
+
+Over a view, the block writes only the functions that read it
+(`current_tenant_id`, `member_organization_ids`, `has_organization_role`,
+`membership_claims` and the rest). It writes no `create table`, no
+`add column`, no constraints, indexes, row level security, grants, `revoke`
+or policies on the view, and a comment in its file says so. Your view keeps
+its own access: with `security_invoker = true`, the policies of the table
+under it apply.
+
+A view can't take a column, so the columns it lacks work this way:
+
+- an optional column (`disabledAt`, `updatedAt` or `lastUsedAt` on
+  memberships) counts as mapped to `null`, which turns its feature off, so
+  every member in the view counts as active;
+- a required column (`organization_id`, `user_id` or `role` on memberships)
+  stops `upgrade` with an error that names the view and the column. Add it to
+  the view, or map the block's column to one the view has in
+  `blocks.<name>.columns`.
+
+A table that belongs to the block alone still stops `upgrade` when a view of
+yours sits at its name.
+
+The block's functions read the view, but its TypeScript API also writes rows
+(adding a member, changing a role). Postgres writes through a simple view to
+its table, but not through one with `distinct`, `group by`, a join, an
+aggregate or a set operation, nor through a materialized view, unless the view
+has `instead of` triggers. Doctor reports a block table on such a view as
+[BS349](/docs/cli/doctor#bs349). Write those rows to the table under the view
+yourself, or add the triggers.
+
 ## Enriching a table with tables.name
 
 A `tables.<name>` entry over a table your schema already creates enriches it
@@ -167,6 +220,7 @@ blocking reads or writes.
 | [BS342](/docs/cli/doctor#bs342) | a column of your table has a type the block can't write into                                                                     |
 | [BS347](/docs/cli/doctor#bs347) | a block's `bsb_` policy can let a user reach rows your own policies keep closed                                                  |
 | [BS348](/docs/cli/doctor#bs348) | your table keeps its own `updated_at` trigger, so the block adds none                                                            |
+| [BS349](/docs/cli/doctor#bs349) | a block table is on a view Postgres can't write through, and the block's API writes it                                           |
 
 BS236 and BS238 need a database, so a saved snapshot skips them.
 

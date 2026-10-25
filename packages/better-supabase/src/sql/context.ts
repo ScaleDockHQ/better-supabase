@@ -13,7 +13,7 @@ import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockContributions } from "./contributions.ts";
-import type { BlockSqlAppTable } from "./module-types.ts";
+import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 
@@ -428,6 +428,11 @@ export interface BlockSqlContext {
   owns(table: string): boolean;
   /** The logical tables the app has; the module only adds their columns. */
   readonly appOwned: readonly string[];
+  /**
+   * The entries of `appOwned` that are views: the module writes no DDL on them,
+   * only the functions that read them.
+   */
+  readonly appViews: readonly string[];
   readonly names: BlockSqlNames;
   readonly installedModules: readonly string[];
   /** The permission key for a module action, as a SQL literal. */
@@ -623,6 +628,8 @@ export interface BlockSqlContextSource {
   ) => readonly Contributor<K>[];
   /** `layout.ownTables`: the app's tables, as `schema.table`. */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /** `layout.ownViews`: the entries of `ownTables` that are views. */
+  readonly ownViews?: Readonly<Record<string, OwnView>>;
 }
 
 /** An installed instance that adds to a generic block. */

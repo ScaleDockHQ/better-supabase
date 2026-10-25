@@ -1,3 +1,4 @@
+import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
 import { declaredTables } from "../../sql/index.ts";
@@ -27,4 +28,33 @@ export function appTablesOf(
       )
       .map((table) => [qualified(table), "database"]),
   );
+}
+
+/**
+ * The views among the app's tables, and the columns of each, for the layout a
+ * block reads them with.
+ */
+export function appViewsOf(
+  context: DoctorContext,
+): Required<Pick<BlockSqlLayout, "ownViews" | "ownColumns">> {
+  const own = appTablesOf(context);
+
+  const views = catalogOf(context).tables.filter(
+    (table) => table.kind === "view" && Object.hasOwn(own, qualified(table)),
+  );
+
+  return {
+    ownViews: Object.fromEntries(
+      views.map((view) => [
+        qualified(view),
+        { updatable: view.insertable && view.updatable },
+      ]),
+    ),
+    ownColumns: Object.fromEntries(
+      views.map((view) => [
+        qualified(view),
+        view.columns.map((column) => column.name),
+      ]),
+    ),
+  };
 }

@@ -6,10 +6,12 @@ import type {
 } from "./context.ts";
 import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
+import type { ViewColumns } from "./view-columns.ts";
 
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
 import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
+import { viewColumns } from "./view-columns.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
 export interface BlockSqlRegistry {
@@ -61,6 +63,7 @@ export function moduleContext(
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+      ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),
@@ -106,7 +109,19 @@ export function moduleContext(
 export function withProviderDefaults(
   layout: BlockSqlLayout,
 ): AnyBlocksConfig | undefined {
-  return withProviderRoles(layout, withProviderSuspension(layout));
+  return viewColumnsOf(layout).modules;
+}
+
+/**
+ * The provider defaults, then the optional columns the app's views lack mapped
+ * to `null`, with the required columns they lack.
+ */
+export function viewColumnsOf(layout: BlockSqlLayout): ViewColumns {
+  return viewColumns(
+    layout,
+    withProviderRoles(layout, withProviderSuspension(layout)),
+    (module) => registry().modules[module]?.names,
+  );
 }
 
 /**

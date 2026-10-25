@@ -159,9 +159,15 @@ function contextOf(
 export function adoptedTables(
   modules: AnyBlocksConfig,
   ownTables?: Readonly<Record<string, string>>,
+  views: Pick<BlockSqlLayout, "ownViews" | "ownColumns"> = {},
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
-  const layout = { modules, ...(ownTables === undefined ? {} : { ownTables }) };
+
+  const layout = {
+    modules,
+    ...(ownTables === undefined ? {} : { ownTables }),
+    ...views,
+  };
 
   const contexts = Object.keys(modules).flatMap((name) => {
     const mode = modules[name]?.mode ?? "managed";
@@ -335,4 +341,48 @@ function enumColumnProblem(
   type: string,
 ): string {
   return `blocks.${table.module} writes text into ${table.schema}.${table.table}.${column} (${table.logical}.${logical}), which is the enum ${type}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`;
+}
+
+/** A block table mapped to a view of the app's. */
+export interface AdoptedView {
+  readonly module: string;
+  readonly logical: string;
+  /** `schema.view`. */
+  readonly view: string;
+  /** Whether Postgres writes through the view to its table. */
+  readonly updatable: boolean;
+  /** Whether the block's TypeScript API writes rows of the table. */
+  readonly writes: boolean;
+}
+
+/** The block tables in `modules` that run over the app's views. */
+export function adoptedViews(
+  modules: AnyBlocksConfig,
+  ownTables: Readonly<Record<string, string>>,
+  views: Required<Pick<BlockSqlLayout, "ownViews">> &
+    Pick<BlockSqlLayout, "ownColumns">,
+): readonly AdoptedView[] {
+  const layout = { modules, ownTables, ...views };
+
+  return Object.keys(modules).flatMap((name): AdoptedView[] => {
+    const spec = SQL_MODULES[name]?.names?.tables;
+    const ctx = spec === undefined ? undefined : contextOf(name, layout);
+
+    if (spec === undefined || ctx === undefined) {
+      return [];
+    }
+
+    return ctx.appViews.map((logical) => {
+      const { schema, name: table } = ctx.tableName(logical);
+      const view = `${schema}.${table}`;
+
+      return {
+        module: name,
+        logical,
+        view,
+        updatable: views.ownViews[view]?.updatable === true,
+        writes: spec[logical]?.app?.writes !== false,
+      };
+    });
+  });
 }

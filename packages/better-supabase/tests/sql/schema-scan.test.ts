@@ -5,6 +5,7 @@ import {
   declaredEnums,
   declaredTableColumns,
   declaredTables,
+  declaredViews,
   extensionSchema,
   policyGrants,
   tableGlobs,
@@ -137,6 +138,58 @@ create table public.notes (id int);`,
     const [pattern] = tableGlobs(["public.audit_*"]);
     expect(pattern!.test("public.audit_log")).toBe(true);
     expect(pattern!.test("public.auditlog")).toBe(false);
+  });
+});
+
+describe("declaredViews", () => {
+  const views = (text: string) =>
+    Object.fromEntries(declaredViews([{ text }], ["public"]));
+
+  it("reads the select list's columns and whether Postgres writes through", () => {
+    expect(
+      views(`create view public.organization_memberships with (security_invoker = true) as
+select distinct on (scope_id, user_id) scope_id as organization_id, user_id, role, created_at
+from public.memberships where scope = 'organization'
+order by scope_id, user_id, created_at, role;
+create or replace view public.active_members as
+  select m.organization_id, m.user_id, m.role from public.memberships m where m.disabled_at is null;
+create view private.hidden as select 1 as one;`),
+    ).toEqual({
+      "public.organization_memberships": {
+        columns: ["organization_id", "user_id", "role", "created_at"],
+        updatable: false,
+      },
+      "public.active_members": {
+        columns: ["organization_id", "user_id", "role"],
+        updatable: true,
+      },
+    });
+  });
+
+  it("takes a column list and treats materialized views as read-only", () => {
+    expect(
+      views(`create view public.pairs (a, b) as select x, y from public.t;
+create materialized view public.totals as select org, count(*) as n from public.t group by org;`),
+    ).toEqual({
+      "public.pairs": { columns: ["a", "b"], updatable: true },
+      "public.totals": { columns: ["org", "n"], updatable: false },
+    });
+  });
+
+  it("counts an instead of trigger as writable and forgets dropped views", () => {
+    expect(
+      views(`create view public.members as select a.id from public.a join public.b using (id);
+create trigger members_write instead of insert on public.members
+  for each row execute function public.members_write();
+create view public.gone as select 1 as one;
+drop view public.gone;`),
+    ).toEqual({ "public.members": { columns: ["id"], updatable: true } });
+  });
+
+  it("leaves the columns unknown for select *", () => {
+    expect(
+      views("create view public.everything as select * from public.t;"),
+    ).toEqual({ "public.everything": { columns: undefined, updatable: true } });
   });
 });
 

@@ -22,6 +22,10 @@ import {
 export interface ExistingTable {
   readonly schema: string;
   readonly name: string;
+  /** A view or materialized view takes no columns from the block. */
+  readonly kind?: "table" | "view";
+  /** Whether Postgres writes through the view to its table. */
+  readonly updatable?: boolean;
   readonly columns: readonly {
     readonly name: string;
     readonly udt: string;
@@ -110,7 +114,7 @@ export function qualifiedName(name: string): string {
 export function existingTables(
   tables: readonly CatalogTable[],
 ): readonly ExistingTable[] {
-  return tables.filter((table) => table.kind === "table");
+  return tables;
 }
 
 function candidates(logical: string, physical: string): readonly string[] {
@@ -217,7 +221,9 @@ function matchTables(
     const table = byName.get(qualifiedName(name));
 
     if (table === undefined) {
-      errors.push(`${qualifiedName(name)} is not a table in the database.`);
+      errors.push(
+        `${qualifiedName(name)} is not a table or view in the database.`,
+      );
       continue;
     }
 
@@ -361,6 +367,10 @@ export function proposeAdoption(
       if (match.column === null) {
         if (table.optional?.includes(match.logical) === true) {
           mapped[match.logical] = null;
+        } else if (existing.kind === "view") {
+          errors.push(
+            `${name} is a view with no column for ${logical}.${match.logical}, and the block can't add one to a view. Add ${table.columns[match.logical]} to the view, or map blocks.${block}.columns.${logical}.${match.logical} to the column that holds it.`,
+          );
         } else {
           warnings.push(
             `${name} has no column for ${logical}.${match.logical}, so the block's migration adds ${table.columns[match.logical]}. Map blocks.${block}.columns.${logical}.${match.logical} instead when another column holds it.`,
@@ -414,9 +424,25 @@ export function proposeAdoption(
       tables.map((table) => [`${table.schema}.${table.name}`, "database"]),
     );
 
+    const ownViews = Object.fromEntries(
+      tables
+        .filter((table) => table.kind === "view")
+        .map((table) => [
+          `${table.schema}.${table.name}`,
+          { updatable: table.updatable === true },
+        ]),
+    );
+
+    const ownColumns = Object.fromEntries(
+      tables.map((table) => [
+        `${table.schema}.${table.name}`,
+        table.columns.map((column) => column.name),
+      ]),
+    );
+
     try {
       // Renders the block over these tables, which throws on what it refuses.
-      moduleBody(block, { modules: blocks, ownTables });
+      moduleBody(block, { modules: blocks, ownTables, ownViews, ownColumns });
 
       errors.push(
         ...adoptedColumnProblems(

@@ -13,7 +13,7 @@ interface Ownership {
   readonly module: string;
   readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
   readonly config: Pick<ResolvedBlock, "mode" | "tables" | "schema">;
-  readonly source: Pick<BlockSqlContextSource, "ownTables">;
+  readonly source: Pick<BlockSqlContextSource, "ownTables" | "ownViews">;
   readonly tableName: BlockSqlContext["tableName"];
 }
 
@@ -68,12 +68,21 @@ export function tableOwnership(
   input: Ownership,
   column: (table: string, logical: string) => string | null,
   requiredColumn: (table: string, logical: string) => string,
-): Pick<BlockSqlContext, "appOwned" | "owns" | "cast" | "tableName" | "col"> {
+): Pick<
+  BlockSqlContext,
+  "appOwned" | "appViews" | "owns" | "cast" | "tableName" | "col"
+> {
   const appOwned = appOwnedTables(input);
   const overApp = appOwned.length > 0;
+  const views = input.source.ownViews ?? {};
 
   return {
     appOwned,
+    appViews: appOwned.filter((logical) => {
+      const parts = input.tableName(logical);
+
+      return Object.hasOwn(views, `${parts.schema}.${parts.name}`);
+    }),
     owns: (logical) => {
       input.tableName(logical);
 

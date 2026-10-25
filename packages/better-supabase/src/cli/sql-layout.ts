@@ -8,6 +8,7 @@ import type {
   BlockSqlEntitlementsProvider,
   BlockSqlLayout,
   AuditedTable,
+  OwnView,
 } from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
 import type { CatalogPolicy } from "./introspect/types.ts";
@@ -17,6 +18,7 @@ import {
   auditRegistrations,
   declaredTableColumns,
   declaredTables,
+  declaredViews,
   declaredPolicies,
   declaredUpdatedAtTriggers,
   extensionSchema,
@@ -215,15 +217,19 @@ export async function moduleLayoutFor(
 }
 
 /**
- * `ownTables`, `ownColumns`, `ownUpdatedAtTriggers` and `ownPolicies`: the
- * database's tables, then the app's files.
+ * `ownTables`, `ownViews`, `ownColumns`, `ownUpdatedAtTriggers` and
+ * `ownPolicies`: the database's tables and views, then the app's files.
  */
 async function ownLayout(
   config: ResolvedConfig,
 ): Promise<
   Pick<
     BlockSqlLayout,
-    "ownTables" | "ownColumns" | "ownUpdatedAtTriggers" | "ownPolicies"
+    | "ownTables"
+    | "ownViews"
+    | "ownColumns"
+    | "ownUpdatedAtTriggers"
+    | "ownPolicies"
   >
 > {
   const database = await databaseTables(config);
@@ -239,12 +245,16 @@ async function ownLayout(
     ]),
   );
 
+  const views = ownDeclaredViews(own, config.schemas);
+
   return {
     ownTables: {
       ...database.tables,
       ...ownDeclaredTables(own, config.schemas),
+      ...views.tables,
     },
-    ownColumns: { ...database.columns, ...columns },
+    ownViews: { ...database.views, ...views.views },
+    ownColumns: { ...database.columns, ...columns, ...views.columns },
     ownUpdatedAtTriggers: {
       ...database.updatedAtTriggers,
       ...declaredUpdatedAtTriggers(own, config.schemas),
@@ -291,11 +301,19 @@ async function databaseTables(
   config: ResolvedConfig,
 ): Promise<{
   readonly tables: Readonly<Record<string, string>>;
+  readonly views: Readonly<Record<string, OwnView>>;
   readonly columns: Readonly<Record<string, readonly string[]>>;
   readonly updatedAtTriggers: Readonly<Record<string, string>>;
   readonly policies: Readonly<Record<string, readonly CatalogPolicy[]>>;
 }> {
-  const none = { tables: {}, columns: {}, updatedAtTriggers: {}, policies: {} };
+  const none = {
+    tables: {},
+    views: {},
+    columns: {},
+    updatedAtTriggers: {},
+    policies: {},
+  };
+
   const path = config.source.snapshot;
 
   if (path === undefined || !existsSync(resolve(config.root, path))) {
@@ -325,6 +343,7 @@ async function databaseTables(
   );
 
   const tables: Record<string, string> = {};
+  const views: Record<string, OwnView> = {};
   const columns: Record<string, readonly string[]> = {};
   const updatedAtTriggers: Record<string, string> = {};
   const policies: Record<string, readonly CatalogPolicy[]> = {};
@@ -335,6 +354,10 @@ async function databaseTables(
     if (config.schemas.includes(table.schema) && !created.has(name)) {
       tables[name] = "database";
       columns[name] = table.columns.map((column) => column.name);
+
+      if (table.kind === "view") {
+        views[name] = { updatable: table.insertable && table.updatable };
+      }
 
       const kept = table.triggers.find(
         (trigger) =>
@@ -353,7 +376,7 @@ async function databaseTables(
     }
   }
 
-  return { tables, columns, updatedAtTriggers, policies };
+  return { tables, views, columns, updatedAtTriggers, policies };
 }
 
 /**
@@ -373,6 +396,36 @@ function ownDeclaredTables(
   }
 
   return ownTables;
+}
+
+/**
+ * The views and materialized views the app's own files create, as `ownTables`
+ * entries, with their columns where the files name them.
+ */
+function ownDeclaredViews(
+  sources: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): {
+  readonly tables: Readonly<Record<string, string>>;
+  readonly views: Readonly<Record<string, OwnView>>;
+  readonly columns: Readonly<Record<string, readonly string[]>>;
+} {
+  const tables: Record<string, string> = {};
+  const views: Record<string, OwnView> = {};
+  const columns: Record<string, readonly string[]> = {};
+
+  for (const source of sources) {
+    for (const [view, declared] of declaredViews([source], schemas)) {
+      tables[view] ??= source.path;
+      views[view] = { updatable: declared.updatable };
+
+      if (declared.columns !== undefined) {
+        columns[view] = declared.columns;
+      }
+    }
+  }
+
+  return { tables, views, columns };
 }
 
 function vectorSchemaOf(sources: readonly { readonly text: string }[]): {

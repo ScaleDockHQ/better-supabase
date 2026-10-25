@@ -181,6 +181,20 @@ describe("blocks over the app's tables", () => {
     );
   });
 
+  it.each(CREATING)(
+    "%s refuses to create %s over the app's view",
+    (module, table) => {
+      expect(() =>
+        renderBlocks([module], {
+          ownTables: { [table]: "app.sql" },
+          ownViews: { [table]: { updatable: false } },
+          ownColumns: { [table]: ["id"] },
+          modules: OVER_APP_OPTIONS,
+        }),
+      ).toThrow(`creates ${table}, which is already in app.sql`);
+    },
+  );
+
   it("shapes its SQL to the app's table, not to the block's mode", () => {
     const sql = (ownTables: Record<string, string>) =>
       renderBlocks(["audit"], { ownTables })

@@ -132,6 +132,61 @@ describe("an app's own declarative schema with blocks over it", () => {
     );
   });
 
+  it("takes the snapshot's views as the app's, with whether Postgres writes through them", async () => {
+    const view = (id: number, name: string, updatable: boolean) => ({
+      id,
+      schema: "public",
+      name,
+      is_updatable: updatable,
+      comment: null,
+    });
+
+    const column = (tableId: number, table: string, name: string) => ({
+      ...moduleSnapshotFixture.generator.columns[0]!,
+      table_id: tableId,
+      schema: "public",
+      table,
+      id: `${String(tableId)}.1`,
+      name,
+    });
+
+    await writeFile(
+      join(root, "supabase/snapshot.json"),
+      JSON.stringify({
+        ...moduleSnapshotFixture,
+        generator: {
+          ...moduleSnapshotFixture.generator,
+          views: [
+            view(9_000_001, "member_roles", false),
+            view(9_000_002, "open_invoices", true),
+          ],
+          columns: [
+            ...moduleSnapshotFixture.generator.columns,
+            column(9_000_001, "member_roles", "role"),
+            column(9_000_002, "open_invoices", "id"),
+          ],
+        },
+      }),
+    );
+
+    const layout = await moduleLayoutFor(
+      resolveConfig(
+        {
+          ...MIXED_SCHEMAS_CONFIG,
+          database: { source: { snapshot: "supabase/snapshot.json" } },
+        },
+        root,
+      ),
+      { names: Object.keys(MIXED_SCHEMAS_BLOCKS) },
+    );
+
+    expect(layout.ownViews).toMatchObject({
+      "public.member_roles": { updatable: false },
+      "public.open_invoices": { updatable: true },
+    });
+    expect(layout.ownColumns?.["public.member_roles"]).toEqual(["role"]);
+  });
+
   it("creates the block tables the app lacks and none of the app's", async () => {
     expect((await sql(["sync"])).code).toBe(0);
 

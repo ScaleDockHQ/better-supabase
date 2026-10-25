@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@2 managed
--- @bsb-hash sha256:244799bbf3e019e58f262762d66ff67c898b81366ce078508def9125c35cd854
+-- @bsb-hash sha256:62cfba67261f2e80b82318415cd3fcaac3ead2f09baae2a5d9a33c88759bf4e2
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,7 +109,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
+  select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
 
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";

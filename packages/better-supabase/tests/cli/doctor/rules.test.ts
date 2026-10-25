@@ -3668,3 +3668,52 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     ).toEqual([]);
   });
 });
+
+describe("block writes through a view Postgres can't update (BS349)", () => {
+  const VIEW = "organization_memberships";
+
+  const withView = (updatable: boolean) =>
+    snapshot((tables) => {
+      const template = tables.find((entry) => entry.kind === "table")!;
+
+      tables.push({
+        ...structuredClone(template),
+        schema: "public",
+        name: VIEW,
+        kind: "view",
+        rls: false,
+        forceRls: false,
+        insertable: updatable,
+        updatable,
+        policies: [],
+        triggers: [],
+        foreignKeys: [],
+        columns: ["organization_id", "user_id", "role", "created_at"].map(
+          (name) => ({ ...structuredClone(template.columns[0]!), name }),
+        ),
+      });
+    });
+
+  const config: BetterSupabaseConfig = {
+    blocks: {
+      memberships: {
+        tables: { memberships: `public.${VIEW}` },
+        columns: { memberships: { updatedAt: null, lastUsedAt: null } },
+      },
+    },
+  };
+
+  it("reports a block table on a view that is not auto-updatable", async () => {
+    expect(await run("BS349", context(withView(false), {}, config))).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: `public.${VIEW}`,
+        message: expect.stringContaining("can't write through"),
+      }),
+    ]);
+  });
+
+  it("passes a view Postgres writes through", async () => {
+    expect(await run("BS349", context(withView(true), {}, config))).toEqual([]);
+  });
+});
