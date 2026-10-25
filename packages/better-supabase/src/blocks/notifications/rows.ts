@@ -3,11 +3,47 @@ import type {
   PageOptions,
   SubscriptionLevel,
 } from "./api-types.ts";
-import type { NotificationItem } from "./types.ts";
+import type { NotificationAction, NotificationItem } from "./types.ts";
 
 import { rowFields } from "../../core/block-fields.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nullableInstant, nullableText } from "../shared.ts";
+
+function objectOrNull(
+  value: unknown,
+): Readonly<Record<string, unknown>> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+}
+
+function actionsOf(value: unknown): readonly NotificationAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry: unknown) => {
+    const action = objectOrNull(entry);
+    const key = action?.["key"];
+    const label = action?.["label"];
+
+    if (typeof key !== "string" || typeof label !== "string") {
+      return [];
+    }
+
+    const operation = action?.["operation"];
+    const payload = objectOrNull(action?.["payload"]);
+
+    return [
+      {
+        key,
+        label,
+        ...(typeof operation === "string" ? { operation } : {}),
+        ...(payload === null ? {} : { payload }),
+      },
+    ];
+  });
+}
 
 export function toItem(row: Record<string, unknown>): NotificationItem {
   const type = nullableText(row["subject_type"]);
@@ -27,10 +63,12 @@ export function toItem(row: Record<string, unknown>): NotificationItem {
         : { type, id, ...(label === null ? {} : { label }) },
     summary: nullableText(row["summary"]),
     actionPath: nullableText(row["action_path"]),
+    actions: actionsOf(row["actions"]),
     priority: nullableText(row["priority"]),
     createdAt: nullableInstant(row["created_at"]) ?? temporal().Now.instant(),
     readAt: nullableInstant(row["read_at"]),
     resolvedAt: nullableInstant(row["resolved_at"]),
+    resolution: objectOrNull(row["resolution"]),
     fields: rowFields(row["fields"]),
   };
 }

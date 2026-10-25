@@ -1,5 +1,7 @@
 export {
+  type CheckReceiptsOptions,
   createPush,
+  EXPO_REQUEST_FAILED,
   type ExpoNotificationsLike,
   expoPush,
   expoPushChannel,
@@ -7,7 +9,9 @@ export {
   type ExpoPushChannelOptions,
   type ExpoPushMessage,
   type ExpoPushOptions,
+  type ExpoPushReceipt,
   type ExpoPushTicket,
+  type ExpoSendOptions,
   type ExpoReceiptResult,
   type PushDeviceInput,
   type PushDevices,

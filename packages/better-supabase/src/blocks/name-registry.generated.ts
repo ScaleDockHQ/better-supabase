@@ -1096,8 +1096,8 @@ export interface BlockNameRegistry {
   };
   readonly "notifications": {
     readonly tables: {
-      readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "priority" | "data" | "key" | "createdBy" | "createdAt";
-      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "deliveredAt" | "createdAt";
+      readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "actions" | "priority" | "data" | "key" | "createdBy" | "createdAt";
+      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "resolution" | "deliveredAt" | "createdAt";
       readonly "deliveries": "id" | "recipient" | "tenant" | "channel" | "status" | "provider" | "providerMessageId" | "error" | "attempts" | "attemptedAt" | "nextAttemptAt" | "deliveredAt" | "providerStatus" | "providerStatusAt" | "templateKey" | "createdAt";
       readonly "deliveryEvents": "id" | "delivery" | "tenant" | "kind" | "provider" | "providerEventId" | "occurredAt" | "detail" | "createdAt";
       readonly "subscriptions": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "level" | "createdAt" | "updatedAt";
@@ -1257,7 +1257,7 @@ export interface BlockNameRegistry {
   };
   readonly "profiles": {
     readonly tables: {
-      readonly "profiles": "key" | "email" | "username" | "fullName" | "firstName" | "lastName" | "avatar" | "avatarPath" | "activeTenant" | "activeTeam" | "onboarding" | "disabledAt" | "createdAt" | "updatedAt";
+      readonly "profiles": "key" | "email" | "username" | "fullName" | "firstName" | "lastName" | "avatar" | "avatarPath" | "locale" | "activeTenant" | "activeTeam" | "onboarding" | "disabledAt" | "createdAt" | "updatedAt";
     };
     readonly functions: "allocate_username" | "backfill_profiles" | "guard_profile" | "mirror_profile_email" | "my_profile" | "on_auth_user_created" | "sync_profile" | "update_my_profile";
     readonly actions: never;
@@ -1283,6 +1283,7 @@ export interface BlockNameRegistry {
   readonly "push": {
     readonly tables: {
       readonly "devices": "id" | "user" | "token" | "platform" | "provider" | "deviceName" | "appVersion" | "createdAt" | "lastSeenAt";
+      readonly "tickets": "id" | "delivery" | "token" | "ticket" | "status" | "error" | "createdAt" | "checkedAt";
     };
     readonly functions: "prune_push_tokens" | "push_tokens_for" | "register_push_device" | "unregister_push_device";
     readonly actions: never;

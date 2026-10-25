@@ -88,7 +88,42 @@ same functions over the Data API instead, when the block schema is exposed.
 | `exclude`      | User ids left out after the watchers and the hook are added, such as the members a separate mention already reached                                                                                     |
 | `permission`   | A permission key. The holders in `tenant` are added. It needs `tenant`. A provider uses `authorization.functions.holdersOf` and refuses the send when that is unset, rather than notifying every member |
 | `resolved`     | Store it already resolved, for a record of something that needs no action                                                                                                                               |
+| `actions`      | Up to 10 buttons, `{ key, label, operation?, payload? }`, that the app renders and handles. See below                                                                                                   |
 | `actorId`      | The actor when the service sends for a user. A signed-in sender is always the actor themselves                                                                                                          |
+
+### Actions
+
+`actions` stores what the recipient can do from the notification itself,
+such as approving a request. The block only stores and returns them: the app
+renders a button per action and runs `operation` (an operation name of your
+own, such as an oRPC procedure) with `payload` when the user picks one.
+
+```ts
+await notifications
+  .send("approval.requested", {
+    tenant: organizationId,
+    recipients: [approverId],
+    subject: { type: "invoice", id: invoice.id },
+    data: { amount: invoice.total },
+    actions: [
+      {
+        key: "approve",
+        label: "Approve",
+        operation: "invoices.approve",
+        payload: { id: invoice.id },
+      },
+      { key: "reject", label: "Reject", operation: "invoices.reject" },
+    ],
+  })
+  .orThrow();
+```
+
+`send_notification` checks them before it stores anything: an array of at
+most 10 objects with a unique `key` (letters, digits, `_`, `.`, `:` and `-`,
+at most 64), a `label` of 1 to 100 characters, an optional `operation` of at
+most 200 characters and an optional `payload` object, and no other keys.
+Anything else fails with `NOTIFICATION_ACTIONS_INVALID`. Items return them
+in `item.actions`, an empty array when the notification has none.
 
 ## Reading
 
@@ -110,8 +145,14 @@ await notifications.dismiss([items[0].id]);
 await notifications.resolve({
   type: "approval.requested",
   subject: { type: "invoice", id },
+  resolution: { action: "approve", by: userId },
 });
 ```
+
+`resolution` is an optional JSON object stored on every recipient's copy, so
+the list can show how the notification was handled ("Approved by Ada").
+Items return it in `item.resolution`, `null` when there is none. A value
+that isn't an object fails with `NOTIFICATION_RESOLUTION_INVALID`.
 
 `get(id, { locale?, include? })` reads one of the caller's notifications by
 its recipient row id, dismissed ones included, rendered like a list item, or
@@ -453,10 +494,17 @@ import {
   resendTransport,
   sqlTransport,
 } from "better-supabase/blocks/notifications";
+import {
+  createPush,
+  expoPush,
+  expoPushChannel,
+} from "better-supabase/blocks/push";
 
 import { env } from "@/env";
 import { types } from "@/lib/notifications";
 import { unsubscribeUrl } from "@/lib/unsubscribe";
+
+const devices = createPush({ transport: sqlTransport(postgres.admin) });
 
 const notifications = createNotifications({
   transport: sqlTransport(postgres.admin),
@@ -468,22 +516,25 @@ const notifications = createNotifications({
       url: unsubscribeUrl(message.userId, message.notification.type),
     }),
   },
-  channels: [
-    {
-      apiVersion: 1,
-      name: "push",
-      send: async ({ userId, text }) => {
-        const id = await push.send(userId, text?.title ?? "");
-        return { provider: "web-push", providerMessageId: id };
-      },
-    },
-  ],
+  channels: [expoPushChannel({ push: expoPush({ devices }), devices })],
 });
 
 export async function GET() {
   return Response.json(await notifications.deliver({ budgetMs: 50_000 }));
 }
 ```
+
+The [push](/docs/blocks/push) block's `expoPushChannel` sends the `push`
+deliveries to Expo, stores the tickets and confirms them later with
+`devices.checkReceipts()` from a second cron.
+
+Each delivery renders in its recipient's locale: with the
+[profiles](/docs/blocks/profiles) module installed, `claim_notification_deliveries`
+returns the `locale` column of the recipient's profile, and the channel's
+message carries it in `message.locale` (`null` without one). `hydrate` runs
+once per locale among the claimed deliveries. When `render` or `hydrate`
+throws, only the deliveries it was rendering fail, and they are retried like
+a throwing channel.
 
 `deliver` claims pending rows with `for update skip locked` and leases them
 (`lease`, five minutes by default), so two runs never send the same message.
@@ -907,6 +958,8 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization           |
 | `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                       |
 | `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                   |
+| `NOTIFICATION_ACTIONS_INVALID`     | `actions` that aren't the shape described under Actions             |
+| `NOTIFICATION_RESOLUTION_INVALID`  | A `resolution` that isn't a JSON object                             |
 | `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`  |
 | `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know          |
 | `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |

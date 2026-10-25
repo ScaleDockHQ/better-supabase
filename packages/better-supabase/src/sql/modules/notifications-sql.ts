@@ -147,6 +147,36 @@ revoke execute on function ${fn}(uuid, ${id}, text, text) from public, anon, aut
 grant execute on function ${fn}(uuid, ${id}, text, text) to service_role;`;
 }
 
+/**
+ * Rejects `actions` that aren't an array of at most 10 `{ key, label,
+ * operation?, payload? }` objects with unique keys.
+ */
+function actionsCheck(n: NotifyNames): string {
+  if (!n.has("events", "actions")) {
+    return "";
+  }
+
+  return `
+  if notification ? 'actions' and jsonb_typeof(notification -> 'actions') <> 'null' and (
+    jsonb_typeof(notification -> 'actions') <> 'array'
+    or jsonb_array_length(notification -> 'actions') > 10
+    or exists (
+      select 1 from jsonb_array_elements(notification -> 'actions') a
+      where jsonb_typeof(a) <> 'object'
+        or jsonb_typeof(a -> 'key') is distinct from 'string'
+        or (a ->> 'key') !~ '^[A-Za-z0-9_.:-]{1,64}$'
+        or jsonb_typeof(a -> 'label') is distinct from 'string'
+        or length(a ->> 'label') not between 1 and 100
+        or (a ? 'operation' and jsonb_typeof(a -> 'operation') <> 'null' and (jsonb_typeof(a -> 'operation') <> 'string' or length(a ->> 'operation') not between 1 and 200))
+        or (a ? 'payload' and jsonb_typeof(a -> 'payload') not in ('object', 'null'))
+        or exists (select 1 from jsonb_object_keys(a) k where k not in ('key', 'label', 'operation', 'payload'))
+    )
+    or (select count(distinct a ->> 'key') from jsonb_array_elements(notification -> 'actions') a) <> jsonb_array_length(notification -> 'actions')
+  ) then
+    ${fail("NOTIFICATION_ACTIONS_INVALID", "actions must be at most 10 { key, label, operation, payload } objects with unique keys", "22023")}
+  end if;`;
+}
+
 function notify(
   ctx: BlockSqlContext,
   n: NotifyNames,
@@ -189,6 +219,7 @@ function notify(
     ["subjectLabel", "notification ->> 'subject_label'"],
     ["summary", "notification ->> 'summary'"],
     ["actionPath", "notification ->> 'action_path'"],
+    ["actions", "nullif(notification -> 'actions', 'null'::jsonb)"],
     ["priority", "v_priority"],
     ["key", "v_key"],
     ["createdBy", "auth.uid()"],
@@ -379,7 +410,7 @@ begin
   end if;
   if v_activity not in ('participating', 'all') then
     ${fail("NOTIFICATION_ACTIVITY_UNKNOWN", "activity must be participating or all", "22023")}
-  end if;${authorize}
+  end if;${actionsCheck(n)}${authorize}
   ${ctx.hook("before_notification_send", [["jsonb", "notification"]])}
   if to_regprocedure(${sqlString(`${audience}(jsonb)`)}) is not null then
     execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;
@@ -706,6 +737,8 @@ $$;`,
     n.has("events", "subjectType") &&
     n.has("events", "subjectId")
   ) {
+    const resolution = n.has("recipients", "resolution");
+
     const tenantMatch = n.has("events", "tenant")
       ? `and ev.${e("tenant")} is not distinct from resolve_notifications.tenant`
       : "";
@@ -716,8 +749,14 @@ $$;`,
 
     parts.push(`
 -- Marks every recipient's notification of this type about this subject
--- resolved (and read), e.g. once the approval it asked for is given.
-create or replace function ${ctx.fn("resolve_notifications")}(type text, subject_type text, subject_id text, tenant ${id} default null)
+-- resolved (and read), e.g. once the approval it asked for is given.${
+      resolution
+        ? `
+-- resolution records how, e.g. {"action": "approve"}.
+drop function if exists ${ctx.fn("resolve_notifications")}(text, text, text, ${id});`
+        : ""
+    }
+create or replace function ${ctx.fn("resolve_notifications")}(type text, subject_type text, subject_id text, tenant ${id} default null${resolution ? ", resolution jsonb default null" : ""})
 returns jsonb
 language plpgsql
 security definer
@@ -728,10 +767,17 @@ declare
 begin
   if not (${allowed}) then
     ${fail("NOTIFICATION_FORBIDDEN", "Not allowed to resolve notifications here")}
-  end if;
+  end if;${
+    resolution
+      ? `
+  if resolve_notifications.resolution is not null and jsonb_typeof(resolve_notifications.resolution) <> 'object' then
+    ${fail("NOTIFICATION_RESOLUTION_INVALID", "resolution must be a JSON object", "22023")}
+  end if;`
+      : ""
+  }
   with rc as (
     update ${n.table("recipients")} rc
-    set ${r("resolvedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
+    set ${r("resolvedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())${resolution ? `, ${r("resolution")} = resolve_notifications.resolution` : ""}
     from ${n.table("events")} ev
     where ev.${e("id")} = rc.${r("event")}
       and ev.${e("type")} = resolve_notifications.type
@@ -746,7 +792,9 @@ begin
   return v_changed;
 end;
 $$;`);
-    grants.push(`resolve_notifications(text, text, text, ${id})`);
+    grants.push(
+      `resolve_notifications(text, text, text, ${id}${resolution ? ", jsonb" : ""})`,
+    );
   }
 
   if (ctx.installed("profiles") && n.has("events", "actor")) {

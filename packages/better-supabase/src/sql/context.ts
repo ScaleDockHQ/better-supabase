@@ -82,6 +82,7 @@ export interface BlockSqlTableSpec {
    * enum: the module writes and compares them through `ctx.cast`.
    */
   readonly typed?: readonly string[];
+  readonly yieldsToExtra?: readonly string[];
 }
 
 export interface BlockSqlTableLifecycle {
@@ -1337,11 +1338,9 @@ export function createModuleContext(
 
       const taken = new Set([
         ...reserved,
-        ...Object.keys(known.columns).flatMap((logical) => {
-          const name = column(table, logical);
-
-          return name === null ? [] : [name];
-        }),
+        ...Object.keys(known.columns)
+          .filter((logical) => !known.yieldsToExtra?.includes(logical))
+          .flatMap((logical) => column(table, logical) ?? []),
       ]);
 
       return Object.entries(value).map(([name, type]) => {

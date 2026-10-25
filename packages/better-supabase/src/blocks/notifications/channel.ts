@@ -10,9 +10,16 @@ export interface NotificationMessage {
   readonly userId: string;
   /** The recipient's `auth.users` email, for email channels. */
   readonly email: string | null;
+  /** The recipient's profile locale, when the profiles block is installed. */
+  readonly locale: string | null;
   readonly notification: NotificationItem;
-  /** What `render` returned for it, when `createNotifications` has one. */
+  /**
+   * What `render` returned for it in the recipient's locale, when
+   * `createNotifications` has one.
+   */
   readonly text?: RenderedText;
+  /** What `hydrate` returned for the batch, when `createNotifications` has one. */
+  readonly hydrated?: unknown;
 }
 
 export interface NotificationSendResult {

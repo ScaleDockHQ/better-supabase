@@ -36,6 +36,13 @@ in `avatar_url` never overwrites it. Users update it like their name, and
 bucket, saves the object path in `avatar_path` and shows `avatar_url` when
 the user has no upload.
 
+`locale` is a BCP 47 tag such as `nl-NL`, empty until the user sets it. Users
+update it like their name, and the [notifications](/docs/blocks/notifications)
+block renders email and push deliveries in it. Over your own profiles table,
+map `columns: { locale: "language" }` to an existing column; an app that
+already declares a `locale` in `extraColumns` keeps that column, and
+notifications reads it.
+
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
 or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another
 profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a
@@ -142,7 +149,7 @@ blocks: {
 | `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                                      |
 | `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                                                |
 | `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                                      |
-| `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ locale: "text not null default 'en'" }`                   |
+| `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ timezone: "text not null default 'UTC'" }`                |
 | `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                                     |
 | `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                                               |
 | `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard. `updated_at` is never guarded                        |

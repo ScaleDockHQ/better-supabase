@@ -35,6 +35,52 @@ const CENTRAKIT: AnyBlocksConfig = {
 };
 
 describe("notifications module", () => {
+  it("adds actions and a resolution to managed tables and validates actions", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'alter table "better_supabase"."notification_events" add column if not exists "actions" jsonb;',
+    );
+    expect(sql).toContain(
+      'alter table "better_supabase"."notification_recipients" add column if not exists "resolution" jsonb;',
+    );
+    expect(sql).toContain("hint = 'NOTIFICATION_ACTIONS_INVALID'");
+    expect(sql).toContain("hint = 'NOTIFICATION_RESOLUTION_INVALID'");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."resolve_notifications"(text, text, text, uuid);',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase".resolve_notifications(text, text, text, uuid, jsonb) to authenticated, service_role;',
+    );
+  });
+
+  it("leaves actions, resolution and locale out over app tables without them", () => {
+    const sql = overApp({
+      notifications: {
+        ...CENTRAKIT["notifications"],
+        columns: {
+          events: { actor: "actor_user_id", data: "metadata", actions: null },
+          recipients: { user: "recipient_user_id", resolution: null },
+        },
+      },
+    });
+
+    expect(sql).not.toContain("'actions'");
+    expect(sql).not.toContain("resolution jsonb");
+    expect(sql).toContain("'locale', null::text");
+  });
+
+  it("claims deliveries with the profile locale when profiles is installed", () => {
+    const sql = renderBlocks(["profiles", "notifications"], { modules: {} })
+      .filter((file) => file.module === "notifications")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("'locale', pr.\"locale\"::text");
+    expect(sql).toContain(
+      'left join "better_supabase"."profiles" pr on pr."id" = rc."user_id"',
+    );
+  });
+
   it("broadcasts an update only when a read, dismissed or resolved time changes", () => {
     const sql = body();
     expect(sql).toContain(

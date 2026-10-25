@@ -60,6 +60,35 @@ describe("push module", () => {
     expect(sql).toContain("emit_event('push.device_unregistered'");
   });
 
+  it("stores Expo tickets only next to the notifications deliveries", () => {
+    expect(body()).not.toContain("push_tickets");
+
+    const sql = renderBlocks(["notifications", "push"], { modules: {} })
+      .filter((file) => file.contents.includes("push_devices"))
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."push_tickets"',
+    );
+    expect(sql).toContain(
+      'references "better_supabase"."notification_deliveries" ("id") on delete cascade',
+    );
+
+    for (const signature of [
+      '"record_push_tickets"(uuid, jsonb)',
+      '"push_tickets_for"(uuid)',
+      '"unchecked_push_tickets"(integer, interval)',
+      '"complete_push_receipts"(jsonb)',
+    ]) {
+      expect(sql).toContain(
+        `grant execute on function "better_supabase".${signature} to service_role;`,
+      );
+    }
+
+    expect(sql).toContain('"better_supabase"."record_delivery_event"(');
+  });
+
   it("needs no other module and is empty in custom mode", () => {
     expect(resolveBlocks(["push"]).map((module) => module.name)).toEqual([
       "push",

@@ -122,6 +122,7 @@ const message = (
   attempts: 1,
   userId: "u1",
   email: "u1@acme.test",
+  locale: null,
   notification: {
     id: "r1",
     eventId: "e1",
@@ -136,6 +137,8 @@ const message = (
     createdAt: Temporal.Instant.fromEpochMilliseconds(0),
     readAt: null,
     resolvedAt: null,
+    resolution: null,
+    actions: [],
     fields: {},
   },
   text: { title: "Assigned", body: "You have a task" },

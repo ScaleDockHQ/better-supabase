@@ -16,6 +16,7 @@ better-supabase add push
 | Table          | Holds                                                                                                                                                     |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `push_devices` | One row per token: `user_id`, `token`, `platform` (`ios`, `android`, `web`), `provider` (`expo` by default), `device_name`, `app_version`, `last_seen_at` |
+| `push_tickets` | With notifications: Expo's ticket per delivery and device, `pending` until its receipt says `ok` or `error`. Only the service role reads it               |
 
 Each user reads and deletes their own devices; nobody else can. A token
 belongs to one user: when a device signs in as someone else, registering
@@ -63,8 +64,8 @@ doesn't block the sign-out.
 import { sqlTransport } from "better-supabase/blocks/push";
 import { createPush, expoPush } from "better-supabase/blocks/push";
 
-const devices = createPush({ transport: sqlTransport(postgres.admin) });
-const push = expoPush({ accessToken: env.EXPO_ACCESS_TOKEN, devices });
+export const devices = createPush({ transport: sqlTransport(postgres.admin) });
+export const push = expoPush({ accessToken: env.EXPO_ACCESS_TOKEN, devices });
 
 const targets = await devices.tokensFor([userId]).orThrow();
 const tickets = await push.send(
@@ -79,11 +80,33 @@ const tickets = await push.send(
 
 `expoPush` uses `fetch` only, so it runs on every runtime. `send` posts 100
 messages per request and returns one ticket per token, in order. A ticket
-with `DeviceNotRegistered` deletes its token right away. Expo reports most
-failures later, in receipts: about 15 minutes after sending, pass the
-tickets to `checkReceipts`, which prunes the devices Expo no longer reaches
-and returns what failed. `accessToken` is needed only when the Expo project
-turns on push security; it is a server-only key.
+with `DeviceNotRegistered` deletes its token right away. `accessToken` is
+needed only when the Expo project turns on push security; it is a
+server-only key.
+
+A request that gets a 429, a 5xx or a network error is retried up to
+`maxRetries` times (default 3), after `Retry-After` when Expo sends one (at
+most 30 seconds) and otherwise after 1, 2 and 4 seconds. When a request
+still fails, its tokens get a ticket with the error `RequestFailed`
+(`EXPO_REQUEST_FAILED`) and `send` moves on: the chunks already sent keep
+their tickets, and `send` never throws after a partial send.
+
+Pass `idempotencyKey` to send it as the `idempotency-key` header, suffixed
+with the chunk number, and `sent` with the tickets of an earlier attempt:
+tokens that already have a ticket id or `DeviceNotRegistered` are not sent
+again.
+
+```ts
+const retried = await push.send(tokens, message, {
+  idempotencyKey: deliveryId,
+  sent: tickets,
+});
+```
+
+Expo reports most failures later, in receipts: about 15 minutes after
+sending, pass the tickets to `checkReceipts`, which prunes the devices Expo
+no longer reaches and returns every receipt it had ready in `receipts`, with
+the failed ones in `failed`.
 
 ## Your own fields
 
@@ -123,11 +146,43 @@ export const notifications = createNotifications({
 
 `expoPushChannel` sends each `push` delivery to the recipient's Expo
 devices, with the rendered title and body and the notification's id, type
-and `actionPath` in `data`. A recipient without devices is `skipped`. When
-Expo rejects every message for a reason other than an unregistered device,
-the channel throws, and `notifications.deliver()` retries the delivery.
-Pass `message` to build the push yourself, and `onTickets` to keep the
-tickets for `checkReceipts`.
+and `actionPath` in `data`. A recipient without devices is `skipped`. It
+stores every ticket in `push_tickets` and returns the first ticket id as the
+delivery's `providerMessageId`.
+
+The channel throws, and `notifications.deliver()` retries the delivery, when
+a request to Expo still failed after its retries or when Expo rejected every
+message for a reason other than an unregistered device. The retry reads the
+stored tickets, sends only to the devices without one and uses the delivery
+id as the idempotency key, so a device gets the push once. Pass
+`storeTickets: false` to keep no tickets (push module version 1 has no
+`push_tickets`), `message` to build the push yourself, and `onTickets` to
+receive the tickets as well.
+
+### Check receipts from a cron
+
+`db.push.checkReceipts()` (or `devices.checkReceipts()` over the service
+role) reads up to 1000 tickets older than 15 minutes that have no receipt,
+asks Expo for their receipts and stores them. Each receipt records
+`notification.delivered` or `notification.bounced` on its delivery, which
+the delivery's history and `onDeliveryEvent` show, and a
+`DeviceNotRegistered` receipt prunes the device. A bounced push doesn't add
+the user's address to the suppression list. Tickets Expo has no receipt for
+yet stay unchecked for the next run.
+
+```ts title="app/api/cron/push-receipts/route.ts"
+import { devices, push } from "@/server/push";
+
+export async function GET(): Promise<Response> {
+  const { receipts, pruned } = await devices.checkReceipts({ push }).orThrow();
+
+  return Response.json({ checked: receipts.length, pruned });
+}
+```
+
+Pass `push` when the sender needs an access token; it defaults to
+`expoPush({ devices })`. `limit` and `olderThan` (a `Temporal.Duration`)
+change how many tickets one run reads and how old they must be.
 
 ## Without the client
 

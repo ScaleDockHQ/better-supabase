@@ -1319,7 +1319,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Push devices",
       "category": "messaging",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "notifications"
+      ],
       "manifest": "push",
       "extraColumns": "devices"
     },

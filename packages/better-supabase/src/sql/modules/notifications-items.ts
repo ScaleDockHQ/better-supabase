@@ -47,8 +47,10 @@ export function itemJson(n: NotifyNames): string {
     ["subject_label", "events", "subjectLabel"],
     ["summary", "events", "summary"],
     ["action_path", "events", "actionPath"],
+    ["actions", "events", "actions"],
     ["priority", "events", "priority"],
     ["resolved_at", "recipients", "resolvedAt"],
+    ["resolution", "recipients", "resolution"],
   ];
 
   for (const [key, table, logical] of optional) {

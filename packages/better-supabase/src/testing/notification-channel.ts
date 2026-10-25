@@ -28,6 +28,7 @@ function sample(channel: string, email: string | null): NotificationMessage {
     attempts: 1,
     userId: "00000000-0000-4000-8000-0000000000aa",
     email,
+    locale: null,
     notification: Object.freeze({
       id: "00000000-0000-4000-8000-00000000c0f1",
       eventId: "00000000-0000-4000-8000-00000000c0f2",
@@ -42,6 +43,8 @@ function sample(channel: string, email: string | null): NotificationMessage {
       createdAt,
       readAt: null,
       resolvedAt: null,
+      resolution: null,
+      actions: [],
       fields: Object.freeze({}),
     }),
     text: Object.freeze({ title: "Conformance check" }),
