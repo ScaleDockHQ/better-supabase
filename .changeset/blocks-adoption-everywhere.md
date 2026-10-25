@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Blocks run over the app's own tables everywhere, block calls return a `Result`, and Temporal values replace date strings. The upgrade guide is at [From 0.19 to 0.20](https://bettersupabase.com/docs/migration/0.19-to-0.20).
+Blocks run over the app's own tables everywhere, block calls return a `Result`, and Temporal values replace date strings. The upgrade guide is at [From 0.20 to 0.21](https://bettersupabase.com/docs/migration/0.20-to-0.21).
 
 **Breaking:**
 

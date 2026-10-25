@@ -1,9 +1,9 @@
 ---
-title: From 0.19 to 0.20
-description: What to check when upgrading to better-supabase 0.20, where db.$api returns a Result, block dates are Temporal values and every block table can be the app's own.
+title: From 0.20 to 0.21
+description: What to check when upgrading to better-supabase 0.21, where db.$api returns a Result, block dates are Temporal values and every block table can be the app's own.
 ---
 
-0.20 needs no codemod, but three changes break code that compiled on 0.19:
+0.21 needs no codemod, but three changes break code that compiled on 0.20:
 `db.$api` returns a `Result`, several block fields are Temporal values, and
 some block calls refuse an app table that lacks a column. Upgrade the
 package, then regenerate the block files and a migration:
@@ -24,10 +24,10 @@ the unique index on adopted line tables described below.
 Add `.orThrow()` where you want the exception back:
 
 ```ts
-// 0.19
+// 0.20
 const total = await db.$api("invoice_total", { invoice: id });
 
-// 0.20
+// 0.21
 const total = await db.$api("invoice_total", { invoice: id }).orThrow();
 
 const result = await db.$api("invoice_total", { invoice: id });
@@ -141,5 +141,5 @@ setting `blocks.leases.tables.leases` to `better_supabase.leases` fails with:
 blocks.idempotency.tables.leases and blocks.leases.tables.leases both name better_supabase.leases, and each block creates its own table there. Set one of them to another table name.
 ```
 
-Before 0.20, the second `create table if not exists` did nothing, and the
+Before 0.21, the second `create table if not exists` did nothing, and the
 second block ran over the first block's table.
