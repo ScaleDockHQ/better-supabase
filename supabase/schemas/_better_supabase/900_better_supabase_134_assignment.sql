@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:3c2f3b36e24a09fec3bf8c8464361aefecbe80fb5380ea81c3747f63ceee5048
+-- @bsb-hash sha256:37441317b86834aa3ff5f624de6362cb98316a1bfa0b3dbf389861417895125e
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,7 +65,7 @@ create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
   "rank" integer not null default 0,
@@ -156,7 +156,7 @@ begin
     end if;
   end if;
   v_type := coalesce(queue ->> 'subjectType', v_old."subject_type");
-  if v_type is null or v_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_type is null or v_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'A queue needs a subject type' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
   end if;
   v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else v_old."conditions" end;

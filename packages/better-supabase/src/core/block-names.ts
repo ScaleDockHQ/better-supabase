@@ -32,6 +32,7 @@ export interface BlockNaming {
   readonly functions?: Readonly<Record<string, string>>;
   /** The block's own entities the config renames, such as `work_item` to `task`. */
   readonly entities?: readonly EntityRename[];
+  readonly tenantColumn?: string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -128,8 +129,14 @@ export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
   // A row a function returns whole (`to_jsonb(row)`) carries the renamed
   // tenant columns and entity keys; the clients read them by their default
   // names.
+  const { tenantColumn } = naming;
+
   const restore = (key: string): string =>
-    columns.get(key) ?? entities.reverse(key);
+    key === tenantColumn
+      ? "tenant_id"
+      : (columns.get(key) ?? entities.reverse(key));
+
+  const restores = names.renamed || tenantColumn !== undefined;
 
   return defineTransportMiddleware({
     name: "block-names",
@@ -142,7 +149,7 @@ export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
           : {}),
       });
 
-      return names.renamed ? renameKeys(result, restore) : result;
+      return restores ? renameKeys(result, restore) : result;
     },
   });
 }

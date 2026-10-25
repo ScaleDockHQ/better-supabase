@@ -122,6 +122,11 @@ export default defineConfig({
 });
 ```
 
+`options.lineExtraColumns` adds columns to the line table, keyed by column
+name with their SQL type: each line's `fields` writes them, and lines come back with them under `fields` (untyped,
+since `fields` validates the record's own columns). A line table of yours
+runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).
+
 ```ts
 const client = createQuotes({
   transport,

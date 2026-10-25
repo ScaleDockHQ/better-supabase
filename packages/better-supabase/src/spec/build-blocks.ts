@@ -5,7 +5,7 @@ import type { ApiOptions, BlockApiDescription } from "./options.ts";
 import type { StandardLike } from "./schemas.ts";
 
 import { isPlainObject } from "../core/clone.ts";
-import { instanceProperty } from "../core/db-blocks.ts";
+import { instanceProperty } from "../core/instance-property.ts";
 import { jsonContent, jsonResponse } from "./build-resource.ts";
 
 /** The contract verbs that only read, so `requirePermissions` skips them. */

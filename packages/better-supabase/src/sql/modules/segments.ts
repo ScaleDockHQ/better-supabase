@@ -137,7 +137,7 @@ function tables(ctx: BlockSqlContext, n: SegmentNames): string {
   ${s("tenant")} ${ctx.idType} not null,
   ${s("name")} text not null check (length(${s("name")}) between 1 and 200),
   ${s("description")} text check (length(${s("description")}) <= 2000),
-  ${s("subjectType")} text not null check (${s("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${s("subjectType")} text not null check (${s("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${s("conditions")} jsonb not null check (jsonb_typeof(${s("conditions")}) = 'object'),
   ${s("memberCount")} integer not null default 0,
   ${s("refreshedAt")} timestamptz,

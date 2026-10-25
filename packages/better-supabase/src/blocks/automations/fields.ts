@@ -8,6 +8,7 @@ import type {
   FilterQuery,
 } from "../../list/filter-query.ts";
 
+import { SUBJECT_TYPE_PATTERN } from "../../core/subject-type.ts";
 import {
   checkFilterQuery,
   FILTER_OPERATORS,
@@ -79,7 +80,7 @@ const DEFAULT_COLUMN_TYPE: Readonly<Record<FilterFieldType, string>> = {
 };
 
 const DATE_TYPES = new Set(["date", "timestamp", "timestamptz"]);
-const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
+const SUBJECT_TYPE = SUBJECT_TYPE_PATTERN;
 const FIELD_ID = /^[A-Za-z_][A-Za-z0-9_]*(?:[.][A-Za-z_][A-Za-z0-9_]*)*$/;
 
 function labelOf(id: string): string {
@@ -103,7 +104,7 @@ export function defineRuleFields<const S extends string>(
 ): RuleFieldCatalog<S> {
   if (!SUBJECT_TYPE.test(subjectType)) {
     throw new TypeError(
-      `defineRuleFields: "${subjectType}" is not a subject type (lowercase letters, digits and underscores)`,
+      `defineRuleFields: "${subjectType}" is not a subject type (lowercase letters, digits, hyphens and underscores)`,
     );
   }
 

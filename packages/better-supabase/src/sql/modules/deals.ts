@@ -11,6 +11,7 @@ import type { DealNames } from "./deals-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  lineExtraColumns,
   lineTableSpec,
   TOTAL_COLUMNS,
   totalColumnsSql,
@@ -76,6 +77,7 @@ const NAMES: BlockSqlNames = {
     "prefix",
     "readAll",
     "extraColumns",
+    "lineExtraColumns",
   ],
   tables: {
     deals: {
@@ -428,6 +430,7 @@ function build(ctx: BlockSqlContext): string {
     prefix: ctx.text("prefix", "DEAL-"),
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("deals", ["contacts", "members"]),
+    lineExtras: lineExtraColumns(ctx),
   };
 
   return `${schemaPreamble(ctx)}

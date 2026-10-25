@@ -94,7 +94,22 @@ When a table already holds the property, such as an app `tasks` table next to
 the `tasks` block, the table keeps `db.tasks` and the instance is on
 `db.$blocks.tasks`. `db.$blocks` holds every instance. `db.$api(fn, args)`
 calls a function in the API schema that has no typed client, such as
-`flag_enabled`, and resolves to its result.
+`flag_enabled`, resolves to its result and rejects with the raw database
+error. `db.$apiResult(fn, args)` makes the same call and returns a `Result`
+like a repository call: the result, or the error as a `DbError` with its
+`kind` and `hint`, and `.orThrow()` for the value.
+
+```ts
+const result = await db.$apiResult("flag_enabled", { key: "beta" });
+
+if (!result.ok) {
+  return result.error.kind;
+}
+```
+
+`defineSupabase(schema, { temporal })` passes its `temporal` to every
+instance `.blocks()` builds, so a runtime without a global `Temporal` needs it
+only there.
 
 ## The generated config
 

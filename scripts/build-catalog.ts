@@ -599,10 +599,12 @@ function extraColumnsTable(module: BlockSql): string | undefined {
 
   const probe: BlockSqlContext = {
     ...ctx,
-    extraColumns: (table, reserved) => {
-      tables.add(table);
+    extraColumns: (table, reserved, name) => {
+      if (name === undefined || name === "extraColumns") {
+        tables.add(table);
+      }
 
-      return ctx.extraColumns(table, reserved);
+      return ctx.extraColumns(table, reserved, name);
     },
   };
 

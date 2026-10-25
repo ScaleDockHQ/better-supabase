@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 
 import { rankKeys } from "../../core/rank-keys.ts";
+import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
@@ -138,7 +139,7 @@ export function stageTrigger(
       ? ""
       : `\n    new.${col(binding.enteredAt)} := now();`;
 
-  const name = `bsb_pipeline_${binding.type}`;
+  const name = `bsb_pipeline_${subjectTypeIdent(binding.type)}`;
 
   const transitions = ctx.hasTable("transitions")
     ? `
@@ -281,7 +282,7 @@ ${statusTrigger(names, binding)}`;
  * separate update so a state-machine trigger on the status column runs.
  */
 function statusTrigger(names: Names, binding: PipelineBinding): string {
-  const name = `bsb_pipeline_status_${binding.type}`;
+  const name = `bsb_pipeline_status_${subjectTypeIdent(binding.type)}`;
   const subject = binding.subject;
 
   if (binding.status === undefined) {

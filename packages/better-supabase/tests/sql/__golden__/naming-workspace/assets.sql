@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:1736a37997e2044435706eab6c3e10705eb0a348a617e1a2c0325c15f10043d5
+-- @bsb-hash sha256:606ffc5ab390340bd5ccbe90ac006c542dab7892c20e3c6f18eb8a429b8d6fbf
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create table if not exists "better_supabase"."assets" (
   "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
   "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
   "latitude" double precision check ("latitude" between -90 and 90),
@@ -498,7 +498,7 @@ begin
   if v_row."status" = 'retired' then
     raise exception 'a retired asset can''t be assigned' using errcode = '55000', hint = 'ASSETS_RETIRED';
   end if;
-  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
+  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
     raise exception 'an assignee needs a lowercase type and an id' using errcode = '22023', hint = 'ASSETS_ASSIGNEE_INVALID';
   end if;
   if assign_asset.assignee_type = 'member' and (

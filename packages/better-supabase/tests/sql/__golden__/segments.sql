@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:c697607cd946bcb62c11313ac0430fe7fef9af14815b3d36a763bb8004958a64
+-- @bsb-hash sha256:a0d8d45f231ca724b95a1e5222394f3756bbc33d1a8b0f816e39cafd55619db9
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,7 +63,7 @@ create table if not exists "better_supabase"."segments" (
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
@@ -469,7 +469,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:3ec0a5fddd47a6e563e52d2a562637e8d0c09b550a9d20d931efe856295afb88
+-- @bsb-hash sha256:3bb6f04f9ce5dacb84448c5ed006a67a7cd811e4fd976ff225f6f6a1c9d3417c
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -531,7 +531,7 @@ create table if not exists "better_supabase"."segments" (
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
@@ -955,7 +955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:4ee09b43a6d8cce7bdf3eac2e4c8b30931ff62c88cad5150b31b62b01f784caf
+-- @bsb-hash sha256:42fd4f507c1e63006ffa7a405564f5d607d9d04da81b0e9f1e64bc1932cdce27
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1019,7 +1019,7 @@ create table if not exists "app_private"."segments" (
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
@@ -1425,7 +1425,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:6111d58757e77b340dd45b84080895d8015af8ee9dafb10a52097f17d7c9ac55
+-- @bsb-hash sha256:8060c20b44fb2b44ae0d9e514696e44ad00e4eec711f6e632ccc766e1509c0bb
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1487,7 +1487,7 @@ create table if not exists "better_supabase"."segments" (
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,

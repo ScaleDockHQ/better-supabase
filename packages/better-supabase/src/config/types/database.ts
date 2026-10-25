@@ -73,6 +73,7 @@ export interface SqlConfig {
    * them.
    */
   readonly ownTablePolicies?: OwnTablePolicies;
+  readonly tenantColumn?: string;
 }
 
 /** `sql` with defaults applied. */
@@ -84,6 +85,7 @@ export interface ResolvedSqlConfig {
   readonly testsDir: string;
   /** Unset means `tenant`. */
   readonly scope?: BlockScope;
+  readonly tenantColumn?: string;
 }
 
 export interface SeedConfig {

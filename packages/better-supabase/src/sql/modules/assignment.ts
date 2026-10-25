@@ -124,7 +124,7 @@ function tables(ctx: BlockSqlContext, n: AssignmentNames): string {
   ${q("id")} uuid primary key default gen_random_uuid(),
   ${q("tenant")} ${ctx.idType} not null,
   ${q("name")} text not null check (length(${q("name")}) between 1 and 200),
-  ${q("subjectType")} text not null check (${q("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${q("subjectType")} text not null check (${q("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${q("strategy")} text not null default 'round_robin' check (${q("strategy")} in ('round_robin', 'weighted')),
   ${q("conditions")} jsonb check (${q("conditions")} is null or jsonb_typeof(${q("conditions")}) = 'object'),
   ${q("rank")} integer not null default 0,
@@ -230,7 +230,7 @@ begin
     end if;
   end if;
   v_type := coalesce(queue ->> 'subjectType', v_old.${q("subjectType")});
-  if v_type is null or v_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_type is null or v_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     ${fail("ASSIGNMENT_INVALID", "A queue needs a subject type", "22023")}
   end if;
   v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else v_old.${q("conditions")} end;

@@ -259,13 +259,13 @@ create table if not exists ${t} (
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$'),
+  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
   subject_id text check (length(subject_id) between 1 and 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table ${t} add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table ${t} add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table ${t} add column if not exists subject_id text check (length(subject_id) between 1 and 200);
 alter table ${t} add column if not exists secret_id uuid;
 alter table ${t} drop constraint if exists incoming_webhooks_verify_check;

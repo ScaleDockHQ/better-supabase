@@ -223,6 +223,9 @@
               "type": "string",
               "description": "Whose policies govern the app's tables a block runs over, unless the block sets its own ownTablePolicies: block (the default) lets a block add its bsb_ policies where none of the app's covers them, and app keeps every bsb_ policy, permissive or restrictive, off them.",
               "default": "block"
+            },
+            "tenantColumn": {
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -1335,7 +1338,7 @@
       "type": "object",
       "propertyNames": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        "pattern": "^[a-z][a-z0-9_-]{0,62}$"
       },
       "additionalProperties": {
         "type": "object",
@@ -4523,6 +4526,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "lineExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -5091,6 +5100,12 @@
                 "default": 30
               },
               "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "lineExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
@@ -5861,6 +5876,12 @@
                 "default": 30
               },
               "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "lineExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"

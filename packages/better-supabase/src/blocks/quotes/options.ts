@@ -9,6 +9,7 @@ export type QuotesSqlOptions = {
   readonly prefix?: string;
   readonly validDays?: number;
   readonly extraColumns?: ExtraColumns;
+  readonly lineExtraColumns?: ExtraColumns;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -18,4 +19,5 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     prefix: option.string({ default: "Q-" }),
     validDays: option.number({ default: 30 }),
     extraColumns: option.extraColumns(),
+    lineExtraColumns: option.extraColumns(),
   });

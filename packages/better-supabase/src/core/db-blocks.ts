@@ -5,6 +5,11 @@ import type { BetterSupabase } from "./define.ts";
 import type { EventHub } from "./events.ts";
 import type { Db } from "./repository-types.ts";
 
+import { rawError } from "./block-transport.ts";
+import { mapDbError } from "./errors.ts";
+import { instanceProperty } from "./instance-property.ts";
+import { AsyncResult, err, ok, toDbError } from "./result.ts";
+
 /**
  * What `betterSupabase.blocks()` takes: the `BlockSet` that `defineBlocks`
  * returns. The core reads it structurally, so it imports no block code.
@@ -19,7 +24,7 @@ export interface DbBlockSource {
   client(
     db: object,
     key: string,
-    options: { readonly events: EventHub },
+    options: { readonly events: EventHub; readonly temporal?: typeof Temporal },
   ): unknown;
   /** Calls a function in the API schema that the blocks are wrapped in. */
   call(
@@ -114,6 +119,10 @@ export type BlocksHelper<K, T extends PropertyKey = never> = unknown extends K
         fn: string,
         args: Readonly<Record<string, unknown>>,
       ): Promise<unknown>;
+      $apiResult(
+        fn: string,
+        args: Readonly<Record<string, unknown>>,
+      ): AsyncResult<unknown>;
     };
 
 /**
@@ -133,11 +142,6 @@ export type DbOf<T> =
     ? Db<M, F, E, SupabaseClient, B>
     : never;
 
-/** `lead-scoring` as `leadScoring`: the property an instance key gets. */
-export function instanceProperty(key: string): string {
-  return key.replaceAll(/[-_]([a-z0-9])/g, (_, c: string) => c.toUpperCase());
-}
-
 /**
  * A prototype for every `Db` of a definition, with one getter per block
  * instance (skipping those whose property a table holds) and `$blocks` with all
@@ -149,6 +153,7 @@ export function blocksPrototype(
   parent: object,
   tables: readonly string[],
   events: EventHub,
+  temporal?: typeof Temporal,
 ): object {
   // SAFETY: Object.create returns a plain object whose prototype is `parent`.
   const prototype = Object.create(parent) as object;
@@ -163,7 +168,13 @@ export function blocksPrototype(
     }
 
     if (!clients.has(key)) {
-      clients.set(key, source.client(db, key, { events }));
+      clients.set(
+        key,
+        source.client(db, key, {
+          events,
+          ...(temporal === undefined ? {} : { temporal }),
+        }),
+      );
     }
 
     return clients.get(key);
@@ -213,6 +224,23 @@ export function blocksPrototype(
   Object.defineProperty(prototype, "$api", {
     value(this: object, fn: string, args: Readonly<Record<string, unknown>>) {
       return source.call(this, fn, args);
+    },
+    configurable: true,
+    enumerable: false,
+    writable: false,
+  });
+
+  Object.defineProperty(prototype, "$apiResult", {
+    value(this: object, fn: string, args: Readonly<Record<string, unknown>>) {
+      return AsyncResult.from(async () => {
+        try {
+          return ok(await source.call(this, fn, args));
+        } catch (cause) {
+          const raw = rawError(cause);
+
+          return err(raw === undefined ? toDbError(cause) : mapDbError(raw));
+        }
+      });
     },
     configurable: true,
     enumerable: false,

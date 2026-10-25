@@ -354,6 +354,9 @@ export function resolveConfig(
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
       ...(config.sql?.scope === undefined ? {} : { scope: config.sql.scope }),
+      ...(config.sql?.tenantColumn === undefined
+        ? {}
+        : { tenantColumn: config.sql.tenantColumn }),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocks,

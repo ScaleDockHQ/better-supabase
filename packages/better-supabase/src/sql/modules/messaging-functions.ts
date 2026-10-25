@@ -396,7 +396,7 @@ as $$
     ), '[]'::jsonb),
     'subjects', coalesce((
       select jsonb_agg(distinct jsonb_build_object('type', m[1], 'id', m[2]))
-      from regexp_matches(parse_mentions.body, '@\\[[^\\]\\n]{1,100}\\]\\(subject:([a-z][a-z0-9_]{0,62})/([^)\\s]{1,200})\\)', 'g') m
+      from regexp_matches(parse_mentions.body, '@\\[[^\\]\\n]{1,100}\\]\\(subject:([a-z][a-z0-9_-]{0,62})/([^)\\s]{1,200})\\)', 'g') m
     ), '[]'::jsonb),
     'scope', case
       when parse_mentions.body ~ '(^|[^\\w@])@channel\\M' then 'channel'

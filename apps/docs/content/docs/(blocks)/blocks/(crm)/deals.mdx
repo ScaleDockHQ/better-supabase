@@ -87,6 +87,10 @@ The rules the table enforces for every writer:
 
 ## Your own fields
 
+`options.lineExtraColumns` adds columns to the line table, keyed by column
+name with their SQL type: each line's `fields` writes them, and `setLines` takes them per line. A line table of yours
+runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).
+
 `blocks.deals.options.extraColumns` adds columns to the `deals` table,
 keyed by column name with their SQL type. `create` writes them from `fields`, `update` takes them as cell edits by name, and every deal comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,

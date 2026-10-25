@@ -534,7 +534,7 @@ end;`;
 create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${id} not null,
-  ${c("subjectType")} text check (${c("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${c("subjectType")} text check (${c("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${c("subjectId")} text check (length(${c("subjectId")}) between 1 and 200),
   ${c("bucket")} text not null default ${bucketLiteral},
   ${c("path")} text generated always as (${pathExpression(ctx, tenantless.length > 0)}) stored,

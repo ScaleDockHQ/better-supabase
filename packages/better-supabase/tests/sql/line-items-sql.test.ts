@@ -42,3 +42,64 @@ describe("line item totals", () => {
     );
   });
 });
+
+describe("line tables of the app's", () => {
+  const files = (module: string, layout: Parameters<typeof renderBlocks>[1]) =>
+    renderBlocks([module], layout)
+      .filter((file) => file.module === module)
+      .map((file) => file.contents)
+      .join("\n");
+
+  it.each([
+    ["quotes", "quote_lines"],
+    ["invoices", "invoice_lines"],
+    ["deals", "deal_lines"],
+  ])("runs %s over the app's %s", (module, lines) => {
+    const sql = files(module, {
+      ownTables: { [`public.${lines}`]: "supabase/schemas/lines.sql" },
+      modules: {
+        [module]: {
+          tables: { lines: `public.${lines}` },
+          columns: {
+            lines: { tenant: "organization_id", parent: "record_id" },
+          },
+        },
+      },
+    });
+
+    expect(sql).not.toContain(`create table if not exists "public"."${lines}"`);
+    expect(sql).toContain(
+      `alter table "public"."${lines}" add column if not exists "organization_id"`,
+    );
+    expect(sql).toContain(
+      `insert into "public"."${lines}" ("organization_id", "record_id", `,
+    );
+  });
+
+  it("writes and reads the line table's extra columns from each line's fields", () => {
+    const sql = files("quotes", {
+      modules: { quotes: { options: { lineExtraColumns: { sku: "text" } } } },
+    });
+
+    expect(sql).toContain(
+      `alter table "better_supabase"."quote_lines" add column if not exists "sku" text;`,
+    );
+    expect(sql).toContain(
+      "for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position",
+    );
+    expect(sql).toContain(
+      `update "better_supabase"."quote_lines" x set "sku" =`,
+    );
+    expect(sql).toContain(`'fields', jsonb_build_object('sku', ql."sku")`);
+  });
+
+  it("refuses a line extra column that shadows a line column", () => {
+    expect(() =>
+      files("invoices", {
+        modules: {
+          invoices: { options: { lineExtraColumns: { position: "integer" } } },
+        },
+      }),
+    ).toThrow(/lineExtraColumns\.position shadows a column/u);
+  });
+});

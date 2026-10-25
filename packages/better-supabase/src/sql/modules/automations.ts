@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { SUBJECT_TYPE_SQL_PATTERN } from "../../core/subject-type.ts";
 import { sqlString } from "../../core/template.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
@@ -144,7 +145,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-const SUBJECT_TYPE = "^[a-z][a-z0-9_]{0,62}$";
+const SUBJECT_TYPE = SUBJECT_TYPE_SQL_PATTERN;
 const TRIGGER = "^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$";
 const ACTION_KIND = "^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$";
 const FIELD_ID = "^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$";

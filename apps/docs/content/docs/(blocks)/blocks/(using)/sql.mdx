@@ -1360,6 +1360,13 @@ your rows take the record types they attach to from `on`. Declare the types
 once in `config.records`, and every block that you don't give its own `on`
 uses the registry.
 
+A record type is lowercase letters, digits, hyphens and underscores, starting
+with a letter, such as `purchase_order` or `purchase-order`, so a type your
+rows already store with hyphens can be registered as it is. Blocks write it
+as a string value; a trigger or function named after it takes underscores in
+place of hyphens (`bsb_field_history_purchase_order`), so two types that
+differ only there, such as `purchase-order` and `purchase_order`, are refused.
+
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 

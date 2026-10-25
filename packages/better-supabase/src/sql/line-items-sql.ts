@@ -1,7 +1,18 @@
-import type { BlockSqlContext, BlockSqlTableSpec } from "./context.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlTableSpec,
+  ExtraColumn,
+} from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { fail, lockTable, triggerGrant } from "./shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsJson,
+  fail,
+  lockTable,
+  triggerGrant,
+  writeExtraColumns,
+} from "./shared.ts";
 
 /**
  * The logical columns of a line table (`<record>_lines`). Every block with line
@@ -37,10 +48,25 @@ export const TOTAL_COLUMNS = {
 export function lineTableSpec(name: string): BlockSqlTableSpec {
   return {
     name,
+    app: {},
     lifecycle: { tenant: "tenant", export: true },
     columns: LINE_COLUMNS,
   };
 }
+
+const LINE_KEYS = ["unitAmount", "product", "fields"] as const;
+
+export function lineExtraColumns(
+  ctx: BlockSqlContext,
+  lines = "lines",
+): readonly ExtraColumn[] {
+  return ctx.extraColumns(lines, LINE_KEYS, "lineExtraColumns");
+}
+
+export const lineFieldsJson = (
+  alias: string,
+  extras: readonly ExtraColumn[] = [],
+): string => extraFieldsJson(alias, extras);
 
 export interface LineItems {
   /** The logical name of the line table. */
@@ -51,6 +77,7 @@ export interface LineItems {
   readonly frozen?: string;
   /** Extra `set` assignments on the record after a recount, over `v_*` totals. */
   readonly afterTotals?: string;
+  readonly extras?: readonly ExtraColumn[];
 }
 
 /**
@@ -89,6 +116,7 @@ export function lineItemsSql(
   const list = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
   const discount = `round(${list} * l.${c("discountBps")} / 10000.0)`;
   const tax = `round((${list} - ${discount}) * l.${c("taxRateBps")} / 10000.0)`;
+  const extras = items.extras ?? [];
 
   const manages = ctx.manages
     ? `create table if not exists ${t} (
@@ -107,7 +135,7 @@ export function lineItemsSql(
   ${c("createdAt")} timestamptz not null default now(),
   check ((${c("productType")} is null) = (${c("productId")} is null))
 );
-create index if not exists ${sqlIdent(`${ctx.tableName(items.lines).name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});
+create index if not exists ${sqlIdent(`${ctx.tableName(items.lines).name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${addExtraColumns(t, extras)}
 ${lockTable(t, { read: true })}
 drop policy if exists ${sqlIdent(`${ctx.tableName(items.lines).name}_read`)} on ${t};
 create policy ${sqlIdent(`${ctx.tableName(items.lines).name}_read`)} on ${t} for select to authenticated
@@ -195,7 +223,7 @@ as $$
 declare
   v_parent uuid := ${options.setter}.parent;
   v_tenant ${ctx.idType};
-  v_currency text;
+  v_currency text;${extras.length === 0 ? "" : "\n  v_line record;"}
 begin
   select x.${pc("tenant")}, x.${pc("currency")} into v_tenant, v_currency from ${p} x where x.${pc("id")} = v_parent${items.frozen === undefined ? "" : ` and not (${items.frozen.replaceAll("p.", "x.")})`};
   if v_tenant is null then
@@ -218,7 +246,13 @@ begin
     from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     ${fail("LINES_INVALID", "every line needs a description, a positive quantity and a unit amount", "22023")}
-  end;
+  end;${
+    extras.length === 0
+      ? ""
+      : `
+  for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x where jsonb_typeof(x.value -> 'fields') = 'object' loop${writeExtraColumns(t, extras, "v_line.fields", `x.${c("parent")} = v_parent and x.${c("position")} = v_line.position`).replaceAll("\n", "\n  ")}
+  end loop;`
+  }
   perform ${recount}(v_parent);
   return (select jsonb_build_object(
     'listTotal', x.${pc("listTotal")}::text, 'discountTotal', x.${pc("discountTotal")}::text,

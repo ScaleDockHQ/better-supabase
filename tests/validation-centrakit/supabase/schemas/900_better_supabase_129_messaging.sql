@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:5382f7448d4120d237cb4526b26307d448a9411c371cecf4113f9beedaa53605
+-- @bsb-hash sha256:939ccb83db3a51574dc2471d64e5ab64913d04479b242234245dd9a70209aabb
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1037,7 +1037,7 @@ as $$
     ), '[]'::jsonb),
     'subjects', coalesce((
       select jsonb_agg(distinct jsonb_build_object('type', m[1], 'id', m[2]))
-      from regexp_matches(parse_mentions.body, '@\[[^\]\n]{1,100}\]\(subject:([a-z][a-z0-9_]{0,62})/([^)\s]{1,200})\)', 'g') m
+      from regexp_matches(parse_mentions.body, '@\[[^\]\n]{1,100}\]\(subject:([a-z][a-z0-9_-]{0,62})/([^)\s]{1,200})\)', 'g') m
     ), '[]'::jsonb),
     'scope', case
       when parse_mentions.body ~ '(^|[^\w@])@channel\M' then 'channel'

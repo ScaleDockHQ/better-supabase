@@ -1,6 +1,6 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:baa9e149d21f723997969427ed499860063a82a8897fe57effdf963476e97a1c
+-- @bsb-hash sha256:06e2f94596dff088c4b8b6aa1d299a81affd0a1444df315d2bf1ff156194ac0d
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,7 @@ create table if not exists "better_supabase"."score_models" (
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
   "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
   "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
@@ -198,7 +198,7 @@ begin
   if v_name is null or length(v_name) > 200 then
     raise exception 'a score model needs a name of at most 200 characters' using errcode = '22023', hint = 'SCORES_MODEL_INVALID';
   end if;
-  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'a score model needs a subject type' using errcode = '22023', hint = 'SCORES_MODEL_INVALID';
   end if;
   if jsonb_typeof(v_rules) is distinct from 'array' or jsonb_array_length(v_rules) > 100 then

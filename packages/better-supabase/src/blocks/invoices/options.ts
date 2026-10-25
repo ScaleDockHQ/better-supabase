@@ -10,6 +10,7 @@ export type InvoicesSqlOptions = {
   readonly creditPrefix?: string;
   readonly termsDays?: number;
   readonly extraColumns?: ExtraColumns;
+  readonly lineExtraColumns?: ExtraColumns;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -20,4 +21,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     creditPrefix: option.string({ default: "CN-" }),
     termsDays: option.number({ default: 30 }),
     extraColumns: option.extraColumns(),
+    lineExtraColumns: option.extraColumns(),
   });

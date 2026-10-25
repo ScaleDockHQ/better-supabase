@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:2ea52d7ca35d7b3be1b6a9d2a6b7dabc2cdd93524c301c714e6d6f48005912a9
+-- @bsb-hash sha256:d7cb8c0758654f3c2679d73393ae5cbe21baafde22064c16538ec1a19bcdd92e
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -243,7 +243,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;
@@ -308,7 +308,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:3394e50c8cdcec6b2b1ca2ec8d1493eecd0fa0ce2b465c493b1b6253d2af5e06
+-- @bsb-hash sha256:ba95eb013ca17b73fb097cb6c2b111b2ada7903fd6f054605241e1f9f395e0d3
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -655,7 +655,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;
@@ -720,7 +720,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c38bf523ead202f1006f278d0c2e5f7c05714d01f382bec167e38fa6e3fe1897
+-- @bsb-hash sha256:9f054739a43b0963a17cf3a6d312962c836ea11817ea095faca6cbb79f703afe
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -964,7 +964,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;
@@ -1029,7 +1029,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:579dee2867a9830e7b2d7ae901cd407271f1f39cf3012fcf9781ac42525a8a11
+-- @bsb-hash sha256:96bc74251325053727ef94ef492366a6a6f32f475fc11170995989646f615bf5
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1271,7 +1271,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_-]{0,62}):([^:]{1,200})$');
 begin
   if v_parts is null then
     return false;

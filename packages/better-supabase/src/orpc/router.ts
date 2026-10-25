@@ -13,9 +13,9 @@ import type { ResourceInput } from "../spec/options.ts";
 
 import { callWithInput } from "../blocks/block-method.ts";
 import { checkPermission } from "../core/authorizer.ts";
-import { instanceProperty } from "../core/db-blocks.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
+import { instanceProperty } from "../core/instance-property.ts";
 import { err } from "../core/result.ts";
 import { contextOf } from "../server/resource-http.ts";
 import { defineResource } from "../server/resource.ts";

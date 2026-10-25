@@ -3,6 +3,7 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   catalogLineFallback,
+  lineFieldsJson,
   lineItemsSql,
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
@@ -33,6 +34,7 @@ export interface QuoteNames {
   readonly service: string;
   /** `options.extraColumns` of the quotes table, written from `attrs.fields`. */
   readonly extras: readonly ExtraColumn[];
+  readonly lineExtras: readonly ExtraColumn[];
 }
 
 /**
@@ -144,7 +146,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
 
   const lines = (alias: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const int8 = ["number", ...Object.keys(TOTAL_COLUMNS)].map(q);
 
@@ -424,7 +426,12 @@ $$;
 ${userGrant(`${fn("update_quote")}(uuid, jsonb)`)}
 ${lineItemsSql(
   ctx,
-  { lines: "lines", parent: "quotes", frozen: `not (${open("p")})` },
+  {
+    lines: "lines",
+    parent: "quotes",
+    frozen: `not (${open("p")})`,
+    extras: n.lineExtras,
+  },
   {
     setter: "set_quote_lines",
     guard: `if not exists (select 1 from ${t("quotes")} x where x.${q("id")} = v_parent and ${editable("x")}) then

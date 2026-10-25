@@ -5,6 +5,7 @@ import type { GuestAction } from "./scope.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
 import { isRecord } from "../core/guards.ts";
+import { SUBJECT_TYPE_PATTERN } from "../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/permissions-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
@@ -37,9 +38,6 @@ export interface Subject {
   /** The module's own keys, such as a bucket per subject. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
-
-const SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_]{0,62}$/;
-const HYPHENATED_SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_-]{0,62}$/;
 
 const BASE_KEYS = new Set([
   "table",
@@ -194,11 +192,6 @@ export function subjectsOption(
     /** Every registered type, for a module that takes no `on`. */
     readonly registryOnly?: boolean;
     /**
-     * Subject types may contain `-` (`purchase-order`), for a module whose
-     * subject type column has no format check.
-     */
-    readonly hyphens?: boolean;
-    /**
      * Registered types this picks join the module's subjects even when `on`
      * lists others, such as app tables with `subject.versions` for the versions
      * block.
@@ -215,12 +208,10 @@ export function subjectsOption(
     allow.always,
   );
 
-  const hyphens = allow.hyphens === true;
-
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
-    if (!(hyphens ? HYPHENATED_SUBJECT_TYPE : SUBJECT_TYPE).test(type)) {
+    if (!SUBJECT_TYPE_PATTERN.test(type)) {
       throw new TypeError(
-        `${where}: "${type}" must be lowercase letters, digits${hyphens ? ", hyphens" : ""} and underscores`,
+        `${where}: "${type}" must be lowercase letters, digits, hyphens and underscores`,
       );
     }
 

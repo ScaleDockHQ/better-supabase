@@ -1923,6 +1923,25 @@ describe("block on names an unknown record type (BS346)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("passes a hyphenated type config.records registers", async () => {
+    expect(
+      await run(
+        "BS346",
+        context(
+          base,
+          {},
+          {
+            records: { "purchase-order": { table: "purchase_orders" } },
+            blocks: {
+              notifications: { on: { "purchase-order": {} } },
+              attachments: { on: ["purchase-order"] },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("block policy widens an app table's access (BS347)", () => {

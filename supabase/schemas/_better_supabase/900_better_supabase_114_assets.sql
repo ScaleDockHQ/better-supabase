@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:304796968e42f277224e1bf20642845c6bd323c0e6b334e8b0aa7c0148c1127c
+-- @bsb-hash sha256:b54e45c6e883e469884a9c19038aea9d7dc16d9a3fc80b4835e0d25063e0263b
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,7 @@ create table if not exists "better_supabase"."assets" (
   "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
   "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
   "latitude" double precision check ("latitude" between -90 and 90),
@@ -555,7 +555,7 @@ begin
   if v_row."status" = 'retired' then
     raise exception 'a retired asset can''t be assigned' using errcode = '55000', hint = 'ASSETS_RETIRED';
   end if;
-  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
+  if coalesce(assign_asset.assignee_type, '') !~ '^[a-z][a-z0-9_-]{0,62}$' or coalesce(assign_asset.assignee_id, '') = '' then
     raise exception 'an assignee needs a lowercase type and an id' using errcode = '22023', hint = 'ASSETS_ASSIGNEE_INVALID';
   end if;
   if assign_asset.assignee_type = 'member' and (

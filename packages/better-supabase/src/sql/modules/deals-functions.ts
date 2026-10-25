@@ -32,6 +32,7 @@ export interface DealNames {
    * name.
    */
   readonly extras: readonly ExtraColumn[];
+  readonly lineExtras: readonly ExtraColumn[];
 }
 
 interface Field {
@@ -491,6 +492,7 @@ ${lineItemsSql(
     parent: "deals",
     frozen: `p.${d("locked")}`,
     afterTotals: `${d("amount")} = case when x.${d("amountSource")} = 'line_items' then v_list - v_discount else x.${d("amount")} end`,
+    extras: n.lineExtras,
   },
   {
     setter: "set_deal_lines",

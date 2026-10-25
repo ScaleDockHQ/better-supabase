@@ -69,6 +69,9 @@ export function moduleContext(
       ...(instance === undefined || instance === name ? {} : { instance }),
       contributors: (block) => contributorsOf(block, layout, installed),
       ...(layout.scope ? { scope: layout.scope } : {}),
+      ...(layout.blockTenantColumn
+        ? { tenantColumn: layout.blockTenantColumn }
+        : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
       integrations(module) {

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:32199d81b20f117b78a8a58693ba1d18fab771aa870795259357697edf54010f
+-- @bsb-hash sha256:420aef275897caeee378279c3abb2954de3144bb65de10e19023a99b25ea9b30
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -586,7 +586,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then
@@ -940,7 +940,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:e158ee7d07844960e137809db5e04d311a91422489d03b2e491e3b00d11a1cff
+-- @bsb-hash sha256:b762ae9f732b9a2f4577b45e707f58dd0ce1fa296b414b3dc399d9cb12f92659
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1027,7 +1027,7 @@ create table if not exists "better_supabase"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -1559,7 +1559,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then
@@ -2012,7 +2012,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:d82d8f2df9e0ed1d05d88859794b90979bb4756350100bc946d908af747e5404
+-- @bsb-hash sha256:35a3b4fe46da2139ef7c1dbd5e1e93d783e91092e6f9a033bc69c19ce6019342
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2101,7 +2101,7 @@ create table if not exists "app_private"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "sequence_id" uuid not null references "app_private"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -2599,7 +2599,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then
@@ -2953,7 +2953,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:aac4a315172b99caa2d1be4054b5b33cd3d52c5f0c64fff8962464106a44d927
+-- @bsb-hash sha256:64edd66e37703a151e5a9b1efddb3c2a739aedd61c3fca90c69e0aa8266e4752
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3040,7 +3040,7 @@ create table if not exists "better_supabase"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -3538,7 +3538,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then
