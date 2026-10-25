@@ -25,7 +25,7 @@ user has no profile yet, it inserts one:
 | `first_name` | metadata `first_name`, then `given_name`, then the first word of the full name        |
 | `last_name`  | metadata `last_name`, then `family_name`, then the rest of the full name              |
 | `avatar_url` | metadata `avatar_url`, then `picture`                                                 |
-| `email`      | `auth.users.email`, and again after every change of address                           |
+| `email`      | `auth.users.email` in lowercase, and again after every change of address              |
 | `username`   | metadata `user_name`, `preferred_username` or `username`, else the email's local part |
 
 `avatar_path` is never filled from metadata, and a `metadata` option that

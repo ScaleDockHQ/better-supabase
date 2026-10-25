@@ -119,7 +119,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.member_can((select auth.uid()), organization, 'members.read'), false) then
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx, "listMembers", OPERATIONS["organizations.listMembers"])}), false) then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list members")}
   end if;
   return query

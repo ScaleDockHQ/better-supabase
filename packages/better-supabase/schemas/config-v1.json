@@ -3905,6 +3905,7 @@
                 "type": "string",
                 "default": "show"
               },
+              "ipHeader": {},
               "keepMappedMetadata": {
                 "type": "boolean",
                 "default": false
@@ -3926,6 +3927,10 @@
                 "type": "boolean",
                 "default": false
               },
+              "staffClaim": {
+                "type": "string"
+              },
+              "subjectColumns": {},
               "tenantColumn": {
                 "type": "string"
               },

@@ -226,6 +226,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
 export const OPERATIONS = {
   "organizations.update": "organization.update",
   "organizations.delete": "organization.delete",
+  "organizations.listMembers": "members.read",
   "organizations.removeMember": "members.remove",
   "organizations.suspendMember": "members.remove",
   "organizations.updateRole": "members.update_role",
@@ -566,6 +567,7 @@ export const MODULE_PERMISSION_SCOPES: {
   organizations: {
     update: "tenant",
     delete: "tenant",
+    listMembers: "tenant",
     removeMember: "tenant",
     suspendMember: "tenant",
     updateRole: "tenant",

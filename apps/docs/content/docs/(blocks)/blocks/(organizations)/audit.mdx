@@ -106,6 +106,40 @@ session's entries and a service call with `actorKind: "support"` store
 table (a role lookup) can't be a generated column; pass that value as a
 metadata key instead.
 
+### Client address, staff and subject columns
+
+`ip` defaults to the last hop of the `x-forwarded-for` header, which is the
+address Supabase's gateway saw. Behind another proxy, name the header and the
+hop with `ipHeader`. With `staffClaim`, a caller whose token carries that
+claim is recorded with `actor_kind = 'staff'` instead of `user`.
+`subjectColumns` adds a typed, indexed column per key, generated from the new
+row, the old row or the metadata, so you can list every entry about one job
+without scanning `jsonb`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  audit: {
+    options: {
+      ipHeader: { name: "cf-connecting-ip" },
+      staffClaim: "app_metadata.platform_role",
+      subjectColumns: {
+        job_id: { type: "uuid" },
+        ticket_no: { type: "bigint", from: "ticket" },
+      },
+    },
+  },
+},
+```
+
+| Option           | Default                | What it does                                                                                                      |
+| ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ipHeader`       | last `x-forwarded-for` | a header name, or `{ name, hop: "first" \| "last" }` for a comma-separated list                                   |
+| `staffClaim`     | none                   | a dotted claim path; a caller carrying it is recorded as `staff`                                                  |
+| `subjectColumns` | `{}`                   | `{ <column>: { type: "text" \| "uuid" \| "bigint", from? } }`; `from` is the key to read and defaults to the name |
+
+A value that doesn't parse as the column's type stores `null` instead of
+failing the audited write.
+
 ## Module actions
 
 Every SQL module records its security-relevant actions in the log once the

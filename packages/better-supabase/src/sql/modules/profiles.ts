@@ -211,7 +211,7 @@ function syncValues(ctx: BlockSqlContext): Map<string, string> {
   }
 
   if (has("email")) {
-    values.set(col("email"), "u.email");
+    values.set(col("email"), "lower(u.email)");
   }
 
   if (has("username") && ctx.flag("username", true)) {
@@ -1012,7 +1012,8 @@ create trigger ${sync} after insert on auth.users
   if (ctx.has("profiles", "email") && ctx.flag("mirrorEmail", true)) {
     const email = ctx.col("profiles", "email");
     parts.push(`
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function ${ctx.fn("mirror_profile_email")}()
 returns trigger
 language plpgsql
@@ -1020,7 +1021,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update ${t} set ${email} = new.email where ${key} = new.id and ${email} is distinct from new.email;
+  update ${t} set ${email} = lower(new.email) where ${key} = new.id and ${email} is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -1067,13 +1068,30 @@ export const PROFILES: BlockSqlDefinition = {
   },
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Managed profiles get an avatar_path column for an avatar stored in Storage; sync never writes it from auth metadata.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "The email mirror and sign-up sync store the email lowercased; existing emails are lowercased unless that would duplicate another profile's.",
+      sql: (ctx) => {
+        if (!ctx.has("profiles", "email") || !ctx.flag("mirrorEmail", true)) {
+          return "";
+        }
+
+        const t = ctx.table("profiles");
+        const email = ctx.col("profiles", "email");
+
+        return `update ${t} p set ${email} = lower(p.${email})
+where p.${email} <> lower(p.${email})
+  and not exists (select 1 from ${t} o where o.${email} = lower(p.${email}));`;
+      },
     },
   ],
   names: NAMES,
