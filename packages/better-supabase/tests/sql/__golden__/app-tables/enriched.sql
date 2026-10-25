@@ -1,4 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
+-- better-supabase module: app-tables
+-- @bsb-tables
+-- @bsb-hash sha256:1399a4faf5cdd273a7fe992ecd7001960c05ea1172ec4c51e58a7c3708d231c8
+-- The tables the app owns, from `appTables`, in public.
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `appTables` in better-supabase.config.ts.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -34,12 +40,6 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- better-supabase module: app-tables
--- @bsb-tables
--- @bsb-hash sha256:ed9599bf34925c8c89284ca7f334c5bd0c9ac9ab6328dc489c0e76ead2dd256c
--- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
--- Change it through `appTables` in better-supabase.config.ts.
 
 -- "public"."invoices" is the app's table (supabase/schemas/010_app.sql): tables.invoices adds only the columns it lacks.
 alter table "public"."invoices" add column if not exists "organization_id" uuid references "better_supabase"."organizations" ("id") on delete cascade;

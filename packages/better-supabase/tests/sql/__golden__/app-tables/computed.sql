@@ -1,4 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
+-- better-supabase module: app-tables
+-- @bsb-tables
+-- @bsb-hash sha256:6cfd1a21bc5de5d2d0e21e62450b7531786abd9d088c735a3ccb2bdf09538e6f
+-- The tables the app owns, from `appTables`, in public.
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `appTables` in better-supabase.config.ts.
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -34,12 +40,6 @@ end;
 $$;
 revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- better-supabase module: app-tables
--- @bsb-tables
--- @bsb-hash sha256:066f7232f6679677980a29b41fc6b64e4ddfb2b812a4202185a7bbd5ab6a6a83
--- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
--- Change it through `appTables` in better-supabase.config.ts.
 
 create table if not exists "public"."projects" (
   id uuid primary key default gen_random_uuid(),
