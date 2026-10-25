@@ -616,16 +616,27 @@
   },
   "./create/lite": {
     "values": [
-      "catalogQuery",
+      "designDataApi",
       "designFromCatalog",
       "importFilesOf",
       "importProject",
+      "openSandbox",
+      "schemaMetaFromCatalog",
       "sqlIssues",
       "SUPABASE_PRELUDE",
       "validateDesign"
     ],
     "types": [
       "DesignValidation",
+      "Persona",
+      "RawCatalog",
+      "RawColumn",
+      "RawTable",
+      "Sandbox",
+      "SandboxError",
+      "SandboxOptions",
+      "SandboxResult",
+      "SandboxSession",
       "SkippedBlock",
       "ValidateDesignOptions"
     ]

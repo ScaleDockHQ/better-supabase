@@ -16,7 +16,10 @@ export interface PgliteConnection extends LiteConnection {
    */
   readonly driver: {
     exec(sql: string): Promise<unknown>;
-    query(sql: string): Promise<{ rows: unknown[] }>;
+    query(
+      sql: string,
+      params?: readonly unknown[],
+    ): Promise<{ rows: unknown[] }>;
   };
 }
 

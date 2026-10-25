@@ -1,22 +1,32 @@
 import type { LiteRuntime } from "../../lite/runtime.ts";
 import type { Issue } from "../issue.ts";
 import type { PresetMigrationFile } from "../types.ts";
+import type { SkippedBlock } from "./apply.ts";
 
 import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
+import { applyFiles } from "./apply.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 
 export { SUPABASE_PRELUDE } from "./prelude.ts";
 
+export type { SkippedBlock } from "./apply.ts";
+
+export type { RawCatalog, RawColumn, RawTable } from "./catalog.ts";
+
 export * from "./import.ts";
 
-/**
- * A module PGlite can't run, such as one that needs an extension it doesn't
- * ship.
- */
-export interface SkippedBlock {
-  readonly module: string;
-  readonly reason: string;
-}
+export * from "./data-api.ts";
+
+export type {
+  Persona,
+  Sandbox,
+  SandboxError,
+  SandboxOptions,
+  SandboxResult,
+  SandboxSession,
+} from "./sandbox.ts";
+
+export { openSandbox } from "./sandbox.ts";
 
 export interface DesignValidation {
   /** `true` when every file that could run applied cleanly. */
@@ -31,14 +41,6 @@ export interface DesignValidation {
 export interface ValidateDesignOptions {
   /** A loaded `@supabase/lite`; loaded on demand when left out. */
   readonly runtime?: LiteRuntime;
-}
-
-const MISSING_EXTENSION = /extension "([^"]+)" is not available/u;
-
-function messageOf(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error))
-    .replaceAll(/\s+/gu, " ")
-    .slice(0, 300);
 }
 
 /**
@@ -65,38 +67,7 @@ export async function validateDesign(
 
     await driver.exec(SUPABASE_PRELUDE);
 
-    const issues: Issue[] = [];
-    const skipped = new Map<string, string>();
-
-    for (const file of files) {
-      if (file.path.includes("/tests/") || skipped.has(file.module)) {
-        continue;
-      }
-
-      try {
-        await driver.exec(file.contents);
-      } catch (error) {
-        const message = messageOf(error);
-        const extension = MISSING_EXTENSION.exec(message)?.[1];
-
-        if (extension === undefined) {
-          issues.push({
-            code: "sql_error",
-            severity: "error",
-            source: "sql",
-            path: "",
-            table: file.module,
-            file: file.path,
-            message,
-          });
-        } else {
-          skipped.set(
-            file.module,
-            `Needs the ${extension} extension, which PGlite doesn't ship.`,
-          );
-        }
-      }
-    }
+    const { issues, skipped } = await applyFiles(driver, files);
 
     const { rows } = await driver.query(
       "select count(*)::int as count from pg_tables where schemaname = 'public'",
@@ -109,12 +80,7 @@ export async function validateDesign(
         ? Number(row.count)
         : 0;
 
-    return {
-      ok: issues.length === 0,
-      issues,
-      skipped: [...skipped].map(([module, reason]) => ({ module, reason })),
-      tables,
-    };
+    return { ok: issues.length === 0, issues, skipped, tables };
   } finally {
     await connection.close();
   }
