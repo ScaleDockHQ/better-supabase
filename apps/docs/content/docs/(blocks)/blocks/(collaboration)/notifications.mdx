@@ -531,8 +531,10 @@ deliveries to Expo, stores the tickets and confirms them later with
 Each delivery renders in its recipient's locale: with the
 [profiles](/docs/blocks/profiles) module installed, `claim_notification_deliveries`
 returns the `locale` column of the recipient's profile, and the channel's
-message carries it in `message.locale` (`null` without one). `hydrate` runs
-once per locale among the claimed deliveries. When `render` or `hydrate`
+message carries it in `message.locale` (`null` without one). A `locale`
+column that is an enum or a domain, such as `public.app_locale`, works the
+same: the claim reads it as text, so `message.locale` is the label. `hydrate`
+runs once per locale among the claimed deliveries. When `render` or `hydrate`
 throws, only the deliveries it was rendering fail, and they are retried like
 a throwing channel.
 
