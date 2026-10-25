@@ -2132,4 +2132,51 @@ describe("useRealtimeRelay", () => {
     always.rerender(undefined);
     expect(always.result).toBe(first);
   });
+
+  it("passes the EventSource, fetch, timeout and backoff to the client", async () => {
+    const urls: string[] = [];
+    const statuses: string[] = [];
+
+    class Source {
+      readyState = 0;
+
+      constructor(url: string) {
+        urls.push(url);
+      }
+
+      addEventListener() {}
+
+      close() {
+        this.readyState = 2;
+      }
+    }
+
+    const fetch = vi.fn(async () => new Response(null, { status: 202 }));
+
+    const relayed = renderHook(
+      () =>
+        useRealtimeRelay("/api/realtime", {
+          when: "always",
+          EventSource: Source,
+          fetch,
+          timeoutMs: 1,
+          maxBackoffMs: 10,
+        }),
+      undefined,
+      null,
+    );
+
+    const channel = relayed.result?.channel("room:1");
+    channel?.subscribe((status: string) => statuses.push(status));
+    expect(urls).toEqual(["/api/realtime?topic=room%3A1"]);
+
+    await channel?.httpSend("e", 1);
+    expect(fetch).toHaveBeenCalledOnce();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    expect(statuses).toEqual(["TIMED_OUT"]);
+    await relayed.result?.removeChannel(channel!);
+  });
 });

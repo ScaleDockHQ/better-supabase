@@ -260,3 +260,101 @@ describe("createRateLimit checkAll", () => {
     expect(fake.calls).toEqual([]);
   });
 });
+
+describe("createRateLimit decoding", () => {
+  const over = (answer: unknown) =>
+    createRateLimit({
+      transport: { call: async () => answer },
+      logger: { error: () => undefined, warn: () => undefined } as never,
+    });
+
+  const two = [
+    { scope: "a", key: "k1" },
+    { scope: "b", key: "k2" },
+  ];
+
+  it("reads a missing answer as refused by the first limit", async () => {
+    expect(await over(null).checkAll(two).orThrow()).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 0,
+      blocked: { index: 0, scope: "a", key: "k1" },
+      results: [],
+    });
+  });
+
+  it("refuses an allowed answer that lacks a result per limit", async () => {
+    expect(
+      await over({
+        allowed: true,
+        retry_after: "soon",
+        results: [{ allowed: true, remaining: "x", retry_after: null }],
+      })
+        .checkAll(two)
+        .orThrow(),
+    ).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 0,
+      blocked: { index: 0, scope: "a", key: "k1" },
+      results: [{ allowed: true, remaining: 0, retryAfter: 0 }],
+    });
+  });
+
+  it("drops a blocked index outside the hits and reads bad rows as refusals", async () => {
+    expect(
+      await over({
+        allowed: false,
+        blocked: 7,
+        retry_after: 12,
+        results: ["bad", { allowed: false, remaining: 0, retry_after: 12 }],
+      })
+        .checkAll(two)
+        .orThrow(),
+    ).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 12,
+      results: [
+        { allowed: false, remaining: 0, retryAfter: 0 },
+        { allowed: false, remaining: 0, retryAfter: 12 },
+      ],
+    });
+  });
+
+  it("reads a missing single-check row over a transport as refused", async () => {
+    expect(await over(undefined).check("a", "k").orThrow()).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 0,
+    });
+    expect(
+      await over({ allowed: true, remaining: null }).check("a", "k").orThrow(),
+    ).toEqual({ allowed: true, remaining: 0, retryAfter: 0 });
+  });
+
+  it("purges with the default batch and reads a missing count as zero", async () => {
+    const seen: unknown[] = [];
+
+    const limit = createRateLimit({
+      transport: {
+        async call(_schema, fn, args) {
+          seen.push([fn, args["batch"]]);
+
+          return null;
+        },
+      },
+    });
+
+    expect(await limit.purge().orThrow()).toBe(0);
+    expect(seen).toEqual([["purge_rate_limits", undefined]]);
+  });
+
+  it("reads a missing SQL row as refused for checkAll", async () => {
+    const limit = createRateLimit({ sql: fakeSql([]).sql });
+
+    expect(
+      await limit.checkAll([{ scope: "a", key: "k" }]).orThrow(),
+    ).toMatchObject({ allowed: false, blocked: { index: 0 } });
+  });
+});

@@ -247,3 +247,273 @@ describe("relayRealtimeClient", () => {
     }
   });
 });
+
+describe("relayRealtimeClient channels", () => {
+  class Scripted {
+    static made: Scripted[] = [];
+    readyState = 1;
+    readonly url: string;
+    readonly init: unknown;
+    readonly listeners = new Map<string, (event: { data?: unknown }) => void>();
+
+    constructor(url: string, init?: unknown) {
+      this.url = url;
+      this.init = init;
+      Scripted.made.push(this);
+    }
+
+    addEventListener(
+      type: string,
+      listener: (event: { data?: unknown }) => void,
+    ) {
+      this.listeners.set(type, listener);
+    }
+
+    close() {
+      this.readyState = 2;
+    }
+
+    fire(type: string, data?: unknown) {
+      this.listeners.get(type)?.(
+        data === undefined
+          ? {}
+          : { data: typeof data === "string" ? data : JSON.stringify(data) },
+      );
+    }
+  }
+
+  const fresh = () => {
+    Scripted.made = [];
+
+    return Scripted;
+  };
+
+  it("parses broadcasts, presence and statuses and skips malformed frames", () => {
+    const client = relayRealtimeClient("/rt", { EventSource: fresh() });
+    const channel = client.channel("room:1");
+    const statuses: [string, string | undefined][] = [];
+    const broadcasts = vi.fn();
+    const named = vi.fn();
+    const presence = vi.fn();
+
+    channel.on("broadcast", { event: "*" }, broadcasts);
+    channel.on("broadcast", { event: "edit" }, named);
+    channel.on("presence", { event: "sync" }, presence);
+    channel.subscribe((status, error) =>
+      statuses.push([status, error?.message]),
+    );
+
+    const [source] = Scripted.made;
+    expect(source?.url).toBe("/rt?topic=room%3A1");
+    expect(source?.init).toEqual({ withCredentials: true });
+    expect(client.channel("room:1")).toBe(channel);
+
+    source?.listeners.get("status")?.({});
+    source?.fire("status", "{broken");
+    source?.fire("status", { status: "joining" });
+    source?.fire("status", { status: "subscribed" });
+    source?.fire("status", { status: "error" });
+    source?.fire("broadcast", { event: 1 });
+    source?.fire("broadcast", { event: "move", payload: 1 });
+    source?.fire("broadcast", { event: "edit", payload: 2 });
+    source?.fire("presence", [1]);
+    source?.fire("presence", { k1: [{ name: "Ann" }], bad: "x" });
+
+    expect(statuses).toEqual([
+      ["SUBSCRIBED", undefined],
+      ["CHANNEL_ERROR", "Realtime error on room:1"],
+    ]);
+    expect(broadcasts).toHaveBeenCalledTimes(2);
+    expect(named).toHaveBeenCalledExactlyOnceWith({
+      type: "broadcast",
+      event: "edit",
+      payload: 2,
+    });
+    expect(presence).toHaveBeenCalledOnce();
+    expect(channel.presenceState()).toEqual({ k1: [{ name: "Ann" }] });
+    expect(() => channel.subscribe()).toThrow(
+      "tried to subscribe multiple times to room:1 on the relay",
+    );
+  });
+
+  it("reports a dropped connection, a refusal and ignores stale sources", async () => {
+    const client = relayRealtimeClient("/rt", { EventSource: fresh() });
+    const statuses: string[] = [];
+    const joined = client.channel("room:1");
+    joined.subscribe((status, error) =>
+      statuses.push(`${status}:${error?.message ?? ""}`),
+    );
+
+    const [first] = Scripted.made;
+    first?.fire("status", { status: "subscribed" });
+    first!.readyState = 0;
+    first?.fire("error");
+    first?.fire("end", { reason: "max_duration" });
+    first?.fire("error");
+
+    expect(statuses).toEqual([
+      "SUBSCRIBED:",
+      "CHANNEL_ERROR:The relay connection for room:1 dropped",
+    ]);
+
+    const refused: string[] = [];
+    const other = client.channel("room:2");
+    other.subscribe((status, error) =>
+      refused.push(`${status}:${error?.message ?? ""}`),
+    );
+    const second = Scripted.made[1];
+    second!.readyState = 0;
+    second?.fire("error");
+    second!.readyState = 2;
+    second?.fire("error");
+    second?.fire("error");
+    second?.fire("status", { status: "subscribed" });
+
+    expect(refused).toEqual(["CHANNEL_ERROR:The relay refused room:2"]);
+
+    await client.removeChannel(joined);
+    first?.fire("error");
+    expect(statuses).toHaveLength(2);
+    await client.removeChannel(joined);
+    expect(() => joined.subscribe()).toThrow("tried to subscribe");
+    expect(client.getChannels()).toEqual([other]);
+  });
+
+  it("backs off up to the cap and stops reconnecting once removed", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const client = relayRealtimeClient("/rt", {
+        EventSource: fresh(),
+        maxBackoffMs: 1500,
+      });
+
+      const channel = client.channel("room:1");
+      channel.subscribe();
+
+      const drop = (index: number) => {
+        const source = Scripted.made[index];
+        source?.fire("status", { status: "subscribed" });
+        source?.fire("end", { reason: "max_duration" });
+        source!.readyState = 2;
+        source?.fire("error");
+      };
+
+      drop(0);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(Scripted.made).toHaveLength(2);
+
+      Scripted.made[1]!.readyState = 2;
+      Scripted.made[1]?.fire("error");
+      await vi.advanceTimersByTimeAsync(1499);
+      expect(Scripted.made).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(Scripted.made).toHaveLength(3);
+
+      Scripted.made[2]!.readyState = 2;
+      Scripted.made[2]?.fire("error");
+      await channel.unsubscribe();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(Scripted.made).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a missing EventSource and uses the global one when present", () => {
+    vi.stubGlobal("EventSource", undefined);
+
+    try {
+      const statuses: string[] = [];
+
+      relayRealtimeClient("/rt")
+        .channel("room:1")
+        .subscribe((status, error) =>
+          statuses.push(`${status}:${error?.message ?? ""}`),
+        );
+
+      expect(statuses).toEqual([
+        "CHANNEL_ERROR:relayRealtimeClient needs EventSource",
+      ]);
+
+      vi.stubGlobal("EventSource", fresh());
+      relayRealtimeClient("/rt").channel("room:1").subscribe();
+      expect(Scripted.made).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("maps failed broadcasts to their problem detail, title or status text", async () => {
+    const answers: (() => Response | Promise<Response>)[] = [
+      () => Response.json({ detail: "Read-only" }, { status: 403 }),
+      () => Response.json({ title: "Not Found" }, { status: 404 }),
+      () => new Response("oops", { status: 500, statusText: "Server Error" }),
+      () => Response.json(["x"], { status: 400, statusText: "Bad" }),
+      () => {
+        throw new Error("offline");
+      },
+      () => Promise.reject("refused"),
+      () => new Response(null, { status: 202 }),
+    ];
+
+    const client = relayRealtimeClient("/rt", {
+      EventSource: fresh(),
+      fetch: async () => answers.shift()!(),
+    });
+
+    const channel = client.channel("room:1");
+
+    expect(await channel.httpSend("e", 1)).toEqual({
+      success: false,
+      status: 403,
+      error: "Read-only",
+    });
+    expect(await channel.httpSend("e", 1)).toEqual({
+      success: false,
+      status: 404,
+      error: "Not Found",
+    });
+    expect(await channel.httpSend("e", 1)).toEqual({
+      success: false,
+      status: 500,
+      error: "Server Error",
+    });
+    expect(await channel.httpSend("e", 1)).toEqual({
+      success: false,
+      status: 400,
+      error: "Bad",
+    });
+    expect(await channel.httpSend("e", 1)).toEqual({
+      success: false,
+      status: 0,
+      error: "offline",
+    });
+    expect(
+      await channel.send({ type: "broadcast", event: "e", payload: 1 }),
+    ).toBe("error");
+    expect(
+      await channel.send({ type: "broadcast", event: "e", payload: 1 }),
+    ).toBe("ok");
+    expect(await channel.track({})).toBe("error");
+    expect(await channel.untrack()).toBe("error");
+  });
+
+  it("broadcasts with the global fetch by default", async () => {
+    const fetch = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      const client = relayRealtimeClient("/rt", { EventSource: fresh() });
+      expect(await client.channel("room:1").httpSend("e", 1)).toEqual({
+        success: true,
+      });
+      expect(fetch).toHaveBeenCalledWith(
+        "/rt",
+        expect.objectContaining({ method: "POST" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

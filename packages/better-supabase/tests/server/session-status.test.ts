@@ -157,3 +157,38 @@ describe("claimsFingerprint", () => {
     ).toBe(await claimsFingerprint({ a: 1 }));
   });
 });
+
+describe("sessionStatusRoute edges", () => {
+  it("answers HEAD without a body and reads an ended session without a reason as ended", async () => {
+    const head = await sessionStatusRoute(
+      server(
+        resolution({ kind: "anon", reason: "none" }, { sessionEnded: true }),
+      ),
+    )(new Request("https://app.test/api/session-status", { method: "HEAD" }));
+
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+
+    const ended = await sessionStatusRoute(
+      server(
+        resolution({ kind: "anon", reason: "none" }, { sessionEnded: true }),
+      ),
+    )(get());
+
+    expect(await ended.json()).toMatchObject({ status: "ended" });
+  });
+});
+
+describe("claimsFingerprint values", () => {
+  it("hashes arrays in order and treats undefined as absent or null", async () => {
+    expect(await claimsFingerprint({ groups: ["a", "b"] })).not.toBe(
+      await claimsFingerprint({ groups: ["b", "a"] }),
+    );
+    expect(await claimsFingerprint({ a: 1, gone: undefined })).toBe(
+      await claimsFingerprint({ a: 1 }),
+    );
+    expect(await claimsFingerprint({ list: [undefined] })).toBe(
+      await claimsFingerprint({ list: [null] }),
+    );
+  });
+});

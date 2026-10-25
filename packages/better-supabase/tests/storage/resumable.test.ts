@@ -54,6 +54,14 @@ describe("resumableEndpoint", () => {
       "https://abcdefgh.storage.supabase.co/storage/v1/upload/resumable/sign",
     );
   });
+
+  it("keeps the prefix of a signed upload URL served without /storage/v1", () => {
+    expect(
+      resumableEndpoint(
+        "https://files.example.com/media/object/upload/sign/docs/a.txt?token=t",
+      ),
+    ).toBe("https://files.example.com/media/upload/resumable/sign");
+  });
 });
 
 describe("BucketClient.reserveResumable", () => {

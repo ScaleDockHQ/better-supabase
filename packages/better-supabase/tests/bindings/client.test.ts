@@ -11,8 +11,11 @@ import {
   NO_COUNT,
   plainCaller,
   shownCount,
+  startBroadcast,
 } from "../../src/bindings/client.ts";
 import { sessionUserId } from "../../src/bindings/keys.ts";
+import { defineTopic } from "../../src/realtime/index.ts";
+import { relayRealtimeClient } from "../../src/realtime/relay.ts";
 import {
   fakePresenceTopic,
   fakeRealtime,
@@ -164,5 +167,25 @@ describe("createActionRunner", () => {
     await second;
     expect(runner.current().pending).toBe(false);
     expect(listener).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("startBroadcast", () => {
+  it("joins nothing for a name the topic does not match", () => {
+    const supabase = relayRealtimeClient("/rt");
+    const onStatus = vi.fn();
+
+    expect(
+      startBroadcast({
+        supabase,
+        topic: defineTopic("room:{roomId}"),
+        name: "other:1",
+        latest: () => ({ handlers: undefined, options: undefined }),
+        queryClient: undefined,
+        onStatus,
+      }),
+    ).toBeUndefined();
+    expect(supabase.getChannels()).toEqual([]);
+    expect(onStatus).not.toHaveBeenCalled();
   });
 });

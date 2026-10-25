@@ -171,3 +171,132 @@ describe("watchSession", () => {
     other.close();
   });
 });
+
+describe("watchSession in a browser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("checks on focus and when the page becomes visible, never while hidden", async () => {
+    const win = new EventTarget();
+    const doc = Object.assign(new EventTarget(), { visibilityState: "hidden" });
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", doc);
+
+    const fetch = answers(body("active"), body("active"), body("signed_out"));
+    const onChange = vi.fn();
+
+    const watcher = watchSession(onChange, {
+      fetch,
+      intervalMs: 0,
+      channel: false,
+    });
+
+    await flush();
+    expect(fetch).toHaveBeenCalledOnce();
+
+    win.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(fetch).toHaveBeenCalledOnce();
+
+    doc.visibilityState = "visible";
+    doc.dispatchEvent(new Event("visibilitychange"));
+    await flush();
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    win.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "signed_out", source: "check" }),
+    );
+
+    watcher.stop();
+    watcher.stop();
+    win.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("reuses a running check and drops answers after stop or of the wrong shape", async () => {
+    let release: (response: Response) => void = () => undefined;
+
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    const onStatus = vi.fn();
+
+    const watcher = watchSession(vi.fn(), {
+      fetch,
+      intervalMs: 0,
+      channel: false,
+      onStatus,
+    });
+
+    const first = watcher.check();
+    expect(watcher.check()).toBe(first);
+    watcher.stop();
+    release(Response.json(body("active")));
+    expect(await first).toBeUndefined();
+
+    const malformed = [
+      null,
+      { status: 1 },
+      { status: "active", fingerprint: 2 },
+    ];
+
+    const odd = watchSession(vi.fn(), {
+      fetch: async () => Response.json(malformed.shift() ?? null),
+      intervalMs: 0,
+      channel: false,
+      onStatus,
+    });
+
+    await flush();
+    expect(await odd.check()).toBeUndefined();
+    expect(await odd.check()).toBeUndefined();
+    expect(onStatus).not.toHaveBeenCalled();
+    odd.stop();
+  });
+
+  it("uses the default route, fetch and channel and ignores other tab messages", async () => {
+    const fetch = vi.fn(async () => Response.json(body("active")));
+    vi.stubGlobal("fetch", fetch);
+
+    const other = new BroadcastChannel("better-supabase:session");
+    const onChange = vi.fn();
+    const watcher = watchSession(onChange);
+
+    await flush();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/session-status",
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    const ignored = [
+      null,
+      { type: "better-supabase:session", reason: "nope", fingerprint: null },
+      {
+        type: "better-supabase:session",
+        reason: "claims_changed",
+        fingerprint: 3,
+      },
+    ];
+
+    for (const message of ignored) {
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel.postMessage takes no target origin (1 finding).
+      other.postMessage(message);
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(onChange).not.toHaveBeenCalled();
+
+    watcher.stop();
+    other.close();
+  });
+});

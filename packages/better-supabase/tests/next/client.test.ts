@@ -170,4 +170,50 @@ describe("useSessionWatch", () => {
       cleanup();
     }
   });
+
+  it("loads the redirect, or the current page, when the session ends", async () => {
+    const assign = vi.fn<(href: string) => void>();
+
+    vi.stubGlobal("window", {
+      location: { href: "https://app.test/notes", assign },
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    });
+
+    const fetch = vi.fn(async (_url: string | URL | Request) =>
+      Response.json({ ...active("x"), status: "banned", fingerprint: null }),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      useSessionWatch({
+        url: "/auth/status",
+        redirect: "/sign-in",
+        fingerprint: "f1",
+        intervalMs: 0,
+        channel: false,
+      });
+      await flush();
+
+      useSessionWatch({ fingerprint: "f1", intervalMs: 0, channel: false });
+      await flush();
+
+      expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+        "/auth/status",
+        "/api/session-status",
+      ]);
+      expect(assign.mock.calls).toEqual([
+        ["/sign-in"],
+        ["https://app.test/notes"],
+      ]);
+      expect(mocks.refresh).not.toHaveBeenCalled();
+    } finally {
+      for (const cleanup of effects.cleanups) {
+        cleanup();
+      }
+
+      vi.unstubAllGlobals();
+    }
+  });
 });

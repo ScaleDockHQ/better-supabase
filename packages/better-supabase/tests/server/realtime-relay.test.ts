@@ -9,6 +9,7 @@ import type {
 } from "../../src/server/realtime-relay.ts";
 import type { ActiveSupport } from "../../src/server/support.ts";
 
+import { dbError } from "../../src/core/errors.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { relayRealtimeClient } from "../../src/realtime/relay.ts";
 import {
@@ -453,5 +454,358 @@ describe("realtimeTopicAccess", () => {
     await expect(
       realtimeTopicAccess(broken.sql, { claims, topic: "t", action: "send" }),
     ).rejects.toThrow("gone");
+  });
+});
+
+describe("realtimeRelay edges", () => {
+  const stream = (relay: ReturnType<typeof realtimeRelay>, topic: string) =>
+    relay.GET(new Request(`https://app.test/api/realtime?topic=${topic}`));
+
+  const collect = async (response: Response): Promise<string[]> => {
+    const events: string[] = [];
+
+    for await (const message of sseEvents(response.body!)) {
+      events.push(`${message.event}:${message.data}`);
+    }
+
+    return events;
+  };
+
+  it("checks private joins and sends against the policies over postgres", async () => {
+    const upstream = fakeUpstream();
+
+    const fake = fakeSql([
+      ["insert into realtime.messages", [{ id: "p1" }]],
+      ["select exists", [{ allowed: true }]],
+    ]);
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      postgres: fake.sql,
+      upstream: upstream.client,
+    });
+
+    const response = await stream(relay, "org:o1:notes:u1");
+    expect(response.status).toBe(200);
+    await response.body?.cancel();
+    expect(fake.transactions).toBe(1);
+    expect(JSON.parse(String(fake.calls[1]?.values[0]))).toMatchObject({
+      sub: "u1",
+      tenant_id: "o1",
+    });
+
+    const denied = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      postgres: fakeSql([["select exists", [{ allowed: false }]]]).sql,
+    });
+
+    expect((await stream(denied, "org:o1:notes:u1")).status).toBe(403);
+
+    const failing = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      postgres: { transaction: () => Promise.reject(new Error("pool down")) },
+    });
+
+    expect((await stream(failing, "org:o1:notes:u1")).status).toBe(403);
+  });
+
+  it("lets a service caller through without a policy check and passes api key claims", async () => {
+    const upstream = fakeUpstream();
+    const fake = fakeSql([]);
+
+    const service = realtimeRelay(
+      relayServer({ kind: "service", keyName: "secret" }, upstream),
+      { topics: [notifications], postgres: fake.sql },
+    );
+
+    const response = await stream(service, "org:o1:notes:u1");
+    expect(response.status).toBe(200);
+    await response.body?.cancel();
+    expect(fake.calls).toEqual([]);
+
+    const seen: RelayAccessInput[] = [];
+
+    const apiKey = realtimeRelay(
+      relayServer(
+        {
+          kind: "apiKey",
+          keyId: "k1",
+          name: "ci",
+          scopes: [],
+          claims: { sub: "u1", role: "authenticated" },
+        },
+        upstream,
+      ),
+      { topics: [notifications], authorize: allowTarget(seen) },
+    );
+
+    const keyed = await stream(apiKey, "org:o1:notes:u1");
+    expect(keyed.status).toBe(200);
+    await keyed.body?.cancel();
+    expect(seen[0]?.claims).toEqual({ sub: "u1", role: "authenticated" });
+  });
+
+  it("answers an invalid session with its error", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(
+      relayServer(
+        {
+          kind: "invalid",
+          reason: "token",
+          error: dbError("unauthorized", "Bad token"),
+        },
+        upstream,
+      ),
+      { topics: [notifications], authorize: () => true },
+    );
+
+    expect((await stream(relay, "org:o1:notes:u1")).status).toBe(401);
+  });
+
+  it("reports an upstream error after the join and ends when the channel closes", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+    });
+
+    const response = await stream(relay, "org:o1:notes:u1");
+    const events = collect(response);
+    await tick();
+
+    upstream.status("org:o1:notes:u1", "CHANNEL_ERROR");
+    upstream.status("org:o1:notes:u1", "CLOSED");
+
+    expect(await events).toEqual([
+      "retry:1000",
+      'status:{"status":"subscribed","rejoin":false}',
+      'status:{"status":"error"}',
+      'end:{"reason":"closed"}',
+    ]);
+  });
+
+  it("ends with max_duration and skips frames after the stream finished", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+      maxDurationMs: 20,
+      retryMs: 250,
+    });
+
+    const response = await stream(relay, "org:o1:notes:u1");
+    const events = await collect(response);
+
+    expect(events[0]).toBe("retry:250");
+    expect(events.at(-1)).toBe('end:{"reason":"max_duration"}');
+  });
+
+  it("closes at once for a request that is already aborted", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const response = await relay.GET(
+      new Request("https://app.test/api/realtime?topic=org:o1:notes:u1", {
+        signal: controller.signal,
+      }),
+    );
+
+    expect(await collect(response)).toEqual(["retry:1000"]);
+    expect(upstream.open).toEqual([]);
+  });
+
+  it("ends with upstream_error when the upstream join throws", async () => {
+    const relay = realtimeRelay(
+      {
+        context: async () => ({
+          auth: user("u1"),
+          resolution: { auth: user("u1") },
+          apply: (response) => response,
+        }),
+        admin: () => ({
+          $client: {
+            channel: () => {
+              throw new Error("socket gone");
+            },
+          } as never,
+        }),
+      },
+      { topics: [notifications], authorize: () => true },
+    );
+
+    expect(await collect(await stream(relay, "org:o1:notes:u1"))).toEqual([
+      "retry:1000",
+      'end:{"reason":"upstream_error"}',
+    ]);
+  });
+
+  it("stops relaying once the client aborts", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+    });
+
+    const controller = new AbortController();
+
+    const response = await relay.GET(
+      new Request("https://app.test/api/realtime?topic=org:o1:notes:u1", {
+        signal: controller.signal,
+      }),
+    );
+
+    const events = collect(response);
+    await tick();
+    controller.abort();
+    upstream.emit("org:o1:notes:u1", "created", { title: "Late" });
+
+    expect(await events).toEqual([
+      "retry:1000",
+      'status:{"status":"subscribed","rejoin":false}',
+    ]);
+  });
+
+  it("broadcasts on an open channel, passes unchecked events and reports upstream failures", async () => {
+    const upstream = fakeUpstream();
+
+    const relay = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+    });
+
+    const post = (body: BodyInit) =>
+      relay.POST(
+        new Request("https://app.test/api/realtime", { method: "POST", body }),
+      );
+
+    const listening = await stream(relay, "org:o1:notes:u1");
+    await tick();
+
+    expect(
+      (
+        await post(
+          JSON.stringify({
+            topic: "org:o1:notes:u1",
+            event: "typing",
+            payload: { any: 1 },
+          }),
+        )
+      ).status,
+    ).toBe(202);
+    expect(upstream.sent).toEqual([
+      { topic: "org:o1:notes:u1", event: "typing", payload: { any: 1 } },
+    ]);
+    expect(upstream.open).toHaveLength(1);
+    await listening.body?.cancel();
+
+    expect((await post("not json")).status).toBe(400);
+    expect((await post("null")).status).toBe(400);
+    expect(
+      (await post(JSON.stringify({ topic: "org:o1:notes:u1", event: "" })))
+        .status,
+    ).toBe(400);
+
+    const failing = realtimeRelay(relayServer(user("u1"), upstream), {
+      topics: [notifications],
+      authorize: () => true,
+      upstream: {
+        ...upstream.client,
+        getChannels: () => [],
+        channel: () => ({
+          httpSend: async () => ({
+            success: false,
+            status: 500,
+            error: "upstream refused",
+          }),
+        }),
+        removeChannel: async () => "ok",
+      } as never,
+    });
+
+    const refused = await failing.POST(
+      new Request("https://app.test/api/realtime", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "org:o1:notes:u1",
+          event: "typing",
+          payload: {},
+        }),
+      }),
+    );
+
+    expect(refused.status).toBe(503);
+    expect(await refused.json()).toMatchObject({ kind: "network" });
+  });
+
+  it("refuses anonymous sends", async () => {
+    const relay = realtimeRelay(
+      relayServer({ kind: "anon", reason: "none" }, fakeUpstream()),
+      { topics: [notifications], authorize: () => true },
+    );
+
+    const response = await relay.POST(
+      new Request("https://app.test/api/realtime", {
+        method: "POST",
+        body: JSON.stringify({ topic: "org:o1:notes:u1", event: "created" }),
+      }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("realtimeTopicAccess edges", () => {
+  it("denies a receive without a probe row and a send refused with a bare value", async () => {
+    const empty = fakeSql([["select exists", [{ allowed: false }]]]);
+
+    expect(
+      await realtimeTopicAccess(empty.sql, {
+        claims: { role: "authenticated" },
+        topic: "t",
+        action: "receive",
+        extension: "presence",
+      }),
+    ).toBe(false);
+    expect(empty.calls[0]?.values).toEqual(["t", "presence"]);
+    expect(empty.calls[1]?.values[1]).toBe("");
+    expect(empty.calls[2]?.values).toEqual([""]);
+
+    const bare = fakeSql([
+      ["insert into realtime.messages", { throws: "connection reset" }],
+    ]);
+
+    await expect(
+      realtimeTopicAccess(bare.sql, {
+        claims: { sub: "u1" },
+        topic: "t",
+        action: "send",
+      }),
+    ).rejects.toBe("connection reset");
+  });
+
+  it("denies when the pool swallows the verdict", async () => {
+    expect(
+      await realtimeTopicAccess(
+        {
+          transaction: async <T>(fn: (sql: never) => Promise<T>) => {
+            await fn(fakeSql([]).sql as never).catch(() => undefined);
+
+            return undefined as T;
+          },
+        },
+        { claims: { sub: "u1" }, topic: "t", action: "send" },
+      ),
+    ).toBe(false);
   });
 });

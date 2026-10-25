@@ -206,6 +206,21 @@ describe("upload progress", () => {
     expect(calls.some((call) => call.method === "remove")).toBe(false);
   });
 
+  it("returns the signing error without sending a request", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+
+    const { client } = fakeStorage({
+      fail: { createSignedUploadUrl: { message: "denied", statusCode: "403" } },
+    });
+
+    expect(
+      await docs
+        .connect(client)
+        .upload(A, "x", { onProgress: () => undefined }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(sent).toEqual([]);
+  });
+
   it("cancels the request on abort", async () => {
     vi.stubGlobal("XMLHttpRequest", FakeXhr);
     outcome = "hang";
