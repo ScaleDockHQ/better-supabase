@@ -268,15 +268,27 @@ describe("realtimeRelay", () => {
       },
     });
 
-    expect((await throwing.GET(get("org:o1:notes:u1"))).status).toBe(403);
+    const unavailable = await throwing.GET(get("org:o1:notes:u1"));
+    expect(unavailable.status).toBe(200);
+    expect(await unavailable.text()).toBe(
+      'retry: 1000\n\nevent: end\ndata: {"reason":"unavailable"}\n\n',
+    );
+
+    const sent = await throwing.POST(
+      new Request("https://app.test/api/realtime", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "org:o1:notes:u1",
+          event: "created",
+          payload: { title: "x" },
+        }),
+      }),
+    );
+
+    expect(sent.status).toBe(503);
 
     const { EventSource } = inProcessEventSource(deny.GET);
-
-    const client = relayRealtimeClient("/api/realtime", {
-      EventSource,
-      fetch: async (input, init) =>
-        deny.GET(new Request(new URL(String(input), "https://app.test"), init)),
-    });
+    const client = relayRealtimeClient("/api/realtime", { EventSource });
 
     const sub = notifications.subscribe(
       client,
@@ -284,7 +296,8 @@ describe("realtimeRelay", () => {
       {},
     );
 
-    await expect(sub.ready).rejects.toThrow("The relay refused");
+    await expect(sub.ready).rejects.toThrow("The relay could not join");
+    await sub.unsubscribe();
   });
 
   it("needs postgres or authorize", () => {
@@ -512,8 +525,11 @@ describe("realtimeRelay edges", () => {
     });
 
     const unavailable = await stream(failing, "org:o1:notes:u1");
-    expect(unavailable.status).toBe(503);
-    expect(await unavailable.json()).toMatchObject({ kind: "network" });
+    expect(unavailable.status).toBe(200);
+    expect(await collect(unavailable)).toEqual([
+      "retry:1000",
+      'end:{"reason":"unavailable"}',
+    ]);
   });
 
   it("lets a service caller through without a policy check and passes api key claims", async () => {
@@ -568,6 +584,45 @@ describe("realtimeRelay edges", () => {
     );
 
     expect((await stream(relay, "org:o1:notes:u1")).status).toBe(401);
+  });
+
+  it("ends the stream with unavailable when the session can't be checked now", async () => {
+    const upstream = fakeUpstream();
+
+    const relayWith = (kind: "network" | "unexpected") =>
+      realtimeRelay(
+        relayServer(
+          {
+            kind: "invalid",
+            reason: "token",
+            error: {
+              ...dbError(kind, "JWKS fetch failed"),
+              code: "JWKS_FETCH_FAILED",
+            },
+          },
+          upstream,
+        ),
+        { topics: [notifications], authorize: () => true },
+      );
+
+    for (const kind of ["network", "unexpected"] as const) {
+      const response = await stream(relayWith(kind), "org:o1:notes:u1");
+      expect(response.status).toBe(200);
+      expect(await collect(response)).toEqual([
+        "retry:1000",
+        'end:{"reason":"unavailable"}',
+      ]);
+    }
+
+    const sent = await relayWith("network").POST(
+      new Request("https://app.test/api/realtime", {
+        method: "POST",
+        body: JSON.stringify({ topic: "org:o1:notes:u1", event: "created" }),
+      }),
+    );
+
+    expect(sent.status).toBe(503);
+    expect(upstream.open).toEqual([]);
   });
 
   it("reports an upstream error after the join and ends when the channel closes", async () => {

@@ -228,7 +228,6 @@ describe("relayRealtimeClient", () => {
     try {
       const client = relayRealtimeClient("/rt", {
         EventSource: ScriptedClosing,
-        fetch: async () => new Response(null, { status: 502 }),
       });
 
       const statuses: string[] = [];
@@ -369,16 +368,7 @@ describe("relayRealtimeClient channels", () => {
   });
 
   it("reports a dropped connection, a refusal and ignores stale sources", async () => {
-    const probed: string[] = [];
-
-    const client = relayRealtimeClient("/rt", {
-      EventSource: fresh(),
-      fetch: async (input) => {
-        probed.push(String(input));
-
-        return Response.json({ detail: "Not allowed" }, { status: 403 });
-      },
-    });
+    const client = relayRealtimeClient("/rt", { EventSource: fresh() });
 
     const statuses: string[] = [];
     const joined = client.channel("room:1");
@@ -408,13 +398,12 @@ describe("relayRealtimeClient channels", () => {
     second?.fire("error");
     second!.readyState = 2;
     second?.fire("error");
-    await tick();
     second?.fire("error");
     second?.fire("status", { status: "subscribed" });
 
-    expect(refused).toEqual(["CHANNEL_ERROR:The relay refused room:2"]);
-    expect(probed).toEqual(["/rt?topic=room%3A2"]);
-    expect(Scripted.made).toHaveLength(2);
+    expect(refused).toEqual([
+      "CHANNEL_ERROR:The relay could not join room:2; retrying",
+    ]);
 
     await client.removeChannel(joined);
     first?.fire("error");
@@ -422,6 +411,7 @@ describe("relayRealtimeClient channels", () => {
     await client.removeChannel(joined);
     expect(() => joined.subscribe()).toThrow("tried to subscribe");
     expect(client.getChannels()).toEqual([other]);
+    await client.removeChannel(other);
   });
 
   it("backs off up to the cap and stops reconnecting once removed", async () => {
@@ -430,9 +420,6 @@ describe("relayRealtimeClient channels", () => {
     try {
       const client = relayRealtimeClient("/rt", {
         EventSource: fresh(),
-        fetch: async () => {
-          throw new TypeError("offline");
-        },
         maxBackoffMs: 1500,
       });
 
@@ -468,19 +455,15 @@ describe("relayRealtimeClient channels", () => {
     }
   });
 
-  it("retries a first join that failed for a reason that may pass", async () => {
+  it("retries a first join with backoff and resets it after a join", async () => {
     vi.useFakeTimers();
 
-    const probes: RequestInit[] = [];
+    const probes = vi.fn();
 
     try {
       const client = relayRealtimeClient("/rt", {
         EventSource: fresh(),
-        fetch: async (_input, init) => {
-          probes.push(init ?? {});
-
-          return Response.json({ kind: "network" }, { status: 503 });
-        },
+        fetch: probes,
       });
 
       const statuses: string[] = [];
@@ -491,15 +474,9 @@ describe("relayRealtimeClient channels", () => {
 
       Scripted.made[0]!.readyState = 2;
       Scripted.made[0]?.fire("error");
-      await vi.advanceTimersByTimeAsync(0);
       expect(statuses).toEqual([
         "CHANNEL_ERROR:The relay could not join room:1; retrying",
       ]);
-      expect(probes[0]).toMatchObject({
-        credentials: "include",
-        headers: { accept: "text/event-stream" },
-      });
-      expect(probes[0]?.signal?.aborted).toBe(true);
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(Scripted.made).toHaveLength(2);
@@ -523,6 +500,7 @@ describe("relayRealtimeClient channels", () => {
       expect(Scripted.made).toHaveLength(4);
 
       Scripted.made[3]?.fire("end", ["no reason"]);
+      await vi.advanceTimersByTimeAsync(60_000);
       expect(statuses).toEqual([
         "CHANNEL_ERROR:The relay could not join room:1; retrying",
         "CHANNEL_ERROR:The relay could not join room:1 (upstream_error); retrying",
@@ -530,39 +508,115 @@ describe("relayRealtimeClient channels", () => {
         "CHANNEL_ERROR:The relay closed room:1; reconnecting",
         "CHANNEL_ERROR:The relay could not join room:1 (closed); retrying",
       ]);
-      expect(probes).toHaveLength(2);
+      expect(Scripted.made).toHaveLength(5);
+      expect(probes).not.toHaveBeenCalled();
 
       await channel.unsubscribe();
       await vi.advanceTimersByTimeAsync(60_000);
-      expect(Scripted.made).toHaveLength(4);
+      expect(Scripted.made).toHaveLength(5);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("drops a probe answer that arrives after the channel was removed", async () => {
+  it("stops a first join at timeoutMs and reads the failure once", async () => {
+    vi.useFakeTimers();
+
+    const answers: (() => Response)[] = [
+      () => Response.json({ detail: "Not allowed" }, { status: 403 }),
+      () => new Response("ok"),
+      () => {
+        throw new TypeError("offline");
+      },
+    ];
+
+    const probes: RequestInit[] = [];
+
+    try {
+      const client = relayRealtimeClient("/rt", {
+        EventSource: fresh(),
+        timeoutMs: 5000,
+        fetch: async (_input, init) => {
+          probes.push(init ?? {});
+
+          return answers.shift()!();
+        },
+      });
+
+      const statuses: string[] = [];
+
+      const refuse = () => {
+        const source = Scripted.made.at(-1)!;
+        source.readyState = 2;
+        source.fire("error");
+      };
+
+      for (const name of ["room:1", "room:2", "room:3"]) {
+        const before = Scripted.made.length;
+        client
+          .channel(name)
+          .subscribe((status, error) =>
+            statuses.push(`${name}:${status}:${error?.message ?? ""}`),
+          );
+        refuse();
+        await vi.advanceTimersByTimeAsync(1000);
+        refuse();
+        await vi.advanceTimersByTimeAsync(2000);
+        refuse();
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(Scripted.made).toHaveLength(before + 3);
+      }
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(Scripted.made).toHaveLength(9);
+      expect(statuses.filter((each) => each.includes("TIMED_OUT"))).toEqual([
+        "room:1:TIMED_OUT:The relay could not join room:1: 403 Not allowed",
+        "room:2:TIMED_OUT:The relay could not join room:2",
+        "room:3:TIMED_OUT:The relay could not join room:3",
+      ]);
+      expect(statuses).toHaveLength(12);
+      expect(probes).toHaveLength(3);
+      expect(probes[0]).toMatchObject({
+        credentials: "include",
+        headers: { accept: "text/event-stream" },
+      });
+      expect(probes[0]?.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a failure read that arrives after the channel was removed", async () => {
+    vi.useFakeTimers();
+
     let answer: (response: Response) => void = () => undefined;
 
-    const client = relayRealtimeClient("/rt", {
-      EventSource: fresh(),
-      fetch: () =>
-        new Promise<Response>((resolve) => {
-          answer = resolve;
-        }),
-    });
+    try {
+      const client = relayRealtimeClient("/rt", {
+        EventSource: fresh(),
+        timeoutMs: 500,
+        fetch: () =>
+          new Promise<Response>((resolve) => {
+            answer = resolve;
+          }),
+      });
 
-    const statuses: string[] = [];
-    const channel = client.channel("room:1");
-    channel.subscribe((status) => statuses.push(status));
-    Scripted.made[0]!.readyState = 2;
-    Scripted.made[0]?.fire("error");
-    await client.removeChannel(channel);
-    Scripted.made[0]?.fire("end", { reason: "closed" });
-    answer(new Response(null, { status: 503 }));
-    await tick();
+      const statuses: string[] = [];
+      const channel = client.channel("room:1");
+      channel.subscribe((status) => statuses.push(status));
+      Scripted.made[0]!.readyState = 2;
+      Scripted.made[0]?.fire("error");
+      await vi.advanceTimersByTimeAsync(500);
+      await client.removeChannel(channel);
+      Scripted.made[0]?.fire("end", { reason: "closed" });
+      answer(new Response(null, { status: 503 }));
+      await vi.advanceTimersByTimeAsync(0);
 
-    expect(statuses).toEqual([]);
-    expect(Scripted.made).toHaveLength(1);
+      expect(statuses).toEqual(["CHANNEL_ERROR"]);
+      expect(Scripted.made).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reports a missing EventSource and uses the global one when present", () => {
