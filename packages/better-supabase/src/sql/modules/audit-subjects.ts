@@ -109,7 +109,7 @@ export function staffTest(ctx: BlockSqlContext): string | undefined {
 }
 
 /** `blocks.audit.options.subjectColumns`, checked. */
-export function subjectColumns(
+function subjectColumns(
   ctx: BlockSqlContext,
   taken: readonly string[],
 ): readonly (readonly [string, Required<AuditSubjectColumn>])[] {

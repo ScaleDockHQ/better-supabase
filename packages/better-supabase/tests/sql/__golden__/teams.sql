@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:bacf34720779c0ad901ed1e3a6447eade0e7095dd55fd68ca96e912e05326d47
+-- @bsb-hash sha256:a7d6b25f49d50903d262977480269e26325192f285891195d17a42252976c870
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,7 +111,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;
@@ -402,7 +402,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:b70aa7af45de3d4f373257d63ce86e6094931f6dc1a8e28860393be9cbaea8f7
+-- @bsb-hash sha256:2d603c4468c918fbe79761777ffa38511b65d653245d5ecf0bd8ce152a9fa783
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +544,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;
@@ -883,7 +883,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:4384384b3fa9b81352d905e7d5b1eceb81ea0e6682e1f90726068769bbecd26c
+-- @bsb-hash sha256:6dad3bbbc046ea0b3a5dad67bdd4c87c60305b3fa1a4e23a390c853d2757fe0d
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -995,7 +995,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "app_private"."team_members" where "user_id" = team_ids_of.member;
@@ -1286,7 +1286,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:c821ce39cd438dca12ff18984f110a167c52b01cafb81087c5a2456d62a448a4
+-- @bsb-hash sha256:9525f73c6bf3af97b27facc32d2d9cd1ffd382f595de4818f0edb35c5b16a9a4
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1396,7 +1396,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;
@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:81b805cc9234428566410a57c756d622f693f6403b985b66a6009230d3f4f8e3
+-- @bsb-hash sha256:dec3128b218bdc1c65f5704d1134fe12e402f1feaed65e047dfea3e3aeca0213
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1883,7 +1883,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;

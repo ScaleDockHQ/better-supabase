@@ -609,11 +609,6 @@ export const TENANT: BlockSqlDefinition = {
       args: ["{id}", "uuid"],
       returns: "text",
     },
-    {
-      name: "organization_member_roles",
-      args: ["{id}", "uuid"],
-      returns: "text[]",
-    },
     { name: "membership_claims", args: ["uuid"], returns: "jsonb" },
   ],
   upgrades: [

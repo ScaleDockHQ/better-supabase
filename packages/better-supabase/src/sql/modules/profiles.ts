@@ -96,7 +96,7 @@ export function hasAvatarPath(ctx: BlockSqlContext): boolean {
  * The recipient's locale for notification delivery, like `avatarPath`. An
  * `extraColumns` entry of the same name replaces it.
  */
-export function hasLocale(ctx: BlockSqlContext): boolean {
+function hasLocale(ctx: BlockSqlContext): boolean {
   return added(ctx, "locale") && !extraNamed(ctx, "locale");
 }
 

@@ -39,7 +39,7 @@ export function defaultRole(ctx: BlockSqlContext): string {
 }
 
 /** `options.onAccept`, validated against the installed modules. */
-export function onAcceptOf(ctx: BlockSqlContext): OnAccept {
+function onAcceptOf(ctx: BlockSqlContext): OnAccept {
   const value = ctx.option("onAccept");
 
   if (value === undefined) {

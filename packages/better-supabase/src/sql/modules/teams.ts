@@ -191,7 +191,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     ${fail("TEAM_FORBIDDEN", "team_ids_of reads only the caller's teams")}
   end if;
   return query ${teamIdsBody};

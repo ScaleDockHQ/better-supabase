@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:b6a2e7a4ac597cc58196581b6a72d6ee9d5acb8daeaf99d1919595f302284338
+-- @bsb-hash sha256:fdbdec822af5616f2912571f618e3589244bad12a790f58a02603326516e322e
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ set search_path = ''
 as $$
 begin
   if team_ids_of.member is distinct from (select auth.uid())
-    and coalesce((select auth.role()), 'service_role') <> 'service_role' then
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
     raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;

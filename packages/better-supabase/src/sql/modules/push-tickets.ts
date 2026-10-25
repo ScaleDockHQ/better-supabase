@@ -7,7 +7,7 @@ import { fail, revokeTable, SERVICE_CALLER } from "../shared.ts";
  * belongs to one delivery, which keeps Expo's first ticket id as its provider
  * message id.
  */
-export function storesTickets(ctx: BlockSqlContext): boolean {
+function storesTickets(ctx: BlockSqlContext): boolean {
   if (!ctx.installed("notifications")) {
     return false;
   }
