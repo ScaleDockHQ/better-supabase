@@ -2,7 +2,8 @@
 // doctor page, every subpath is in the README table and on a docs page, and
 // every `meta.json` lists exactly the pages in its folder, every titled
 // `lib/supabase/*` code block in the docs and skills follows the Naming page,
-// and no doc, skill, example or rule uses a name the Naming page retired.
+// no doc, skill, example or rule uses a name the Naming page retired, and the
+// adoptable tables on the own-schemas page match the table specs.
 // The CLI commands
 // and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, and the
 // `tables.*` and `columns.*` keys on the blocks pages by
@@ -18,6 +19,11 @@ import {
 import { join, relative } from "node:path";
 import { cwd, exit } from "node:process";
 import * as v from "valibot";
+
+import {
+  adoptableTablesCurrent,
+  OWN_SCHEMAS_PAGE,
+} from "./adoptable-tables.ts";
 
 const root = cwd();
 const docs = join(root, "apps/docs/content/docs");
@@ -468,6 +474,14 @@ function blockGroups(): string[] {
   return problems;
 }
 
+function adoptableTables(): string[] {
+  return adoptableTablesCurrent(readFileSync(OWN_SCHEMAS_PAGE, "utf-8"))
+    ? []
+    : [
+        "the adoptable tables on blocks/own-schemas are stale; run `pnpm catalog`",
+      ];
+}
+
 const problems = [
   ...doctorCodes(),
   ...subpaths(),
@@ -477,6 +491,7 @@ const problems = [
   ...removedTerms(),
   ...blockGroups(),
   ...readmeBody(),
+  ...adoptableTables(),
 ];
 
 for (const problem of problems) {
@@ -488,5 +503,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  "docs drift: doctor codes, subpaths, meta.json, block groups and lib/supabase naming match the code, with no retired names",
+  "docs drift: doctor codes, subpaths, meta.json, block groups, adoptable tables and lib/supabase naming match the code, with no retired names",
 );
