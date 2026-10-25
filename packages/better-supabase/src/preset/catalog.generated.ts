@@ -1428,6 +1428,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "drive",
+        "subjects",
         "bulk"
       ],
       "manifest": "tags",

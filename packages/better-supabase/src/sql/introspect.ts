@@ -10,6 +10,7 @@ import {
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
+  OPTIONAL_MODULE_PERMISSIONS,
 } from "./modules/permissions-model.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 
@@ -26,21 +27,6 @@ export interface BlockSqlPermissionKey {
   readonly scope: "tenant" | "platform";
   readonly setting?: string;
 }
-
-/** Actions a module checks only when `blocks.<module>.permissions` names a key. */
-const OPTIONAL_MODULE_PERMISSIONS: Readonly<
-  Record<string, Readonly<Record<string, "tenant" | "platform">>>
-> = {
-  organizations: {
-    create: "platform",
-    updatePlatform: "platform",
-    deletePlatform: "platform",
-    updateRolePlatform: "platform",
-    removeMemberPlatform: "platform",
-  },
-  audit: { reveal: "tenant" },
-  "data-lifecycle": { deletePlatform: "platform" },
-};
 
 /**
  * Every permission key the modules `names` install (with what they pull in)

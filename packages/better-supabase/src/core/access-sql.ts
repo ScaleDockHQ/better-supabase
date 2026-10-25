@@ -27,6 +27,8 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   holdersOf: ["permission", "tenant", "scope"],
   actorMayWrite: [],
   permitted: ["permission", "id", "tenant", "resource", "scope"],
+  rowsWith: ["permission", "resource", "ids"],
+  rowsWithFor: ["user", "permission", "resource", "ids"],
   portalSubjects: ["action"],
   portalParties: [],
 };

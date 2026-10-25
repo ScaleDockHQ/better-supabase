@@ -213,7 +213,7 @@ export interface BlockNameRegistry {
       readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
     readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "list_audit_events" | "purge_audit_log";
-    readonly actions: "view" | "viewAll" | "revert";
+    readonly actions: "view" | "viewAll" | "revert" | "reveal";
     readonly hooks: "audit_retention";
     readonly entities: {};
     readonly primary: never;
@@ -518,7 +518,7 @@ export interface BlockNameRegistry {
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
     };
     readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
-    readonly actions: "export" | "delete" | "cancelDelete";
+    readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
     readonly primary: never;
@@ -1178,7 +1178,7 @@ export interface BlockNameRegistry {
       readonly "organizations": "id" | "name" | "slug" | "createdBy" | "createdAt" | "updatedAt" | "disabledAt" | "deletedAt";
     };
     readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
-    readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership";
+    readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership" | "create" | "updatePlatform" | "deletePlatform" | "updateRolePlatform" | "removeMemberPlatform";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};
     readonly primary: never;
@@ -1650,7 +1650,7 @@ export interface BlockNameRegistry {
       readonly "taggings": "tenant" | "tag" | "subjectType" | "subjectId" | "createdAt";
     };
     readonly functions: "create_tag" | "delete_tag" | "list_tags" | "rank_tag" | "subject_tags" | "tag" | "untag" | "update_tag";
-    readonly actions: "manage" | "read" | "apply";
+    readonly actions: "manage" | "read" | "apply" | "create" | "update" | "delete";
     readonly hooks: "before_tag_apply" | "after_tag_apply";
     readonly entities: {
       readonly "tag": "id" | "tenant_id" | "kind" | "name" | "slug" | "color" | "description" | "rank" | "created_at" | "updated_at";
@@ -1682,7 +1682,7 @@ export interface BlockNameRegistry {
       readonly "members": "team" | "user" | "tenant" | "createdAt";
     };
     readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "list_teams" | "remove_team_member" | "team_ids_of" | "update_team";
-    readonly actions: "manage" | "read";
+    readonly actions: "manage" | "read" | "create" | "update" | "delete" | "members";
     readonly hooks: "before_team_create" | "after_team_create";
     readonly entities: {
       readonly "team": "id" | "tenant_id" | "name" | "slug" | "description" | "status" | "created_by" | "created_at" | "updated_at";

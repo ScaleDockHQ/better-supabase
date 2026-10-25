@@ -91,6 +91,21 @@ export interface AuthorizationFunctions {
    */
   readonly permitted?: string;
   /**
+   * The ids of the rows of `{resource}` the caller holds `{permission}` on, as
+   * a set of text: it is used as `select r.id from <template> as r(id)`.
+   * `{resource}` is a resource name as the provider spells it in SQL (such as
+   * `file_node`), unquoted, so it can be part of a function name; `{ids}` is a
+   * `text[]` of the candidate ids, which a provider may use to limit the work.
+   * `can_subject` calls it for a `config.records.<type>.permissions.<action>`
+   * entry with `rows`.
+   */
+  readonly rowsWith?: string;
+  /**
+   * `rowsWith` for `{user}`, so `can_subject_for` answers per-row grants for
+   * another user. Without it those grants count for the caller only.
+   */
+  readonly rowsWithFor?: string;
+  /**
    * The records the caller may reach as a guest for `{action}` (`read`,
    * `comment` or `upload`), as a set of `(tenant text, subject_type text,
    * subject_id text)`: it is used as `select g.tenant, g.subject_type,

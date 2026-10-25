@@ -5,6 +5,7 @@ import { moduleContext } from "./module-context.ts";
 import {
   isOperationModule,
   moduleOperations,
+  OPTIONAL_MODULE_PERMISSIONS,
 } from "./modules/permissions-model.ts";
 import { resolveBlocks } from "./registry.ts";
 
@@ -70,9 +71,12 @@ export function moduleNameSet(module: BlockSql): BlockSqlNameSet {
       ]),
     ),
     functions: functionsOf(module),
-    actions: isOperationModule(module.name)
-      ? Object.keys(moduleOperations(module.name))
-      : [],
+    actions: [
+      ...(isOperationModule(module.name)
+        ? Object.keys(moduleOperations(module.name))
+        : []),
+      ...Object.keys(OPTIONAL_MODULE_PERMISSIONS[module.name] ?? {}),
+    ],
     hooks: [...(names?.hooks ?? [])],
     entities: Object.fromEntries(
       entities.map(([key, spec]) => [

@@ -5,6 +5,7 @@ import type { GuestAction } from "./scope.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
 import { isRecord } from "../core/guards.ts";
+import { subjectPermissionKey } from "../core/subject-permission.ts";
 import { SUBJECT_TYPE_PATTERN } from "../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/permissions-model.ts";
@@ -64,7 +65,7 @@ function fromRegistry(
   entry: SubjectConfig,
   extraKeys: readonly string[],
 ): Record<string, unknown> {
-  const read = entry.permissions?.["read"];
+  const read = subjectPermissionKey(entry.permissions?.["read"]);
 
   return {
     table: entry.table,
@@ -492,6 +493,48 @@ export function subjectReadable(
 }
 
 /**
+ * Whether the caller may take `action` on subject `type`/`id`, for each of
+ * `subjects` whose `config.records` entry declares it (the first of `actions`
+ * it declares): `can_subject(type, id, action)` as the caller, so a key, the
+ * provider's per-row grants and an owner column all count. Other types pass.
+ * `undefined` when no subject declares one of `actions` or the `subjects`
+ * module isn't installed, so the module's own check stays as it was; a module
+ * that uses it lists `subjects` in `integrates`.
+ */
+export function subjectActionCheck(
+  ctx: BlockSqlContext,
+  subjects: readonly (readonly [string, Subject])[],
+  args: { readonly type: string; readonly id: string },
+  actions: readonly string[],
+): string | undefined {
+  const declared = subjects.flatMap(([type]) => {
+    const permissions = ctx.subjects[type]?.permissions ?? {};
+    const action = actions.find((name) => Object.hasOwn(permissions, name));
+
+    return action === undefined ? [] : [[type, action] as const];
+  });
+
+  if (declared.length === 0 || !ctx.installed("subjects")) {
+    return undefined;
+  }
+
+  const canSubject = ctx.of("subjects").fn("can_subject");
+
+  return `(case ${args.type}\n${declared
+    .map(
+      ([type, action]) =>
+        `    when ${sqlString(type)} then coalesce(${canSubject}(${args.type}, ${args.id}, ${sqlString(action)}), false)`,
+    )
+    .join("\n")}\n    else true\n  end)`;
+}
+
+/** `check` and `extra` (from `subjectActionCheck`), or `check` alone. */
+export const andSubjectAction = (
+  check: string,
+  extra: string | undefined,
+): string => (extra === undefined ? check : `(${check}) and ${extra}`);
+
+/**
  * `after delete` triggers on the subject tables with `cascade: true` that
  * delete the module's rows for the deleted subject. `remove` is the SQL that
  * deletes them, with `v_type` and `v_id` (text) in scope. With `tenant: true`,
@@ -606,10 +649,17 @@ export function subjectAccess<A extends string>(
     const raw = subject.extra["permissions"];
 
     // `read` in the registry is the subject's own read key (`subject.permission`), not this module's action.
-    for (const [key, value] of Object.entries(
+    for (const [key, entry] of Object.entries(
       ctx.subjects[type]?.permissions ?? {},
     )) {
-      if (key !== "read" && allowed.has(key) && value.length > 0) {
+      const value = subjectPermissionKey(entry);
+
+      if (
+        key !== "read" &&
+        allowed.has(key) &&
+        value !== undefined &&
+        value.length > 0
+      ) {
         keys.set(key, value);
       }
     }

@@ -167,4 +167,77 @@ describe("tags module", () => {
 
     expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
   });
+
+  it("checks create, update and delete with their own keys, falling back to manage", () => {
+    const plain = sqlOf();
+    expect(plain).not.toContain("'tags.create'");
+    expect(plain.match(/'tags\.manage'/gu)?.length).toBeGreaterThan(3);
+
+    const split = sqlOf({
+      modules: {
+        tags: {
+          permissions: {
+            create: "tag.create",
+            update: "tag.update",
+            delete: "tag.delete",
+          },
+        },
+      },
+    });
+
+    expect(split).toContain("create_tag.tenant, 'tag.create'");
+    expect(split).toContain("v_tenant, 'tag.update'");
+    expect(split).toContain("v_tenant, 'tag.delete'");
+  });
+
+  it("takes a caller's slug and a patch that can clear nullable columns", () => {
+    const sql = sqlOf();
+    expect(sql).toContain("slug text default null)");
+    expect(sql).toContain("v_slug text := coalesce(create_tag.slug,");
+    expect(sql).toContain("hint = 'TAG_SLUG_INVALID'");
+    expect(sql).toContain(
+      `"color" = case when update_tag.patch ? 'color' then update_tag.patch ->> 'color' else t."color" end`,
+    );
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb, jsonb);',
+    );
+  });
+
+  it("writes a required extra column inside the insert", () => {
+    const sql = sqlOf({
+      modules: {
+        tags: {
+          options: { extraColumns: { icon: "text not null", note: "text" } },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `(jsonb_populate_record(null::"better_supabase"."tags", coalesce(create_tag.fields, '{}'::jsonb)))."icon")`,
+    );
+    expect(sql).not.toContain(`'{}'::jsonb)))."note"`);
+  });
+
+  it("checks the subject's write action when the record declares one", () => {
+    const subjects = {
+      task: {
+        table: "public.tasks",
+        permissions: {
+          read: "task.read",
+          write: { key: "task.update", owner: "owner_id" },
+        },
+      },
+    };
+
+    const sql = renderBlocks(["subjects", "tags"], { subjects })
+      .filter((file) => file.module === "tags")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `when 'task' then coalesce("better_supabase"."can_subject"(tag.subject_type, tag.subject_id, 'write'), false)`,
+    );
+    expect(sql).not.toContain(`can_subject"(subject_tags.subject_type`);
+    expect(sqlOf({ subjects })).not.toContain("can_subject");
+  });
 });

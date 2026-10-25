@@ -381,6 +381,7 @@
       "SqlWorkflow",
       "StandardSchemaGeneratorOptions",
       "SubjectConfig",
+      "SubjectPermission",
       "SubjectsConfig",
       "TableConfig",
       "ToolingConfig",

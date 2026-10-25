@@ -342,6 +342,31 @@ describe("blocks.generated.ts", () => {
     expect(contents).toContain('export type MeterName = "seats";');
   });
 
+  it("writes the keys of record actions, skipping actions granted only per row", () => {
+    const config = resolveConfig(
+      {
+        records: {
+          file: {
+            table: "public.files",
+            permissions: {
+              read: "file.read",
+              share: { key: "file.share", rows: "file" },
+              write: { owner: "owner_id" },
+            },
+          },
+        },
+        blocks: { memberships: {}, permissions: {}, subjects: {} },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain('    share: "file.share",');
+    expect(contents).toContain('    read: "file.read",');
+    expect(contents).not.toMatch(/ {4}write: /u);
+  });
+
   it("writes a url for every subject type with a template", () => {
     const config = resolveConfig(
       {

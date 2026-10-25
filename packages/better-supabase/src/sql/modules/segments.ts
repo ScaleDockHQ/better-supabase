@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
+import { subjectPermissionKey } from "../../core/subject-permission.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
@@ -185,7 +186,8 @@ function subjectPermission(
   tenant: string,
 ): string {
   const guarded = n.subjects.filter(
-    (subject) => subject.config.permissions?.["read"] !== undefined,
+    (subject) =>
+      subjectPermissionKey(subject.config.permissions?.["read"]) !== undefined,
   );
 
   if (guarded.length === 0) {
@@ -196,7 +198,7 @@ function subjectPermission(
 ${guarded
   .map(
     (subject) =>
-      `    when ${sqlString(subject.type)} then ${ctx.scope.can(tenant, sqlString(subject.config.permissions?.["read"] ?? ""))}`,
+      `    when ${sqlString(subject.type)} then ${ctx.scope.can(tenant, sqlString(subjectPermissionKey(subject.config.permissions?.["read"]) ?? ""))}`,
   )
   .join("\n")}
     else true

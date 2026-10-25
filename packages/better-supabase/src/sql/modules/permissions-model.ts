@@ -214,6 +214,28 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
   viewer: ["organization.read"],
 };
 
+/** Actions a module checks only when `blocks.<module>.permissions` names a key. */
+export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
+  Record<string, Readonly<Record<string, "tenant" | "platform">>>
+> = {
+  organizations: {
+    create: "platform",
+    updatePlatform: "platform",
+    deletePlatform: "platform",
+    updateRolePlatform: "platform",
+    removeMemberPlatform: "platform",
+  },
+  audit: { reveal: "tenant" },
+  "data-lifecycle": { deletePlatform: "platform" },
+  tags: { create: "tenant", update: "tenant", delete: "tenant" },
+  teams: {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    members: "tenant",
+  },
+};
+
 /**
  * The permission key each operation checks by default, keyed
  * `<module>.<action>`. `blocks.<name>.permissions` renames a key per module,

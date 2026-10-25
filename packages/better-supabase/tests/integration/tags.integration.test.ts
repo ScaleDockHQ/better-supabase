@@ -77,4 +77,104 @@ describe.skipIf(!live)("tags", () => {
       await s.close();
     }
   });
+
+  it("splits manage by action, takes a slug and a patch, and asks the record's write action", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.rows(
+        `create table if not exists public.bsb_test_owned_projects (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           owner_id uuid not null,
+           name text not null
+         );
+         alter table public.bsb_test_owned_projects enable row level security;
+         grant select on public.bsb_test_owned_projects to authenticated;
+         drop policy if exists "read" on public.bsb_test_owned_projects;
+         create policy "read" on public.bsb_test_owned_projects for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      await s.install(["organizations", "subjects", "tags"], {
+        subjects: {
+          project: {
+            table: "bsb_test_owned_projects",
+            idType: "uuid",
+            permissions: { write: { owner: "owner_id" } },
+          },
+        },
+        modules: {
+          tags: {
+            on: ["project"],
+            permissions: { create: "tags.apply" },
+            options: { extraColumns: { icon: "text not null" } },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const org = await s.organization(owner, { member });
+
+      const [mine, theirs] = await s.rows<{ id: string }>(
+        `insert into public.bsb_test_owned_projects (organization_id, owner_id, name)
+         values ($1, $2, 'Mine'), ($1, $3, 'Theirs') returning id`,
+        [org, member.id, owner.id],
+      );
+
+      const tags = createTags({ transport: sqlTransport(s.sql), tenant: org });
+
+      await s.as(member);
+
+      const hot = await s.value<{ id: string; slug: string }>(
+        `better_supabase.create_tag($1, 'project', 'Hot', null, null, 'hot-leads', '{"icon": "flame"}')`,
+        [org],
+      );
+
+      expect(hot.slug).toBe("hot-leads");
+      expect(
+        await s.hint(
+          `select better_supabase.create_tag($1, 'project', 'Bad', null, null, 'Not A Slug', '{"icon": "x"}')`,
+          [org],
+        ),
+      ).toBe("TAG_SLUG_INVALID");
+      expect(
+        await s.hint(
+          "select better_supabase.create_tag($1, 'project', 'No icon', null, null)",
+          [org],
+        ),
+      ).toMatch(/icon|null value/u);
+      expect((await tags.delete(hot.id)).error?.hint).toBe("TAG_FORBIDDEN");
+
+      await tags.attach({ type: "project", id: mine!.id }, hot.id).orThrow();
+      expect(
+        (await tags.attach({ type: "project", id: theirs!.id }, hot.id)).error
+          ?.hint,
+      ).toBe("TAG_SUBJECT_FORBIDDEN");
+
+      await s.as(owner);
+      await tags
+        .update(hot.id, { color: "red", description: "Warm leads" })
+        .orThrow();
+      await tags.update(hot.id, { color: null, slug: "warm" }).orThrow();
+
+      const [row] = await s.rows<{
+        slug: string;
+        color: string | null;
+        description: string | null;
+        icon: string;
+      }>(
+        "select slug, color, description, icon from better_supabase.tags where id = $1",
+        [hot.id],
+      );
+
+      expect(row).toEqual({
+        slug: "warm",
+        color: null,
+        description: "Warm leads",
+        icon: "flame",
+      });
+    } finally {
+      await s.close();
+    }
+  });
 });

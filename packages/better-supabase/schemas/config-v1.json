@@ -846,6 +846,12 @@
                 "permitted": {
                   "type": "string"
                 },
+                "rowsWith": {
+                  "type": "string"
+                },
+                "rowsWithFor": {
+                  "type": "string"
+                },
                 "portalSubjects": {
                   "type": "string"
                 },
@@ -1377,7 +1383,26 @@
           "permissions": {
             "type": "object",
             "additionalProperties": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
             },
             "description": "A permission key per action that `can_subject` checks in the subject's tenant."
           },

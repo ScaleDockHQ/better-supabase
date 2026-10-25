@@ -22,7 +22,7 @@ import {
 } from "../config/index.ts";
 import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
-import { valueMapsSchema } from "./block-config-schema.ts";
+import * as blockSchemas from "./block-config-schema.ts";
 import { movedKeyIssues } from "./config-moved.ts";
 import { GEN_TASKS, HOOK_FRAMEWORKS, INTEGRATIONS } from "./names.ts";
 import { powersyncGenSchema } from "./powersync/config-schema.ts";
@@ -107,7 +107,7 @@ const blockEntries = {
   columns: v.optional(
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
-  values: valueMapsSchema,
+  values: v.optional(blockSchemas.valueMapsSchema),
   idType: v.optional(v.string()),
   owner: v.optional(v.picklist(["tenant", "user", "none"])),
   ownTablePolicies: v.optional(v.picklist(["block", "app"])),
@@ -242,6 +242,8 @@ const authorization = v.strictObject({
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
     permitted: v.optional(v.string()),
+    rowsWith: v.optional(v.string()),
+    rowsWithFor: v.optional(v.string()),
     portalSubjects: v.optional(v.string()),
     portalParties: v.optional(v.string()),
   }),
@@ -777,7 +779,7 @@ const FLAT = {
         tenant: v.optional(v.union([v.string(), v.literal(false)])),
         title: v.optional(v.string()),
         url: v.optional(v.string()),
-        permissions: v.optional(v.record(v.string(), v.string())),
+        permissions: v.optional(blockSchemas.subjectPermissionsSchema),
         scope: v.optional(v.string()),
         cascade: v.optional(v.boolean()),
         deletedAt: v.optional(v.string()),

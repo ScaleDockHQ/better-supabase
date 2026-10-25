@@ -28,12 +28,15 @@ export interface SubjectConfig {
    */
   readonly url?: string;
   /**
-   * A permission key per action (`read`, `write`, or an app action) that
-   * `can_subject` checks in the subject's tenant, on top of the row being
-   * visible to the caller. `read` is also the permission modules check before
-   * they attach rows to the subject.
+   * A permission key per action (`read`, `write`, `share`, `comment`,
+   * `moderate`, or an app action) that `can_subject` checks in the subject's
+   * tenant, on top of the row being visible to the caller. `read` is also the
+   * permission modules check before they attach rows to the subject. An object
+   * adds per-row grants: `rows` asks the authorization provider for the rows of
+   * that resource the caller holds `key` on, and `owner` names a uuid column
+   * whose value is the caller; any form that holds grants the action.
    */
-  readonly permissions?: Readonly<Record<string, string>>;
+  readonly permissions?: Readonly<Record<string, string | SubjectPermission>>;
   /**
    * A scope the authorization provider declares whose ids are this subject's
    * ids, so a grant on the record counts as well as one on the tenant.
@@ -65,6 +68,24 @@ export interface SubjectConfig {
     readonly columns: readonly string[];
     readonly auto: boolean;
   };
+}
+
+/**
+ * An action on a subject granted in more ways than a tenant key: the tenant
+ * (and `scope`) key, the provider's per-row grants and the row's owner. Any one
+ * that holds grants the action.
+ */
+export interface SubjectPermission {
+  /** The permission key, checked in the tenant and on `scope`. */
+  readonly key?: string;
+  /**
+   * A resource of the authorization provider (its SQL name, such as
+   * `file_node`) whose row grants for `key` count, through the provider's
+   * `rowsWith` template. Needs `key`.
+   */
+  readonly rows?: string;
+  /** A uuid column of the subject row that grants the action to its user. */
+  readonly owner?: string;
 }
 
 /**

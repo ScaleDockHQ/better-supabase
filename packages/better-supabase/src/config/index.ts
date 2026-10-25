@@ -65,7 +65,11 @@ export type {
   VectorSearchConfig,
 } from "./types/database.ts";
 
-export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
+export type {
+  SubjectConfig,
+  SubjectPermission,
+  SubjectsConfig,
+} from "./types/subjects.ts";
 
 export {
   FIELD_FORMATS,

@@ -103,7 +103,16 @@ function permissionGroups(
 
   for (const [name, subject] of Object.entries(config.subjects)) {
     if (subject.permissions) {
-      groups[name] = { ...groups[name], ...subject.permissions };
+      groups[name] = {
+        ...groups[name],
+        ...Object.fromEntries(
+          Object.entries(subject.permissions).flatMap(([action, value]) => {
+            const key = typeof value === "string" ? value : value.key;
+
+            return key === undefined ? [] : [[action, key]];
+          }),
+        ),
+      };
     }
   }
 
