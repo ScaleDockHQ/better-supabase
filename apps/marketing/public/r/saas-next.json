@@ -4,7 +4,7 @@
   "title": "SaaS glue (Next.js)",
   "description": "The glue for the saas preset on Next.js: block clients, notification actions, onboarding, the organization hook and the outbox, jobs and Stripe routes.",
   "dependencies": [
-    "better-supabase@^0.18.2"
+    "better-supabase@^0.18.3"
   ],
   "registryDependencies": [
     "@better-supabase/blocks",
