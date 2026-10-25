@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:23674c0fbcf897959fbf5643ebfec7166a5397e6157e49b18d3bf9e775f3dc06
+-- @bsb-hash sha256:7f180ca2076d72c0893f8bf7dff8ffadbbbde18613beaf61053b3e876d11500d
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -303,10 +303,17 @@ begin
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."invoice_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_invoice_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';

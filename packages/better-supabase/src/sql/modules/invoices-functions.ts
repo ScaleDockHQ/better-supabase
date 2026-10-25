@@ -2,7 +2,8 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  lineFieldsJson,
+  lineColumn,
+  lineCopyColumns,
   lineItemsSql,
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
@@ -113,7 +114,7 @@ export function invoiceFunctions(
     `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
       'balance', ${balance(alias)}::text,
       'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
-      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}${lineFieldsJson("il", n.lineExtras)}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "il", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "il", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "il", "taxCode")}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', ${ledger.payments(alias)})`;
 
   const record = (
@@ -197,8 +198,8 @@ export function invoiceFunctions(
       return ${row("v_row")};
     end if;
     select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}, 'unitAmount', x.${ql("unitAmount")}::text,
-        'discountBps', x.${ql("discountBps")}, 'taxRateBps', x.${ql("taxRateBps")}, 'taxCode', x.${ql("taxCode")},
-        'product', case when x.${ql("productType")} is null then null else jsonb_build_object('type', x.${ql("productType")}, 'id', x.${ql("productId")}) end
+        'discountBps', ${lineColumn(quotes, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(quotes, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(quotes, "lines", "x", "taxCode")},
+        'product', case when ${lineColumn(quotes, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(quotes, "lines", "x", "productType")}, 'id', ${lineColumn(quotes, "lines", "x", "productId")}) end
       ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
     from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")};${
       deposits
@@ -533,8 +534,12 @@ begin
   )})
   returning * into v_row;
   if credit_invoice.lines is null then
-    insert into ${t("lines")} (${l("tenant")}, ${l("parent")}, ${l("productType")}, ${l("productId")}, ${l("description")}, ${l("quantity")}, ${l("unitAmount")}, ${l("discountBps")}, ${l("taxRateBps")}, ${l("taxCode")}, ${l("position")})
-    select x.${l("tenant")}, v_row.${i("id")}, x.${l("productType")}, x.${l("productId")}, x.${l("description")}, x.${l("quantity")}, x.${l("unitAmount")}, x.${l("discountBps")}, x.${l("taxRateBps")}, x.${l("taxCode")}, x.${l("position")}
+    insert into ${t("lines")} (${lineCopyColumns(ctx, "lines").map(l).join(", ")})
+    select ${lineCopyColumns(ctx, "lines")
+      .map((column) =>
+        column === "parent" ? `v_row.${i("id")}` : `x.${l(column)}`,
+      )
+      .join(", ")}
     from ${t("lines")} x where x.${l("parent")} = v_original.${i("id")};
   else
     perform ${fn("set_invoice_lines")}(v_row.${i("id")}, credit_invoice.lines);

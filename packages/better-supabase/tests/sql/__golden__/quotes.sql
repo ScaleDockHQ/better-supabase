@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:9a4f7c86725de9c95094df0622d73f03e6bdbe15a5a72a940e9837378e11b256
+-- @bsb-hash sha256:01adbe301d4688bb3000e1a9d3921376fcdc633f4c7a77a239f31e8525425294
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,10 +347,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
@@ -720,7 +727,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:651a68f065523a0eb156eb244757084f4d7f106fb9b0b2d40584801d94d67207
+-- @bsb-hash sha256:d1c8e138cec39ccfb5c97baefd71712cb8097e9b27b1d8e26604d526bc3a0ee6
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1072,10 +1079,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', coalesce(x.value ->> 'description', (select coalesce(v."title", (select p."title" from "better_supabase"."products" p where p."id" = v."product_id")) from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
-      coalesce((x.value ->> 'quantity')::numeric, 1), coalesce((x.value ->> 'unitAmount')::bigint, (select ("better_supabase"."variant_price"(v."id", v_currency) ->> 'amount')::bigint from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      coalesce(x.value ->> 'description', (select coalesce(v."title", (select p."title" from "better_supabase"."products" p where p."id" = v."product_id")) from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      coalesce((x.value ->> 'unitAmount')::bigint, (select ("better_supabase"."variant_price"(v."id", v_currency) ->> 'amount')::bigint from "better_supabase"."product_variants" v where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant)),
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
@@ -1524,7 +1538,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:65373d8241f6313fa2181e80790cca10a1040cca34155e7e631bed698326e266
+-- @bsb-hash sha256:a4f874bad9a70570963561b0e96df8c067620c7772865c298cac60b0a6f98fb9
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1872,10 +1886,17 @@ begin
   delete from "app_private"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "app_private"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
@@ -2245,7 +2266,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:aefa659e746e33eb60ddf83d707185d0714f4b9777aa4165a68952fce0012b83
+-- @bsb-hash sha256:3abf289f850905935039554a0e701136ab729b914792ebb249cf66b3f270d2a5
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2591,10 +2612,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
@@ -3067,7 +3095,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:78e966e6792e9ba06eb7833495ee0b979190801c2879c13dea30fb06bed49b08
+-- @bsb-hash sha256:d65ecbcc173b0ec7cccf2a1ff21a22db1c4f5fc932bdc1743b5f407771e7bb04
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3315,6 +3343,7 @@ alter table "better_supabase"."quote_lines" add column if not exists "tax_code" 
 alter table "better_supabase"."quote_lines" add column if not exists "position" integer;
 alter table "better_supabase"."quote_lines" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
+create unique index if not exists "bsb_quote_lines_position_key" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
@@ -3419,14 +3448,22 @@ begin
   if exists (select 1 from jsonb_array_elements(set_quote_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
     raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
-  delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
+  delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent and l."position" > jsonb_array_length(coalesce(set_quote_lines.lines, '[]'));
   begin
     insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
-    from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
+    select v_tenant,
+      v_parent,
+      better_supabase.as_column_type(x.value -> 'product' ->> 'type', (null::"better_supabase"."quote_lines")."product_type"),
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
+    from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x
+    on conflict ("parent_id", "position") do update set "product_type" = excluded."product_type", "product_id" = excluded."product_id", "description" = excluded."description", "quantity" = excluded."quantity", "unit_amount" = excluded."unit_amount", "discount_bps" = excluded."discount_bps", "tax_rate_bps" = excluded."tax_rate_bps", "tax_code" = excluded."tax_code";
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
   end;
@@ -3795,7 +3832,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:981d589d4fdfd77f6449a2411eafab699c68e7b97439dbd35a8420f285618774
+-- @bsb-hash sha256:9da9f0a958881f052eae5802c907d4a46b8132bcf43a5f13225d511cea1c16f6
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4141,10 +4178,17 @@ begin
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
     insert into "better_supabase"."quote_lines" ("org_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "position")
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
-      coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
-      x.value ->> 'taxCode', x.ordinality::integer
+    select v_tenant,
+      v_parent,
+      x.value -> 'product' ->> 'type',
+      x.value -> 'product' ->> 'id',
+      x.value ->> 'description',
+      coalesce((x.value ->> 'quantity')::numeric, 1),
+      (x.value ->> 'unitAmount')::bigint,
+      coalesce((x.value ->> 'discountBps')::integer, 0),
+      coalesce((x.value ->> 'taxRateBps')::integer, 0),
+      x.value ->> 'taxCode',
+      x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     raise exception 'every line needs a description, a positive quantity and a unit amount' using errcode = '22023', hint = 'LINES_INVALID';
