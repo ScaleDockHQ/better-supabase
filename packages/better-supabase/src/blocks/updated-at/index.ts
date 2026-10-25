@@ -1,4 +1,7 @@
-export { updatedAtExtension } from "./extension.ts";
+export {
+  type UpdatedAtExtensionOptions,
+  updatedAtExtension,
+} from "./extension.ts";
 
 export { updatedAtBlock } from "./manifest.ts";
 

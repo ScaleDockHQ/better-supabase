@@ -17,6 +17,7 @@ export interface CreatedByExtensionOptions {
    * services.
    */
   readonly resolve?: (context: RequestContext) => string | undefined;
+  readonly stamp?: "client" | "server";
 }
 
 function defaultActor(context: RequestContext): string | undefined {
@@ -35,9 +36,9 @@ function defaultActor(context: RequestContext): string | undefined {
  * requests) nothing is set.
  */
 export function createdByExtension(
-  options: CreatedByExtensionOptions = {},
+  extension: CreatedByExtensionOptions = {},
 ): Plugin<"actor"> {
-  const resolve = options.resolve ?? defaultActor;
+  const resolve = extension.resolve ?? defaultActor;
 
   return definePlugin({
     name: "actor",
@@ -52,6 +53,11 @@ export function createdByExtension(
       const updated = dbName(table, flags.updatedBy);
       const impersonated = dbName(table, flags.impersonatedBy);
       guardManaged(op, [created, updated, impersonated], "actor", options);
+
+      if (extension.stamp === "server") {
+        return op;
+      }
+
       const id = resolve(context);
 
       if (id === undefined) {

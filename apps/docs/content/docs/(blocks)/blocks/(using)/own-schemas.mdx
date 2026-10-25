@@ -132,6 +132,14 @@ no permissive policy for a command the block's policies would have granted,
 because the block's functions that run as the caller and its TypeScript API
 find no rows for that command.
 
+Your tables may also grant columns rather than whole tables, such as
+`grant update (first_name, timezone) on public.profiles to authenticated`.
+The `updated-at` and `created-by` extensions add `updated_at`, `created_by`
+and `updated_by` to every write, which such a grant refuses. Set
+`options.stamp` to `server` on those blocks to leave the columns to their
+triggers ([updated at](/docs/blocks/updated-at#leaving-the-columns-to-the-trigger),
+[created by](/docs/blocks/created-by#leaving-the-columns-to-the-trigger)).
+
 ## Views
 
 A view or materialized view of yours counts as yours the same way a table

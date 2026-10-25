@@ -4271,6 +4271,9 @@
               "impersonatedBy": {
                 "type": "string",
                 "default": "impersonated_by"
+              },
+              "stamp": {
+                "default": "client"
               }
             }
           }
@@ -6166,6 +6169,9 @@
               "updatedAt": {
                 "type": "string",
                 "default": "updated_at"
+              },
+              "stamp": {
+                "default": "client"
               }
             }
           }

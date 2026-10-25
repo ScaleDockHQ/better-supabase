@@ -6344,6 +6344,7 @@
       "updatedAtExtension"
     ],
     "types": [
+      "UpdatedAtExtensionOptions",
       "UpdatedAtSqlOptions"
     ]
   },

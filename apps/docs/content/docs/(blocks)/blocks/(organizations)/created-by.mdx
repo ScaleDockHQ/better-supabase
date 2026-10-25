@@ -58,5 +58,22 @@ defineSupabase(schema).use(
 );
 ```
 
+## Leaving the columns to the trigger
+
+A table with column-level grants that leave out `created_by` and
+`updated_by` refuses a write that names them, with `permission denied`. Set
+`options.stamp` to `server` so the extension sends neither and the
+`track_actor` trigger fills them from `auth.uid()`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "created-by": { options: { stamp: "server" } },
+},
+```
+
+`gen` then installs `createdByExtension({ stamp: "server" })`, which still
+refuses caller-supplied values without `{ override: true }`. The default,
+`client`, stamps the rows from the request's actor.
+
 For a tamper-proof trail, the trigger and the [audit](/docs/blocks/audit)
 block record the database user, whatever the app sends.

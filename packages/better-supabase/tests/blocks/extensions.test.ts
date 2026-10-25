@@ -103,6 +103,49 @@ describe("timestamps", () => {
   });
 });
 
+describe("server stamps", () => {
+  it("leaves timestamps and actors to the triggers with stamp server, still guarding them", async () => {
+    const db = base
+      .use(updatedAtExtension({ stamp: "server" }))
+      .use(createdByExtension({ stamp: "server" }));
+
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+
+    const connected = db.connect(client, { actor: { id: USER, kind: "user" } });
+
+    await connected.customers.create(
+      { organizationId: ORG, name: "A" },
+      { select: ["id"] },
+    );
+    await connected.customers.update("c", { name: "B" }, { select: ["id"] });
+    expect(requests[0]?.body).toEqual({ organization_id: ORG, name: "A" });
+    expect(requests[1]?.body).toEqual({ name: "B" });
+
+    const forged = await connected.customers.update("c", {
+      updatedAt: NOW.toString(),
+    });
+
+    expect(forged.error?.message).toContain("override: true");
+
+    const actor = await connected.customers.update("c", {
+      updatedBy: "someone",
+    });
+
+    expect(actor.error?.message).toContain("actor()");
+    expect(requests).toHaveLength(2);
+
+    await connected.customers.update(
+      "c",
+      { updatedBy: USER },
+      { select: ["id"], override: true },
+    );
+    expect(requests[2]?.body).toEqual({ updated_by: USER });
+  });
+});
+
 describe("softDelete", () => {
   const betterSupabase = base.use(trashExtension());
 

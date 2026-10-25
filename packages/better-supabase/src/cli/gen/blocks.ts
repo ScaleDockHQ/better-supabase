@@ -277,7 +277,8 @@ export interface SchemaExtension {
  * `auth.organization.column` turns it on without the block.
  */
 export function schemaExtensions(
-  config: Pick<ResolvedConfig, "blockNames" | "extensions">,
+  config: Pick<ResolvedConfig, "blockNames" | "extensions"> &
+    Partial<Pick<ResolvedConfig, "blocks">>,
 ): SchemaExtension[] {
   const tenant = config.extensions.tenant;
 
@@ -302,7 +303,12 @@ export function schemaExtensions(
       {
         export: manifest.extension,
         subpath: `blocks/${manifest.name}`,
-        args: manifest.name === "memberships" ? tenantArgs : "",
+        args:
+          manifest.name === "memberships"
+            ? tenantArgs
+            : STAMPED.has(manifest.name)
+              ? stampArgs(name, config.blocks?.[name]?.options?.["stamp"])
+              : "",
       },
     ];
   });
@@ -319,6 +325,22 @@ export function schemaExtensions(
   }
 
   return extensions;
+}
+
+const STAMPED: ReadonlySet<string> = new Set(["created-by", "updated-at"]);
+
+function stampArgs(name: string, stamp: unknown): string {
+  if (stamp === undefined || stamp === "client") {
+    return "";
+  }
+
+  if (stamp === "server") {
+    return '{ stamp: "server" }';
+  }
+
+  throw new TypeError(
+    `blocks.${name}.options.stamp must be "client" or "server", got ${JSON.stringify(stamp)}`,
+  );
 }
 
 /** The installed blocks with their final names, for `GeneratorModel.blocks`. */

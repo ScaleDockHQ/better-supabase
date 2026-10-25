@@ -7,3 +7,7 @@ Add `ownTablePolicies` to keep blocks' policies off your own tables. Set `databa
 The `organizations` block adds its `stripe_customer_id text unique` column only when the entitlements block reads the Stripe customer from it: not with a `plans` or `custom` source, a configured `auth.entitlements.customer`, or the managed `billing` block's customers table. `upgrade` leaves the column out of the block's file, so the next schema diff drops an unused one.
 
 When tenant and platform invitations share one table (`blocks.invitations.tables.platformInvitations` names the tenant table), the platform invitations' open-email unique index is limited to rows without a tenant, so a person can hold open invitations to several organizations at once. The block's file drops the old `platform_invitations_open_email_idx` and creates `invitations_platform_open_email_idx` in its place.
+
+Add `options.stamp` to the `updated-at` and `created-by` blocks: `client` (the default) keeps stamping `createdAt`, `updatedAt`, `createdBy` and `updatedBy` in the repository, and `server` leaves them to the `track_updated_at` and `track_actor` triggers, so tables with column-level grants that leave those columns out accept the app's writes. `gen` passes it to `updatedAtExtension({ stamp })` and `createdByExtension({ stamp })`, which still mark the columns read-only and refuse caller-supplied values without `{ override: true }`.
+
+The filter forms `update({ where }, patch, args)` and `delete({ where }, args)` accept `override` in their types, as the runtime already did.

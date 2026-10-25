@@ -17,7 +17,13 @@ import {
  * `track_updated_at` trigger covers writes that bypass the app, and every write
  * when the runtime has no Temporal.
  */
-export function updatedAtExtension(): Plugin<"timestamps"> {
+export interface UpdatedAtExtensionOptions {
+  readonly stamp?: "client" | "server";
+}
+
+export function updatedAtExtension(
+  extension: UpdatedAtExtensionOptions = {},
+): Plugin<"timestamps"> {
   return definePlugin({
     name: "timestamps",
     describe(api): void {
@@ -52,7 +58,7 @@ export function updatedAtExtension(): Plugin<"timestamps"> {
       const updated = dbName(table, flags.updatedAt);
       guardManaged(op, [created, updated], "timestamps", options);
 
-      if (op.kind === "delete") {
+      if (op.kind === "delete" || extension.stamp === "server") {
         return op;
       }
 

@@ -51,6 +51,25 @@ a `Temporal.Instant`, which makes tests deterministic. See
 without a `now` option, the extension leaves both columns to the column
 default and the trigger.
 
+## Leaving the columns to the trigger
+
+A table with column-level grants, such as `grant update (name, timezone) on
+public.profiles to authenticated`, refuses an update that names a column
+outside the list, so a stamped `updated_at` fails with `permission denied`.
+Set `options.stamp` to `server` to leave the columns to the column defaults
+and the `track_updated_at` trigger:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "updated-at": { options: { stamp: "server" } },
+},
+```
+
+`gen` then installs `updatedAtExtension({ stamp: "server" })`. It sends no
+`createdAt` or `updatedAt`, still marks them `readOnly` and still refuses
+values you pass without `{ override: true }`. The default, `client`, stamps
+the rows as above.
+
 A schema you write by hand installs the extension with `.use()`. On a
 generated schema the same call replaces the installed one:
 
