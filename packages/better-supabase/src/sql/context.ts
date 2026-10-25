@@ -20,6 +20,7 @@ import type { BlockSqlScope } from "./scope.ts";
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
+import { isSqlType } from "../config/sql-type.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -587,7 +588,6 @@ export interface ExtraColumn {
 }
 
 const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
-const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
@@ -1354,11 +1354,7 @@ export function createModuleContext(
           );
         }
 
-        if (
-          typeof type !== "string" ||
-          !SQL_TYPE.test(type) ||
-          type.includes("--")
-        ) {
+        if (typeof type !== "string" || !isSqlType(type)) {
           throw new TypeError(
             `${at}.${name} must be a SQL type such as "text not null default 'en'"`,
           );

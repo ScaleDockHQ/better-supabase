@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,7 @@ export type OrganizationsSqlOptions = {
   readonly attributes?: readonly string[];
   readonly auditCategory?: unknown;
   readonly deleteMode?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
   readonly formerOwnerRole?: string;
   readonly ownerInvariant?: boolean;
   readonly ownerRole?: string;
@@ -25,7 +25,7 @@ export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions
     attributes: option.strings({ default: [] }),
     auditCategory: option.unknown(),
     deleteMode: option.string({ default: "hard" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
     formerOwnerRole: option.string({ default: "admin" }),
     ownerInvariant: option.boolean({ default: true }),
     ownerRole: option.string({ default: "owner" }),
@@ -36,17 +36,42 @@ export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions
     slugPattern: option.string(),
   });
 
+/**
+ * `platformRoles`: the platform roles a provider keeps outside the tenant,
+ * which an invitation can grant.
+ */
+export interface PlatformRolesOption {
+  /** `schema.table` of the platform role grants. */
+  readonly table: string;
+  /** The user column. */
+  readonly user: string;
+  /** The role column. */
+  readonly role: string;
+  /** Where the role name lives when `role` holds an id. */
+  readonly through?: {
+    readonly table: string;
+    readonly id: string;
+    readonly column: string;
+    /** A condition on the roles row `{row}`. */
+    readonly where?: string;
+  };
+  /** A SQL template that holds when the caller may grant `{role}`. */
+  readonly canAssign?: string;
+  /** The same check for another user, `{user}`. */
+  readonly canAssignFor?: string;
+}
+
 /** `blocks.invitations.options`. */
 export type InvitationsSqlOptions = {
   readonly maxValidFor?: string;
-  readonly platformRoles?: unknown;
+  readonly platformRoles?: PlatformRolesOption;
   readonly prefill?: boolean;
   readonly previewColumns?: readonly string[];
   readonly requireConfirmedEmail?: boolean;
   readonly tokenBytes?: number;
   readonly tokenStorage?: string;
   readonly validFor?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
   /** The role `create_invitation` and `invite_member` use when none is named. */
   readonly defaultRole?: string;
   /** Extra roles and teams an invitation grants on accept. */
@@ -56,14 +81,14 @@ export type InvitationsSqlOptions = {
 export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
   blockOptions<InvitationsSqlOptions>({
     maxValidFor: option.string({ default: "30 days" }),
-    platformRoles: option.unknown(),
+    platformRoles: option.unknown<PlatformRolesOption>(),
     prefill: option.boolean({ default: false }),
     previewColumns: option.strings({ default: ["name"] }),
     requireConfirmedEmail: option.boolean({ default: true }),
     tokenBytes: option.number({ default: 24 }),
     tokenStorage: option.string({ default: "sha256" }),
     validFor: option.string({ default: "7 days" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
     defaultRole: option.string({ default: "member" }),
     onAccept: option.unknown<{
       readonly roles?: boolean;

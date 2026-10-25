@@ -1,4 +1,4 @@
-import type { DisabledRow } from "./blocks.ts";
+import type { ActiveTenantSource, DisabledRow } from "./blocks.ts";
 
 /**
  * SQL expression templates the SQL modules and the access policies call.
@@ -198,6 +198,13 @@ export interface AuthorizationTokenHook {
   readonly function: string;
   /** The claim it writes the active tenant id to. */
   readonly tenantClaim?: string;
+  /**
+   * Where it reads the active organization from: the `auth.organization.claim`
+   * key in `app_metadata` (`"claim"`), a profile column, or the request
+   * (`"resolver"`). Doctor BS409 warns when `switch_organization` writes it
+   * somewhere else (`blocks.permissions.activeTenant`).
+   */
+  readonly activeOrganizationFrom?: ActiveTenantSource;
   /** Claims it writes itself, which a second writer would contradict. */
   readonly ownedClaims: readonly string[];
   /**

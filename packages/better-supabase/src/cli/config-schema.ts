@@ -154,6 +154,11 @@ const disabledRow = v.strictObject({
   active: v.optional(strings),
 });
 
+const activeTenantSource = v.union([
+  v.picklist(["claim", "resolver"]),
+  v.strictObject({ profileColumn: v.string(), key: v.optional(v.string()) }),
+]);
+
 const permissionsBlock = v.strictObject({
   ...blockEntries,
   model: v.optional(v.picklist(["roles", "catalog", "provider", "custom"])),
@@ -178,15 +183,7 @@ const permissionsBlock = v.strictObject({
       userKey: v.optional(v.string()),
     }),
   ),
-  activeTenant: v.optional(
-    v.union([
-      v.picklist(["claim", "resolver"]),
-      v.strictObject({
-        profileColumn: v.string(),
-        key: v.optional(v.string()),
-      }),
-    ]),
-  ),
+  activeTenant: v.optional(activeTenantSource),
 });
 
 /**
@@ -328,6 +325,7 @@ const authorization = v.strictObject({
     v.strictObject({
       function: v.string(),
       tenantClaim: v.optional(v.string()),
+      activeOrganizationFrom: v.optional(activeTenantSource),
       ownedClaims: v.pipe(strings, v.minLength(1, "List at least one claim")),
       registeredClaims: v.optional(
         v.array(v.strictObject({ name: v.string(), function: v.string() })),

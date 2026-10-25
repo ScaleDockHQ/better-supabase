@@ -1,9 +1,9 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.inventory.options`. */
-export type InventorySqlOptions = { readonly extraColumns?: unknown };
+export type InventorySqlOptions = { readonly extraColumns?: ExtraColumns };
 
 export const inventorySqlOptions: BlockOptionsSchema<InventorySqlOptions> =
-  blockOptions<InventorySqlOptions>({ extraColumns: option.unknown() });
+  blockOptions<InventorySqlOptions>({ extraColumns: option.extraColumns() });

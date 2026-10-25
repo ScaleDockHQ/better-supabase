@@ -1,11 +1,11 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.catalog.options`. */
 export type CatalogSqlOptions = {
   readonly storefront?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
   /** Language tags the catalog translates into; the first is the default. */
   readonly locales?: readonly string[];
 };
@@ -13,6 +13,6 @@ export type CatalogSqlOptions = {
 export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
   blockOptions<CatalogSqlOptions>({
     storefront: option.string({ default: "private" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
     locales: option.strings({ default: ["en"] }),
   });

@@ -527,4 +527,15 @@ export const ACCESS_REQUESTS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  permissionKeys: (ctx) =>
+    ctx.option("policy") === undefined
+      ? [
+          {
+            action: "approve",
+            key: ctx.permissionKey("approve", "members.update_role"),
+            scope: "tenant",
+            setting: "blocks.access-requests.permissions.approve",
+          },
+        ]
+      : [],
 };

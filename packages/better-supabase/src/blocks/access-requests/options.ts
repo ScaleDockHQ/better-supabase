@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,7 @@ export type AccessRequestsSqlOptions = {
   readonly policy?: unknown;
   readonly maxDuration?: unknown;
   readonly join?: boolean;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const accessRequestsSqlOptions: BlockOptionsSchema<AccessRequestsSqlOptions> =
@@ -17,5 +17,5 @@ export const accessRequestsSqlOptions: BlockOptionsSchema<AccessRequestsSqlOptio
     policy: option.unknown(),
     maxDuration: option.unknown(),
     join: option.boolean({ default: false }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

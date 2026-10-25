@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -13,7 +13,7 @@ export type MessagingSqlOptions = {
   readonly editWindow?: number;
   /** The jobs queue that sends scheduled messages. */
   readonly scheduleQueue?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
   /**
    * `false` sends no `message.mentioned`, `message.direct` or `message.replied`
    * notification.
@@ -28,6 +28,6 @@ export const messagingSqlOptions: BlockOptionsSchema<MessagingSqlOptions> =
     maxBodyLength: option.number({ default: 40_000 }),
     editWindow: option.number({ default: 0 }),
     scheduleQueue: option.string({ default: "messaging" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
     notify: option.boolean({ default: true }),
   });

@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -7,7 +7,7 @@ export type ConnectorsSqlOptions = {
   readonly allowHttp?: boolean;
   readonly trustFirstUse?: boolean;
   readonly sessionTtl?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const connectorsSqlOptions: BlockOptionsSchema<ConnectorsSqlOptions> =
@@ -15,5 +15,5 @@ export const connectorsSqlOptions: BlockOptionsSchema<ConnectorsSqlOptions> =
     allowHttp: option.boolean({ default: false }),
     trustFirstUse: option.boolean({ default: true }),
     sessionTtl: option.string({ default: "1 hour" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

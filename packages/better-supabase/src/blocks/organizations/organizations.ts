@@ -355,9 +355,15 @@ export interface Organizations<
   acceptInvitation(
     token: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
+  /**
+   * Emits `invitation.accepted` with the organization joined. The token calls
+   * don't know the invitation id, so they record the event only in the outbox,
+   * as `revokeInvitation` does for the organization id.
+   */
   acceptInvitationById(
     invitationId: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
+  /** Emits `invitation.declined` when the invitation was open. */
   declineInvitationById(invitationId: string): AsyncResult<boolean>;
   myInvitations(): AsyncResult<readonly Invitation<I>[]>;
 }
@@ -1068,7 +1074,18 @@ function organizationsClient<F extends object, I extends object>(
         "invitations",
         "accept_invitation_by_id",
         { invitation_id: invitationId },
-        accepted,
+        (value) => {
+          const joined = accepted(value);
+
+          invitationEvent("invitation.accepted", {
+            invitationId,
+            ...(joined.organizationId === null
+              ? {}
+              : { organizationId: joined.organizationId }),
+          });
+
+          return joined;
+        },
       );
     },
     myInvitations() {
@@ -1083,7 +1100,13 @@ function organizationsClient<F extends object, I extends object>(
         "invitations",
         "decline_invitation_by_id",
         { invitation_id: invitationId },
-        (value) => value === true,
+        (value) => {
+          if (value === true) {
+            invitationEvent("invitation.declined", { invitationId });
+          }
+
+          return value === true;
+        },
       );
     },
   };

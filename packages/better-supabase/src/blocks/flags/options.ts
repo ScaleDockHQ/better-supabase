@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -19,11 +19,11 @@ export type FlagsSqlOptions = {
    * column: "brand_id" } }`.
    */
   readonly contexts?: Readonly<Record<string, FlagContextColumn>>;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const flagsSqlOptions: BlockOptionsSchema<FlagsSqlOptions> =
   blockOptions<FlagsSqlOptions>({
     contexts: option.unknown(),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

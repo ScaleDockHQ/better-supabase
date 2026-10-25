@@ -1,4 +1,5 @@
 import type {
+  ActiveTenantSource,
   AuthorizationProvider,
   ResolvedConfig,
 } from "../../config/index.ts";
@@ -9,6 +10,7 @@ import type {
 } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   modulePermissionKeys,
   resolveBlocks,
@@ -38,6 +40,18 @@ const TEMPLATE_EFFECT: Readonly<
   canAssignFor:
     "better_supabase.can_assign_as is not written and the inviter's right to assign the role is not checked again when the invitation is accepted",
 };
+
+function activeTenantLabel(source: ActiveTenantSource): string {
+  if (source === "claim") {
+    return "the app_metadata claim";
+  }
+
+  if (source === "resolver") {
+    return "the request (the tenant resolver)";
+  }
+
+  return `the profile column ${source.profileColumn}`;
+}
 
 /** The optional templates installed modules call that the provider doesn't set. */
 function missingTemplates(
@@ -592,7 +606,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -618,6 +632,22 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         findings.push({
           message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but auth.organization.claim is "${context.config.claims.tenant}". Set auth.organization.claim to "${tenantClaim}", or change the provider's tenant claim.`,
           target: "claims.tenant",
+        });
+      }
+
+      const readsFrom = provider.tokenHook?.activeOrganizationFrom;
+
+      const writesTo =
+        context.config.blocks.permissions?.activeTenant ??
+        DEFAULT_ACTIVE_TENANT;
+
+      if (
+        readsFrom !== undefined &&
+        activeTenantLabel(readsFrom) !== activeTenantLabel(writesTo)
+      ) {
+        findings.push({
+          message: `The hook of ${label} reads the active organization from ${activeTenantLabel(readsFrom)}, but switch_organization writes it to ${activeTenantLabel(writesTo)} (blocks.permissions.activeTenant), so switching never changes the token. Set blocks.permissions.activeTenant to match the provider.`,
+          target: "blocks.permissions.activeTenant",
         });
       }
 

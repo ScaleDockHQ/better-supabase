@@ -296,6 +296,33 @@ describe("createOrganizations", () => {
     ]);
   });
 
+  it("emits invitation.accepted and invitation.declined for the by-id calls", async () => {
+    const { transport } = fake({
+      accept_invitation_by_id: "org-1",
+      decline_invitation_by_id: true,
+    });
+
+    const events = new EventHub();
+    const seen: BlockEvent[] = [];
+    events.on("block", (event) => seen.push(event));
+    const organizations = createOrganizations({ transport, events });
+
+    await organizations.acceptInvitationById("inv-1").orThrow();
+    await organizations.declineInvitationById("inv-2").orThrow();
+
+    expect(seen.map((event) => [event.type, event.data, event.tenant])).toEqual(
+      [
+        ["organization.member_added", expect.anything(), "org-1"],
+        [
+          "invitation.accepted",
+          { invitationId: "inv-1", organizationId: "org-1" },
+          "org-1",
+        ],
+        ["invitation.declined", { invitationId: "inv-2" }, undefined],
+      ],
+    );
+  });
+
   it("returns an error when onInvite throws", async () => {
     const { transport } = fake({ invite_member: invitationRow });
 

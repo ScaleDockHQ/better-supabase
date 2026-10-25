@@ -3,15 +3,23 @@ import type { StandardSchemaV1 } from "../core/standard.ts";
 import { isRecord } from "../core/guards.ts";
 
 /**
- * What a SQL module option holds. `unknown` is an object or a value the module
- * checks itself; the JSON Schema leaves it open.
+ * What a SQL module option holds. `columns` maps column names to SQL types
+ * (`extraColumns`). `unknown` is an object or a value the module checks itself;
+ * the JSON Schema leaves it open.
  */
 export type OptionKind =
   | "string"
   | "boolean"
   | "number"
   | "strings"
+  | "columns"
   | "unknown";
+
+/**
+ * `options.extraColumns`: column name to SQL type, such as `{ region: "text"
+ * }`.
+ */
+export type ExtraColumns = Readonly<Record<string, string>>;
 
 /** One option of a SQL module (`blocks.<module>.options.<key>`). */
 export interface OptionSpec<T = unknown> {
@@ -43,12 +51,14 @@ function spec<T>(kind: OptionKind, input: OptionInput<T> = {}): OptionSpec<T> {
 
 /** The option builders a block's `options.ts` describes its SQL options with. */
 export interface OptionBuilders {
-  string(input?: OptionInput<string>): OptionSpec<string>;
+  string<T extends string = string>(input?: OptionInput<T>): OptionSpec<T>;
   boolean(input?: OptionInput<boolean>): OptionSpec<boolean>;
   number(input?: OptionInput<number>): OptionSpec<number>;
   strings(
     input?: OptionInput<readonly string[]>,
   ): OptionSpec<readonly string[]>;
+  /** `extraColumns`: column name to SQL type. */
+  extraColumns(input?: OptionInput<ExtraColumns>): OptionSpec<ExtraColumns>;
   unknown<T = unknown>(input?: OptionInput<T>): OptionSpec<T>;
 }
 
@@ -57,6 +67,7 @@ export const option: OptionBuilders = {
   boolean: (input) => spec("boolean", input),
   number: (input) => spec("number", input),
   strings: (input) => spec("strings", input),
+  extraColumns: (input) => spec("columns", input),
   unknown: (input) => spec("unknown", input),
 };
 
@@ -96,6 +107,13 @@ function kindOf(value: unknown): OptionKind | undefined {
     return "strings";
   }
 
+  if (
+    isRecord(value) &&
+    Object.values(value).every((entry) => typeof entry === "string")
+  ) {
+    return "columns";
+  }
+
   return undefined;
 }
 
@@ -104,6 +122,7 @@ const KIND_LABEL: Readonly<Record<OptionKind, string>> = {
   boolean: "a boolean",
   number: "a number",
   strings: "a list of strings",
+  columns: "an object of column names to SQL types",
   unknown: "a value",
 };
 
@@ -163,6 +182,7 @@ const JSON_KIND: Readonly<Record<OptionKind, object>> = {
   boolean: { type: "boolean" },
   number: { type: "number" },
   strings: { type: "array", items: { type: "string" } },
+  columns: { type: "object", additionalProperties: { type: "string" } },
   unknown: {},
 };
 

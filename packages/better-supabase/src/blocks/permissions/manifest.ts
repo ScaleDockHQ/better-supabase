@@ -4,7 +4,7 @@ import { defineBlock } from "../define-block.ts";
 import { permissionsSqlOptions } from "./options.ts";
 import { createPermissions } from "./permissions.ts";
 
-/** The `access` block's manifest (ADR 0029). */
+/** The `permissions` block's manifest (ADR 0029). */
 export const permissionsBlock: BlockOf<
   "permissions",
   typeof createPermissions

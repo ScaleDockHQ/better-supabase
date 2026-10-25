@@ -2367,6 +2367,7 @@
       "EventSpec",
       "ExtendBlockOptions",
       "ExtendBlockTools",
+      "ExtraColumns",
       "ExtraFields",
       "FieldsOf",
       "FinalRunState",
@@ -2537,6 +2538,7 @@
       "OrganizationsOptions",
       "OrganizationSource",
       "OrganizationsSnapshot",
+      "PlatformRolesOption",
       "RpcClient",
       "SlugProblem",
       "SwitchResult"
@@ -6341,7 +6343,10 @@
       "MembershipsExtension",
       "MembershipsExtensionOptions",
       "MembershipsFindArgs",
-      "MembershipsSqlOptions"
+      "MembershipsSqlOptions",
+      "RoleThroughOption",
+      "SameTenantEntry",
+      "SameTenantOption"
     ]
   },
   "./blocks/created-by": {

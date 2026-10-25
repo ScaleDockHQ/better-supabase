@@ -227,15 +227,16 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 
 `tokenHook` describes the custom access token hook the provider generates:
 
-| Field              | Used for                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `function`         | BS404 checks its grants, BS405 its shape                                                  |
-| `tenantClaim`      | BS409 compares it with `auth.organization.claim`                                          |
-| `ownedClaims`      | BS407 reports another hook that writes them; `add tenant` stops on `memberships`          |
-| `registeredClaims` | BS407 accepts these claims from the functions named, such as `features`                   |
-| `budget`           | BS405 measures the claims it lists against `bytes` for `doctor --as`                      |
-| `markers`          | comment lines in the provider's files, so doctor recognises its hook and grants migration |
-| `grantsCommand`    | the command BS404 suggests                                                                |
+| Field                    | Used for                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `function`               | BS404 checks its grants, BS405 its shape                                                     |
+| `tenantClaim`            | BS409 compares it with `auth.organization.claim`                                             |
+| `activeOrganizationFrom` | BS409 compares it with `blocks.permissions.activeTenant`, where `switch_organization` writes |
+| `ownedClaims`            | BS407 reports another hook that writes them; `add memberships` stops on them                 |
+| `registeredClaims`       | BS407 accepts these claims from the functions named, such as `features`                      |
+| `budget`                 | BS405 measures the claims it lists against `bytes` for `doctor --as`                         |
+| `markers`                | comment lines in the provider's files, so doctor recognises its hook and grants migration    |
+| `grantsCommand`          | the command BS404 suggests                                                                   |
 
 ### Approvals
 

@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -7,7 +7,7 @@ export type LeaveSqlOptions = {
   readonly policy?: unknown;
   readonly workingDays?: readonly string[];
   readonly allowNegative?: boolean;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -17,5 +17,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
       default: ["mon", "tue", "wed", "thu", "fri"],
     }),
     allowNegative: option.boolean({ default: false }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

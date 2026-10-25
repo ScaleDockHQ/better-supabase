@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -13,7 +13,7 @@ export type NotificationsSqlOptions = {
   readonly realtime?: string;
   readonly topic?: string;
   readonly updatedEvent?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions> =
@@ -29,5 +29,5 @@ export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions
     realtime: option.string({ default: "broadcast" }),
     topic: option.string({ default: "notifications:{userId}", client: true }),
     updatedEvent: option.string({ default: "notification_updated" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

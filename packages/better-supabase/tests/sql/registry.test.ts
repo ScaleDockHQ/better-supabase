@@ -1128,6 +1128,34 @@ describe("modulePermissionKeys", () => {
     ]);
   });
 
+  it("lists the access-requests approve key the default policy checks", () => {
+    const approve = (options: Record<string, unknown>) =>
+      modulePermissionKeys(
+        {
+          "access-requests": {
+            options,
+            permissions: { approve: "roles.grant" },
+          },
+        },
+        ["access-requests"],
+      ).filter((entry) => entry.action === "approve");
+
+    expect(approve({})).toEqual([
+      {
+        module: "access-requests",
+        action: "approve",
+        key: "roles.grant",
+        scope: "tenant",
+        setting: "blocks.access-requests.permissions.approve",
+      },
+    ]);
+    expect(
+      approve({
+        policy: { steps: [{ approvers: { permission: "owners.approve" } }] },
+      }),
+    ).toEqual([]);
+  });
+
   it("defaults suspendMember to the removeMember key", () => {
     const suspend = (permissions: Record<string, string>) =>
       modulePermissionKeys({ organizations: { permissions } }, [

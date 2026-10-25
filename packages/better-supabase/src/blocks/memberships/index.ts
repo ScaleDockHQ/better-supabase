@@ -9,4 +9,9 @@ export {
 
 export { membershipsBlock } from "./manifest.ts";
 
-export type { MembershipsSqlOptions } from "./options.ts";
+export type {
+  MembershipsSqlOptions,
+  RoleThroughOption,
+  SameTenantEntry,
+  SameTenantOption,
+} from "./options.ts";

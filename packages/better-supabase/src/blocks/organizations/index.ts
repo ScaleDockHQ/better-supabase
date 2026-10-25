@@ -40,6 +40,8 @@ export { organizationsEvents } from "./events.ts";
 
 export type { OrganizationsEvents } from "./events.ts";
 
+export type { PlatformRolesOption } from "./options.ts";
+
 export {
   createInvitationsController,
   createMembersController,

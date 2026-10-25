@@ -1,9 +1,9 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.compliance.options`. */
-export type ComplianceSqlOptions = { readonly extraColumns?: unknown };
+export type ComplianceSqlOptions = { readonly extraColumns?: ExtraColumns };
 
 export const complianceSqlOptions: BlockOptionsSchema<ComplianceSqlOptions> =
-  blockOptions<ComplianceSqlOptions>({ extraColumns: option.unknown() });
+  blockOptions<ComplianceSqlOptions>({ extraColumns: option.extraColumns() });

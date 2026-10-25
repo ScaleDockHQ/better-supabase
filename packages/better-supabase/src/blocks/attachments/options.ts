@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -12,7 +12,7 @@ export type AttachmentsSqlOptions = {
   readonly scanBuckets?: readonly string[];
   readonly publicBuckets?: readonly string[];
   readonly offline?: boolean;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
@@ -26,5 +26,5 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     scanBuckets: option.strings({ default: [] }),
     publicBuckets: option.strings({ default: [], client: true }),
     offline: option.boolean({ client: true }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

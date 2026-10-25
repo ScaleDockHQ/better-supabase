@@ -1087,6 +1087,27 @@
                 "tenantClaim": {
                   "type": "string"
                 },
+                "activeOrganizationFrom": {
+                  "anyOf": [
+                    {
+                      "enum": ["claim", "resolver"],
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "profileColumn": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["profileColumn"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
                 "ownedClaims": {
                   "type": "array",
                   "items": {
@@ -3566,7 +3587,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3585,7 +3611,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "recordings": {
                 "type": "boolean",
                 "default": false
@@ -3609,7 +3640,12 @@
                 "type": "number",
                 "default": 100000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3666,7 +3702,12 @@
                 "type": "string",
                 "default": "ai.output_tokens"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3697,7 +3738,12 @@
                 "type": "string",
                 "default": "1 day"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3738,7 +3784,12 @@
                 "type": "number",
                 "default": 20000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3759,7 +3810,12 @@
                 "type": "string",
                 "default": "announcement_changed"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3787,7 +3843,12 @@
                 "type": "string",
                 "default": "bs"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3801,7 +3862,12 @@
             "additionalProperties": false,
             "properties": {
               "policies": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3879,7 +3945,12 @@
               "offline": {
                 "type": "boolean"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4051,7 +4122,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "recurring": {
                 "type": "boolean",
                 "default": false
@@ -4085,7 +4161,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4102,7 +4183,12 @@
                 "type": "string",
                 "default": "private"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "locales": {
                 "type": "array",
                 "items": {
@@ -4144,7 +4230,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4178,7 +4269,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4203,7 +4299,12 @@
                 "type": "string",
                 "default": "1 hour"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4218,7 +4319,12 @@
             "properties": {
               "companyLifecycles": {},
               "personLifecycles": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4266,7 +4372,12 @@
                 "type": "number",
                 "default": 14
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4279,7 +4390,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4402,7 +4518,12 @@
                 "type": "boolean",
                 "default": true
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4415,7 +4536,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
@@ -4479,7 +4605,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4510,7 +4641,12 @@
                 "type": "string",
                 "default": "fail"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4540,7 +4676,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4591,7 +4732,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4627,7 +4773,12 @@
             "additionalProperties": false,
             "properties": {
               "contexts": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4653,7 +4804,12 @@
             "properties": {
               "handlers": {},
               "publicLimit": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4666,7 +4822,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4707,7 +4868,12 @@
                 "type": "string",
                 "default": "person"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4813,7 +4979,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4826,7 +4997,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4871,7 +5047,12 @@
                 "type": "string",
                 "default": "7 days"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "defaultRole": {
                 "type": "string",
                 "default": "member"
@@ -4909,7 +5090,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4989,7 +5175,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5014,7 +5205,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5111,7 +5307,12 @@
                 "type": "string",
                 "default": "messaging"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "notify": {
                 "type": "boolean",
                 "default": true
@@ -5225,7 +5426,12 @@
                 "type": "string",
                 "default": "notification_updated"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5283,7 +5489,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "kitchen": {
                 "type": "boolean",
                 "default": false
@@ -5316,7 +5527,12 @@
                 "type": "string",
                 "default": "hard"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "formerOwnerRole": {
                 "type": "string",
                 "default": "admin"
@@ -5462,7 +5678,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5483,7 +5704,12 @@
                 "type": "number",
                 "default": 20000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5499,7 +5725,12 @@
               "columnGrants": {
                 "type": "boolean"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "metadata": {},
               "mirrorEmail": {
                 "type": "boolean",
@@ -5557,7 +5788,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5570,7 +5806,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5619,7 +5860,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5698,7 +5944,12 @@
             "additionalProperties": false,
             "properties": {
               "kinds": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5715,7 +5966,12 @@
                 "type": "string",
                 "default": "rrule"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5771,7 +6027,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5795,7 +6056,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5899,7 +6165,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5949,7 +6220,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5962,7 +6238,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5975,7 +6256,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6005,7 +6291,12 @@
             "additionalProperties": false,
             "properties": {
               "businessHours": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6089,7 +6380,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6110,7 +6406,12 @@
                 "type": "number",
                 "default": 0
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6123,8 +6424,16 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "teamIdType": {},
-              "extraColumns": {}
+              "teamIdType": {
+                "type": "string",
+                "default": "uuid"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6137,7 +6446,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6155,7 +6469,12 @@
                 "type": "string",
                 "default": "UTC"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6183,7 +6502,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "deletedAt": {
                 "type": "string",
                 "default": "deleted_at"
@@ -6281,7 +6605,12 @@
                 "type": "number",
                 "default": 300
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6308,7 +6637,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6321,7 +6655,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6389,7 +6728,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

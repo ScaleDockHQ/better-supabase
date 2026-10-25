@@ -46,7 +46,7 @@ export const { useList: useTeams } = defineDataHooks(
 ```
 
 ```ts
-const rows = await db.teams.list({ limit: 50 }).orThrow();
+const rows = await db.teams.list(organizationId).orThrow();
 ```
 
 ```tsx title="src/features/teams/list.tsx"

@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,7 @@ export type QuotesSqlOptions = {
   readonly contact?: string;
   readonly prefix?: string;
   readonly validDays?: number;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -17,5 +17,5 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     contact: option.string({ default: "person" }),
     prefix: option.string({ default: "Q-" }),
     validDays: option.number({ default: 30 }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

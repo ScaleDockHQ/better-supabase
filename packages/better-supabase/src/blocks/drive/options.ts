@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -10,7 +10,7 @@ export type DriveSqlOptions = {
   readonly memberRole?: unknown;
   readonly subjectType?: string;
   readonly conflict?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
@@ -21,5 +21,5 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     memberRole: option.unknown(),
     subjectType: option.string({ default: "drive_node" }),
     conflict: option.string({ default: "fail" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

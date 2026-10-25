@@ -7,6 +7,7 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 import type {
+  ActiveTenantSource,
   AuthorizationProvider,
   BetterSupabaseConfig,
 } from "../../../src/config/index.ts";
@@ -519,6 +520,42 @@ describe("BS409", () => {
         target: "claims.scope",
         message: expect.stringContaining(
           'the tenant scope of the authorization provider (stub) is "organization"',
+        ),
+      },
+    ]);
+  });
+
+  it("warns when the hook reads the active organization from another place", async () => {
+    const reading = (activeOrganizationFrom: ActiveTenantSource) =>
+      withProvider({
+        tokenHook: { ...stubProvider.tokenHook, activeOrganizationFrom },
+      });
+
+    expect(
+      await findings("BS409", {
+        auth: {
+          organization: { claim: "tenant_id" },
+          authorization: reading("claim"),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          organization: { claim: "tenant_id" },
+          authorization: reading({
+            profileColumn: "authz.sessions.organization_id",
+          }),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([
+      {
+        severity: "warning",
+        target: "blocks.permissions.activeTenant",
+        message: expect.stringContaining(
+          "reads the active organization from the profile column authz.sessions.organization_id, but switch_organization writes it to the app_metadata claim",
         ),
       },
     ]);
