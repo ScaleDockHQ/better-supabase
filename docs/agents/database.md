@@ -84,9 +84,11 @@ fails while the fixtures are stale.
 
 Managed block defaults follow the repo standard (hashed tokens, Vault secrets,
 `text` ids, the module's CloudEvents sources). A shape that only an existing app
-needs belongs in its adopt config, never in a managed default. When an adopter
-needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
-accepts it in `ownership: "adopt"` only and doctor warns about it (BS314).
+needs belongs in a migration-only option, never in a managed default. When an
+adopter needs a weaker value, add it to `src/sql/migration-options.ts`, so the
+config accepts it only over the app's own tables and doctor warns about it
+(BS314). `ownership: "adopt"` was removed in 0.15; a block leaves alone every
+table the schema already has.
 
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend. Each fixture table

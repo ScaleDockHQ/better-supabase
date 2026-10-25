@@ -103,3 +103,10 @@ add one, and link it from the code or config it explains.
 | [0097](0097-typescript-content-mapper.md)                 | `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only      |
 | [0098](0098-per-table-adoption.md)                        | Blocks detect the app's tables per table and run over them; `ownership: "adopt"` is removed                                               |
 | [0099](0099-restrictive-tenant-scope.md)                  | Tenant isolation is one restrictive policy per tenant table, so an app's permissive policy can't widen it                                 |
+| [0100](0100-one-project-pipeline.md)                      | One project pipeline for the config, the CLI, Create and the cloud; `checkProject` returns one `Issue` type                               |
+| [0101](0101-adoption-ladder.md)                           | Adopt one rung at a time: `init`, helpers for every table, table features, blocks over your tables                                        |
+| [0102](0102-schema-first-tables.md)                       | Tables are user-owned SQL; per-table features are `@bsb` tags in the table comment                                                        |
+| [0103](0103-typed-policies.md)                            | Block modules emit typed `Policy` values; the tenant scope and actor guard compose on them                                                |
+| [0104](0104-secure-by-default-rls.md)                     | Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on                                                  |
+| [0105](0105-catalog-verification.md)                      | The catalog is verified offline and by a generated role by command by table access matrix                                                 |
+| [0106](0106-pgdelta-plans.md)                             | The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss                                                     |

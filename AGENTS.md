@@ -214,6 +214,13 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0097: `gen.contentMapper` serves the schema types through a TypeScript 7.1 content mapper; the `ts71` catalog pins the beta for tests only.
 - 0098: blocks detect the app's tables per table (`ownTables`) and run over them; every block table is adoptable except the `workflow-sdk` world; `ownership: "adopt"` is removed (breaking).
 - 0099: tenant isolation renders as one restrictive `bsb_tenant_scope` policy per tenant table; an app's permissive policy can't widen it.
+- 0100: One project pipeline for the config, the CLI, Create and the cloud; `checkProject` returns one `Issue` type.
+- 0101: Adopt one rung at a time: `init`, helpers for every table, table features, blocks over your tables.
+- 0102: Tables are user-owned SQL; per-table features are `@bsb` tags in the table comment.
+- 0103: Block modules emit typed `Policy` values; the tenant scope and actor guard compose on them.
+- 0104: Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on.
+- 0105: The catalog is verified offline and by a generated role by command by table access matrix.
+- 0106: The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss.
 
 ## Pre-release pins
 

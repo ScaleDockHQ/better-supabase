@@ -53,8 +53,9 @@ export type BlockInput<T extends LegacyBlockKeys> = Omit<
 > & {
   /**
    * Who owns the block's tables: `managed` (better-supabase writes them, the
-   * default), `adopt` (your tables, mapped through `tables` and `columns`) or
-   * `custom` (your functions behind the block's contract).
+   * default) or `custom` (your functions behind the block's contract). A block
+   * leaves alone every table your schema already has, mapped through `tables`
+   * and `columns`.
    */
   readonly ownership?: T["mode"];
   /**
