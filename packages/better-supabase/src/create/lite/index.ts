@@ -7,6 +7,8 @@ import { SUPABASE_PRELUDE } from "./prelude.ts";
 
 export { SUPABASE_PRELUDE } from "./prelude.ts";
 
+export * from "./import.ts";
+
 /**
  * A module PGlite can't run, such as one that needs an extension it doesn't
  * ship.

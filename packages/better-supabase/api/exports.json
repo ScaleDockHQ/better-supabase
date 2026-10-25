@@ -616,6 +616,10 @@
   },
   "./create/lite": {
     "values": [
+      "catalogQuery",
+      "designFromCatalog",
+      "importFilesOf",
+      "importProject",
       "sqlIssues",
       "SUPABASE_PRELUDE",
       "validateDesign"
