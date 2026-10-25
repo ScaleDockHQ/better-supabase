@@ -17,7 +17,7 @@ A `Policy` is `{ table, name, command, roles, permissive, using, check }`, built
 values, and the regex passes are deleted once no module emits raw policy SQL. The generated files
 stay byte-identical; goldens guard that.
 
-A user-written policy reaches the same shape through the DSL of ADR 0105's verifier input: a rule
+A user-written policy reaches the same shape through a rule DSL: a rule
 tree renders to a policy plus an `@bsb rule` comment that reads back into the builder. Raw SQL
 policies are kept verbatim and pass the same verifier.
 
