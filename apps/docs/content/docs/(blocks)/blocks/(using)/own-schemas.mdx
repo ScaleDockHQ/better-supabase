@@ -211,7 +211,7 @@ may be your own enum or domain.
 - `custom-fields`
   - `better_supabase.field_definitions`: `id`, `tenant_id`, `entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`
   - `better_supabase.field_options`: `id`, `definition_id`, `value`, `label`
-  - `better_supabase.field_values`: `id`, `tenant_id`, `subject_type`, `subject_id`, `value_text`, `value_number`, `value_date`, `value_bool`, `option_id`
+  - `better_supabase.field_values`: `id`, `tenant_id`, `value_text`, `value_number`, `value_date`, `value_bool`; typed: `type`, `subject_type`
 - `data-lifecycle`
   - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `organization_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
   - `better_supabase.organization_deletions`: `organization_id`, `purge_after`, `cancelled_at`, `purged_at`, `previously_disabled`

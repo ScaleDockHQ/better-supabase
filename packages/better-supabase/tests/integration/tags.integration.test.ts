@@ -78,7 +78,7 @@ describe.skipIf(!live)("tags", () => {
     }
   });
 
-  it("splits manage by action, takes a slug and a patch, and asks the record's write action", async () => {
+  it("splits manage by action, takes a slug and a patch, and asks the record's tag action", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -100,7 +100,7 @@ describe.skipIf(!live)("tags", () => {
           project: {
             table: "bsb_test_owned_projects",
             idType: "uuid",
-            permissions: { write: { owner: "owner_id" } },
+            permissions: { tag: { owner: "owner_id" } },
           },
         },
         modules: {

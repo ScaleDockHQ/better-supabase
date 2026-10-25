@@ -54,6 +54,36 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   readonly rank?: string;
 }
 
+/**
+ * One field value in the keyed layout, as `readFields` and `setField` return
+ * it.
+ */
+export interface FieldValue {
+  readonly id: string;
+  readonly subject: RecordRef;
+  readonly key: string;
+  readonly label: string;
+  /** A `CustomFieldType`, after `blocks.custom-fields.values`. */
+  readonly type: string;
+  /** The value from the column of its type: text, number, boolean or JSON. */
+  readonly value: unknown;
+  readonly rank?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+}
+
+/** The input of `setField` (keyed layout). */
+export interface SetFieldInput {
+  readonly key: string;
+  readonly label: string;
+  readonly type: CustomFieldType;
+  /** A JSON value of the type: a string, number, boolean, or JSON for `json`. */
+  readonly value: unknown;
+  readonly rank?: string;
+  /** Fail with `FIELD_EXISTS` when the record already has `key`. */
+  readonly ifAbsent?: boolean;
+}
+
 /** Every method that takes no definition id acts in the block's `tenant`. */
 export interface CustomFields {
   /**
@@ -89,6 +119,40 @@ export interface CustomFields {
     definitionId: string,
     value: string,
   ): AsyncResult<FieldDefinition>;
+  /**
+   * Keyed layout: every field of `subject` as typed rows, in rank order and
+   * then by key.
+   */
+  readFields(subject: RecordRef): AsyncResult<FieldValue[]>;
+  /**
+   * Keyed layout: sets the field `key` of `subject`, creating it or updating
+   * its label, type and value.
+   */
+  setField(subject: RecordRef, input: SetFieldInput): AsyncResult<FieldValue>;
+  /** Keyed layout: removes one field value. */
+  deleteValue(id: string): AsyncResult<boolean>;
+}
+
+function fieldValueOf(value: unknown): FieldValue {
+  const row = recordOf(value, "field value");
+
+  const optional = (key: "rank" | "createdAt" | "updatedAt") => {
+    const found = optionalText(row[key]);
+
+    return found === undefined ? {} : { [key]: found };
+  };
+
+  return {
+    id: textOf(row["id"]),
+    subject: { type: textOf(row["subjectType"]), id: textOf(row["subjectId"]) },
+    key: textOf(row["key"]),
+    label: textOf(row["label"]),
+    type: textOf(row["type"]),
+    value: row["value"] ?? null,
+    ...optional("rank"),
+    ...optional("createdAt"),
+    ...optional("updatedAt"),
+  };
 }
 
 export function createCustomFields(options: CustomFieldsOptions): CustomFields {
@@ -190,6 +254,38 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           idOf("set_field_value"),
         ),
       ),
+    readFields: (subject) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "read_field_values",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+          },
+          (value) => (Array.isArray(value) ? value : []).map(fieldValueOf),
+        ),
+      ),
+    setField: (subject, input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "set_field_value",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            key: input.key,
+            label: input.label,
+            type: input.type,
+            value: input.value ?? null,
+            rank: input.rank ?? null,
+            if_absent: input.ifAbsent ?? false,
+          },
+          fieldValueOf,
+        ),
+      ),
+    deleteValue: (id) =>
+      call("delete_field_value", { value_id: id }, (value) => value === true),
   };
 
   return withBlockHooks(client, options.hooks, {

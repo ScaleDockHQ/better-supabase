@@ -1474,8 +1474,8 @@ and a provider with the `rowsWith` template (see
 `rowsWithFor`, and `owner` compares the column with the given user.
 
 Blocks that act on a record ask `can_subject` for the action when the record
-type declares it, on top of their own key: `tags` checks `write` before it
-puts a tag on a record or takes it off, `custom-fields` checks `write` before
+type declares it, on top of their own key: `tags` checks `tag` before it
+puts a tag on a record or takes it off, `custom-fields` checks `fields` before
 it sets or deletes a value, `share-links` checks `share` before it creates,
 lists or revokes a link, and `comments` follows `read`, `comment` and
 `moderate`. A record type that declares none of them keeps the block's own

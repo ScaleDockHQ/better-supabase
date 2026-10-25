@@ -54,6 +54,7 @@ const RECORDED = (() => {
 /** Events only a module option turns on. */
 const OPTIONAL = new Set([
   "field_value.viewed",
+  "field_value.deleted",
   "object.uploaded",
   "pipeline.stage_changed",
 ]);

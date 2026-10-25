@@ -218,7 +218,7 @@ function build(ctx: BlockSqlContext): string {
     const declared = andSubjectAction(
       subjectReadable(ctx, list, args),
       access === "write"
-        ? subjectActionCheck(ctx, list, args, ["write"])
+        ? subjectActionCheck(ctx, list, args, ["tag"])
         : undefined,
     );
 

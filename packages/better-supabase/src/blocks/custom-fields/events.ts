@@ -11,6 +11,8 @@ export type CustomFieldsEvents = {
   readonly "custom_field.saved": SaasEventData;
   readonly "custom_field.deleted": SaasEventData;
   readonly "field_value.set": SaasSubjectEventData;
+  /** A value was removed (`delete_field_value`, keyed layout). */
+  readonly "field_value.deleted": SaasSubjectEventData;
   /**
    * Protected values were read; audit only, with
    * `blocks.custom-fields.options.auditReads`.
@@ -29,5 +31,6 @@ export const customFieldsEvents: Events<CustomFieldsEvents> = defineEvents({
   "custom_field.saved": event<SaasEventData>(),
   "custom_field.deleted": event<SaasEventData>(),
   "field_value.set": event<SaasSubjectEventData>(),
+  "field_value.deleted": event<SaasSubjectEventData>(),
   "field_value.viewed": event<FieldValueReadEventData>(),
 });

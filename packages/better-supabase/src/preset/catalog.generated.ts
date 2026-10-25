@@ -1500,7 +1500,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "field-encryption",
-        "audit"
+        "audit",
+        "subjects"
       ],
       "manifest": "custom-fields",
       "scopes": [
@@ -8371,6 +8372,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "custom_field.saved",
           "custom_field.deleted",
           "field_value.set",
+          "field_value.deleted",
           "field_value.viewed"
         ]
       }

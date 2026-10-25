@@ -218,13 +218,13 @@ describe("tags module", () => {
     expect(sql).not.toContain(`'{}'::jsonb)))."note"`);
   });
 
-  it("checks the subject's write action when the record declares one", () => {
+  it("checks the record's tag action when the record declares one", () => {
     const subjects = {
       task: {
         table: "public.tasks",
         permissions: {
           read: "task.read",
-          write: { key: "task.update", owner: "owner_id" },
+          tag: { key: "task.update", owner: "owner_id" },
         },
       },
     };
@@ -235,7 +235,7 @@ describe("tags module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `when 'task' then coalesce("better_supabase"."can_subject"(tag.subject_type, tag.subject_id, 'write'), false)`,
+      `when 'task' then coalesce("better_supabase"."can_subject"(tag.subject_type, tag.subject_id, 'tag'), false)`,
     );
     expect(sql).not.toContain(`can_subject"(subject_tags.subject_type`);
     expect(sqlOf({ subjects })).not.toContain("can_subject");

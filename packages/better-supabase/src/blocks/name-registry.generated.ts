@@ -500,7 +500,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted";
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
-      readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson";
+      readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson" | "valueUrl" | "valueEmail" | "key" | "label" | "type" | "rank" | "createdAt" | "updatedAt";
     };
     readonly functions: "delete_field_definition" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value";
     readonly actions: "manage" | "read" | "sensitive";
