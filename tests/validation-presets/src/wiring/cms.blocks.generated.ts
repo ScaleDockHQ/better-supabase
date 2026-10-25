@@ -269,6 +269,7 @@ export const permissions = {
   organizations: {
     update: "organization.update",
     delete: "organization.delete",
+    listMembers: "members.read",
     removeMember: "members.remove",
     suspendMember: "members.remove",
     updateRole: "members.update_role",
@@ -304,7 +305,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "content.publish" | "content.read" | "content.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -385,7 +386,9 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.member_resumed",
     "organization.member_suspended",
     "organization.ownership_transferred",
+    "organization.role_added",
     "organization.role_changed",
+    "organization.role_removed",
     "organization.switched",
     "organization.updated",
     "organization_setting.reset",
@@ -480,7 +483,9 @@ export const blockEventSchemas = {
   "organization.member_resumed": true,
   "organization.member_suspended": true,
   "organization.ownership_transferred": true,
+  "organization.role_added": true,
   "organization.role_changed": true,
+  "organization.role_removed": true,
   "organization.switched": true,
   "organization.updated": true,
   "organization_setting.reset": true,

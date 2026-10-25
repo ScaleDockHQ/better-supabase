@@ -401,6 +401,7 @@ export const permissions = {
   organizations: {
     update: "organization.update",
     delete: "organization.delete",
+    listMembers: "members.read",
     removeMember: "members.remove",
     suspendMember: "members.remove",
     updateRole: "members.update_role",
@@ -468,7 +469,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -561,7 +562,9 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.member_resumed",
     "organization.member_suspended",
     "organization.ownership_transferred",
+    "organization.role_added",
     "organization.role_changed",
+    "organization.role_removed",
     "organization.switched",
     "organization.updated",
     "organization_setting.reset",
@@ -703,7 +706,9 @@ export const blockEventSchemas = {
   "organization.member_resumed": true,
   "organization.member_suspended": true,
   "organization.ownership_transferred": true,
+  "organization.role_added": true,
   "organization.role_changed": true,
+  "organization.role_removed": true,
   "organization.switched": true,
   "organization.updated": true,
   "organization_setting.reset": true,
