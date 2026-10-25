@@ -30,11 +30,11 @@ const array = (values: readonly string[]): string =>
   `array[${values.map((value) => `'${value.replaceAll("'", "''")}'`).join(", ")}]::text[]`;
 
 /**
- * Renames the installed `bs_` triggers, policies, constraints, indexes and
- * functions to `bsb_`, so the module files' `drop ... if exists bsb_x` replace
- * them instead of adding a second copy. Only the names in `names` and the
- * runtime prefixes are renamed, and only while the new name is free, so the
- * step can run again.
+ * Renames the installed `bs_` triggers, event triggers, policies, constraints,
+ * indexes and functions to `bsb_`, so the module files' `drop ... if exists
+ * bsb_x` replace them instead of adding a second copy. Only the names in
+ * `names` and the runtime prefixes are renamed, and only while the new name is
+ * free, so the step can run again.
  */
 export function legacyPrefixSql(names: readonly string[]): string {
   return `do $bsb_rename$
@@ -52,6 +52,19 @@ begin
   loop
     begin
       execute format('alter trigger %I on %s rename to %I', r.name, r.rel, 'bsb_' || substr(r.name, 4));
+    exception when insufficient_privilege then
+      raise warning 'better-supabase: rename % to bsb_% by hand; the migration role does not own it', r.name, substr(r.name, 4);
+    end;
+  end loop;
+
+  for r in
+    select e.evtname as name
+    from pg_event_trigger e
+    where (e.evtname = any (v_names) or exists (select 1 from unnest(v_prefixes) x where starts_with(e.evtname, x)))
+      and not exists (select 1 from pg_event_trigger f where f.evtname = 'bsb_' || substr(e.evtname, 4))
+  loop
+    begin
+      execute format('alter event trigger %I rename to %I', r.name, 'bsb_' || substr(r.name, 4));
     exception when insufficient_privilege then
       raise warning 'better-supabase: rename % to bsb_% by hand; the migration role does not own it', r.name, substr(r.name, 4);
     end;

@@ -24,11 +24,15 @@ export interface RelayClientOptions {
   /** `fetch` for broadcasts; defaults to the global one. */
   readonly fetch?: typeof fetch;
   /**
-   * Milliseconds to wait for the first join before reporting `TIMED_OUT`.
-   * Defaults to 15000.
+   * Milliseconds from `subscribe()` to the first join. Until then, a failed
+   * attempt is retried with backoff; when the time is up, the channel reports
+   * `TIMED_OUT` and stops. Defaults to 15000.
    */
   readonly timeoutMs?: number;
-  /** The longest wait between reconnects after the relay refused. Defaults to 30000. */
+  /**
+   * The longest wait between reconnects after a stream closed or a join failed
+   * for a reason that may pass. Defaults to 30000.
+   */
   readonly maxBackoffMs?: number;
 }
 
@@ -100,6 +104,16 @@ function globalEventSource(): RelayEventSourceConstructor | undefined {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+async function problemDetail(response: Response): Promise<string> {
+  const problem: unknown = await response.json().catch(() => undefined);
+
+  return isRecord(problem) && typeof problem["detail"] === "string"
+    ? problem["detail"]
+    : isRecord(problem) && typeof problem["title"] === "string"
+      ? problem["title"]
+      : response.statusText;
+}
+
 /**
  * A Realtime client that joins topics through `realtimeRelay` on the server
  * instead of a browser connection with the user's token: for support sessions
@@ -145,16 +159,11 @@ export function relayRealtimeClient(
         return { success: true };
       }
 
-      const problem: unknown = await response.json().catch(() => undefined);
-
-      const detail =
-        isRecord(problem) && typeof problem["detail"] === "string"
-          ? problem["detail"]
-          : isRecord(problem) && typeof problem["title"] === "string"
-            ? problem["title"]
-            : response.statusText;
-
-      return { success: false, status: response.status, error: detail };
+      return {
+        success: false,
+        status: response.status,
+        error: await problemDetail(response),
+      };
     } catch (cause) {
       return {
         success: false,
@@ -164,8 +173,32 @@ export function relayRealtimeClient(
     }
   };
 
+  const failureOf = async (streamUrl: string): Promise<string | undefined> => {
+    const controller = new AbortController();
+
+    try {
+      const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+
+      const response = await doFetch(streamUrl, {
+        credentials: "include",
+        headers: { accept: "text/event-stream" },
+        signal: controller.signal,
+      });
+
+      return response.ok
+        ? undefined
+        : `${String(response.status)} ${await problemDetail(response)}`.trim();
+    } catch {
+      return undefined;
+    } finally {
+      controller.abort();
+    }
+  };
+
   const create = (name: string): RelayChannel => {
     const topic = `realtime:${name}`;
+    const separator = url.includes("?") ? "&" : "?";
+    const streamUrl = `${url}${separator}topic=${encodeURIComponent(name)}`;
     const listeners: Listener[] = [];
     let presence: Record<string, unknown[]> = {};
     let source: RelayEventSource | undefined;
@@ -173,6 +206,8 @@ export function relayRealtimeClient(
     let subscribed = false;
     let ending = false;
     let removed = false;
+    let stopped = false;
+    let failed = false;
     let backoff = 1000;
     let joinTimer: ReturnType<typeof setTimeout> | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -192,14 +227,45 @@ export function relayRealtimeClient(
       }
     };
 
+    const timedOut = (): void => {
+      if (subscribed || removed) {
+        return;
+      }
+
+      stopped = true;
+      clearTimeout(retryTimer);
+      source?.close();
+      source = undefined;
+
+      if (!failed) {
+        status?.("TIMED_OUT");
+
+        return;
+      }
+
+      void failureOf(streamUrl).then((failure) => {
+        if (!removed) {
+          status?.(
+            "TIMED_OUT",
+            new Error(
+              failure === undefined
+                ? `The relay could not join ${name}`
+                : `The relay could not join ${name}: ${failure}`,
+            ),
+          );
+        }
+      });
+    };
+
     const open = (): void => {
-      if (removed) {
+      if (removed || stopped) {
         return;
       }
 
       const Source = options.EventSource ?? globalEventSource();
 
       if (Source === undefined) {
+        clearTimeout(joinTimer);
         status?.(
           "CHANNEL_ERROR",
           new Error("relayRealtimeClient needs EventSource"),
@@ -208,21 +274,19 @@ export function relayRealtimeClient(
         return;
       }
 
-      const separator = url.includes("?") ? "&" : "?";
+      const next = new Source(streamUrl, { withCredentials: true });
+      let joined = false;
 
-      const next = new Source(
-        `${url}${separator}topic=${encodeURIComponent(name)}`,
-        { withCredentials: true },
-      );
+      const retry = (message: string): void => {
+        next.close();
+        source = undefined;
+        failed = true;
+        status?.("CHANNEL_ERROR", new Error(message));
+        retryTimer = setTimeout(open, backoff);
+        backoff = Math.min(backoff * 2, maxBackoffMs);
+      };
 
       source = next;
-      clearTimeout(joinTimer);
-
-      joinTimer = setTimeout(() => {
-        if (!subscribed && source === next) {
-          status?.("TIMED_OUT");
-        }
-      }, timeoutMs);
 
       next.addEventListener("status", (event) => {
         const data = parse(event);
@@ -234,6 +298,7 @@ export function relayRealtimeClient(
         if (data["status"] === "subscribed") {
           clearTimeout(joinTimer);
           subscribed = true;
+          joined = true;
           ending = false;
           backoff = 1000;
           status?.("SUBSCRIBED");
@@ -271,8 +336,25 @@ export function relayRealtimeClient(
         dispatch("presence", "sync", {});
       });
 
-      next.addEventListener("end", () => {
-        ending = true;
+      next.addEventListener("end", (event) => {
+        if (removed || source !== next) {
+          return;
+        }
+
+        if (joined) {
+          ending = true;
+
+          return;
+        }
+
+        const data = parse(event);
+
+        const reason =
+          isRecord(data) && typeof data["reason"] === "string"
+            ? data["reason"]
+            : "closed";
+
+        retry(`The relay could not join ${name} (${reason}); retrying`);
       });
 
       next.addEventListener("error", () => {
@@ -291,22 +373,11 @@ export function relayRealtimeClient(
           return;
         }
 
-        next.close();
-        source = undefined;
-
-        if (!subscribed) {
-          clearTimeout(joinTimer);
-          status?.("CHANNEL_ERROR", new Error(`The relay refused ${name}`));
-
-          return;
-        }
-
-        status?.(
-          "CHANNEL_ERROR",
-          new Error(`The relay closed ${name}; reconnecting`),
+        retry(
+          subscribed
+            ? `The relay closed ${name}; reconnecting`
+            : `The relay could not join ${name}; retrying`,
         );
-        retryTimer = setTimeout(open, backoff);
-        backoff = Math.min(backoff * 2, maxBackoffMs);
       });
     };
 
@@ -333,6 +404,7 @@ export function relayRealtimeClient(
         }
 
         status = callback ?? (() => undefined);
+        joinTimer = setTimeout(timedOut, timeoutMs);
         open();
 
         return channel;

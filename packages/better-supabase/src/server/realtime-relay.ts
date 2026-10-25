@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
-import type { DbError } from "../core/errors.ts";
+import type { DbError, DbErrorKind } from "../core/errors.ts";
 import type { ProblemFormat } from "../core/problem.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { Subscriber } from "../realtime/channels.ts";
@@ -48,7 +48,8 @@ export interface RelayAccessInput {
 
 /**
  * Decides whether the caller may receive or send on a topic. A throw or
- * rejection denies.
+ * rejection is a failure that may pass: a join ends with `unavailable` and the
+ * client retries, a send answers 503.
  */
 export type RelayAuthorize = (
   input: RelayAccessInput,
@@ -124,7 +125,8 @@ export type RelayEndReason =
   | "max_duration"
   | "overflow"
   | "closed"
-  | "upstream_error";
+  | "upstream_error"
+  | "unavailable";
 
 class Verdict extends Error {
   readonly allowed: boolean;
@@ -227,6 +229,11 @@ const frame = (event: string, data: unknown): Uint8Array =>
 
 const PING = encoder.encode(": ping\n\n");
 
+const TRANSIENT_AUTH: ReadonlySet<DbErrorKind> = new Set([
+  "network",
+  "unexpected",
+]);
+
 const STREAM_HEADERS = {
   "content-type": "text/event-stream; charset=utf-8",
   "cache-control": "no-store, no-transform",
@@ -309,10 +316,18 @@ export function realtimeRelay(
   const problem = (error: DbError): Response =>
     problemResponse(error, { format: options.problem });
 
+  const unavailableStream = (): Response =>
+    new Response(
+      `retry: ${String(retryMs)}\n\nevent: end\ndata: ${JSON.stringify({ reason: "unavailable" })}\n\n`,
+      { status: 200, headers: STREAM_HEADERS },
+    );
+
   const topicOf = (name: string): RelayTopic | undefined =>
     options.topics.find((each) => each.match(name) !== null);
 
-  const allowed = async (input: RelayAccessInput): Promise<boolean> => {
+  const allowed = async (
+    input: RelayAccessInput,
+  ): Promise<boolean | "unavailable"> => {
     try {
       if (authorize) {
         return await authorize(input);
@@ -330,7 +345,7 @@ export function realtimeRelay(
           })
         : false;
     } catch {
-      return false;
+      return "unavailable";
     }
   };
 
@@ -389,7 +404,13 @@ export function realtimeRelay(
     const { auth, support } = ctx;
 
     if (auth.kind === "invalid") {
-      return { refusal: ctx.apply(problem(auth.error)) };
+      return {
+        refusal: ctx.apply(
+          action === "receive" && TRANSIENT_AUTH.has(auth.error.kind)
+            ? unavailableStream()
+            : problem(auth.error),
+        ),
+      };
     }
 
     const signedIn = auth.kind !== "anon";
@@ -416,6 +437,18 @@ export function realtimeRelay(
             support,
             claims: claimsOf(auth, support),
           });
+
+    if (ok === "unavailable") {
+      return {
+        refusal: ctx.apply(
+          action === "receive"
+            ? unavailableStream()
+            : problem(
+                dbError("network", `Could not check access to "${name}"`),
+              ),
+        ),
+      };
+    }
 
     if (!ok) {
       return {

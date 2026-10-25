@@ -46,6 +46,16 @@ describe("legacyPrefixSql", () => {
     expect(sql).toMatch(/not exists/u);
   });
 
+  it("renames event triggers such as the audit block's sql_drop trigger", () => {
+    expect(sql).toContain("from pg_event_trigger e");
+    expect(sql).toContain(
+      "select 1 from pg_event_trigger f where f.evtname = 'bsb_' || substr(e.evtname, 4)",
+    );
+    expect(sql).toContain(
+      "execute format('alter event trigger %I rename to %I', r.name, 'bsb_' || substr(r.name, 4));",
+    );
+  });
+
   it("warns instead of failing on objects the migration role doesn't own", () => {
     expect(sql).toContain("exception when insufficient_privilege");
     expect(sql).toContain("raise warning");
