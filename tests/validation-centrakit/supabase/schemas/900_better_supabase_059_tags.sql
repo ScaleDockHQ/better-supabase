@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:07b5d9ccbfed92c4b13addfc2dcaac5d8bc3dc01f2ff73251d9a840267a2a51b
+-- @bsb-hash sha256:671d83895a41239587e35850575ca5488a31c56f15264a141410fb6cec1ce3b0
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,10 +73,8 @@ grant select on "centrakit"."organization_tags" to authenticated;
 grant all on "centrakit"."organization_tags" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text);
 drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, text, jsonb);
-create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text, slug text default null)
+create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
 security definer
@@ -84,7 +82,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_slug text := coalesce(create_tag.slug, trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g')));
+  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
   v_last text;
   v_rank text;
 begin
@@ -94,9 +92,6 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  if create_tag.slug is not null and create_tag.slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$' then
-    raise exception 'a slug is lowercase letters and digits joined by single hyphens' using errcode = '22023', hint = 'TAG_SLUG_INVALID';
-  end if;
   insert into "centrakit"."organization_tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
   values (create_tag.tenant, better_supabase.as_column_type(create_tag.kind, (null::"centrakit"."organization_tags")."kind"), create_tag.name, v_slug, create_tag.color, create_tag.description, now())
   returning "id" into v_id;
@@ -104,8 +99,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."create_tag"(uuid, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."tag"(tenant uuid, subject_type text, subject_id text, tag_id uuid)
 returns boolean
@@ -169,12 +164,8 @@ $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
 
-drop function if exists "better_supabase"."update_tag"(uuid, text);
 drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb, jsonb);
--- patch: name, slug, color, description and kind to set; a key that is
--- present sets its column, so null clears color or description.
-create or replace function "better_supabase"."update_tag"(tag_id uuid, name text, patch jsonb default null)
+create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
 security definer
@@ -193,24 +184,13 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  if update_tag.patch is not null and (jsonb_typeof(update_tag.patch) <> 'object'
-    or update_tag.patch ? 'slug' and coalesce(update_tag.patch ->> 'slug', '') !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
-    or update_tag.patch ? 'name' and nullif(trim(update_tag.patch ->> 'name'), '') is null
-    or update_tag.patch ? 'kind' and update_tag.patch ->> 'kind' is null) then
-    raise exception 'patch sets name, slug, color, description or kind; name, slug and kind can''t be empty' using errcode = '22023', hint = 'TAG_INVALID';
-  end if;
-  update "centrakit"."organization_tags" t set "name" = coalesce(update_tag.patch ->> 'name', update_tag.name, t."name"),
-    "slug" = case when update_tag.patch ? 'slug' then update_tag.patch ->> 'slug' else t."slug" end,
-    "color" = case when update_tag.patch ? 'color' then update_tag.patch ->> 'color' else t."color" end,
-    "description" = case when update_tag.patch ? 'description' then update_tag.patch ->> 'description' else t."description" end,
-    "kind" = case when update_tag.patch ? 'kind' then better_supabase.as_column_type(update_tag.patch ->> 'kind', (null::"centrakit"."organization_tags")."kind") else t."kind" end,
-    "updated_at" = now() where t."id" = update_tag.tag_id;
-  perform "better_supabase".emit_event('tag.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', coalesce(update_tag.patch ->> 'name', update_tag.name)), 'tags/' || update_tag.tag_id::text, (v_tenant)::text, null, 'domain');
+  update "centrakit"."organization_tags" t set "name" = coalesce(update_tag.name, t."name"), "updated_at" = now() where t."id" = update_tag.tag_id;
+  perform "better_supabase".emit_event('tag.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name), 'tags/' || update_tag.tag_id::text, (v_tenant)::text, null, 'domain');
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."update_tag"(uuid, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."update_tag"(uuid, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_tag"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_tag"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_tag"(tag_id uuid)
 returns boolean

@@ -48,7 +48,7 @@ const NAMES: BlockSqlNames = {
   entities: { team: { table: "teams", singular: "team", primary: true } },
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
-  options: ["teamIdType", "extraColumns"],
+  options: ["teamIdType", "extraColumns", "patch", "restore"],
   tables: {
     teams: {
       name: "teams",
@@ -137,6 +137,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const extras = ctx.extraColumns("teams", RESERVED);
   const extra = extraFieldsArg(extras);
   const required = insertExtraColumns(teams, extras, "create_team.fields");
+  const patching = ctx.flag("patch", false);
+  const restoring = ctx.flag("restore", false);
+
+  const derivedSlug =
+    "trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g'))";
 
   const drops = (fn: string, head: string, tails: readonly string[]) =>
     tails
@@ -218,8 +223,16 @@ $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
-${drops(fn("create_team"), `${ctx.idType}, text, text`, ["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"])}
-create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text, slug text default null${extra.param})
+${
+  patching
+    ? drops(fn("create_team"), `${ctx.idType}, text, text`, [
+        "",
+        ", jsonb",
+        extras.length === 0 ? ", text, jsonb" : ", text",
+      ])
+    : extra.drop(fn("create_team"), `${ctx.idType}, text, text`)
+}
+create or replace function ${fn("create_team")}(tenant ${ctx.idType}, name text, description text${patching ? ", slug text default null" : ""}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -227,12 +240,12 @@ set search_path = ''
 as $$
 declare
   v_id ${idType};
-  v_slug text := coalesce(create_team.slug, trim(both '-' from regexp_replace(lower(create_team.name), '[^a-z0-9]+', '-', 'g')));
+  v_slug text := ${patching ? `coalesce(create_team.slug, ${derivedSlug})` : derivedSlug};
 begin
   if not (${service(ctx)} or ${ctx.scope.can("create_team.tenant", create)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  if v_slug is null or v_slug = '' or (create_team.slug is not null and create_team.slug !~ ${SLUG}) then
+  if v_slug is null or v_slug = ''${patching ? ` or (create_team.slug is not null and create_team.slug !~ ${SLUG})` : ""} then
     ${fail("TEAM_SLUG_INVALID", "team name needs a slug", "22023")}
   end if;
   ${ctx.hook("before_team_create", [
@@ -250,12 +263,20 @@ begin
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_team")}(${ctx.idType}, text, text, text${extra.type})`)}
+${userGrant(`${fn("create_team")}(${ctx.idType}, text, text${patching ? ", text" : ""}${extra.type})`)}
 
-${drops(fn("update_team"), `${idType}, text, text`, ["", ", jsonb", ...(extras.length === 0 ? [", jsonb, jsonb"] : [])])}
+${
+  patching
+    ? `${drops(fn("update_team"), `${idType}, text, text`, [
+        "",
+        ", jsonb",
+        ...(extras.length === 0 ? [", jsonb, jsonb"] : []),
+      ])}
 -- patch: name, slug and description to set; a key that is present sets its
--- column, so null clears the description.
-create or replace function ${fn("update_team")}(team ${idType}, name text, description text, patch jsonb default null${extra.param})
+-- column, so null clears the description.`
+    : extra.drop(fn("update_team"), `${idType}, text, text`)
+}
+create or replace function ${fn("update_team")}(team ${idType}, name text, description text${patching ? ", patch jsonb default null" : ""}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -271,7 +292,9 @@ begin
   if not (${service(ctx)} or ${ctx.scope.can("v_tenant", update)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  if update_team.patch is not null and (jsonb_typeof(update_team.patch) <> 'object'
+${
+  patching
+    ? `  if update_team.patch is not null and (jsonb_typeof(update_team.patch) <> 'object'
     or update_team.patch ? 'slug' and coalesce(update_team.patch ->> 'slug', '') !~ ${SLUG}
     or update_team.patch ? 'name' and nullif(trim(update_team.patch ->> 'name'), '') is null) then
     ${fail("TEAM_INVALID", "patch sets name, slug or description; name and slug can't be empty", "22023")}
@@ -280,13 +303,18 @@ begin
   set ${name} = coalesce(update_team.patch ->> 'name', update_team.name, t.${name}),
       ${slug} = case when update_team.patch ? 'slug' then update_team.patch ->> 'slug' else t.${slug} end,
       ${description} = case when update_team.patch ? 'description' then update_team.patch ->> 'description' else coalesce(update_team.description, t.${description}) end,
-      ${updatedAt} = now()
+      ${updatedAt} = now()`
+    : `  update ${teams} as t
+  set ${name} = coalesce(update_team.name, t.${name}),
+      ${description} = coalesce(update_team.description, t.${description}),
+      ${updatedAt} = now()`
+}
   where t.${id} = update_team.team;${writeExtraColumns(teams, extras, "update_team.fields", `x.${id} = update_team.team`)}
   ${record(ctx, "team.updated", "update_team.team", "v_tenant", "update_team.name")}
   return ${extras.length === 0 ? "jsonb_build_object('id', update_team.team)" : `(select ${teamJson("x")} from ${teams} x where x.${id} = update_team.team)`};
 end;
 $$;
-${userGrant(`${fn("update_team")}(${idType}, text, text, jsonb${extra.type})`)}
+${userGrant(`${fn("update_team")}(${idType}, text, text${patching ? ", jsonb" : ""}${extra.type})`)}
 
 create or replace function ${fn("archive_team")}(team ${idType})
 returns boolean
@@ -310,7 +338,9 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_team")}(${idType})`)}
-
+${
+  restoring
+    ? `
 create or replace function ${fn("restore_team")}(team ${idType})
 returns boolean
 language plpgsql
@@ -333,7 +363,9 @@ begin
 end;
 $$;
 ${userGrant(`${fn("restore_team")}(${idType})`)}
-
+`
+    : ""
+}
 create or replace function ${fn("delete_team")}(team ${idType})
 returns boolean
 language plpgsql
@@ -573,16 +605,30 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_team",
-      args: ["{id}", "text", "text", "text", ...extra],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        ...(ctx.flag("patch", false) ? ["text"] : []),
+        ...extra,
+      ],
       returns: "jsonb",
     },
     {
       name: "update_team",
-      args: [id, "text", "text", "jsonb", ...extra],
+      args: [
+        id,
+        "text",
+        "text",
+        ...(ctx.flag("patch", false) ? ["jsonb"] : []),
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "archive_team", args: [id], returns: "boolean" },
-    { name: "restore_team", args: [id], returns: "boolean" },
+    ...(ctx.flag("restore", false)
+      ? [{ name: "restore_team", args: [id], returns: "boolean" }]
+      : []),
     { name: "delete_team", args: [id], returns: "boolean" },
     { name: "add_team_member", args: [id, "uuid"], returns: "boolean" },
     { name: "remove_team_member", args: [id, "uuid"], returns: "boolean" },

@@ -20,15 +20,16 @@ import { createTeams } from "better-supabase/blocks/teams";
 
 `options.teamIdType` is `uuid` (the default) or `bigint`. The inbox needs `uuid`.
 
-`create(organizationId, name, description?, fields?, { slug? })` takes the
-slug the app chose (lowercase letters and digits joined by single hyphens;
-`TEAM_SLUG_INVALID` otherwise) or derives it from the name.
-`update(id, name, description?, fields?, { slug?, description? })` changes
-the slug or description it names; `description: null` clears it, which the
-plain `description` argument can't. In SQL the change is the `patch jsonb`
-argument of `update_team`. `archive(id)` sets a team's status to `archived`
-and `restore(id)` back to `active`, recording `team.archived` and
-`team.restored`.
+With `blocks.teams.options.patch: true`, `create(organizationId, name,
+description?, fields?, { slug? })` takes the slug the app chose (lowercase
+letters and digits joined by single hyphens; `TEAM_SLUG_INVALID` otherwise)
+or derives it from the name, and `update(id, name, description?, fields?, {
+slug?, description? })` changes the slug or description it names;
+`description: null` clears it, which the plain `description` argument can't.
+In SQL they are the `slug` argument of `create_team` and the `patch jsonb`
+argument of `update_team`. `archive(id)` sets a team's status to `archived`;
+with `options.restore: true`, `restore(id)` sets it back to `active` through
+`restore_team` and records `team.restored`.
 
 ## Inbox
 

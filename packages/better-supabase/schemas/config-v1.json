@@ -6489,6 +6489,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "patch": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6537,6 +6541,14 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "patch": {
+                "type": "boolean",
+                "default": false
+              },
+              "restore": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

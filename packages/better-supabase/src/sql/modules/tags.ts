@@ -55,7 +55,7 @@ const NAMES: BlockSqlNames = {
   entities: { tag: { table: "tags", singular: "tag", primary: true } },
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
-  options: ["extraColumns"],
+  options: ["extraColumns", "patch"],
   tables: {
     tags: {
       name: "tags",
@@ -233,6 +233,10 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("tags", RESERVED);
   const extra = extraFieldsArg(extras);
   const required = insertExtraColumns(tags, extras, "create_tag.fields");
+  const patching = ctx.flag("patch", false);
+
+  const derivedSlug =
+    "trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'))";
 
   const tables = ctx.manages
     ? `create table if not exists ${tags} (
@@ -296,13 +300,17 @@ ${lockTable(taggings, { read: true })}
   return `${schemaPreamble(ctx)}
 ${tables}
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-${["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"]
-  .map(
-    (tail) =>
-      `drop function if exists ${fn("create_tag")}(${ctx.idType}, text, text, text, text${tail});`,
-  )
-  .join("\n")}
-create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text, slug text default null${extra.param})
+${
+  patching
+    ? ["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"]
+        .map(
+          (tail) =>
+            `drop function if exists ${fn("create_tag")}(${ctx.idType}, text, text, text, text${tail});`,
+        )
+        .join("\n")
+    : extra.drop(fn("create_tag"), `${ctx.idType}, text, text, text, text`)
+}
+create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text${patching ? ", slug text default null" : ""}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -310,16 +318,20 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_slug text := coalesce(create_tag.slug, trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g')));
+  v_slug text := ${patching ? `coalesce(create_tag.slug, ${derivedSlug})` : derivedSlug};
   v_last text;
   v_rank text;
 begin
   ${ctx.scope.bind("create_tag.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", create)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
-  end if;
+  end if;${
+    patching
+      ? `
   if create_tag.slug is not null and create_tag.slug !~ ${SLUG} then
     ${fail("TAG_SLUG_INVALID", "a slug is lowercase letters and digits joined by single hyphens", "22023")}
-  end if;
+  end if;`
+      : ""
+  }
 ${
   ranked
     ? `  select max(t.${rank} collate "C") into v_last from ${tags} t
@@ -341,7 +353,7 @@ ${
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)" : `(select jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank${extraFieldsJson("x", extras)}) from ${tags} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text, text${extra.type})`)}
+${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text${patching ? ", text" : ""}${extra.type})`)}
 
 create or replace function ${fn("tag")}(tenant ${ctx.idType}, subject_type text, subject_id text, tag_id uuid)
 returns boolean
@@ -406,14 +418,19 @@ end;
 $$;
 ${userGrant(`${fn("tag")}(${ctx.idType}, text, text, uuid)`)}
 
-${["", ", jsonb", ...(extras.length === 0 ? [", jsonb, jsonb"] : [])]
-  .map(
-    (tail) => `drop function if exists ${fn("update_tag")}(uuid, text${tail});`,
-  )
-  .join("\n")}
+${
+  patching
+    ? `${["", ", jsonb", ...(extras.length === 0 ? [", jsonb, jsonb"] : [])]
+        .map(
+          (tail) =>
+            `drop function if exists ${fn("update_tag")}(uuid, text${tail});`,
+        )
+        .join("\n")}
 -- patch: name, slug, color, description and kind to set; a key that is
--- present sets its column, so null clears color or description.
-create or replace function ${fn("update_tag")}(tag_id uuid, name text, patch jsonb default null${extra.param})
+-- present sets its column, so null clears color or description.`
+    : extra.drop(fn("update_tag"), "uuid, text")
+}
+create or replace function ${fn("update_tag")}(tag_id uuid, name text${patching ? ", patch jsonb default null" : ""}${extra.param})
 returns boolean
 language plpgsql
 security definer
@@ -429,7 +446,9 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", update)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  if update_tag.patch is not null and (jsonb_typeof(update_tag.patch) <> 'object'
+  ${
+    patching
+      ? `if update_tag.patch is not null and (jsonb_typeof(update_tag.patch) <> 'object'
     or update_tag.patch ? 'slug' and coalesce(update_tag.patch ->> 'slug', '') !~ ${SLUG}
     or update_tag.patch ? 'name' and nullif(trim(update_tag.patch ->> 'name'), '') is null
     or update_tag.patch ? 'kind' and update_tag.patch ->> 'kind' is null) then
@@ -440,10 +459,12 @@ begin
     ${color} = case when update_tag.patch ? 'color' then update_tag.patch ->> 'color' else t.${color} end,
     ${description} = case when update_tag.patch ? 'description' then update_tag.patch ->> 'description' else t.${description} end,
     ${kind} = case when update_tag.patch ? 'kind' then ${ctx.cast("tags", "kind", "update_tag.patch ->> 'kind'")} else t.${kind} end,
-    ${updatedAt} = now() where t.${id} = update_tag.tag_id;${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
+    ${updatedAt} = now() where t.${id} = update_tag.tag_id;`
+      : `update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;`
+  }${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
   ${ctx.record({
     type: "tag.updated",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', coalesce(update_tag.patch ->> 'name', update_tag.name))`,
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', ${patching ? "coalesce(update_tag.patch ->> 'name', update_tag.name)" : "update_tag.name"})`,
     subject: `'tags/' || update_tag.tag_id::text`,
     tenant: "v_tenant",
     audit: false,
@@ -451,7 +472,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("update_tag")}(uuid, text, jsonb${extra.type})`)}
+${userGrant(`${fn("update_tag")}(uuid, text${patching ? ", jsonb" : ""}${extra.type})`)}
 ${ranked ? rankTag(ctx, { tags, id, tenant, rank, updatedAt, manage: update }) : ""}
 create or replace function ${fn("delete_tag")}(tag_id uuid)
 returns boolean
@@ -632,7 +653,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_tag",
-      args: ["{id}", "text", "text", "text", "text", "text", ...extra],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...(ctx.flag("patch", false) ? ["text"] : []),
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },

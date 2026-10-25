@@ -211,7 +211,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   tasks:
     "archive_work_item create_work_item delete_work_item delete_work_item_checklist_item get_work_item list_work_item_checklist list_work_items save_iteration save_project save_work_item_checklist_item set_work_item_assignees update_work_items work_item_tree",
   teams:
-    "add_team_member archive_team create_team delete_team list_teams remove_team_member restore_team update_team",
+    "add_team_member archive_team create_team delete_team list_teams remove_team_member update_team",
   templates:
     "fork_template publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_list",
   "time-tracking":

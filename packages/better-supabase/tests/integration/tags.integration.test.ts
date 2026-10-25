@@ -105,9 +105,10 @@ describe.skipIf(!live)("tags", () => {
         },
         modules: {
           tags: {
+            schema: "tags_required_it",
             on: ["project"],
             permissions: { create: "tags.apply" },
-            options: { extraColumns: { icon: "text not null" } },
+            options: { extraColumns: { icon: "text not null" }, patch: true },
           },
         },
       });
@@ -121,25 +122,29 @@ describe.skipIf(!live)("tags", () => {
         [org, member.id, owner.id],
       );
 
-      const tags = createTags({ transport: sqlTransport(s.sql), tenant: org });
+      const tags = createTags({
+        transport: sqlTransport(s.sql),
+        tenant: org,
+        schema: "tags_required_it",
+      });
 
       await s.as(member);
 
       const hot = await s.value<{ id: string; slug: string }>(
-        `better_supabase.create_tag($1, 'project', 'Hot', null, null, 'hot-leads', '{"icon": "flame"}')`,
+        `tags_required_it.create_tag($1, 'project', 'Hot', null, null, 'hot-leads', '{"icon": "flame"}')`,
         [org],
       );
 
       expect(hot.slug).toBe("hot-leads");
       expect(
         await s.hint(
-          `select better_supabase.create_tag($1, 'project', 'Bad', null, null, 'Not A Slug', '{"icon": "x"}')`,
+          `select tags_required_it.create_tag($1, 'project', 'Bad', null, null, 'Not A Slug', '{"icon": "x"}')`,
           [org],
         ),
       ).toBe("TAG_SLUG_INVALID");
       expect(
         await s.hint(
-          "select better_supabase.create_tag($1, 'project', 'No icon', null, null)",
+          "select tags_required_it.create_tag($1, 'project', 'No icon', null, null)",
           [org],
         ),
       ).toMatch(/icon|null value/u);
@@ -163,7 +168,7 @@ describe.skipIf(!live)("tags", () => {
         description: string | null;
         icon: string;
       }>(
-        "select slug, color, description, icon from better_supabase.tags where id = $1",
+        "select slug, color, description, icon from tags_required_it.tags where id = $1",
         [hot.id],
       );
 

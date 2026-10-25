@@ -55,6 +55,7 @@ const RECORDED = (() => {
 const OPTIONAL = new Set([
   "field_value.viewed",
   "field_value.deleted",
+  "team.restored",
   "object.uploaded",
   "pipeline.stage_changed",
 ]);

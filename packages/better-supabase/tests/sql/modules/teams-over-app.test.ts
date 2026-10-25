@@ -58,7 +58,11 @@ const BLOCKS: AnyBlocksConfig = {
       delete: "team.delete",
       members: "team.update",
     },
-    options: { extraColumns: { icon_name: "text not null" } },
+    options: {
+      extraColumns: { icon_name: "text not null" },
+      patch: true,
+      restore: true,
+    },
   },
 };
 

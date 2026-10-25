@@ -74,13 +74,13 @@ describe("extraColumns on managed tables", () => {
   it("takes fields on the functions that write a positional row", () => {
     const sql = sqlOf("tags", { app_note: "text" });
     expect(sql).toContain(
-      'create_tag"(tenant uuid, kind text, name text, color text, description text, slug text default null, fields jsonb default null)',
+      'create_tag"(tenant uuid, kind text, name text, color text, description text, fields jsonb default null)',
     );
     expect(sql).toContain(
-      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, text);',
+      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text);',
     );
     expect(sqlOf("tags", undefined)).toContain(
-      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, text, jsonb);',
+      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);',
     );
   });
 

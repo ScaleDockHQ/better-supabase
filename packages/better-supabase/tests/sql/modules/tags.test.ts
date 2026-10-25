@@ -191,7 +191,9 @@ describe("tags module", () => {
   });
 
   it("takes a caller's slug and a patch that can clear nullable columns", () => {
-    const sql = sqlOf();
+    expect(sqlOf()).not.toContain("slug text default null");
+
+    const sql = sqlOf({ modules: { tags: { options: { patch: true } } } });
     expect(sql).toContain("slug text default null)");
     expect(sql).toContain("v_slug text := coalesce(create_tag.slug,");
     expect(sql).toContain("hint = 'TAG_SLUG_INVALID'");
