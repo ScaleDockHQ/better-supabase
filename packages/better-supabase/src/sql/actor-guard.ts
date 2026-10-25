@@ -76,13 +76,15 @@ function actorMayWriteExpression(layout: BlockSqlLayout): string {
 
 const BUILTIN_ACTOR_MAY_WRITE = "better_supabase.actor_may_write()";
 
+const BUILTIN_CALL = /(?<!\bfunction\s+)better_supabase\.actor_may_write\(\)/gi;
+
 /** Swaps the built-in for the provider template so a write never calls both. */
 function applyProviderCheck(sql: string, expression: string): string {
   if (expression === BUILTIN_ACTOR_MAY_WRITE) {
     return sql;
   }
 
-  return sql.replaceAll(BUILTIN_ACTOR_MAY_WRITE, `(${expression})`);
+  return sql.replaceAll(BUILTIN_CALL, `(${expression})`);
 }
 
 const WRITE = /\b(insert\s+into|update\s+(?:only\s+)?["a-z_]|delete\s+from)\b/i;
