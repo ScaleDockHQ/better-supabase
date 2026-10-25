@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:d1668cbb7d0b24091dafadda48bbc7069ced05d030d97221997ceac044f4aa2f
+-- @bsb-hash sha256:a20f4889ca8186b2be2e2bcf2eee9c3aba659cb6ab265ba2a0e7abef0d8e5ba2
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,8 +98,9 @@ alter table "centrakit"."organization_invitations" add column if not exists "inv
 alter table "centrakit"."organization_invitations" add column if not exists "created_at" timestamptz not null default now();
 alter table "centrakit"."organization_invitations" add column if not exists "declined_at" timestamptz;
 
-create unique index if not exists platform_invitations_open_email_idx
-  on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null;
+drop index if exists "centrakit".platform_invitations_open_email_idx;
+create unique index if not exists invitations_platform_open_email_idx
+  on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "organization_id" is null;
 alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "centrakit"."organization_invitations";
 create trigger bsb_updated_at before update on "centrakit"."organization_invitations"

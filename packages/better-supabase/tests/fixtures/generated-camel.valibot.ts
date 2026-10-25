@@ -218,7 +218,6 @@ export const organizationsRow: v.GenericSchema<RowOf<'organizations'>> = v.pipe(
   slug: v.string(),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
-  stripeCustomerId: v.nullable(v.string()),
 }), v.title("Organizations"));
 export const organizationsInsert: v.GenericSchema<InsertOf<'organizations'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -226,7 +225,6 @@ export const organizationsInsert: v.GenericSchema<InsertOf<'organizations'>> = v
   slug: v.string(),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-  stripeCustomerId: v.exactOptional(v.nullable(v.string())),
 }), v.title("Organizations insert"));
 export const organizationsUpdate: v.GenericSchema<UpdateOf<'organizations'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -234,7 +232,6 @@ export const organizationsUpdate: v.GenericSchema<UpdateOf<'organizations'>> = v
   slug: v.exactOptional(v.string()),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-  stripeCustomerId: v.exactOptional(v.nullable(v.string())),
 }), v.title("Organizations update"));
 
 export const planFeaturesRow: v.GenericSchema<RowOf<'planFeatures'>> = v.pipe(v.object({

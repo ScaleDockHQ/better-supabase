@@ -2069,6 +2069,33 @@ describe("block policy widens an app table's access (BS347)", () => {
     ).toEqual([expect.stringContaining("has no update, delete policy")]);
   });
 
+  it("leaves the tables of a block with ownTablePolicies app alone", async () => {
+    const configs: BetterSupabaseConfig[] = [
+      {
+        blocks: {
+          teams: { tables: { teams: "public.notes" }, ownTablePolicies: "app" },
+        },
+      },
+      { ...config, database: { sql: { ownTablePolicies: "app" } } },
+    ];
+
+    for (const app of configs) {
+      const findings = await run(
+        "BS347",
+        context(
+          withPolicies(
+            policy("notes_owner", "select", "(owner_id = auth.uid())"),
+            policy("bsb_notes_select", "select", tenantRead),
+          ),
+          {},
+          app,
+        ),
+      );
+
+      expect(findings).toEqual([]);
+    }
+  });
+
   it("leaves one app policy next to the block's to BS347, not BS207", async () => {
     for (const app of [
       policy("notes_owner", "select", "(owner_id = auth.uid())"),
@@ -2173,6 +2200,81 @@ ${trigger}`;
     );
 
     expect(await run("BS348", rooted())).toEqual([]);
+  });
+});
+
+describe("app table governs its policies but lacks one (BS350)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-bs350-"));
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20260101000000_app.sql"),
+      `create table public.orgs (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);`,
+    );
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const withOrgs = (rls: boolean, commands: readonly string[]) =>
+    snapshot((tables) => {
+      const orgs = structuredClone(table(tables, "notes"));
+      orgs.id = 9_000_101;
+      orgs.name = "orgs";
+      orgs.rls = rls;
+      orgs.policies = commands.map((command) => ({
+        name: `orgs_${command}`,
+        command: command as "select",
+        roles: ["authenticated"],
+        permissive: true,
+        using: "true",
+        check: null,
+      }));
+      tables.push(orgs);
+    });
+
+  const rooted = (
+    snap: Snapshot,
+    ownTablePolicies: "app" | "block",
+  ): DoctorContext => ({
+    ...context(snap),
+    config: resolveConfig(
+      {
+        blocks: {
+          organizations: {
+            tables: { organizations: "public.orgs" },
+            ownTablePolicies,
+          },
+        },
+      },
+      root,
+    ),
+  });
+
+  it("reports a command the app has no policy for", async () => {
+    expect(await run("BS350", rooted(withOrgs(true, []), "app"))).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        target: "public.orgs",
+        message: expect.stringContaining("no permissive policy for select"),
+      }),
+    ]);
+  });
+
+  it("passes the app's own policy, RLS off and ownTablePolicies block", async () => {
+    expect(await run("BS350", rooted(withOrgs(true, ["all"]), "app"))).toEqual(
+      [],
+    );
+    expect(await run("BS350", rooted(withOrgs(false, []), "app"))).toEqual([]);
+    expect(await run("BS350", rooted(withOrgs(true, []), "block"))).toEqual([]);
   });
 });
 

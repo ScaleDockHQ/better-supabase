@@ -165,12 +165,12 @@ export const serializeNotesSearchParams: ReturnType<typeof createSerializer<type
 
 /** Search params for a list of `organizations`: filters, order, cursor and page size. */
 export const organizationsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "createdAt" | "updatedAt" | "stripeCustomerId">;
+  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "createdAt" | "updatedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "name", "slug", "createdAt", "updatedAt", "stripeCustomerId"] as const),
+  orderBy: parseAsStringLiteral(["id", "name", "slug", "createdAt", "updatedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

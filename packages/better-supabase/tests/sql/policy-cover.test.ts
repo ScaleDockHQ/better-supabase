@@ -7,6 +7,7 @@ import {
   declaredPolicies,
   parsePolicy,
   widenedCommands,
+  withoutAppTablePolicies,
   withoutCoveredPolicies,
 } from "../../src/sql/policy-cover.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
@@ -239,5 +240,108 @@ create policy bsb_u_select on public.u for select to authenticated using (true);
     expect(covered).toContain(
       "drop policy if exists bsb_organizations_select on",
     );
+  });
+});
+
+describe("withoutAppTablePolicies", () => {
+  it("leaves out the block's permissive and restrictive policies on the app's tables", () => {
+    const sql = `${BLOCK}create policy bsb_tenant_scope on public.organizations as restrictive for all to authenticated using (true);
+create policy bsb_teams_all on public.teams for all to authenticated using (true) with check (true);
+`;
+
+    expect(withoutAppTablePolicies(sql, new Set(["public.organizations"])))
+      .toBe(`drop policy if exists bsb_organizations_select on "public"."organizations";
+-- public.organizations: the app's policies govern this table (ownTablePolicies "app"), so the block adds no bsb_organizations_select for select.
+-- public.organizations: the app's policies govern this table (ownTablePolicies "app"), so the block adds no restrictive bsb_tenant_scope.
+create policy bsb_teams_all on public.teams for all to authenticated using (true) with check (true);
+`);
+  });
+
+  it("names every command a for all policy would have granted", () => {
+    expect(
+      withoutAppTablePolicies(
+        "create policy bsb_t_all on public.t for all to authenticated using (true);",
+        new Set(["public.t"]),
+      ),
+    ).toContain("adds no bsb_t_all for select, insert, update, delete.");
+  });
+
+  it("keeps everything without app tables", () => {
+    expect(withoutAppTablePolicies(BLOCK, new Set())).toBe(BLOCK);
+  });
+
+  it("renders a block with ownTablePolicies app without its policies on the app's table", () => {
+    const contents = (ownTablePolicies?: "app" | "block") => {
+      const modules = {
+        organizations:
+          ownTablePolicies === undefined ? {} : { ownTablePolicies },
+      };
+
+      return renderBlocks(["organizations"], {
+        modules,
+        ownTables: ownTablesOf(modules, ["organizations"]),
+      })
+        .filter((file) => file.kind === "schema")
+        .map((file) => file.contents)
+        .join("\n");
+    };
+
+    expect(contents()).toContain("create policy bsb_organizations_select");
+    expect(contents("block")).toBe(contents());
+
+    const app = contents("app");
+
+    expect(app).not.toContain("create policy bsb_organizations_select");
+    expect(app).toContain("drop policy if exists bsb_organizations_select on");
+    expect(app).toMatch(
+      /-- \S+\.organizations: the app's policies govern this table \(ownTablePolicies "app"\), so the block adds no bsb_organizations_select for select\./,
+    );
+    expect(app).toContain("create or replace function");
+  });
+
+  it("leaves the tenant scope off the app's memberships table, and drops an earlier copy", () => {
+    const modules = { memberships: { ownTablePolicies: "app" as const } };
+    const ownTables = ownTablesOf(modules, ["memberships"]);
+
+    const table = Object.keys(ownTables).find((name) =>
+      name.endsWith(".memberships"),
+    )!;
+
+    const [schema, name] = table.split(".");
+    const quoted = `"${schema}"."${name}"`;
+
+    const contents = (layout: Parameters<typeof renderBlocks>[1]) =>
+      renderBlocks(["memberships"], layout)
+        .filter((file) => file.kind === "schema")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const app = contents({ modules, ownTables });
+
+    expect(contents({ modules: {}, ownTables })).toContain(
+      `create policy bsb_tenant_scope on ${quoted}`,
+    );
+    expect(app).not.toContain(`create policy bsb_tenant_scope on ${quoted}`);
+    expect(app).not.toMatch(
+      new RegExp(`create policy bsb_\\w+ on ${quoted.replaceAll(".", "\\.")}`),
+    );
+    expect(app).toContain(
+      `drop policy if exists bsb_tenant_scope on ${quoted}`,
+    );
+    expect(app).toContain(
+      `-- ${table}: the app's policies govern this table (ownTablePolicies "app"), so the block adds no restrictive bsb_tenant_scope.`,
+    );
+  });
+
+  it("keeps the policies on the block's own tables with ownTablePolicies app", () => {
+    const modules = { organizations: { ownTablePolicies: "app" as const } };
+
+    const contents = renderBlocks(["organizations"], { modules })
+      .filter((file) => file.kind === "schema")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(contents).toContain("create policy bsb_organizations_read");
+    expect(contents).not.toContain("the app's policies govern");
   });
 });

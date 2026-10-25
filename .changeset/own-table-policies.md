@@ -1,0 +1,9 @@
+---
+"better-supabase": minor
+---
+
+Add `ownTablePolicies` to keep blocks' policies off your own tables. Set `database.sql.ownTablePolicies: "app"` for every block, or `blocks.<name>.ownTablePolicies` for one, which wins. With `app`, a block that runs over a table your schema creates adds none of its `bsb_<table>_<command>` policies there, even where none of your policies repeats its condition, and no restrictive `bsb_tenant_scope` either, so your policies alone decide who reaches the rows (a platform permission that reads across organizations keeps working). It still writes its functions, triggers, indexes and grants. Its file keeps the `drop policy if exists` and a comment that your policies govern the table, so `upgrade` removes the copies an earlier install left. The default, `block`, keeps the behaviour since 0.15. Doctor skips such tables in BS347, and the new BS350 (info) reports one with row level security on but no permissive policy for a command the block's policies would have granted.
+
+The `organizations` block adds its `stripe_customer_id text unique` column only when the entitlements block reads the Stripe customer from it: not with a `plans` or `custom` source, a configured `auth.entitlements.customer`, or the managed `billing` block's customers table. `upgrade` leaves the column out of the block's file, so the next schema diff drops an unused one.
+
+When tenant and platform invitations share one table (`blocks.invitations.tables.platformInvitations` names the tenant table), the platform invitations' open-email unique index is limited to rows without a tenant, so a person can hold open invitations to several organizations at once. The block's file drops the old `platform_invitations_open_email_idx` and creates `invitations_platform_open_email_idx` in its place.

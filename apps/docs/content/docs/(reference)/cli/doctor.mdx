@@ -1392,7 +1392,11 @@ drop the `bsb_` policy in a schema file that runs after the block's. Your
 policy and the block's for the same command don't also count as an overlap
 under [BS207](#bs207). When one of your policies covers the block's in this
 sense, `upgrade` leaves the block's policy out of its file and says so in a
-comment, so Postgres doesn't evaluate two policies for the same rows.
+comment, so Postgres doesn't evaluate two policies for the same rows. When
+your policies should govern the table on their own, set `ownTablePolicies:
+"app"` on the block or in `database.sql`: the block then adds no `bsb_`
+policy there, and doctor doesn't report the table (see
+[keeping your own policies](/docs/blocks/own-schemas#keeping-your-own-policies)).
 
 ### BS348
 
@@ -1415,6 +1419,17 @@ under the view, add `instead of` triggers, or map the block's table to a table.
 See [Blocks over your schemas](/docs/blocks/own-schemas#views).
 
 ## Auth config
+
+### BS350
+
+**Info: app table governs its policies but lacks one for a command.** A
+block runs over one of your tables with `ownTablePolicies: "app"`, so it adds
+none of its `bsb_` policies there, and the table has row level
+security on but no permissive policy for a command one of those policies
+would have granted. Postgres denies that command to every caller, so the
+block's functions that run as the caller and its TypeScript API find no rows
+for it. Add your own policy for each command your app uses, or set
+`ownTablePolicies` back to `block` for that block.
 
 ### BS401
 

@@ -103,6 +103,32 @@ describe("entitlements sources", () => {
     expect(sql).not.toContain("better_supabase.organizations");
   });
 
+  it("adds the organizations customer column only when entitlements read it", () => {
+    const organizations = (layout: Parameters<typeof renderBlocks>[1]) =>
+      renderBlocks(["entitlements", "organizations"], layout).find(
+        (file) => file.module === "organizations" && file.kind === "schema",
+      )!.contents;
+
+    const column = "add column if not exists stripe_customer_id text unique;";
+
+    expect(organizations({})).toContain(column);
+    expect(
+      organizations({ entitlements: { key: "id", source: PLANS } }),
+    ).not.toContain(column);
+    expect(
+      organizations({ entitlements: { key: "id", source: "custom" } }),
+    ).not.toContain(column);
+    expect(
+      organizations({
+        entitlements: {
+          table: "public.billing_customers",
+          column: "customer",
+          key: "organization_id",
+        },
+      }),
+    ).not.toContain(column);
+  });
+
   it("renders a plan catalog without status or included columns", () => {
     const sql = entitlements({
       plans: {

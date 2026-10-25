@@ -31,6 +31,10 @@ export function widenedAppTablePolicies(
   const modules = new Map<string, Set<string>>();
 
   for (const table of tables) {
+    if (context.config.blocks[table.module]?.ownTablePolicies === "app") {
+      continue;
+    }
+
     const target = `${table.schema}.${table.table}`;
     modules.set(target, (modules.get(target) ?? new Set()).add(table.module));
   }
@@ -75,6 +79,79 @@ export function widenedAppTablePolicies(
           },
         ];
       });
+  });
+}
+
+const APP_POLICIES =
+  /^-- (\S+): the app's policies govern this table \(ownTablePolicies "app"\), so the block adds no (\S+) for ([a-z, ]+)\.$/gm;
+
+export async function appTablesWithoutPolicies(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const states = await moduleFiles(context);
+
+  const left = new Map<
+    string,
+    { readonly blocks: Set<string>; readonly commands: Set<string> }
+  >();
+
+  for (const { file } of states) {
+    if (file.kind !== "schema") {
+      continue;
+    }
+
+    for (const [, target = "", , commands = ""] of file.contents.matchAll(
+      APP_POLICIES,
+    )) {
+      const entry = left.get(target) ?? {
+        blocks: new Set<string>(),
+        commands: new Set<string>(),
+      };
+
+      entry.blocks.add(`blocks.${file.instance ?? file.module}`);
+
+      for (const command of commands.split(", ")) {
+        entry.commands.add(command);
+      }
+
+      left.set(target, entry);
+    }
+  }
+
+  if (left.size === 0) {
+    return [];
+  }
+
+  return catalogOf(context).tables.flatMap((table): FindingInput[] => {
+    const target = qualified(table);
+    const entry = left.get(target);
+
+    if (entry === undefined || !table.rls) {
+      return [];
+    }
+
+    const missing = [...entry.commands].filter(
+      (command) =>
+        !table.policies.some(
+          (policy) =>
+            policy.permissive &&
+            (policy.command === "all" || policy.command === command),
+        ),
+    );
+
+    if (missing.length === 0) {
+      return [];
+    }
+
+    const blocks = [...entry.blocks].join(" and ");
+
+    return [
+      {
+        message: `${blocks} leaves the policies on ${target} to the app's (ownTablePolicies "app"), and ${target} has row level security on but no permissive policy for ${missing.join(", ")}, which the block's own policies would have granted. Postgres then denies those commands to every caller, so the block's functions that run as the caller and its TypeScript API find no rows for them. Add the app's policy for each command the app uses, or set ownTablePolicies to "block" for this block.`,
+        target,
+        object: { kind: "table", schema: table.schema, name: table.name },
+      },
+    ];
   });
 }
 

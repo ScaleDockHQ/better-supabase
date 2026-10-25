@@ -121,6 +121,35 @@ export function customerSource(
   );
 }
 
+export function readsOrganizationCustomer(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): boolean {
+  if (
+    !ctx.installed("entitlements") ||
+    (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync"
+  ) {
+    return false;
+  }
+
+  let source: ReturnType<typeof customerSource>;
+
+  try {
+    source = customerSource(ctx.of("entitlements"), layout);
+  } catch {
+    return false;
+  }
+
+  const organizations = ctx.tableName("organizations");
+  const [schema, table] = splitTable(source.table);
+
+  return (
+    source.column === ORGANIZATION_CUSTOMER_COLUMN &&
+    schema === organizations.schema &&
+    table === organizations.name
+  );
+}
+
 export function entitlementsSource(
   source: Required<Omit<EntitlementsSource, "source" | "claim">> & {
     readonly deferred: boolean;

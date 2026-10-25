@@ -102,7 +102,10 @@ function blocksOf(
   ];
 
   const resolved =
-    Array.isArray(blocks) && sql.schema === undefined && sql.api === undefined
+    Array.isArray(blocks) &&
+    sql.schema === undefined &&
+    sql.api === undefined &&
+    sql.ownTablePolicies === undefined
       ? {}
       : blocksByName(instances);
 
@@ -129,12 +132,15 @@ function blocksOf(
  * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
-  const { schema, api } = sql;
+  const { schema, api, ownTablePolicies } = sql;
 
   return {
     ...block,
     ...(schema === undefined || block.schema !== undefined ? {} : { schema }),
     ...(api === undefined || block.api !== undefined ? {} : { api }),
+    ...(ownTablePolicies === undefined || block.ownTablePolicies !== undefined
+      ? {}
+      : { ownTablePolicies }),
   };
 }
 

@@ -214,7 +214,6 @@ export const organizationsRow: z.ZodMiniType<RowOf<'organizations'>> = z.object(
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-  stripeCustomerId: z.nullable(z.string()),
 }).check(z.meta({ title: "Organizations" }));
 export const organizationsInsert: z.ZodMiniType<InsertOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -222,7 +221,6 @@ export const organizationsInsert: z.ZodMiniType<InsertOf<'organizations'>> = z.o
   slug: z.string(),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
-  stripeCustomerId: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations insert" }));
 export const organizationsUpdate: z.ZodMiniType<UpdateOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -230,7 +228,6 @@ export const organizationsUpdate: z.ZodMiniType<UpdateOf<'organizations'>> = z.o
   slug: z.exactOptional(z.string()),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
-  stripeCustomerId: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations update" }));
 
 export const planFeaturesRow: z.ZodMiniType<RowOf<'planFeatures'>> = z.object({

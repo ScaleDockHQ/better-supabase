@@ -363,6 +363,58 @@ const POLICY_EDIT = new RegExp(
   "i",
 );
 
+type BlockPolicy = NonNullable<ReturnType<typeof parsePolicy>>;
+
+function withoutBlockPolicies(
+  sql: string,
+  skip: (parsed: BlockPolicy) => string | undefined,
+  restrictive = false,
+): string {
+  const masked = maskComments(sql);
+  const skipped = new Set<string>();
+
+  const statements = statementSpans(sql).map(([from, to]) => ({
+    text: sql.slice(from, to),
+    masked: masked.slice(from, to),
+  }));
+
+  const kept = statements.map(({ text, masked: statement }) => {
+    const parsed = parsePolicy(statement);
+
+    if (
+      parsed === undefined ||
+      !parsed.policy.name.startsWith(BLOCK_PREFIX) ||
+      !(parsed.policy.permissive || restrictive)
+    ) {
+      return text;
+    }
+
+    const comment = skip(parsed);
+
+    if (comment === undefined) {
+      return text;
+    }
+
+    skipped.add(`${parsed.table}\u0000${parsed.policy.name}`);
+
+    const start = statement.search(/\S/);
+    const lead = text.slice(0, start === -1 ? 0 : start).trimEnd();
+
+    return `${lead}\n-- ${parsed.table}: ${comment}`;
+  });
+
+  return statements
+    .map(({ masked: statement }, index) => {
+      const edit = POLICY_EDIT.exec(statement);
+
+      return edit !== null &&
+        skipped.has(`${qualified(edit[2]!)}\u0000${unquote(edit[1]!)}`)
+        ? ""
+        : kept[index]!;
+    })
+    .join("");
+}
+
 /**
  * `sql` without the block's permissive `bsb_` policies that the app's own
  * policies on the same table already cover for every command they grant (the
@@ -379,59 +431,50 @@ export function withoutCoveredPolicies(
     return sql;
   }
 
-  const masked = maskComments(sql);
-  const skipped = new Set<string>();
-
-  const statements = statementSpans(sql).map(([from, to]) => ({
-    text: sql.slice(from, to),
-    masked: masked.slice(from, to),
-  }));
-
-  const kept = statements.map(({ text, masked: statement }) => {
-    const parsed = parsePolicy(statement);
-
-    if (
-      parsed === undefined ||
-      !parsed.policy.name.startsWith(BLOCK_PREFIX) ||
-      !parsed.policy.permissive
-    ) {
-      return text;
-    }
-
-    const apps = (ownPolicies[parsed.table] ?? []).filter(
-      (policy) => !policy.name.startsWith(BLOCK_PREFIX),
+  return withoutBlockPolicies(sql, ({ table, policy }) => {
+    const apps = (ownPolicies[table] ?? []).filter(
+      (own) => !own.name.startsWith(BLOCK_PREFIX),
     );
 
     const covering = COMMANDS.filter((command) =>
-      coversCommand(parsed.policy, command),
-    ).map((command) => coveringPolicy(parsed.policy, apps, command));
+      coversCommand(policy, command),
+    ).map((command) => coveringPolicy(policy, apps, command));
 
     if (covering.length === 0 || covering.includes(undefined)) {
-      return text;
+      return;
     }
 
-    skipped.add(`${parsed.table}\u0000${parsed.policy.name}`);
+    const names = [...new Set(covering.map((own) => own!.name))].join(" and ");
 
-    const names = [...new Set(covering.map((policy) => policy!.name))].join(
-      " and ",
-    );
-
-    const start = statement.search(/\S/);
-    const lead = text.slice(0, start === -1 ? 0 : start).trimEnd();
-
-    return `${lead}\n-- ${parsed.table}: the app's policy ${names} already allows what ${parsed.policy.name} would, so the block adds none.`;
+    return `the app's policy ${names} already allows what ${policy.name} would, so the block adds none.`;
   });
+}
 
-  return statements
-    .map(({ masked: statement }, index) => {
-      const edit = POLICY_EDIT.exec(statement);
+export function withoutAppTablePolicies(
+  sql: string,
+  tables: ReadonlySet<string>,
+): string {
+  if (tables.size === 0) {
+    return sql;
+  }
 
-      return edit !== null &&
-        skipped.has(`${qualified(edit[2]!)}\u0000${unquote(edit[1]!)}`)
-        ? ""
-        : kept[index]!;
-    })
-    .join("");
+  return withoutBlockPolicies(
+    sql,
+    ({ table, policy }) => {
+      if (!tables.has(table)) {
+        return;
+      }
+
+      const govern = `the app's policies govern this table (ownTablePolicies "app"), so the block adds no`;
+
+      return policy.permissive
+        ? `${govern} ${policy.name} for ${COMMANDS.filter((command) =>
+            coversCommand(policy, command),
+          ).join(", ")}.`
+        : `${govern} restrictive ${policy.name}.`;
+    },
+    true,
+  );
 }
 
 const DROP_POLICY = new RegExp(

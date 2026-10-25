@@ -1,5 +1,5 @@
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -16,7 +16,10 @@ import {
   raise,
   triggerGrant,
 } from "../shared.ts";
-import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
+import {
+  ORGANIZATION_CUSTOMER_COLUMN,
+  readsOrganizationCustomer,
+} from "./entitlements-source.ts";
 import { activeTenantSource, roleNameOf } from "./memberships.ts";
 import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
@@ -160,7 +163,11 @@ function idColumn(ctx: BlockSqlContext, column: string): string {
   }
 }
 
-function table(ctx: BlockSqlContext, n: OrganizationNames): string {
+function table(
+  ctx: BlockSqlContext,
+  n: OrganizationNames,
+  layout: BlockSqlLayout,
+): string {
   if (!ctx.manages) {
     return `
 -- Adopted: ${n.organization} belongs to the app (blocks.organizations.tables.organizations).
@@ -189,7 +196,7 @@ create table if not exists ${n.organization} (
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );${addExtraColumns(n.organization, organizationExtraColumns(ctx))}
 ${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists ${ctx.naming.rename("organizations_created_by_idx")} on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
-    ctx.installed("entitlements")
+    readsOrganizationCustomer(ctx, layout)
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
 alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_COLUMN} text unique;
 `
@@ -907,7 +914,10 @@ const functionsOf = (
       ] as const)),
 ];
 
-function organizationsSql(ctx: BlockSqlContext): string {
+function organizationsSql(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const n = namesOf(ctx);
 
   const grants = functionsOf(ctx, ctx.idType)
@@ -921,7 +931,7 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     .join("\n");
 
   return `${schemaPreamble(ctx)}
-${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${organizationDeletion(
+${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${organizationDeletion(
     ctx,
     n,
     { platformOverride: platformOverride(ctx, "deletePlatform"), event },

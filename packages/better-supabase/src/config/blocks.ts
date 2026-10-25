@@ -31,6 +31,8 @@ export type BlockScope = "tenant" | "user" | "none";
 
 export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
 
+export type OwnTablePolicies = "block" | "app";
+
 /**
  * A new name for one of a block's entities: its singular `name`, an irregular
  * plural and, for an entity the block registers as a subject, the URL of one
@@ -131,6 +133,7 @@ export interface BlockConfig<
   readonly idType?: string;
   /** Who the block's rows belong to. Defaults to `sql.scope`, then `tenant`. */
   readonly scope?: BlockScope;
+  readonly ownTablePolicies?: OwnTablePolicies;
   /**
    * Function name to the name the module writes it under, e.g. `{
    * create_organization: 'start_company' }`. Keys are the default names; an
@@ -401,6 +404,7 @@ export interface ResolvedBlock {
   >;
   readonly idType?: string;
   readonly scope?: BlockScope;
+  readonly ownTablePolicies: OwnTablePolicies;
   readonly functions: Readonly<Record<string, string>>;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
@@ -442,6 +446,7 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
     ),
     ...(config.idType === undefined ? {} : { idType: config.idType }),
     ...(config.scope === undefined ? {} : { scope: config.scope }),
+    ownTablePolicies: config.ownTablePolicies ?? "block",
     functions: defined(config.functions),
     permissions: defined(config.permissions),
     options: config.options ?? {},

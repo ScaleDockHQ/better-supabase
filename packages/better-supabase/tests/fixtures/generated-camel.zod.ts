@@ -214,7 +214,6 @@ export const organizationsRow: z.ZodType<RowOf<'organizations'>> = z.object({
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-  stripeCustomerId: z.string().nullable(),
 }).meta({ title: "Organizations" });
 export const organizationsInsert: z.ZodType<InsertOf<'organizations'>> = z.object({
   id: z.guid().exactOptional(),
@@ -222,7 +221,6 @@ export const organizationsInsert: z.ZodType<InsertOf<'organizations'>> = z.objec
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-  stripeCustomerId: z.string().nullable().exactOptional(),
 }).meta({ title: "Organizations insert" });
 export const organizationsUpdate: z.ZodType<UpdateOf<'organizations'>> = z.object({
   id: z.guid().exactOptional(),
@@ -230,7 +228,6 @@ export const organizationsUpdate: z.ZodType<UpdateOf<'organizations'>> = z.objec
   slug: z.string().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-  stripeCustomerId: z.string().nullable().exactOptional(),
 }).meta({ title: "Organizations update" });
 
 export const planFeaturesRow: z.ZodType<RowOf<'planFeatures'>> = z.object({

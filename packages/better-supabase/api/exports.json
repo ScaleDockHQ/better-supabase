@@ -361,6 +361,7 @@
       "NuqsGeneratorOptions",
       "OpenApiConfig",
       "OrganizationConfig",
+      "OwnTablePolicies",
       "Privilege",
       "RealtimeConfig",
       "RelationsConfig",

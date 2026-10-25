@@ -14,6 +14,7 @@ import {
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
+import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { appTablesOf, appViewsOf } from "./app-tables.ts";
 import { catalogOf, qualified } from "./shared.ts";
 
@@ -285,6 +286,14 @@ export const ADOPTION_RULES: readonly Rule[] = [
           target: view.view,
         }));
     },
+  },
+  {
+    code: "BS350",
+    severity: "info",
+    title: "App table governs its policies but lacks one for a command",
+    description:
+      "A block runs over a table of the app's with `ownTablePolicies: \"app\"`, so it adds none of its `bsb_` policies there, and the table has row level security on but no permissive policy for a command one of those policies would have granted. Postgres denies that command to every caller, so the block's functions that run as the caller and its TypeScript API find no rows for it. Add the app's own policy for each command the app uses, or set `ownTablePolicies` back to `block` for the block.",
+    check: appTablesWithoutPolicies,
   },
   {
     code: "BS341",

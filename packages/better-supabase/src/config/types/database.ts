@@ -3,7 +3,7 @@ import type {
   BucketPolicyName,
 } from "../../schema/types.ts";
 import type { BucketLifecycle } from "../../storage/versioning.ts";
-import type { BlockScope } from "../blocks.ts";
+import type { BlockScope, OwnTablePolicies } from "../blocks.ts";
 
 export interface BucketConfig {
   readonly id?: string;
@@ -66,6 +66,7 @@ export interface SqlConfig {
    * every signed-in user reads and writes).
    */
   readonly scope?: BlockScope;
+  readonly ownTablePolicies?: OwnTablePolicies;
 }
 
 /** `sql` with defaults applied. */
