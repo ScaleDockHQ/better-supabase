@@ -7309,6 +7309,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentStorage"
         },
         {
+          "name": "AttachmentSweeper"
+        },
+        {
+          "name": "AttachmentSweeperOptions"
+        },
+        {
           "name": "AttachmentsWrites"
         },
         {

@@ -1375,6 +1375,7 @@
   },
   "./powersync": {
     "values": [
+      "attachmentQueueRoute",
       "checkSqlite",
       "compileSqlite",
       "createUploadConnector",
@@ -1391,6 +1392,9 @@
       "uploadRoute"
     ],
     "types": [
+      "AttachmentPathRow",
+      "AttachmentQueueRoute",
+      "AttachmentQueueRouteOptions",
       "AuthSourceLike",
       "CheckSqliteOptions",
       "CreateUploadRepository",
@@ -3504,6 +3508,7 @@
       "attachmentVersionOf",
       "createAttachments",
       "createAttachmentScanner",
+      "createAttachmentSweeper",
       "createAttachmentUploadController",
       "createObjectScanner",
       "dbTransport",
@@ -3530,6 +3535,8 @@
       "AttachmentsOptions",
       "AttachmentStatus",
       "AttachmentStorage",
+      "AttachmentSweeper",
+      "AttachmentSweeperOptions",
       "AttachmentsWrites",
       "AttachmentUpload",
       "AttachmentUploadActions",
@@ -3547,7 +3554,9 @@
       "ObjectScanner",
       "ObjectScannerOptions",
       "ScannedObject",
-      "ScanVerdict"
+      "ScanVerdict",
+      "SweepQueuedOptions",
+      "SweepResult"
     ]
   },
   "./blocks/data-lifecycle": {

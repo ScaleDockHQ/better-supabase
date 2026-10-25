@@ -36,6 +36,11 @@ import {
   ATTACHMENTS_CONTRIBUTES,
   attachmentsContract,
 } from "./attachments-contract.ts";
+import {
+  attachmentsOfflineSql,
+  attachmentsOnlineSql,
+} from "./attachments-offline.ts";
+import { pathExpression, pathTemplate } from "./attachments-path.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -98,6 +103,7 @@ const NAMES: BlockSqlNames = {
     "path",
     "scanBuckets",
     "publicBuckets",
+    "offline",
     "extraColumns",
   ],
   tables: {
@@ -163,86 +169,18 @@ const NAMES: BlockSqlNames = {
         scannedAt: "scanned_at",
       },
     },
+    cleanup: {
+      name: "attachment_cleanup",
+      columns: {
+        bucket: "bucket",
+        path: "path",
+        queuedBy: "queued_by",
+        queuedAt: "queued_at",
+        attempts: "attempts",
+      },
+    },
   },
 };
-
-const PATH_PARTS: Readonly<Record<string, string>> = {
-  organization_id: "tenant",
-  id: "id",
-  subject_type: "subjectType",
-  subject_id: "subjectId",
-};
-
-/**
- * `options.path`: the object path template, default
- * `{organization_id}/attachments/{id}`, as the generated column's expression.
- */
-const pathTemplate = (ctx: BlockSqlContext): string =>
-  ctx.text("path", "{organization_id}/attachments/{id}");
-
-/** Version 2 and later of a file live at its path plus `-v<version>`. */
-const VERSION_SUFFIX = /-v\d+$/;
-
-function pathExpression(ctx: BlockSqlContext, tenantless = false): string {
-  const template = pathTemplate(ctx);
-  const where = "blocks.attachments.options.path";
-
-  if (!template.includes("{id}")) {
-    throw new TypeError(
-      `${where} must contain {id}, so each file has its own path`,
-    );
-  }
-
-  if (!template.startsWith("{organization_id}/")) {
-    throw new TypeError(
-      `${where} must start with {organization_id}/, so a tenant's files share a prefix`,
-    );
-  }
-
-  if (VERSION_SUFFIX.test(template)) {
-    throw new TypeError(
-      `${where} must not end in -v and digits, which mark a file's later versions`,
-    );
-  }
-
-  const parts = template.split(/(\{[a-z_]+\})/).filter((part) => part !== "");
-
-  return parts
-    .map((part) => {
-      const match = /^\{([a-z_]+)\}$/.exec(part);
-
-      if (!match) {
-        if (!/^[A-Za-z0-9/_.-]+$/.test(part)) {
-          throw new TypeError(
-            `${where}: "${part}" may hold letters, digits, /, _, . and - only`,
-          );
-        }
-
-        return sqlString(part);
-      }
-
-      const logical = PATH_PARTS[match[1]!];
-
-      if (!logical) {
-        throw new TypeError(
-          `${where}: {${match[1]}} is not a placeholder. Use ${Object.keys(
-            PATH_PARTS,
-          )
-            .map((key) => `{${key}}`)
-            .join(", ")}`,
-        );
-      }
-
-      const column = ctx.col("attachments", logical);
-
-      return logical === "subjectType" ||
-        logical === "subjectId" ||
-        (tenantless && logical === "tenant")
-        ? `coalesce(${column}${logical === "tenant" ? "::text" : ""}, '-')`
-        : `${column}::text`;
-    })
-    .join(" || ");
-}
 
 const isText = (value: unknown): value is string => typeof value === "string";
 
@@ -331,7 +269,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const permissions = moduleOperations("attachments");
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
-  const requireScan = ctx.flag("requireScan", true);
+  const offline = ctx.flag("offline", false);
+  const requireScan = ctx.flag("requireScan", !offline);
 
   const subjects = subjectsOption(
     ctx,
@@ -573,6 +512,20 @@ end;`;
 
   const policy = (name: string): string => sqlIdent(`bsb_attachments_${name}`);
 
+  const offlineSql = offline
+    ? attachmentsOfflineSql(ctx, {
+        t,
+        c,
+        versions,
+        vc,
+        current,
+        atCurrent,
+        buckets,
+        requireScan,
+        uploaded,
+      })
+    : undefined;
+
   return `${schemaPreamble(ctx)}
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the ${bucket} bucket, or its
@@ -644,7 +597,7 @@ create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} o
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
-grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), c("width"), c("height"), c("pages"), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
+grant insert (${[...(offline ? [c("id")] : []), c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), c("width"), c("height"), c("pages"), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -741,6 +694,7 @@ as $$
 $$;
 revoke execute on function ${fn("attachment_object_visible")}(text, text) from public, anon;
 grant execute on function ${fn("attachment_object_visible")}(text, text) to authenticated, service_role;
+${offlineSql?.sql ?? attachmentsOnlineSql(ctx, t)}
 
 create policy ${policy("insert")} on storage.objects for insert to authenticated
   with check (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'insert'));
@@ -751,7 +705,7 @@ create policy ${policy("select")} on storage.objects for select to authenticated
       : ` and ${fn("attachment_object_visible")}(bucket_id, name)`
   });
 create policy ${policy("delete")} on storage.objects for delete to authenticated
-  using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'delete'));
+  using (bucket_id in (${bucketList}) and ${offlineSql === undefined ? `${fn("attachment_object_allowed")}(bucket_id, name, 'delete')` : offlineSql.deleteCheck});
 
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
@@ -1057,6 +1011,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
     "attachment_subject_readable",
     "attachment_object_allowed",
     "attachment_object_visible",
+    "attachment_object_queued",
     "object_clean",
   ],
   name: "attachments",
@@ -1068,7 +1023,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -1093,6 +1048,12 @@ export const ATTACHMENTS: BlockSqlDefinition = {
       from: 4,
       description:
         "options.publicBuckets makes chosen attachment buckets public, and the data file sets each bucket's public flag on every run.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "options.offline takes client ids, marks an upload done from a storage trigger and queues a deleted record's objects in attachment_cleanup; options.path takes {ext}.",
       sql: () => "",
     },
   ],

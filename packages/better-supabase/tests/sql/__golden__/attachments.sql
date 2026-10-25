@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:c0b87760483646145e98f7f5d4b9ecf73e6c553f84d3ffd94e8c7d2fb47f6c54
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:04145bb9cb3006b884eac9219a716038bd714997f804edf2abf10b99766c1a22
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -268,6 +268,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -695,7 +699,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:91f69e309684d353eb80cd247b721263f85dbcadcbe8333d5a5ad42debd23d0e
+-- @bsb-hash sha256:0cc16dbc1bddc2d30910293326fab5aa0c627f1df60d347196ebc6b68dfe24e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -706,14 +710,14 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 5, 'managed')
+values ('attachments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:4779bcc09072063fa3ae7bfe215e19d8830a4309046fd0fdbe37ac482463d48d
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:219350e49c24d03264edaf1f39c363a461e48238b76dd47d3c635e946bb1ba16
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -980,6 +984,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -1450,7 +1458,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:91f69e309684d353eb80cd247b721263f85dbcadcbe8333d5a5ad42debd23d0e
+-- @bsb-hash sha256:0cc16dbc1bddc2d30910293326fab5aa0c627f1df60d347196ebc6b68dfe24e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1461,14 +1469,14 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 5, 'managed')
+values ('attachments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:770ca39add41a6d3cc00ff16c0ee7201c14d5933063b59634ad2a133d280a266
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:299a7fd491fc29de0e49fa76dc10de7f5b35cbe596c02811b34f4a36d0b53a67
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1737,6 +1745,10 @@ as $$
 $$;
 revoke execute on function "app_private"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "app_private"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "app_private"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "app_private"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -2164,7 +2176,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:91f69e309684d353eb80cd247b721263f85dbcadcbe8333d5a5ad42debd23d0e
+-- @bsb-hash sha256:0cc16dbc1bddc2d30910293326fab5aa0c627f1df60d347196ebc6b68dfe24e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2175,14 +2187,14 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 5, 'managed')
+values ('attachments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:27a6b53c107c5d8447eccee3a2c46a0e72fb109c4a8083e5962fc851a4e4eeb4
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:adb3aaba12188d500d38c7e2d54692ef19694c0993b2b7015205318d890df33d
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2449,6 +2461,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -3008,7 +3024,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:91f69e309684d353eb80cd247b721263f85dbcadcbe8333d5a5ad42debd23d0e
+-- @bsb-hash sha256:0cc16dbc1bddc2d30910293326fab5aa0c627f1df60d347196ebc6b68dfe24e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3019,6 +3035,6 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 5, 'managed')
+values ('attachments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

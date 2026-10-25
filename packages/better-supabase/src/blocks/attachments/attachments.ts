@@ -115,9 +115,15 @@ export interface AttachmentsOptions<
   readonly mappers?: readonly ErrorMapper[];
   /**
    * `blocks.attachments.options.requireScan`, which `defineBlocks` passes from
-   * `blocks.generated.ts`. Default `true`.
+   * `blocks.generated.ts`. Default `true`, or `false` with `offline`.
    */
   readonly requireScan?: boolean;
+  /**
+   * `blocks.attachments.options.offline`, which `defineBlocks` passes from
+   * `blocks.generated.ts`. With it, `remove` deletes the record first, which
+   * queues its files, and then the files. Default `false`.
+   */
+  readonly offline?: boolean;
   /**
    * `blocks.attachments.options.publicBuckets`, which `defineBlocks` passes
    * from `blocks.generated.ts`: the buckets `publicUrl` serves. Default none.
@@ -311,7 +317,8 @@ export interface Attachments<F extends object = Record<never, never>> {
   ): Result<string>;
   /**
    * Deletes every version's file, then the record (the uploader, or
-   * `attachments.manage`).
+   * `attachments.manage`). With `offline`, the record goes first and queues the
+   * files; a file the delete misses stays queued for `sweepQueued`.
    */
   remove(id: string): AsyncResult<boolean>;
   /**
@@ -562,7 +569,7 @@ export function createAttachments<
         )
       : confirmed(id);
 
-  const requireScan = options.requireScan ?? true;
+  const requireScan = options.requireScan ?? options.offline !== true;
   const ttl = options.downloadTtl ?? 300;
 
   const bucket = (attachment: Attachment): AttachmentBucket =>
@@ -620,6 +627,29 @@ export function createAttachments<
     call("list_attachment_versions", { id }, (value) =>
       recordsOf(value, "list_attachment_versions").map(attachmentVersionOf),
     );
+
+  const removeRowFirst = (id: string): AsyncResult<boolean> =>
+    find(id)
+      .andThen((attachment) =>
+        listVersions(id).map((earlier) => ({ attachment, earlier })),
+      )
+      .andThen(({ attachment, earlier }) =>
+        call("delete_attachment", { id }, (value) => value === true).andThen(
+          async (deleted) => {
+            if (deleted) {
+              // A failed delete leaves the files queued for sweepQueued.
+              await stored(
+                bucket(attachment).remove([
+                  attachment.path,
+                  ...earlier.map((version) => version.path),
+                ]),
+              );
+            }
+
+            return ok(deleted);
+          },
+        ),
+      );
 
   const versionOf = (id: string, version: number): AsyncResult<FileVersion> =>
     listVersions(id).andThen((earlier) => {
@@ -873,20 +903,22 @@ export function createAttachments<
         );
       }),
     remove: (id) =>
-      find(id)
-        .andThen((attachment) =>
-          listVersions(id).andThen((earlier) =>
-            stored(
-              bucket(attachment).remove([
-                attachment.path,
-                ...earlier.map((version) => version.path),
-              ]),
+      options.offline === true
+        ? removeRowFirst(id)
+        : find(id)
+            .andThen((attachment) =>
+              listVersions(id).andThen((earlier) =>
+                stored(
+                  bucket(attachment).remove([
+                    attachment.path,
+                    ...earlier.map((version) => version.path),
+                  ]),
+                ),
+              ),
+            )
+            .andThen(() =>
+              call("delete_attachment", { id }, (value) => value === true),
             ),
-          ),
-        )
-        .andThen(() =>
-          call("delete_attachment", { id }, (value) => value === true),
-        ),
   };
 
   return withBlockHooks(client, options.hooks, {

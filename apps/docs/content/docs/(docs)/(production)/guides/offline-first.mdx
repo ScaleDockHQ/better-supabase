@@ -58,18 +58,24 @@ keys.
 `uploadRoute(repository, options)` builds the same function from a
 repository, typed by the repository's insert and key types, so wrapping one
 needs no cast. By default a `PUT` upserts, a `PATCH` updates and a `DELETE`
-deletes. For a table whose rows are written once, such as attachments, pass
-`put: "create"`: a `PUT` inserts with `create`, and a `conflict` counts as
-applied, because the row is already on the server from an earlier upload of
-the same change. A `PATCH` on that route fails with `unsupported` and is
-discarded; a `DELETE` still deletes.
+deletes. For a table whose rows are written once, pass `put: "create"`: a
+`PUT` inserts with `create`, and a `conflict` counts as applied, because the
+row is already on the server from an earlier upload of the same change. A
+`PATCH` on that route fails with `unsupported` and is discarded; a `DELETE`
+still deletes.
+
+Attachments have their own route, `attachmentQueueRoute`, and need
+`blocks.attachments.options.offline: true`: it lets the client insert the
+record's id, marks the upload done from a storage trigger and deletes the
+record before its files (see [PowerSync](/docs/frontend/powersync#attachments)).
 
 ```ts
-import { uploadRoute } from "better-supabase/powersync";
+import { attachmentQueueRoute, uploadRoute } from "better-supabase/powersync";
 
 tables: {
   customers: server.db.customers,
-  attachments: uploadRoute(server.db.attachments, { put: "create" }),
+  events: uploadRoute(server.db.events, { put: "create" }),
+  attachments: attachmentQueueRoute(server.db.attachments),
 },
 ```
 

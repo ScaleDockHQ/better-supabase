@@ -3826,8 +3826,7 @@
                 "default": "attachments"
               },
               "requireScan": {
-                "type": "boolean",
-                "default": true
+                "type": "boolean"
               },
               "maxSize": {
                 "type": "number"
@@ -3856,6 +3855,9 @@
                   "type": "string"
                 },
                 "default": []
+              },
+              "offline": {
+                "type": "boolean"
               },
               "extraColumns": {}
             }

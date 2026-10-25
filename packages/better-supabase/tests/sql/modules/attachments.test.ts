@@ -17,6 +17,39 @@ const sqlOf = (
     .join("\n");
 
 describe("attachments module", () => {
+  it("derives {ext} from the name in the generated path", () => {
+    const sql = sqlOf(["attachments"], {
+      path: "{organization_id}/attachments/{id}.{ext}",
+    });
+
+    expect(sql).toContain(
+      `"id"::text || '.' || coalesce(substring(lower("name") from '\\.([a-z0-9]{1,10})$'), '')`,
+    );
+  });
+
+  it("with offline, takes client ids, skips the scan and deletes objects from the queue", () => {
+    const sql = sqlOf(["attachments"], { offline: true });
+
+    expect(sql).toMatch(/grant insert \("id", "organization_id"/);
+    expect(sql).toContain(`"status" = 'clean'`);
+    expect(sql).toContain("after insert on storage.objects");
+    expect(sql).toContain('before delete on "better_supabase"."attachments"');
+    expect(sql).toContain(
+      `using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_queued"(bucket_id, name))`,
+    );
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."queued_attachment_objects"(integer) to service_role;`,
+    );
+    expect(sql).toContain('create trigger "bsb_attachments_object_uploaded"');
+  });
+
+  it("with offline, keeps an explicit requireScan", () => {
+    const sql = sqlOf(["attachments"], { offline: true, requireScan: true });
+
+    expect(sql).not.toMatch(/"mime_type"\)\),?\s*"status" = 'clean'/);
+    expect(sql).toContain(`a."status" = 'clean'`);
+  });
+
   it("creates a private bucket whose reads need a clean file", () => {
     const sql = sqlOf(["attachments"]);
     expect(sql).toMatch(/create table if not exists \S+attachments/);
@@ -278,7 +311,7 @@ describe("attachments module", () => {
       ],
       [
         { path: "{organization_id}/{nope}/{id}" },
-        /\{nope\} is not a placeholder/,
+        /\{nope\} is not a placeholder\. Use .*\{ext\}/,
       ],
       [{ path: "{organization_id}/a b/{id}" }, /may hold letters/],
       [{ scanBuckets: ["Bad Bucket"] }, /is not a bucket id/],

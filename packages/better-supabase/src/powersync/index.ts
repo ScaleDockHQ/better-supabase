@@ -71,3 +71,11 @@ export type {
   UploadRoute,
   UploadRouteOptions,
 } from "./connector.ts";
+
+export { attachmentQueueRoute } from "./attachments.ts";
+
+export type {
+  AttachmentPathRow,
+  AttachmentQueueRoute,
+  AttachmentQueueRouteOptions,
+} from "./attachments.ts";

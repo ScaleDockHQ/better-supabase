@@ -328,11 +328,26 @@ describe("blocks.generated.ts", () => {
       `  attachments: {
     schema: "better_supabase",
     options: {
-      requireScan: true,
       publicBuckets: [],
     },
   },`,
     );
+  });
+
+  it("passes offline, and leaves requireScan to the client's default", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          attachments: { options: { offline: true } },
+        },
+      },
+      "/project",
+    );
+
+    const file = emitBlockConfig(config, { runtimeImport: "better-supabase" });
+    expect(file?.contents).toContain("offline: true");
+    expect(file?.contents).not.toContain("requireScan");
   });
 
   it("declares the events app tables emit", () => {
