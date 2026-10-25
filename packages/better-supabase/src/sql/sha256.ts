@@ -60,44 +60,40 @@ export function sha256Hex(text: string): string {
       words[index] = (words[index - 16]! + s0 + words[index - 7]! + s1) >>> 0;
     }
 
-    const state = [...hash];
+    let a = hash[0]!;
+    let b = hash[1]!;
+    let c = hash[2]!;
+    let d = hash[3]!;
+    let e = hash[4]!;
+    let f = hash[5]!;
+    let g = hash[6]!;
+    let h = hash[7]!;
 
     for (let index = 0; index < 64; index += 1) {
-      // SAFETY: `state` always holds the eight working variables.
-      const [a, b, c, d, e, f, g, h] = state as [
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-      ];
-
       const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const choice = (e & f) ^ (~e & g);
       const first = (h + s1 + choice + K[index]! + words[index]!) >>> 0;
       const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const majority = (a & b) ^ (a & c) ^ (b & c);
 
-      state.splice(
-        0,
-        8,
-        (first + s0 + majority) >>> 0,
-        a,
-        b,
-        c,
-        (d + first) >>> 0,
-        e,
-        f,
-        g,
-      );
+      h = g;
+      g = f;
+      f = e;
+      e = (d + first) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (first + s0 + majority) >>> 0;
     }
 
-    for (let index = 0; index < 8; index += 1) {
-      hash[index] = (hash[index]! + state[index]!) >>> 0;
-    }
+    hash[0] = (hash[0]! + a) >>> 0;
+    hash[1] = (hash[1]! + b) >>> 0;
+    hash[2] = (hash[2]! + c) >>> 0;
+    hash[3] = (hash[3]! + d) >>> 0;
+    hash[4] = (hash[4]! + e) >>> 0;
+    hash[5] = (hash[5]! + f) >>> 0;
+    hash[6] = (hash[6]! + g) >>> 0;
+    hash[7] = (hash[7]! + h) >>> 0;
   }
 
   return [...hash].map((word) => word.toString(16).padStart(8, "0")).join("");
