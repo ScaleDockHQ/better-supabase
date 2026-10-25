@@ -113,6 +113,10 @@ export interface AutomationHooks {
    * organization-owned automation. `null` when the publisher is gone, suspended
    * or no longer holds a stored permission; the step then fails and never falls
    * back to the service role.
+   *
+   * Put the cap under `PERMISSION_CAP_CLAIM` (`bsb_permission_cap`, from
+   * `better-supabase/server`): `cap_allows` refuses every key outside it. 0.15
+   * still reads the 0.14 name, `bs_permission_cap`, and warns once.
    */
   readonly runAs?: (
     automation: AutomationRef,

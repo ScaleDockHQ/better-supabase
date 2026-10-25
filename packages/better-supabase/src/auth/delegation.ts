@@ -40,6 +40,12 @@ export type DelegatedClaimsOutcome =
 export const PERMISSION_CAP_CLAIM = "bsb_permission_cap";
 
 /**
+ * The permission cap claim's 0.14 name. Through 0.15 the access functions and
+ * `permissionCapOf` read it when `bsb_permission_cap` is missing.
+ */
+export const LEGACY_PERMISSION_CAP_CLAIM = "bs_permission_cap";
+
+/**
  * The claims a delegated token adds; `contextClaims` never takes them from
  * `claimsFor`.
  */
@@ -49,6 +55,7 @@ export const DELEGATION_CLAIMS: readonly string[] = [
   "scope",
   "authorization_details",
   PERMISSION_CAP_CLAIM,
+  LEGACY_PERMISSION_CAP_CLAIM,
 ];
 
 /**
@@ -64,13 +71,15 @@ export function permissionMatches(granted: string, wanted: string): boolean {
 }
 
 /**
- * The permission cap in `claims`: `undefined` without one, `false` for a cap
- * that is not a list of strings.
+ * The permission cap in `claims`, from `bsb_permission_cap` or else its 0.14
+ * name: `undefined` without one, `false` for a cap that is not a list of
+ * strings.
  */
 export function permissionCapOf(
   claims: Readonly<Record<string, unknown>>,
 ): readonly string[] | false | undefined {
-  const cap = claims[PERMISSION_CAP_CLAIM];
+  const cap =
+    claims[PERMISSION_CAP_CLAIM] ?? claims[LEGACY_PERMISSION_CAP_CLAIM];
 
   if (cap === undefined) {
     return undefined;

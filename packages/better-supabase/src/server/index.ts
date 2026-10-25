@@ -67,6 +67,8 @@ export type { ImpersonationEvents } from "../blocks/impersonation/events.ts";
 
 export { defineAuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 
+export { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
+
 export type {
   Approver,
   ApproverOf,

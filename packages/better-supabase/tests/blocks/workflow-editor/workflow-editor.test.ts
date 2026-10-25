@@ -556,6 +556,43 @@ describe("createWorkflowEditor", () => {
     });
   });
 
+  it("warns once when runAs returns the cap under its 0.14 name only", async () => {
+    const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
+
+    let claims: Readonly<Record<string, unknown>> = {
+      sub: "u1",
+      bsb_permission_cap: ["crm.read"],
+    };
+
+    const builder = createWorkflowEditor({
+      transport: fake({}).transport,
+      service: fake({
+        workflow_run_principal: () => ({
+          publisher: "u1",
+          tenant: "t1",
+          permissions: ["crm.read"],
+        }),
+      }).transport,
+      authorization: { automation: { runAs: () => claims } },
+    });
+
+    try {
+      await builder.versions.runAs("v1").orThrow();
+      expect(warn).not.toHaveBeenCalled();
+
+      claims = { sub: "u1", bs_permission_cap: ["crm.read"] };
+      expect(await builder.versions.runAs("v1").orThrow()).toEqual(claims);
+      await builder.versions.runAs("v1").orThrow();
+
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain(
+        "return it as bsb_permission_cap",
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("reports missing versions on publish and diff, and diffs two versions", async () => {
     const { transport } = fake({
       workflow_version_get: (args) =>

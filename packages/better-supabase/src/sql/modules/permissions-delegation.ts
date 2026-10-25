@@ -52,6 +52,8 @@ $$;
 -- False when the token is narrower than the permission: a permission cap
 -- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
+-- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
+-- claim is missing, so a cap from an older runAs keeps narrowing.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
 language sql
@@ -61,9 +63,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
+    when jsonb_typeof(cap) = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -83,5 +85,8 @@ as $$
     )
   end
   from (select auth.jwt() as jwt) as token
+  cross join lateral (
+    select coalesce(jwt -> 'bsb_permission_cap', jwt -> 'bs_permission_cap') as cap
+  ) as capped
 $$;`;
 }

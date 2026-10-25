@@ -6,7 +6,10 @@ import type {
 import type { DbError } from "../../core/errors.ts";
 import type { WorkflowVersion } from "./types.ts";
 
-import { PERMISSION_CAP_CLAIM } from "../../auth/delegation.ts";
+import {
+  LEGACY_PERMISSION_CAP_CLAIM,
+  PERMISSION_CAP_CLAIM,
+} from "../../auth/delegation.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { isRecord, optionalText, recordOf, stringsOf } from "../shared.ts";
@@ -38,6 +41,27 @@ function defaultClaims(
     ...(automation.tenant === null ? {} : { tenant_id: automation.tenant }),
     [PERMISSION_CAP_CLAIM]: automation.permissions,
   };
+}
+
+let warnedLegacyCap = false;
+
+/**
+ * Warns once when `runAs` returns the cap under its 0.14 name only: the access
+ * functions still read it through 0.15, a later minor release won't.
+ */
+function warnLegacyCap(claims: Readonly<Record<string, unknown>>): void {
+  if (
+    warnedLegacyCap ||
+    claims[PERMISSION_CAP_CLAIM] !== undefined ||
+    claims[LEGACY_PERMISSION_CAP_CLAIM] === undefined
+  ) {
+    return;
+  }
+
+  warnedLegacyCap = true;
+  console.warn(
+    `automation.runAs returned the permission cap as ${LEGACY_PERMISSION_CAP_CLAIM}, its 0.14 name. 0.15 still reads it, a later minor release won't: return it as ${PERMISSION_CAP_CLAIM} (PERMISSION_CAP_CLAIM from better-supabase/server).`,
+  );
 }
 
 /** A hook's answer, with a throw or a rejection as `undefined`. */
@@ -169,6 +193,8 @@ export function runAsPublisher(
         ),
       );
     }
+
+    warnLegacyCap(claims);
 
     return ok(claims);
   });
