@@ -2,7 +2,8 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import { defineSchema, type Schema } from "better-supabase";
+import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
@@ -81,7 +82,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "client_notes_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   contacts: {
     Row: {
@@ -118,7 +121,9 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "contacts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   customer_tags: {
     Row: {
@@ -148,7 +153,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   customers: {
     Row: {
@@ -210,7 +217,9 @@ export type Models = {
     };
     Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   locations: {
     Row: {
@@ -251,7 +260,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   memberships: {
     Row: {
@@ -285,7 +296,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "memberships_role_check";
     ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   notes: {
     Row: {
@@ -329,7 +342,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "notes_customer_id_fkey" | "notes_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   organizations: {
     Row: {
@@ -484,7 +499,9 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   projects_view: {
     Row: {
@@ -509,7 +526,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   saved_views: {
     Row: {
@@ -573,7 +592,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "subscriptions_status_check";
     ForeignKeys: "subscriptions_organization_id_fkey" | "subscriptions_plan_key_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   tags: {
     Row: {
@@ -611,7 +632,9 @@ export type Models = {
     };
     Checks: "tags_color_check";
     ForeignKeys: "tags_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   tasks: {
     Row: {
@@ -663,7 +686,9 @@ export type Models = {
     };
     Checks: "tasks_status_check" | "tasks_title_check";
     ForeignKeys: "tasks_assignee_id_fkey" | "tasks_organization_id_fkey" | "tasks_project_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
   tasks_view: {
     Row: {
@@ -687,7 +712,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organization_id";
+    };
   };
 };
 
@@ -793,4 +820,14 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+type Extensions = readonly [ReturnType<typeof membershipsExtension>];
+const extensions: Extensions = [membershipsExtension()];
+
+/** The app's subject types, from `config.records`. */
+export const subjectTypes = ["message", "conversation"] as const;
+export type SubjectType = (typeof subjectTypes)[number];
+/** One subject: its type and its id as text. */
+export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+
+export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);

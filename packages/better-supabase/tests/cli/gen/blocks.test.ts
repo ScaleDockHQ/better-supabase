@@ -149,6 +149,35 @@ describe("blocks.generated.ts", () => {
     expect(contents).not.toContain("TasksOptions");
   });
 
+  it("marks the instances PowerSync doesn't sync as needing the network", () => {
+    const blocks = {
+      memberships: {},
+      permissions: {},
+      notifications: {},
+      tags: {},
+    };
+
+    const synced = emitBlockConfig(
+      resolveConfig(
+        { blocks, gen: { powersync: { instances: ["notifications"] } } },
+        "/project",
+      ),
+    )?.contents;
+
+    const online = emitBlockConfig(
+      resolveConfig({ blocks }, "/project"),
+    )?.contents;
+
+    expect(synced).toContain(
+      "  /** Needs the network on native. */\n  tags: tagsBlockInstance,",
+    );
+    expect(synced).toContain("\n  notifications: notificationsBlockInstance,");
+    expect(synced).not.toContain(
+      "  /** Needs the network on native. */\n  notifications:",
+    );
+    expect(online).not.toContain("Needs the network on native.");
+  });
+
   it("writes an entry and a renamed block for each instance of a block", () => {
     const config = resolveConfig(
       {

@@ -1,26 +1,15 @@
-import type { GeneratedBlocks, RpcClient } from "better-supabase/blocks";
+import type { RpcClient } from "better-supabase/blocks";
 
-import { createBlocks, rpcTransport } from "better-supabase/blocks";
-import {
-  createNotifications,
-  notificationsBlock,
-} from "better-supabase/blocks/notifications";
+import { defineBlocks, rpcTransport } from "better-supabase/blocks";
+import { createNotifications } from "better-supabase/blocks/notifications";
 import * as v from "valibot";
 
-/**
- * `blocks.<module>.api` in the Next.js example's config, which owns the
- * database.
- */
-export const API_SCHEMA = "api";
+import { blockConfig, blocks as generated } from "./supabase/blocks.generated";
 
-/**
- * The entries of the Next.js example's `blocks.generated.ts` for the blocks
- * whose hooks read the client's `blocks` config. This app runs no `gen`.
- */
-export const blockConfig = {
-  comments: { schema: "better_supabase", api: API_SCHEMA, options: {} },
-  tags: { schema: "better_supabase", api: API_SCHEMA, options: {} },
-} as const satisfies GeneratedBlocks;
+export { blockConfig } from "./supabase/blocks.generated";
+
+/** `sql.api` in the config: the schema the block functions are wrapped in. */
+export const API_SCHEMA = blockConfig.notifications.api;
 
 const Titled = v.object({ title: v.string() });
 
@@ -31,16 +20,23 @@ const Titled = v.object({ title: v.string() });
 const notificationTypes = { "test.sent": Titled, "workflow.message": Titled };
 
 /**
+ * The generated block instances, with the notification types set. On native,
+ * PowerSync serves `notifications` offline (`gen.powersync.instances`); the
+ * others need the network.
+ */
+export const blockSet = defineBlocks(blockConfig, {
+  ...generated,
+  notifications: generated.notifications.using((options) =>
+    createNotifications({ ...options, types: notificationTypes }),
+  ),
+});
+
+/**
  * The blocks as typed clients over the Data API, acting as the caller of
  * `supabase` (its token, so RLS and each function's checks apply).
  */
 export function blocks(supabase: RpcClient) {
-  return createBlocks(
-    { transport: rpcTransport(supabase, { schema: API_SCHEMA }) },
-    {
-      notifications: notificationsBlock.using((options) =>
-        createNotifications({ ...options, types: notificationTypes }),
-      ),
-    },
-  );
+  return blockSet.create({
+    transport: rpcTransport(supabase, { schema: API_SCHEMA }),
+  });
 }
