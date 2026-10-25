@@ -9,7 +9,7 @@ export const UPDATED_AT: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   // Read by gen for the repository extension, not by the SQL.
-  names: { tables: {}, options: ["createdAt", "updatedAt"] },
+  names: { tables: {}, options: ["createdAt", "updatedAt", "stamp"] },
   build: () => `${SCHEMA}
 
 create or replace function better_supabase.set_updated_at()

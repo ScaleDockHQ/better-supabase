@@ -179,6 +179,7 @@ export type {
   AnyBlocksConfig,
   BlockScope,
   BlocksConfig,
+  OwnTablePolicies,
   EntitiesConfig,
   EntityConfig,
 } from "./blocks.ts";

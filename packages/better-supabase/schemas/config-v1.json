@@ -217,6 +217,12 @@
               "type": "string",
               "description": "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
               "default": "tenant"
+            },
+            "ownTablePolicies": {
+              "enum": ["block", "app"],
+              "type": "string",
+              "description": "Whose policies govern the app's tables a block runs over, unless the block sets its own ownTablePolicies: block (the default) lets a block add its bsb_ policies where none of the app's covers them, and app keeps every bsb_ policy, permissive or restrictive, off them.",
+              "default": "block"
             }
           },
           "additionalProperties": false
@@ -3050,6 +3056,11 @@
           "type": "string",
           "description": "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant."
         },
+        "ownTablePolicies": {
+          "enum": ["block", "app"],
+          "type": "string",
+          "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
+        },
         "functions": {
           "type": "object",
           "additionalProperties": {
@@ -3230,6 +3241,11 @@
           "enum": ["tenant", "user", "none"],
           "type": "string",
           "description": "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant."
+        },
+        "ownTablePolicies": {
+          "enum": ["block", "app"],
+          "type": "string",
+          "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
         },
         "functions": {
           "type": "object",
@@ -4257,6 +4273,9 @@
               "impersonatedBy": {
                 "type": "string",
                 "default": "impersonated_by"
+              },
+              "stamp": {
+                "default": "client"
               }
             }
           }
@@ -6152,6 +6171,9 @@
               "updatedAt": {
                 "type": "string",
                 "default": "updated_at"
+              },
+              "stamp": {
+                "default": "client"
               }
             }
           }

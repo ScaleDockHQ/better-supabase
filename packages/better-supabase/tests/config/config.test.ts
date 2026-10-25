@@ -143,6 +143,21 @@ describe("resolveConfig sql defaults", () => {
     });
   });
 
+  it("gives every block sql.ownTablePolicies unless it sets its own", () => {
+    const { blocks } = resolveConfig(
+      {
+        database: { sql: { ownTablePolicies: "app" } },
+        blocks: { memberships: {}, webhooks: { ownTablePolicies: "block" } },
+      },
+      "/app",
+    );
+
+    expect(blocks).toEqual({
+      memberships: { ownTablePolicies: "app" },
+      webhooks: { ownTablePolicies: "block" },
+    });
+  });
+
   it("applies the defaults to a block list", () => {
     const { blocks, blockNames } = resolveConfig(
       { database: { sql: { api: "api" } }, blocks: ["tags"] },

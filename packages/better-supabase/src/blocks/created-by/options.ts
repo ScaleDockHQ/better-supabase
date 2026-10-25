@@ -11,6 +11,7 @@ export type CreatedBySqlOptions = {
   readonly updatedBy?: string;
   /** The admin behind an impersonated write; `track_actor` fills it. */
   readonly impersonatedBy?: string;
+  readonly stamp?: "client" | "trigger";
 };
 
 export const createdBySqlOptions: BlockOptionsSchema<CreatedBySqlOptions> =
@@ -18,4 +19,5 @@ export const createdBySqlOptions: BlockOptionsSchema<CreatedBySqlOptions> =
     createdBy: option.string({ default: "created_by" }),
     updatedBy: option.string({ default: "updated_by" }),
     impersonatedBy: option.string({ default: "impersonated_by" }),
+    stamp: option.unknown<"client" | "trigger">({ default: "client" }),
   });

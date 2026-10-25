@@ -11,7 +11,10 @@ export const ACTOR: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   // Read by gen for the repository extension, not by the SQL.
-  names: { tables: {}, options: ["createdBy", "updatedBy", "impersonatedBy"] },
+  names: {
+    tables: {},
+    options: ["createdBy", "updatedBy", "impersonatedBy", "stamp"],
+  },
   build: () => `${SCHEMA}
 
 ${ACTING_MEMBER}

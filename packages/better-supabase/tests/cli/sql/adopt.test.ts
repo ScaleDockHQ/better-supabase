@@ -117,6 +117,47 @@ describe("proposeAdoption", () => {
     expect(missing.entry.columns?.["teams"]).not.toHaveProperty("name");
   });
 
+  it("suggests ownTablePolicies app when an adopted table has permissive policies of its own", () => {
+    const organizations = (
+      policies: NonNullable<ExistingTable["policies"]>,
+    ): ExistingTable => ({
+      ...table("organizations", {
+        id: "uuid",
+        name: "text",
+        created_at: "timestamptz",
+        updated_at: "timestamptz",
+      }),
+      policies,
+    });
+
+    const own = proposeAdoption("organizations", [
+      organizations([
+        { name: "organizations_member_select", permissive: true },
+        { name: "bsb_tenant_scope", permissive: false },
+      ]),
+    ]);
+
+    expect(own.entry).not.toHaveProperty("ownTablePolicies");
+    expect(own.warnings).toContainEqual(
+      expect.stringContaining(
+        'public.organizations already has permissive policies of your own. To keep the block\'s bsb_ policies off it, set blocks.organizations.ownTablePolicies: "app"',
+      ),
+    );
+
+    for (const proposal of [
+      proposeAdoption("organizations", [
+        organizations([{ name: "bsb_organizations_select", permissive: true }]),
+      ]),
+      proposeAdoption(
+        "organizations",
+        [organizations([{ name: "mine", permissive: true }])],
+        { blocks: { organizations: { ownTablePolicies: "block" } } },
+      ),
+    ]) {
+      expect(proposal.warnings.join("\n")).not.toContain("ownTablePolicies");
+    }
+  });
+
   it("reports an enum column the block computes text for, and takes one it casts or writes literals to", () => {
     const enumColumn = (
       existing: ExistingTable,

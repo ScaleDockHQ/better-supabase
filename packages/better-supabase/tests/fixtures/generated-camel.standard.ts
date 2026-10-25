@@ -296,7 +296,6 @@ export const organizationsRow: TableSchema<RowOf<'organizations'>> = tableSchema
     slug: { kind: "string" },
     createdAt: { kind: "datetime", readOnly: true },
     updatedAt: { kind: "datetime", readOnly: true },
-    stripeCustomerId: { kind: "string", nullable: true },
   },
 });
 
@@ -308,7 +307,6 @@ export const organizationsInsert: TableSchema<InsertOf<'organizations'>> = table
     slug: { kind: "string" },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
-    stripeCustomerId: { kind: "string", nullable: true, optional: true },
   },
 });
 
@@ -320,7 +318,6 @@ export const organizationsUpdate: TableSchema<UpdateOf<'organizations'>> = table
     slug: { kind: "string", optional: true },
     createdAt: { kind: "datetime", optional: true, readOnly: true },
     updatedAt: { kind: "datetime", optional: true, readOnly: true },
-    stripeCustomerId: { kind: "string", nullable: true, optional: true },
   },
 });
 

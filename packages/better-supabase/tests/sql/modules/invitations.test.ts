@@ -114,6 +114,45 @@ describe("invitations module", () => {
     );
   });
 
+  it("keeps one open platform invitation per email apart from tenant invitations in a shared table", () => {
+    const sql = overApp(
+      {
+        permissions: {
+          model: "catalog",
+          tables: { platformAssignments: "public.user_roles" },
+        },
+        invitations: {
+          tables: {
+            invitations: "public.organization_invitations",
+            platformInvitations: "public.organization_invitations",
+          },
+          columns: { invitations: { tenant: "organization_id" } },
+        },
+      },
+      ["invitations"],
+    );
+
+    expect(sql).toContain(
+      `drop index if exists "public".platform_invitations_open_email_idx;
+create unique index if not exists invitations_platform_open_email_idx
+  on "public"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null and "organization_id" is null;`,
+    );
+    expect(sql).not.toContain(
+      "create unique index if not exists platform_invitations_open_email_idx",
+    );
+    expect(sql).toContain(
+      'on "public"."organization_invitations" ("organization_id", lower("email"))',
+    );
+
+    const separate = body({ permissions: { model: "catalog" } });
+
+    expect(separate).toContain(
+      `create unique index if not exists platform_invitations_open_email_idx
+  on "better_supabase"."platform_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;`,
+    );
+    expect(separate).not.toContain("invitations_platform_open_email_idx");
+  });
+
   it("keeps platform invitations in their own table, under a role ceiling", () => {
     const sql = body({
       permissions: { model: "catalog" },

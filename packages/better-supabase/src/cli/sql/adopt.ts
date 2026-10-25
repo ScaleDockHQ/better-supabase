@@ -32,6 +32,10 @@ export interface ExistingTable {
     readonly isEnum?: boolean;
     readonly typeSchema?: string;
   }[];
+  readonly policies?: readonly {
+    readonly name: string;
+    readonly permissive: boolean;
+  }[];
 }
 
 /** How a logical column found its physical column. */
@@ -403,6 +407,26 @@ export function proposeAdoption(
   }
 
   const current = options.blocks?.[block];
+
+  const governed =
+    current?.ownTablePolicies === undefined
+      ? [...chosen.values()]
+          .filter(
+            (table): table is ExistingTable =>
+              table !== null &&
+              (table.policies ?? []).some(
+                (policy) =>
+                  policy.permissive && !policy.name.startsWith("bsb_"),
+              ),
+          )
+          .map((table) => `${table.schema}.${table.name}`)
+      : [];
+
+  if (governed.length > 0) {
+    warnings.push(
+      `${governed.join(", ")} already ${governed.length === 1 ? "has" : "have"} permissive policies of your own. To keep the block's bsb_ policies off ${governed.length === 1 ? "it" : "them"}, set blocks.${block}.ownTablePolicies: "app"; otherwise the block adds a policy for each command yours don't cover, and doctor (BS347) reports one that is wider than yours.`,
+    );
+  }
 
   const entry: BlockConfig = {
     ...current,

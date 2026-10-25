@@ -32,6 +32,14 @@ export type BlockScope = "tenant" | "user" | "none";
 export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
 
 /**
+ * Whose policies govern the app's tables a block runs over. `block`: the block
+ * adds its `bsb_` policies where none of the app's covers them. `app`: it adds
+ * none, permissive or restrictive, and still writes its functions, triggers,
+ * indexes and grants.
+ */
+export type OwnTablePolicies = "block" | "app";
+
+/**
  * A new name for one of a block's entities: its singular `name`, an irregular
  * plural and, for an entity the block registers as a subject, the URL of one
  * row with `{column}` placeholders.
@@ -131,6 +139,13 @@ export interface BlockConfig<
   readonly idType?: string;
   /** Who the block's rows belong to. Defaults to `sql.scope`, then `tenant`. */
   readonly scope?: BlockScope;
+  /**
+   * Whose policies govern every table of the app's that the block runs over:
+   * `block` adds the block's `bsb_` policies where none of the app's covers
+   * them, `app` adds none, permissive or restrictive. Defaults to
+   * `sql.ownTablePolicies`, then `block`.
+   */
+  readonly ownTablePolicies?: OwnTablePolicies;
   /**
    * Function name to the name the module writes it under, e.g. `{
    * create_organization: 'start_company' }`. Keys are the default names; an
@@ -401,6 +416,8 @@ export interface ResolvedBlock {
   >;
   readonly idType?: string;
   readonly scope?: BlockScope;
+  /** `ownTablePolicies`, with its default. */
+  readonly ownTablePolicies: OwnTablePolicies;
   readonly functions: Readonly<Record<string, string>>;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
@@ -442,6 +459,7 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
     ),
     ...(config.idType === undefined ? {} : { idType: config.idType }),
     ...(config.scope === undefined ? {} : { scope: config.scope }),
+    ownTablePolicies: config.ownTablePolicies ?? "block",
     functions: defined(config.functions),
     permissions: defined(config.permissions),
     options: config.options ?? {},

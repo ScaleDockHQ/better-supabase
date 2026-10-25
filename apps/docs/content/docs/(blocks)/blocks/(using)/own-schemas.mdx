@@ -91,7 +91,61 @@ operands, or one of those as an `or` operand of your condition. A comment in the
 rows your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports it.
 On tenant tables, a restrictive `bsb_tenant_scope` policy keeps every row
 inside the caller's organizations, so your own permissive policy can't widen
-access beyond them.
+access beyond them, unless `ownTablePolicies` is `app` (below).
+
+### Keeping your own policies
+
+When your tables already carry complete row level security, such as policies
+that check your own permission keys or skip disabled members, set
+`ownTablePolicies: "app"` so blocks add none of their `bsb_` policies there,
+permissive or restrictive. Set it once in `database.sql` for every block, or on one block
+entry, which wins over `database.sql`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { sql: { ownTablePolicies: "app" } },
+  blocks: {
+    memberships: { tables: { memberships: "public.organization_members" } },
+    notifications: { ownTablePolicies: "block" },
+  },
+});
+```
+
+| Value             | On your tables                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `block` (default) | the block adds a `bsb_` policy for each command none of your policies already covers |
+| `app`             | the block adds no policy, and your policies alone decide who reaches the rows        |
+
+The setting belongs to a block, not to a table: it applies to every table of
+yours that the block runs over. A table two blocks run over keeps the `bsb_`
+policies of the other block unless that block is `app` too, so set it in
+`database.sql` when every block should leave your policies alone.
+`add --adopt` suggests `ownTablePolicies: "app"` when a table it maps already
+has permissive policies of yours.
+
+With `app`, the block still writes its functions, triggers, indexes and
+grants, but no restrictive `bsb_tenant_scope` policy either: it would add
+its organization check to every one of your policies, and so close rows that
+your policies open on purpose, such as a platform permission that reads
+across organizations. Keeping rows inside an organization is then up to your
+policies. Its file keeps the
+`drop policy if exists` for each policy it leaves out, followed by a comment
+that names the policy and says your policies govern the table, so `upgrade`
+removes the copies an earlier install left. Only your tables change: the
+block's own tables keep its policies. Doctor then skips the table in
+[BS347](/docs/cli/doctor#bs347) and reports
+[BS350](/docs/cli/doctor#bs350) when the table has row level security on but
+no permissive policy for a command the block's policies would have granted,
+because the block's functions that run as the caller and its TypeScript API
+find no rows for that command.
+
+Your tables may also grant columns rather than whole tables, such as
+`grant update (first_name, timezone) on public.profiles to authenticated`.
+The `updated-at` and `created-by` extensions add `updated_at`, `created_by`
+and `updated_by` to every write, which such a grant refuses. Set
+`options.stamp` to `trigger` on those blocks to leave the columns to their
+triggers ([updated at](/docs/blocks/updated-at#leaving-the-columns-to-the-trigger),
+[created by](/docs/blocks/created-by#leaving-the-columns-to-the-trigger)).
 
 ## Views
 
@@ -221,6 +275,7 @@ blocking reads or writes.
 | [BS347](/docs/cli/doctor#bs347) | a block's `bsb_` policy can let a user reach rows your own policies keep closed                                                  |
 | [BS348](/docs/cli/doctor#bs348) | your table keeps its own `updated_at` trigger, so the block adds none                                                            |
 | [BS349](/docs/cli/doctor#bs349) | a block table is on a view Postgres can't write through, and the block's API writes it                                           |
+| [BS350](/docs/cli/doctor#bs350) | with `ownTablePolicies: "app"`, your table has no policy for a command the block's policies granted                              |
 
 BS236 and BS238 need a database, so a saved snapshot skips them.
 

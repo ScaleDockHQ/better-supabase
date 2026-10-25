@@ -522,19 +522,20 @@ export default defineConfig({
 });
 ```
 
-| Key           | What it sets                                                                                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ownership`   | `managed` or `custom`                                                                                                                                                             |
-| `schema`      | the schema of the module's functions and managed tables (`database.sql.schema`, then `better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
-| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                           |
-| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                                                     |
-| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                               |
-| `permissions` | block action to permission key, checked through the [access contract](/docs/repository/permissions)                                                                               |
-| `options`     | module options, listed on each module's page                                                                                                                                      |
-| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                                |
-| `events`      | `false` stops the module writing its events to the outbox                                                                                                                         |
-| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                                |
-| `api`         | a schema for the Data API that gets entry points for the module's functions (`database.sql.api` by default; see below), or `false` for none                                       |
+| Key                | What it sets                                                                                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ownership`        | `managed` or `custom`                                                                                                                                                                                                                                 |
+| `schema`           | the schema of the module's functions and managed tables (`database.sql.schema`, then `better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase`                                                                     |
+| `tables`           | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                                                                                               |
+| `columns`          | logical table to logical column to column name; `null` for an optional column                                                                                                                                                                         |
+| `idType`           | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                                                                                                   |
+| `permissions`      | block action to permission key, checked through the [access contract](/docs/repository/permissions)                                                                                                                                                   |
+| `options`          | module options, listed on each module's page                                                                                                                                                                                                          |
+| `hooks`            | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                                                                                                    |
+| `events`           | `false` stops the module writing its events to the outbox                                                                                                                                                                                             |
+| `audit`            | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                                                                                                    |
+| `api`              | a schema for the Data API that gets entry points for the module's functions (`database.sql.api` by default; see below), or `false` for none                                                                                                           |
+| `ownTablePolicies` | `block` (default) or `app`: whether the module adds its `bsb_` policies, permissive and restrictive, on your tables (`database.sql.ownTablePolicies` by default; see [keeping your own policies](/docs/blocks/own-schemas#keeping-your-own-policies)) |
 
 [`better-supabase add --adopt <block> --tables <schema.table>`](/docs/cli/presets#adopting-tables)
 proposes the `tables` and `columns` of a block entry from the tables in
@@ -1527,15 +1528,16 @@ export default defineConfig({
 `add`, `upgrade` and `add --adopt` take `--dry-run` to show what they would write, and
 `--tests-dir <dir>` overrides `database.sql.testsDir` for the pgTAP module.
 
-| Option                  | Default                                                        |
-| ----------------------- | -------------------------------------------------------------- |
-| `database.sql.workflow` | detected from `supabase/config.toml` ([Workflows](#workflows)) |
-| `database.sql.dir`      | `supabase/schemas`                                             |
-| `database.sql.prefix`   | `900_better_supabase`                                          |
-| `database.sql.testsDir` | `supabase/tests`                                               |
-| `database.sql.schema`   | `better_supabase`, for every module that sets no `schema`      |
-| `database.sql.api`      | unset; the Data API schema for every module that sets no `api` |
-| `blocks`                | `[]`                                                           |
+| Option                          | Default                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `database.sql.workflow`         | detected from `supabase/config.toml` ([Workflows](#workflows))                                         |
+| `database.sql.dir`              | `supabase/schemas`                                                                                     |
+| `database.sql.prefix`           | `900_better_supabase`                                                                                  |
+| `database.sql.testsDir`         | `supabase/tests`                                                                                       |
+| `database.sql.schema`           | `better_supabase`, for every module that sets no `schema`                                              |
+| `database.sql.api`              | unset; the Data API schema for every module that sets no `api`                                         |
+| `database.sql.ownTablePolicies` | `block`; `app` keeps every module's policies off your tables unless it sets its own `ownTablePolicies` |
+| `blocks`                        | `[]`                                                                                                   |
 
 ## Upgrading modules
 

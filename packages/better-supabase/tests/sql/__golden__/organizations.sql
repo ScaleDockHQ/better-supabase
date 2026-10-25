@@ -758,7 +758,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:506681abaeb96effe746a2adc305adeaac291c496d20ab0c7486a43ddfcd69b5
+-- @bsb-hash sha256:f364c3ca319a5e21f1a350276d54674268c54862376a0bd79e7da7ce824bc1b6
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -815,8 +815,6 @@ alter table "better_supabase"."organizations" add column if not exists "updated_
 drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
--- The Stripe customer the entitlements module reads (config.entitlements.customer).
-alter table "better_supabase"."organizations" add column if not exists stripe_customer_id text unique;
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;

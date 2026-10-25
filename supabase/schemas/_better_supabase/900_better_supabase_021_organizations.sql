@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:e475c2bcd1d21b106e2300791d3ad64a3207247a468a0fd9ea3bbfce862f41fd
+-- @bsb-hash sha256:5b214188b5c53aaa8373803be9c3cce9b5e367fde0653c196efd07803011316f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,8 +47,6 @@ create unique index if not exists organizations_slug_idx on "public"."organizati
 alter table "public"."organizations" add column if not exists "updated_at" timestamptz not null default now();
 drop trigger if exists bsb_updated_at on "public"."organizations";
 -- public.organizations keeps updated_at current with its own trigger organizations_set_updated_at.
--- The Stripe customer the entitlements module reads (config.entitlements.customer).
-alter table "public"."organizations" add column if not exists stripe_customer_id text unique;
 alter table "public"."organizations" enable row level security;
 grant select on "public"."organizations" to authenticated;
 grant all on "public"."organizations" to service_role;

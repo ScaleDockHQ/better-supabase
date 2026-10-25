@@ -1055,12 +1055,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "stripeCustomerId": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -1068,8 +1062,7 @@
         "name",
         "slug",
         "createdAt",
-        "updatedAt",
-        "stripeCustomerId"
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -1096,12 +1089,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "stripeCustomerId": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -1133,12 +1120,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "stripeCustomerId": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "additionalProperties": false

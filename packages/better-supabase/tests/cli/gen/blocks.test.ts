@@ -401,6 +401,51 @@ describe("schemaExtensions", () => {
     ]);
   });
 
+  it("passes stamp trigger to the updated-at and created-by extensions", async () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          "created-by": { options: { stamp: "trigger" } },
+          "updated-at": { options: { stamp: "trigger" } },
+          trash: {},
+        },
+        gen: { output: "src/db/generated.ts" },
+      },
+      "/project",
+    );
+
+    expect(schemaExtensions(config)).toEqual([
+      {
+        export: "createdByExtension",
+        subpath: "blocks/created-by",
+        args: '{ stamp: "trigger" }',
+      },
+      {
+        export: "updatedAtExtension",
+        subpath: "blocks/updated-at",
+        args: '{ stamp: "trigger" }',
+      },
+      { export: "trashExtension", subpath: "blocks/trash", args: "" },
+    ]);
+
+    const main = (
+      await renderFiles(config, await loadFixtureSnapshot(), {})
+    ).find((file) => file.path === "src/db/generated.ts")?.contents;
+
+    expect(main).toContain(
+      'const extensions: Extensions = [createdByExtension({ stamp: "trigger" }), updatedAtExtension({ stamp: "trigger" }), trashExtension()];',
+    );
+    expect(() =>
+      schemaExtensions(
+        resolveConfig(
+          // @ts-expect-error -- stamp takes "client" or "trigger"
+          { blocks: { "updated-at": { options: { stamp: "db" } } } },
+          "/project",
+        ),
+      ),
+    ).toThrow('blocks.updated-at.options.stamp must be "client" or "trigger"');
+  });
+
   it("scopes by the organization column without the memberships block", () => {
     expect(
       schemaExtensions(

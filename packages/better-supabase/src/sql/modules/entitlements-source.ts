@@ -75,9 +75,26 @@ function providerEntitlementMembers(
 export function customerSource(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
-): Required<Omit<EntitlementsSource, "source" | "claim">> & {
+): CustomerSource {
+  const source = resolvedCustomerSource(ctx, layout);
+
+  if (source === undefined) {
+    throw new TypeError(
+      "The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
+    );
+  }
+
+  return source;
+}
+
+type CustomerSource = Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
-} {
+};
+
+function resolvedCustomerSource(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): CustomerSource | undefined {
   const configured = layout.entitlements;
 
   if (configured?.table !== undefined && configured.column !== undefined) {
@@ -116,8 +133,33 @@ export function customerSource(
     };
   }
 
-  throw new TypeError(
-    "The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
+  return undefined;
+}
+
+export function readsOrganizationCustomer(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): boolean {
+  if (
+    !ctx.installed("entitlements") ||
+    (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync"
+  ) {
+    return false;
+  }
+
+  const source = resolvedCustomerSource(ctx.of("entitlements"), layout);
+
+  if (source === undefined) {
+    return false;
+  }
+
+  const organizations = ctx.tableName("organizations");
+  const [schema, table] = splitTable(source.table);
+
+  return (
+    source.column === ORGANIZATION_CUSTOMER_COLUMN &&
+    schema === organizations.schema &&
+    table === organizations.name
   );
 }
 

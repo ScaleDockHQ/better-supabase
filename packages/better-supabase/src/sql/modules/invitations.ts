@@ -224,7 +224,15 @@ function platformTableSql(ctx: BlockSqlContext): string {
       ? `alter table ${p.table} add column if not exists ${c(logical)} ${type};\n`
       : "";
 
-  const where = openFilter(p, p.table).replaceAll(`${p.table}.`, "");
+  const where = `${openFilter(p, p.table)}${p.only(p.table)}`.replaceAll(
+    `${p.table}.`,
+    "",
+  );
+
+  const openEmailIndex = sharesTable(ctx)
+    ? `drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.platform_invitations_open_email_idx;
+create unique index if not exists invitations_platform_open_email_idx`
+    : "create unique index if not exists platform_invitations_open_email_idx";
 
   return `
 -- Invitations to a platform role (the catalog model's platform assignments).
@@ -237,7 +245,7 @@ create table if not exists ${p.table} (
   ${c("acceptedAt")} timestamptz
 );
 ${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}
-create unique index if not exists platform_invitations_open_email_idx
+${openEmailIndex}
   on ${p.table} (lower(${c("email")})) where ${where};
 ${p.has("updatedAt") ? `${updatedAt(p.table, c("updatedAt"))}\n` : ""}${p.has("invitedBy") ? `create index if not exists platform_invitations_invited_by_idx on ${p.table} (${c("invitedBy")});\n` : ""}${p.has("acceptedBy") ? `create index if not exists platform_invitations_accepted_by_idx on ${p.table} (${c("acceptedBy")});\n` : ""}
 alter table ${p.table} enable row level security;

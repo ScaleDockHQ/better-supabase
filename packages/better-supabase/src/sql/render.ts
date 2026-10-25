@@ -38,7 +38,10 @@ import {
   withoutUnmappedTables,
 } from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { withoutCoveredPolicies } from "./policy-cover.ts";
+import {
+  withoutAppTablePolicies,
+  withoutCoveredPolicies,
+} from "./policy-cover.ts";
 import {
   checkMigrationOptions,
   checkModules,
@@ -125,23 +128,26 @@ function overApp(
   const appTables = appTableSet(ctx);
   const appViews = appTableSet(ctx, ctx.appViews);
 
-  return withoutUnmappedColumns(
-    withoutUnmappedTables(
-      blockNamesOnAppTables(
-        withoutAppTableEdits(
-          overAppTables(
-            overAppViews(sql, appViews),
+  return withoutAppTablePolicies(
+    withoutUnmappedColumns(
+      withoutUnmappedTables(
+        blockNamesOnAppTables(
+          withoutAppTableEdits(
+            overAppTables(
+              overAppViews(sql, appViews),
+              appTables,
+              layout.ownColumns,
+            ),
             appTables,
-            layout.ownColumns,
           ),
           appTables,
+          layout.ownUpdatedAtTriggers,
         ),
-        appTables,
-        layout.ownUpdatedAtTriggers,
+        ctx.instance,
       ),
       ctx.instance,
     ),
-    ctx.instance,
+    ctx.config.ownTablePolicies === "app" ? appTables : new Set(),
   );
 }
 

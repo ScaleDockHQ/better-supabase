@@ -342,10 +342,11 @@ export interface Repository<
     patch: Update<M, T>,
   ): AsyncResult<{ count: number }>;
   update<
-    const A extends ManyWriteArgs<M, T> & {
-      /** Update every visible row when `where` filters nothing. */
-      readonly allowAll?: boolean;
-    } & FindExt<E, M, T>,
+    const A extends ManyWriteArgs<M, T> &
+      Pick<WriteArgs<M, T>, "override"> & {
+        /** Update every visible row when `where` filters nothing. */
+        readonly allowAll?: boolean;
+      } & FindExt<E, M, T>,
   >(
     filter: RowFilter<M, T>,
     // NoInfer keeps the `const` inference from turning array and object values
