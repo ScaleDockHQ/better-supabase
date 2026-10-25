@@ -114,6 +114,20 @@ export function lineCopyColumns(
   ].filter((column) => ctx.has(lines, column));
 }
 
+const LINE_KEYS = ["unitAmount", "product", "fields"] as const;
+
+export function lineExtraColumns(
+  ctx: BlockSqlContext,
+  lines = "lines",
+): readonly ExtraColumn[] {
+  return ctx.extraColumns(lines, LINE_KEYS, "lineExtraColumns");
+}
+
+export const lineFieldsJson = (
+  alias: string,
+  extras: readonly ExtraColumn[] = [],
+): string => extraFieldsJson(alias, extras);
+
 export interface LineItems {
   /** The logical name of the line table. */
   readonly lines: string;
@@ -216,6 +230,8 @@ export function lineItemsSql(
       column === "productType" ? ctx.cast(items.lines, column, value) : value,
     ]);
 
+  const extras = items.extras ?? [];
+
   const manages = ctx.manages
     ? `create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -230,7 +246,7 @@ create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("paren
         ctx.owns(items.lines)
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
-      }
+      }${addExtraColumns(t, extras)}
 ${lockTable(t, { read: true })}
 drop policy if exists ${sqlIdent(`${name}_read`)} on ${t};
 create policy ${sqlIdent(`${name}_read`)} on ${t} for select to authenticated

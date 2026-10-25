@@ -5,6 +5,7 @@ import {
   catalogLineFallback,
   lineColumn,
   lineCopyColumns,
+  lineFieldsJson,
   lineItemsSql,
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
@@ -147,7 +148,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
 
   const lines = (alias: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "ql", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "ql", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "ql", "taxCode")}, 'product', case when ${lineColumn(ctx, "lines", "ql", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(ctx, "lines", "ql", "productType")}, 'id', ${lineColumn(ctx, "lines", "ql", "productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "ql", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "ql", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "ql", "taxCode")}, 'product', case when ${lineColumn(ctx, "lines", "ql", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(ctx, "lines", "ql", "productType")}, 'id', ${lineColumn(ctx, "lines", "ql", "productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const int8 = ["number", ...Object.keys(TOTAL_COLUMNS)].map(q);
 

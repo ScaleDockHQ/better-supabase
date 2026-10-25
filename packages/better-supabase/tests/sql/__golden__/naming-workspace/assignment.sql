@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:2bda64bae5a0c5a5dbf2e72772f894e4b77315b8654fb88771d2fd4d67d4b2f0
+-- @bsb-hash sha256:b28a277636a63fe05a3b1719a2b0d13567233bd819967c3ecf810ac8796aa556
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

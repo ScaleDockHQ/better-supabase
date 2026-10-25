@@ -17,7 +17,6 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
-  SQL_MODULES,
   instanceFunctions,
   resolveBlock,
   resolveBlocks,
@@ -149,10 +148,23 @@ function namingOf(
 
   const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
-  const columns = tenantColumnsOf(config, modules);
+  const tenantColumn = tenantColumnOf(config, modules);
+
+  const columns = Object.fromEntries(
+    Object.entries(tenantColumnsOf(config, modules)).filter(
+      ([name]) => name !== tenantColumn,
+    ),
+  );
+
   const moved = Object.keys(columns).length > 0;
 
-  if (tenant === undefined && !renames && entities.length === 0 && !moved) {
+  if (
+    tenant === undefined &&
+    !renames &&
+    entities.length === 0 &&
+    tenantColumn === undefined &&
+    !moved
+  ) {
     return undefined;
   }
 

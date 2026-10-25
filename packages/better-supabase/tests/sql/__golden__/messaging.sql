@@ -7165,7 +7165,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:f24c993a0b7501fd865c770b0c10e51678c7097fed44da47f69feacd2aea3f79
+-- @bsb-hash sha256:62ce2d181ca97a1d82ca1b10ad6c05e79cd850892edd65b9de626b59e703b8a6
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8818,7 +8818,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:15749b95309ec28500a55462c3d95f27f7d9f3e097302eb1169ef45e5d54ffcb
+-- @bsb-hash sha256:848c78ff91971b815a58ded68bd0e5b287a880dbbaf20448d933cd30184cc704
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9669,7 +9669,7 @@ as $$
     ), '[]'::jsonb),
     'subjects', coalesce((
       select jsonb_agg(distinct jsonb_build_object('type', m[1], 'id', m[2]))
-      from regexp_matches(parse_mentions.body, '@\[[^\]\n]{1,100}\]\(subject:([a-z][a-z0-9_]{0,62})/([^)\s]{1,200})\)', 'g') m
+      from regexp_matches(parse_mentions.body, '@\[[^\]\n]{1,100}\]\(subject:([a-z][a-z0-9_-]{0,62})/([^)\s]{1,200})\)', 'g') m
     ), '[]'::jsonb),
     'scope', case
       when parse_mentions.body ~ '(^|[^\w@])@channel\M' then 'channel'

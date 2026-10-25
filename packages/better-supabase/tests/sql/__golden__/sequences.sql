@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:4d6d35f3432ef06777e8e1bf99a0fad20b4684e01e483580d27a0828dd08c9a2
+-- @bsb-hash sha256:b4eb6750168d5a681dad481d937e9058b0046c5bc894e06eef24ae47c4505230
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -940,7 +940,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:f4bbb1632eaef46e04b1daf3488b06cfbe09023aea703c4f727022927bb014e5
+-- @bsb-hash sha256:6369bbbec0f11d54b451571941e8d61b978197cea5230698ecb614af5b3f6d86
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2012,7 +2012,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:a7a6a70b571dbacdd293a4762c75304ba847be861112faa226725cdc2f1d1218
+-- @bsb-hash sha256:a8ec6a16ef9a16267b7ed62dc7f8b943f8950c69b33f057dbe058ceef0e995b1
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2953,7 +2953,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:cce1bb220fbb3491076e5f99eb124adf7c4b74fb99e5efecb5a2ec227c6ec39d
+-- @bsb-hash sha256:5190a8b148b50d4678aaeba6f827ed2e856465773f1304e93e065b5bedb26842
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4004,7 +4004,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:72508bf409f4b9a2394d2caed66b2edba96d2d4567f0d93b9202a1812cb921c5
+-- @bsb-hash sha256:f0faffa9b70bb6f5681c56e0425b6847982cd53f965c16b41ef7ef315f7b5660
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4100,7 +4100,7 @@ create index if not exists "sequences_account_idx" on "better_supabase"."sequenc
 alter table "better_supabase"."sequence_enrollments" add column if not exists "enrollment_id" uuid references "better_supabase"."enrollments" ("id") on delete cascade;
 alter table "better_supabase"."sequence_enrollments" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."sequence_enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
-alter table "better_supabase"."sequence_enrollments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."sequence_enrollments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."sequence_enrollments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
 alter table "better_supabase"."sequence_enrollments" add column if not exists "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
 alter table "better_supabase"."sequence_enrollments" add column if not exists "name" text check ("name" is null or length("name") <= 200);
@@ -4592,7 +4592,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then
@@ -4946,7 +4946,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:ad8297d4286db55905b278507788a8850071ca7ba0822f16ca367b56189ef1db
+-- @bsb-hash sha256:126672e651885a938375422bde6de74e00aa02ae197975180e40fffb9e138822
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5033,7 +5033,7 @@ create table if not exists "better_supabase"."sequence_enrollments" (
   "enrollment_id" uuid primary key references "better_supabase"."enrollments" ("id") on delete cascade,
   "org_id" uuid not null,
   "sequence_id" uuid not null references "better_supabase"."sequences" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "address" text check ("address" is null or (length("address") <= 320 and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   "name" text check ("name" is null or length("name") <= 200),
@@ -5531,7 +5531,7 @@ begin
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if enroll_in_sequence.subject_type is null or enroll_in_sequence.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'subject_type: use lowercase letters, digits or _' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if enroll_in_sequence.subject_id is null or length(enroll_in_sequence.subject_id) not between 1 and 200 then

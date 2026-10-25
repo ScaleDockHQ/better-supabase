@@ -5440,7 +5440,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:30ef86b649fab6f9025d78a4e402ac4256cebf8ba532ab164be3572b83e1282a
+-- @bsb-hash sha256:d22a1887fad84bbc58104e4bfcbcd6d7c423ae7db543ece072aefa53982a48c7
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5520,7 +5520,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.rules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rules" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."rules" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."rules" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."rules" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
 alter table "better_supabase"."rules" add column if not exists "name" text check (length("name") between 1 and 200);
 alter table "better_supabase"."rules" add column if not exists "description" text check (length("description") <= 2000);
@@ -5548,7 +5548,7 @@ grant all on "better_supabase"."rules" to service_role;
 -- better_supabase.rule_defaults is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rule_defaults" add column if not exists "key" text check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$');
 alter table "better_supabase"."rule_defaults" add column if not exists "block" text;
-alter table "better_supabase"."rule_defaults" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."rule_defaults" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."rule_defaults" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
 alter table "better_supabase"."rule_defaults" add column if not exists "name" text check (length("name") between 1 and 200);
 alter table "better_supabase"."rule_defaults" add column if not exists "description" text check (length("description") <= 2000);
@@ -5598,7 +5598,7 @@ grant all on "better_supabase"."rule_evaluations" to service_role;
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
 -- better_supabase.rule_fields is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."rule_fields" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."rule_fields" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."rule_fields" add column if not exists "field_id" text check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$');
 alter table "better_supabase"."rule_fields" add column if not exists "label" text;
 alter table "better_supabase"."rule_fields" add column if not exists "description" text;
@@ -6188,7 +6188,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.edit'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
-  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'A rule needs a subject type' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   if v_trigger is null or length(v_trigger) > 128 or v_trigger !~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$' then
@@ -6717,7 +6717,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:a2217f2759c666154f12c41ea9a034f3198a4f8052a1e4ec8c6bbcb2022f0915
+-- @bsb-hash sha256:578fbb765b71ba2de046f6d7871300cde6a7f633e6ef74afd5239fbfba618fc5
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6781,7 +6781,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."rules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
@@ -6811,7 +6811,7 @@ grant all on "better_supabase"."rules" to service_role;
 create table if not exists "better_supabase"."rule_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
   "name" text not null check (length("name") between 1 and 200),
   "description" text check (length("description") <= 2000),
@@ -6866,7 +6866,7 @@ grant all on "better_supabase"."rule_evaluations" to service_role;
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
 create table if not exists "better_supabase"."rule_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
@@ -7459,7 +7459,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.edit'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
-  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'A rule needs a subject type' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   if v_trigger is null or length(v_trigger) > 128 or v_trigger !~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$' then

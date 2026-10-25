@@ -142,7 +142,7 @@ function build(ctx: BlockSqlContext): string {
   -- lead, health, or the app's own key.
   ${m("key")} text not null check (${m("key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${m("name")} text not null check (length(${m("name")}) between 1 and 200),${optional("models", "description", (c) => `${c} text check (${c} is null or length(${c}) <= 2000)`)}
-  ${m("subjectType")} text not null check (${m("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
+  ${m("subjectType")} text not null check (${m("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
   ${jsonArray(m("rules"))},

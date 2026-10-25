@@ -7,12 +7,8 @@ import type { Db, RawRpcOptions, RpcOptions } from "./repository-types.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 
 import { dbError } from "./errors.ts";
-import { AsyncResult } from "./result.ts";
-
-import { rawError } from "./block-transport.ts";
-import { mapDbError } from "./errors.ts";
 import { instanceProperty } from "./instance-property.ts";
-import { AsyncResult, err, ok, toDbError } from "./result.ts";
+import { AsyncResult } from "./result.ts";
 
 /**
  * What `betterSupabase.blocks()` takes: the `BlockSet` that `defineBlocks`
@@ -126,6 +122,11 @@ export type BlocksHelper<K, T extends PropertyKey = never> = unknown extends K
         fn: string,
         args?: Readonly<Record<string, unknown>>,
         options?: ApiOptions,
+      ): AsyncResult<unknown>;
+      /** @deprecated `$api` returns the same `Result`; call it instead. */
+      $apiResult(
+        fn: string,
+        args?: Readonly<Record<string, unknown>>,
       ): AsyncResult<unknown>;
     };
 
@@ -254,16 +255,12 @@ export function blocksPrototype(
   });
 
   Object.defineProperty(prototype, "$apiResult", {
-    value(this: object, fn: string, args: Readonly<Record<string, unknown>>) {
-      return AsyncResult.from(async () => {
-        try {
-          return ok(await source.call(this, fn, args));
-        } catch (cause) {
-          const raw = rawError(cause);
-
-          return err(raw === undefined ? toDbError(cause) : mapDbError(raw));
-        }
-      });
+    value(
+      this: { $api(fn: string, args?: object): AsyncResult<unknown> },
+      fn: string,
+      args: Readonly<Record<string, unknown>> = {},
+    ): AsyncResult<unknown> {
+      return this.$api(fn, args);
     },
     configurable: true,
     enumerable: false,

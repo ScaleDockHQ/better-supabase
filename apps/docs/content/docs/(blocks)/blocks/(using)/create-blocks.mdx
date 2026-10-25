@@ -114,6 +114,12 @@ const quotes = await db
 
 `blockSet.call(db, fn, args)` does the same outside a `Db` with blocks on it
 and also returns a `Result`.
+`db.$apiResult(fn, args)` is the same as `db.$api(fn, args)` and stays for
+code written against 0.19.0.
+
+`defineSupabase(schema, { temporal })` passes its `temporal` to every
+instance `.blocks()` builds, so a runtime without a global `Temporal` needs it
+only there.
 
 ## The generated config
 

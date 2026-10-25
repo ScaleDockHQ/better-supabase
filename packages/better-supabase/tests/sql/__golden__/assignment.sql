@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:15ad5767c4dfdbf57ff7eaf7572b111330714d7f10be6ac8b7dfb7cc5c2c3a6b
+-- @bsb-hash sha256:31db3a018e9d7abefdc1c82ad53dd9fb357507babe5612749c12b241b7e0ecc5
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,7 +474,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:afa8fb88faf764389a6484cc02e9c48c51bb16ebadd2a5f4e3963d15055abb90
+-- @bsb-hash sha256:6990374cdbaf404e1615dbf08193a62e97506dc896c038887531d636061e60fb
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -947,7 +947,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:12786b29bfff6ddab1236874e38a774be7be8ba4c764678fda318da0120043b7
+-- @bsb-hash sha256:e89561165f2591fedbafa0a33e8ee17b46df2f3e5e80721b9634305b5c3abfa7
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1422,7 +1422,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:e950118bf091d89e68446d2889a3ac83a933e513f74016111894e5ef81d83e9d
+-- @bsb-hash sha256:7aafa9337b4509d6d1225a2be966f4ae04a4b1126e00b9a0591497d134f0473a
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1971,7 +1971,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:e4f6c765d9777361795ef145a9ed425b8a4db31cdb1863594ff305bbf1757915
+-- @bsb-hash sha256:001ac6f6d9e841f6ae0333780611390fae08086d01c65d3f4267819b85691a52
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2052,7 +2052,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."assignment_queues" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."assignment_queues" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."assignment_queues" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."assignment_queues" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."assignment_queues" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."assignment_queues" add column if not exists "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted'));
 alter table "better_supabase"."assignment_queues" add column if not exists "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object');
 alter table "better_supabase"."assignment_queues" add column if not exists "rank" integer not null default 0;
@@ -2136,7 +2136,7 @@ begin
     end if;
   end if;
   v_type := coalesce(queue ->> 'subjectType', v_old."subject_type");
-  if v_type is null or v_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_type is null or v_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'A queue needs a subject type' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
   end if;
   v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else v_old."conditions" end;
@@ -2453,7 +2453,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:7af571e169c5892cf5880ed6f2268b80fa9ac120efa244378242e47942ed9e6d
+-- @bsb-hash sha256:8e72dc03757b4099cc064a0427a511aa0937cca944b82ac7de980d5fcff9e92b
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2518,7 +2518,7 @@ create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
   "rank" integer not null default 0,
@@ -2609,7 +2609,7 @@ begin
     end if;
   end if;
   v_type := coalesce(queue ->> 'subjectType', v_old."subject_type");
-  if v_type is null or v_type !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if v_type is null or v_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'A queue needs a subject type' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
   end if;
   v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else v_old."conditions" end;

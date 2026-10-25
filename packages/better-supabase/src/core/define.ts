@@ -33,6 +33,7 @@ import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { encodeArguments } from "../ir/wire.ts";
+import { isStorageApi } from "../storage/storage-api.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";

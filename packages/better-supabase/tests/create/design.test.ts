@@ -198,7 +198,11 @@ describe("connect", () => {
   const merged = withDesign(data, projects, preset);
 
   const blockTable = data.tables.find(
-    (table) => data.blockTables[table.id] !== undefined,
+    (table) =>
+      data.blockTables[table.id] !== undefined &&
+      table.primaryKey.length === 1 &&
+      table.columns.find((column) => column.name === table.primaryKey[0])
+        ?.type === "uuid",
   );
 
   it("adds a nullable cascading key to a block table", () => {

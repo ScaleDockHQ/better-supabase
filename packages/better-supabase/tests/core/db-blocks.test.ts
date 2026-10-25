@@ -1,14 +1,16 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import type { BlockContext } from "../../src/blocks/index.ts";
+import type { BlockContext, UsingOptions } from "../../src/blocks/index.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
+import type { StorageApi } from "../../src/storage/storage-api.ts";
 
 import { attachmentsBlock } from "../../src/blocks/attachments/index.ts";
 import { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/index.ts";
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
+import { instanceProperty } from "../../src/core/instance-property.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -151,6 +153,50 @@ describe("block instances on db", () => {
         { probe },
       ).call(db, "ping", {}),
     ).toMatchObject({ ok: false, error: { kind: "unsupported" } });
+  });
+
+  it("keeps $apiResult as $api", async () => {
+    const db = betterSupabase.connect(executor, {});
+
+    // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
+    expect(await db.$apiResult("ping", { a: 1 })).toEqual(
+      await db.$api("ping", { a: 1 }),
+    );
+  });
+
+  it("passes the definition's temporal to every instance", () => {
+    const seen: unknown[] = [];
+    const temporal = globalThis.Temporal;
+
+    const recorder = defineBlock({
+      name: "recorder",
+      create: (context: BlockContext) => {
+        seen.push(context.temporal);
+
+        return { ping: (): boolean => true };
+      },
+      category: "work",
+    });
+
+    const db = defineSupabase(schema, { temporal })
+      .blocks(
+        defineBlocks(
+          {
+            recorder: { schema: "better_supabase", options: {} },
+            second: {
+              block: "recorder",
+              schema: "better_supabase",
+              options: {},
+            },
+          },
+          { recorder, second: recorder },
+        ),
+      )
+      .connect(executor, {});
+
+    expect(db.recorder.ping()).toBe(true);
+    expect(db.second.ping()).toBe(true);
+    expect(seen).toEqual([temporal, temporal]);
   });
 
   it("leaves a table its property and keeps the instance under $blocks", () => {

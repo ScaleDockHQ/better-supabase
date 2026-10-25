@@ -10,7 +10,11 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { DealNames } from "./deals-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { lineTableSpec, totalColumnsSql } from "../line-items-sql.ts";
+import {
+  lineExtraColumns,
+  lineTableSpec,
+  totalColumnsSql,
+} from "../line-items-sql.ts";
 import {
   addExtraColumns,
   fail,

@@ -1,10 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { SUBJECT_TYPE_SQL_PATTERN } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import { lockTable } from "../shared.ts";
 
-export const SUBJECT_TYPE = "^[a-z][a-z0-9_]{0,62}$";
+export const SUBJECT_TYPE: string = SUBJECT_TYPE_SQL_PATTERN;
 export const TRIGGER = "^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$";
 export const ACTION_KIND = "^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$";
 const FIELD_ID = "^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$";

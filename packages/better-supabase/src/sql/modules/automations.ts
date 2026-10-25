@@ -7,7 +7,6 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { SUBJECT_TYPE_SQL_PATTERN } from "../../core/subject-type.ts";
 import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, raise, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
