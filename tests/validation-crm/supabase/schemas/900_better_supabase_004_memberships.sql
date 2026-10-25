@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:62cfba67261f2e80b82318415cd3fcaac3ead2f09baae2a5d9a33c88759bf4e2
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:1b24f8c5fbe7280441df5c9f6b9c386525bc17d3429a031c5a6ab5f1b033db0d
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,10 @@ alter table "better_supabase"."memberships"
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
@@ -111,6 +115,21 @@ set search_path = ''
 as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
+
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"

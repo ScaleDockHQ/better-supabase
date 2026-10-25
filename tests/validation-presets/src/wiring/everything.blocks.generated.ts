@@ -956,6 +956,7 @@ export const permissions = {
     read: "access_requests.read",
     create: "access_requests.create",
     manage: "access_requests.manage",
+    approve: "members.update_role",
   },
   activities: {
     read: "engagements.read",

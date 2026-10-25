@@ -1,7 +1,7 @@
 -- better-supabase module: push
--- @bsb-block push@1 managed
--- @bsb-hash sha256:9e908b805d31e57bdff9be9d50191a61a8c996a127cd937dc35747aa89b7a816
--- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
+-- @bsb-block push@2 managed
+-- @bsb-hash sha256:2e8ee091e0a0ec0e1e5929665bcc69c01fb9a94f89bcbf9271587e2ee680143a
+-- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -232,6 +232,173 @@ grant execute on function "better_supabase"."unregister_push_device"(text) to au
 grant execute on function "better_supabase"."push_tokens_for"(uuid[]) to service_role;
 grant execute on function "better_supabase"."prune_push_tokens"(text[]) to service_role;
 
+-- One row per delivery and device: the Expo ticket id, or the error Expo
+-- answered. A retried delivery skips the devices that already have a ticket.
+create table if not exists "better_supabase"."push_tickets" (
+  "id" uuid primary key default gen_random_uuid(),
+  "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
+  "token" text not null,
+  "ticket_id" text,
+  "status" text not null default 'pending' check ("status" in ('pending', 'ok', 'error')),
+  "error" text,
+  "created_at" timestamptz not null default now(),
+  "checked_at" timestamptz,
+  unique ("delivery_id", "token")
+);
+create index if not exists push_tickets_unchecked_idx on "better_supabase"."push_tickets" ("created_at") where "checked_at" is null and "ticket_id" is not null;
+alter table "better_supabase"."push_tickets" enable row level security;
+revoke all on "better_supabase"."push_tickets" from anon, authenticated;
+grant all on "better_supabase"."push_tickets" to service_role;
+
+-- Stores the tickets of one delivery: [{ token, id } | { token, error }].
+-- A ticket with an id replaces an earlier error for the same device and is
+-- never replaced itself.
+create or replace function "better_supabase"."record_push_tickets"(delivery uuid, tickets jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role reads push tickets' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+  end if;
+  if jsonb_typeof(record_push_tickets.tickets) <> 'array' or jsonb_array_length(record_push_tickets.tickets) > 1000 then
+    raise exception 'pass at most 1000 tickets' using errcode = '22023', hint = 'PUSH_TOO_MANY';
+  end if;
+  insert into "better_supabase"."push_tickets" as x ("delivery_id", "token", "ticket_id", "status", "error")
+  select record_push_tickets.delivery, e ->> 'token', e ->> 'id',
+    case when e ->> 'id' is null then 'error' else 'pending' end,
+    e ->> 'error'
+  from jsonb_array_elements(record_push_tickets.tickets) e
+  where e ->> 'token' is not null
+  on conflict ("delivery_id", "token") do update set
+    "ticket_id" = coalesce(excluded."ticket_id", x."ticket_id"),
+    "status" = case when x."ticket_id" is not null then x."status" else excluded."status" end,
+    "error" = case
+      when x."ticket_id" is not null then x."error"
+      when excluded."ticket_id" is not null then null
+      else excluded."error"
+    end;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- [{ token, id, error }] already stored for a delivery, in insert order.
+create or replace function "better_supabase"."push_tickets_for"(delivery uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role reads push tickets' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+      'token', x."token",
+      'id', x."ticket_id",
+      'error', x."error"
+    )) order by x."created_at", x."token"), '[]'::jsonb)
+    from "better_supabase"."push_tickets" x
+    where x."delivery_id" = push_tickets_for.delivery
+  );
+end;
+$$;
+
+-- [{ id, token, deliveryId }] for tickets older than older_than whose
+-- receipt nobody read yet, oldest first.
+create or replace function "better_supabase"."unchecked_push_tickets"(max_items integer default 1000, older_than interval default '15 minutes')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role reads push tickets' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', x."ticket_id",
+      'token', x."token",
+      'deliveryId', x."delivery_id"
+    ) order by x."created_at"), '[]'::jsonb)
+    from (
+      select * from "better_supabase"."push_tickets" y
+      where y."checked_at" is null
+        and y."ticket_id" is not null
+        and y."created_at" <= now() - unchecked_push_tickets.older_than
+      order by y."created_at"
+      limit least(greatest(coalesce(unchecked_push_tickets.max_items, 1000), 1), 1000)
+    ) x
+  );
+end;
+$$;
+
+-- Stores what Expo answered for each ticket, [{ id, status: ok | error,
+-- error, message }], and records notification.delivered or bounced on the
+-- delivery when the notifications block tracks provider events. A ticket
+-- Expo has no receipt for yet stays unchecked. Returns how many it stored.
+create or replace function "better_supabase"."complete_push_receipts"(receipts jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role reads push tickets' using errcode = '42501', hint = 'PUSH_FORBIDDEN';
+  end if;
+  if jsonb_typeof(complete_push_receipts.receipts) <> 'array' or jsonb_array_length(complete_push_receipts.receipts) > 1000 then
+    raise exception 'pass at most 1000 receipts' using errcode = '22023', hint = 'PUSH_TOO_MANY';
+  end if;
+  -- The delivery's provider message id is Expo's first ticket id, so every
+  -- receipt of the delivery records its event on that message, once per
+  -- ticket.
+  perform "better_supabase"."record_delivery_event"(
+    'expo',
+    d."provider_message_id",
+    case when r ->> 'status' = 'ok' then 'delivered' else 'bounced' end,
+    'expo-receipt:' || (r ->> 'id'),
+    now(),
+    jsonb_strip_nulls(jsonb_build_object('token', x."token", 'error', r ->> 'error', 'message', r ->> 'message')),
+    false
+  )
+  from "better_supabase"."push_tickets" x
+  join "better_supabase"."notification_deliveries" d on d."id" = x."delivery_id"
+  cross join jsonb_array_elements(complete_push_receipts.receipts) r
+  where x."ticket_id" = r ->> 'id'
+    and x."checked_at" is null
+    and d."provider_message_id" is not null;
+  update "better_supabase"."push_tickets" x set
+    "status" = case when r ->> 'status' = 'ok' then 'ok' else 'error' end,
+    "error" = case when r ->> 'status' = 'ok' then null else coalesce(r ->> 'error', 'Unknown') end,
+    "checked_at" = now()
+  from jsonb_array_elements(complete_push_receipts.receipts) r
+  where x."ticket_id" = r ->> 'id'
+    and x."checked_at" is null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."record_push_tickets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_push_tickets"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."push_tickets_for"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."push_tickets_for"(uuid) to service_role;
+revoke execute on function "better_supabase"."unchecked_push_tickets"(integer, interval) from public, anon, authenticated;
+grant execute on function "better_supabase"."unchecked_push_tickets"(integer, interval) to service_role;
+revoke execute on function "better_supabase"."complete_push_receipts"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_push_receipts"(jsonb) to service_role;
+
 -- blocks.push.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -291,6 +458,42 @@ set search_path = ''
 as $$ select "better_supabase"."prune_push_tokens"($1) $$;
 revoke execute on function "api"."prune_push_tokens"(text[]) from public, anon, authenticated;
 grant execute on function "api"."prune_push_tokens"(text[]) to service_role;
+
+create or replace function "api"."record_push_tickets"(delivery uuid, tickets jsonb)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_push_tickets"($1, $2) $$;
+revoke execute on function "api"."record_push_tickets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."record_push_tickets"(uuid, jsonb) to service_role;
+
+create or replace function "api"."push_tickets_for"(delivery uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."push_tickets_for"($1) $$;
+revoke execute on function "api"."push_tickets_for"(uuid) from public, anon, authenticated;
+grant execute on function "api"."push_tickets_for"(uuid) to service_role;
+
+create or replace function "api"."unchecked_push_tickets"(max_items integer default 1000, older_than interval default '15 minutes')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."unchecked_push_tickets"($1, $2) $$;
+revoke execute on function "api"."unchecked_push_tickets"(integer, interval) from public, anon, authenticated;
+grant execute on function "api"."unchecked_push_tickets"(integer, interval) to service_role;
+
+create or replace function "api"."complete_push_receipts"(receipts jsonb)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."complete_push_receipts"($1) $$;
+revoke execute on function "api"."complete_push_receipts"(jsonb) from public, anon, authenticated;
+grant execute on function "api"."complete_push_receipts"(jsonb) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

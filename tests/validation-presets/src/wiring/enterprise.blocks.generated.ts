@@ -172,6 +172,7 @@ export const permissions = {
     read: "access_requests.read",
     create: "access_requests.create",
     manage: "access_requests.manage",
+    approve: "members.update_role",
   },
   "api-keys": {
     manage: "api_keys.manage",

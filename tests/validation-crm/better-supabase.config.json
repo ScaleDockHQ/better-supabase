@@ -38,6 +38,7 @@
           "key": "user_id",
           "fullName": null,
           "avatar": null,
+          "locale": null,
           "onboarding": null
         }
       }

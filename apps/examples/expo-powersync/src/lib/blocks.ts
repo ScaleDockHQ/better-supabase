@@ -24,7 +24,7 @@ const notificationTypes = { "test.sent": Titled, "workflow.message": Titled };
  * PowerSync serves `notifications` offline (`gen.powersync.instances`); the
  * others need the network.
  */
-export const blockSet = defineBlocks(blockConfig, {
+const blockSet = defineBlocks(blockConfig, {
   ...generated,
   notifications: generated.notifications.using((options) =>
     createNotifications({ ...options, types: notificationTypes }),

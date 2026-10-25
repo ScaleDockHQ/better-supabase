@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:c9f5caeaeba48bd59b8347e01a5f2baedb618ecfc2672f1e59af5f6eb9df7753
+-- @bsb-hash sha256:e08151884a9074c2064723d741d7e71dfe1b9c182922ee26e01763c14e83a9ea
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return nullif(trim(reverse(split_part(reverse(current_setting('request.headers', true)::json ->> 'x-forwarded-for'), ',', 1))), '')::inet;
+  return nullif(trim(reverse(split_part(reverse(nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for'), ',', 1))), '')::inet;
 exception when others then
   return null;
 end;
