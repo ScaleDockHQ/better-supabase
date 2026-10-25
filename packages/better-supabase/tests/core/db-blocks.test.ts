@@ -3,8 +3,8 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { BlockContext } from "../../src/blocks/index.ts";
 
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
-import { instanceProperty } from "../../src/core/db-blocks.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { instanceProperty } from "../../src/core/instance-property.ts";
 import { ok } from "../../src/core/result.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -73,6 +73,70 @@ describe("block instances on db", () => {
       { a: 1 },
       expect.objectContaining({ schema: "api" }),
     );
+  });
+
+  it("returns the API schema call as a Result through $apiResult", async () => {
+    const db = betterSupabase.connect(executor, {});
+    const result = await db.$apiResult("ping", { a: 1 });
+
+    expect(result).toMatchObject({ ok: true });
+
+    const failing = betterSupabase.connect(
+      {
+        ...executor,
+        rpc: vi.fn(() =>
+          Promise.reject(
+            Object.assign(new Error("denied"), {
+              code: "42501",
+              hint: "PING_FORBIDDEN",
+            }),
+          ),
+        ),
+      },
+      {},
+    );
+
+    const denied = await failing.$apiResult("ping", {});
+
+    expect(denied.ok).toBe(false);
+    expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
+    expect(denied.ok ? undefined : denied.error.hint).toBe("PING_FORBIDDEN");
+    await expect(failing.$api("ping", {})).rejects.toThrow("denied");
+  });
+
+  it("passes the definition's temporal to every instance", () => {
+    const seen: unknown[] = [];
+    const temporal = globalThis.Temporal;
+
+    const recorder = defineBlock({
+      name: "recorder",
+      create: (context: BlockContext) => {
+        seen.push(context.temporal);
+
+        return { ping: (): boolean => true };
+      },
+      category: "work",
+    });
+
+    const db = defineSupabase(schema, { temporal })
+      .blocks(
+        defineBlocks(
+          {
+            recorder: { schema: "better_supabase", options: {} },
+            second: {
+              block: "recorder",
+              schema: "better_supabase",
+              options: {},
+            },
+          },
+          { recorder, second: recorder },
+        ),
+      )
+      .connect(executor, {});
+
+    expect(db.recorder.ping()).toBe(true);
+    expect(db.second.ping()).toBe(true);
+    expect(seen).toEqual([temporal, temporal]);
   });
 
   it("leaves a table its property and keeps the instance under $blocks", () => {

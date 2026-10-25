@@ -979,7 +979,7 @@ export class BetterSupabase<
       });
     }
 
-    const { blocks } = this.options;
+    const { blocks, temporal } = this.options;
 
     this.#tables =
       blocks === undefined
@@ -989,6 +989,7 @@ export class BetterSupabase<
             tables,
             Object.keys(this.meta.tables),
             this.events,
+            temporal,
           );
 
     return this.#tables;
