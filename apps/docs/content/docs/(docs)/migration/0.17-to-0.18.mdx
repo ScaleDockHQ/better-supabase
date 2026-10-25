@@ -1,9 +1,9 @@
 ---
-title: From 0.15 to 0.16
-description: What to check when upgrading to better-supabase 0.16, which closes two access gaps, lowercases profile emails and adds multi-role members, offline attachments and notifications, notification actions and cookie-free middleware.
+title: From 0.17 to 0.18
+description: What to check when upgrading to better-supabase 0.18, which closes two access gaps, lowercases profile emails and adds multi-role members, offline attachments and notifications, notification actions and cookie-free middleware.
 ---
 
-0.16 needs no codemod. Two security fixes change what a caller may do, and
+0.18 needs no codemod. Two security fixes change what a caller may do, and
 one upgrade rewrites stored data; everything else is opt-in. Upgrade the
 package, then regenerate the block files and a migration:
 
@@ -25,7 +25,7 @@ from the server with the service role instead.
 `blocks.organizations.permissions.listMembers`. Its default is the key it
 checked before, `members.read`. When your authorization provider doesn't list
 that key, `upgrade` now stops and names it: set `listMembers` to a key every
-member holds. Before 0.16 that call failed for every caller.
+member holds. Before 0.18 that call failed for every caller.
 
 ## Profile emails are lowercase
 

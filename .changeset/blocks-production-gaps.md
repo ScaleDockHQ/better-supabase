@@ -3,7 +3,7 @@
 ---
 
 Close the gaps a production Expo, oRPC and MCP app hit on the blocks. See the
-0.15 to 0.16 migration guide.
+0.17 to 0.18 migration guide.
 
 - Security: `team_ids_of(member)` refuses a signed-in caller that names another
   user, and `list_members` checks a key `blocks.organizations.permissions.listMembers`

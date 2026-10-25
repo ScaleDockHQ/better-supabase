@@ -180,7 +180,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.inbound_webhook_events",
           "centrakit.workflow_events",
         ],
-        // The 0.16 upgrade drops resolve_notifications, which gains a resolution
+        // The 0.18 upgrade drops resolve_notifications, which gains a resolution
         // argument, and the schema diff creates it again.
         "warning BS235": [
           "supabase/migrations/20261025143938_better_supabase_block_upgrade.sql:9",
