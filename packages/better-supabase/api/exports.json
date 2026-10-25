@@ -84,6 +84,7 @@
       "* from ./schema/types.ts",
       "Actor",
       "AnyPlugin",
+      "ApiOptions",
       "ApplyExtension",
       "AuthEvent",
       "AuthOutageEvent",

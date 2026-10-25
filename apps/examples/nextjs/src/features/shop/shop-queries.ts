@@ -84,10 +84,13 @@ async function loadProducts(): Promise<readonly Product[] | null> {
     return null;
   }
 
-  const rows = v.parse(
-    v.array(ProductRow),
-    await db.$api("shop_products", { tenant, currency: SHOP_CURRENCY }),
-  );
+  const rows = await db
+    .$api(
+      "shop_products",
+      { tenant, currency: SHOP_CURRENCY },
+      { returns: v.array(ProductRow) },
+    )
+    .orThrow();
 
   return rows.map(({ amount, ...row }) => ({
     ...row,
@@ -137,7 +140,9 @@ async function loadStockLevels(): Promise<StockLevels | null> {
     return null;
   }
 
-  return v.parse(StockLevels, await db.$api("shop_stock_levels", { tenant }));
+  return db
+    .$api("shop_stock_levels", { tenant }, { returns: StockLevels })
+    .orThrow();
 }
 
 export function getStockLevels(): Promise<Loaded<StockLevels>> {
@@ -197,7 +202,9 @@ async function loadOrders(): Promise<Orders | null> {
     return null;
   }
 
-  const list = v.parse(OrderList, await db.$api("shop_orders", { tenant }));
+  const list = await db
+    .$api("shop_orders", { tenant }, { returns: OrderList })
+    .orThrow();
 
   return {
     drafts: list.drafts,

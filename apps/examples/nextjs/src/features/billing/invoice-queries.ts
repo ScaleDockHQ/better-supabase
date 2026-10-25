@@ -59,10 +59,9 @@ async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
     return null;
   }
 
-  const rows = v.parse(
-    v.array(InvoiceRow),
-    await db.$api("billing_invoices", { tenant }),
-  );
+  const rows = await db
+    .$api("billing_invoices", { tenant }, { returns: v.array(InvoiceRow) })
+    .orThrow();
 
   return rows.map(({ currency, total, balance, ...row }) => ({
     ...row,

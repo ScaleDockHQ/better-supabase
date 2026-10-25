@@ -24,10 +24,12 @@ import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
 import { onBlockEvent } from "../core/block-event-listener.ts";
-import { isRecord } from "../core/block-helpers.ts";
+import { blockCall, isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
 import { blockNames } from "../core/block-names.ts";
 import { dbTransport } from "../core/block-transport.ts";
+import { dbError } from "../core/errors.ts";
+import { AsyncResult } from "../core/result.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
 
@@ -174,6 +176,8 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
   readonly $clients?: BlockSetClientMap<B>;
   /** The generated config the blocks are built with. */
   readonly config: GeneratedBlocks;
+  /** The API schema the blocks are wrapped in (`sql.api`), if any has one. */
+  readonly api: string | undefined;
   /** Every block's events and the app's, typed. */
   readonly events: Events<M>;
   /**
@@ -207,13 +211,13 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
   ): ClientOf<B[K]>;
   /**
    * Calls `fn` in the API schema the blocks are wrapped in (`sql.api`), as
-   * `db`'s caller. Rejects with the raw database error.
+   * `db`'s caller. The error is a `DbError` in the result.
    */
   call(
     db: BlockClientSource,
     fn: string,
     args: Readonly<Record<string, unknown>>,
-  ): Promise<unknown>;
+  ): AsyncResult<unknown>;
   /**
    * One instance's methods and input schemas, for `defineApi`; `undefined` when
    * its client can't be built without a database.
@@ -269,17 +273,16 @@ export function defineBlocks<
     config,
     events,
     create: (options) => buildBlocks({ ...options, config }, blocks),
-    call: (db, fn, args) => {
-      if (api === undefined) {
-        return Promise.reject(
-          new TypeError(
-            "better-supabase: no block has an API schema (`sql.api`) to call",
-          ),
-        );
-      }
-
-      return dbTransport(db).call(api, fn, args);
-    },
+    api,
+    call: (db, fn, args) =>
+      api === undefined
+        ? AsyncResult.err(
+            dbError(
+              "unsupported",
+              "No block has an API schema (`sql.api`) to call",
+            ),
+          )
+        : blockCall(dbTransport(db), api)(fn, args, (value) => value),
     client: (db, key, options = {}) =>
       // SAFETY: `build(key)` returns the client of the block under `key`.
       blockBuilder(clientContext(db, { config, ...options }), blocks).build(

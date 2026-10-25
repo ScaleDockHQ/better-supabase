@@ -483,9 +483,15 @@ export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
     return null;
   }
 
-  const rows = await db.$api("list_quotes", { tenant, page_size: 50 });
+  const rows = await db
+    .$api(
+      "list_quotes",
+      { tenant, page_size: 50 },
+      { returns: v.array(QuoteRow) },
+    )
+    .orThrow();
 
-  return v.parse(v.array(QuoteRow), rows).map(quoteOf);
+  return rows.map(quoteOf);
 }
 
 /**
@@ -502,10 +508,9 @@ export async function loadQuote(
     return null;
   }
 
-  const row = v.parse(
-    v.nullish(QuoteRow),
-    await db.$api("get_quote", { quote: id }),
-  );
+  const row = await db
+    .$api("get_quote", { quote: id }, { returns: v.nullish(QuoteRow) })
+    .orThrow();
 
   return row ? quoteOf(row) : undefined;
 }

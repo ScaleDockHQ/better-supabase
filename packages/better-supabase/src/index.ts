@@ -176,6 +176,7 @@ export type {
 export type { BucketRegistry, BucketsHelper } from "./core/db-buckets.ts";
 
 export type {
+  ApiOptions,
   BlocksHelper,
   DbBlockSource,
   DbExtras,

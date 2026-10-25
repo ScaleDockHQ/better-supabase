@@ -3,7 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BucketRegistry } from "./db-buckets.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { EventHub } from "./events.ts";
-import type { Db } from "./repository-types.ts";
+import type { Db, RawRpcOptions, RpcOptions } from "./repository-types.ts";
+import type { StandardSchemaV1 } from "./standard.ts";
+
+import { dbError } from "./errors.ts";
+import { AsyncResult } from "./result.ts";
 
 import { rawError } from "./block-transport.ts";
 import { mapDbError } from "./errors.ts";
@@ -26,12 +30,8 @@ export interface DbBlockSource {
     key: string,
     options: { readonly events: EventHub; readonly temporal?: typeof Temporal },
   ): unknown;
-  /** Calls a function in the API schema that the blocks are wrapped in. */
-  call(
-    db: object,
-    fn: string,
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<unknown>;
+  /** The API schema the blocks are wrapped in (`sql.api`), which `$api` calls. */
+  readonly api?: string | undefined;
   /**
    * What one instance's client serves, for `defineApi`: its methods and the
    * input schemas of its entities. `undefined` when the client can't be built
@@ -112,18 +112,27 @@ export type BlocksHelper<K, T extends PropertyKey = never> = unknown extends K
       readonly $blocks: K;
       /**
        * Calls `fn` in the API schema the blocks are wrapped in, as the `Db`'s
-       * caller. Resolves to the function's result and rejects with the raw
-       * database error.
+       * caller, through `$rpc`: the error is a `DbError` in the result, and a
+       * `returns` schema validates the value and types it.
        */
+      $api<R>(
+        fn: string,
+        args: Readonly<Record<string, unknown>> | undefined,
+        options: ApiOptions & {
+          readonly returns: StandardSchemaV1<unknown, R>;
+        },
+      ): AsyncResult<R>;
       $api(
         fn: string,
-        args: Readonly<Record<string, unknown>>,
-      ): Promise<unknown>;
-      $apiResult(
-        fn: string,
-        args: Readonly<Record<string, unknown>>,
+        args?: Readonly<Record<string, unknown>>,
+        options?: ApiOptions,
       ): AsyncResult<unknown>;
     };
+
+/** Options for `db.$api`: `$rpc`'s, without `schema`. */
+export type ApiOptions =
+  | Omit<RpcOptions<unknown>, "schema" | "returns">
+  | Omit<RawRpcOptions, "schema">;
 
 /**
  * The `Db` a definition connects in the browser: what `bsb.db` holds and what
@@ -222,8 +231,22 @@ export function blocksPrototype(
   });
 
   Object.defineProperty(prototype, "$api", {
-    value(this: object, fn: string, args: Readonly<Record<string, unknown>>) {
-      return source.call(this, fn, args);
+    value(
+      this: { $rpc(...rest: unknown[]): AsyncResult<unknown> },
+      fn: string,
+      args: Readonly<Record<string, unknown>> = {},
+      options: object = {},
+    ): AsyncResult<unknown> {
+      if (source.api === undefined) {
+        return AsyncResult.err(
+          dbError(
+            "unsupported",
+            "No block has an API schema (`sql.api`) for $api to call",
+          ),
+        );
+      }
+
+      return this.$rpc(fn, args, { ...options, schema: source.api });
     },
     configurable: true,
     enumerable: false,

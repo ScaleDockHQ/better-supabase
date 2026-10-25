@@ -1,14 +1,15 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import type { BlockContext, UsingOptions } from "../../src/blocks/index.ts";
-import type { StorageApi } from "../../src/storage/storage-api.ts";
+import type { BlockContext } from "../../src/blocks/index.ts";
+import type { AsyncResult } from "../../src/core/result.ts";
+import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 
 import { attachmentsBlock } from "../../src/blocks/attachments/index.ts";
 import { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/index.ts";
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { instanceProperty } from "../../src/core/instance-property.ts";
-import { ok } from "../../src/core/result.ts";
+import { dbError } from "../../src/core/errors.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 /** A block whose client reports the tenant it acts in. */
@@ -40,6 +41,33 @@ const executor = {
 
 const betterSupabase = defineSupabase(schema).blocks(blockSet);
 
+type Rows = { readonly rows: readonly unknown[] };
+
+/** Accepts `{ rows }` and types it. */
+const VALUE: StandardSchemaV1<unknown, Rows> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: (value) => {
+      if (typeof value !== "object" || value === null || !("rows" in value)) {
+        return { issues: [{ message: "no rows" }] };
+      }
+
+      // SAFETY: checked that `value` has `rows`.
+      return { value: value as Rows };
+    },
+  },
+};
+
+/** Refuses everything. */
+const NEVER: StandardSchemaV1<unknown, never> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: () => ({ issues: [{ message: "never" }] }),
+  },
+};
+
 describe("block instances on db", () => {
   it("puts each instance under its key in camel case", () => {
     const db = betterSupabase.connect(executor, { tenant: "org-1" });
@@ -69,8 +97,9 @@ describe("block instances on db", () => {
   it("calls the API schema through $api", async () => {
     const db = betterSupabase.connect(executor, {});
 
-    await db.$api("ping", { a: 1, b: undefined });
+    const result = await db.$api("ping", { a: 1, b: undefined });
 
+    expect(result.ok).toBe(true);
     expect(rpc).toHaveBeenCalledWith(
       "ping",
       { a: 1 },
@@ -78,68 +107,50 @@ describe("block instances on db", () => {
     );
   });
 
-  it("returns the API schema call as a Result through $apiResult", async () => {
-    const db = betterSupabase.connect(executor, {});
-    const result = await db.$apiResult("ping", { a: 1 });
+  it("returns a database error from $api as a Result", async () => {
+    const failing = {
+      ...executor,
+      rpc: async () => err(dbError("forbidden", "denied")),
+    };
 
-    expect(result).toMatchObject({ ok: true });
+    const db = betterSupabase.connect(failing, {});
+    const result = await db.$api("ping", {});
 
-    const failing = betterSupabase.connect(
-      {
-        ...executor,
-        rpc: vi.fn(() =>
-          Promise.reject(
-            Object.assign(new Error("denied"), {
-              code: "42501",
-              hint: "PING_FORBIDDEN",
-            }),
-          ),
-        ),
-      },
-      {},
-    );
-
-    const denied = await failing.$apiResult("ping", {});
-
-    expect(denied.ok).toBe(false);
-    expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
-    expect(denied.ok ? undefined : denied.error.hint).toBe("PING_FORBIDDEN");
-    await expect(failing.$api("ping", {})).rejects.toThrow("denied");
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", message: "denied" },
+    });
+    await expect(db.$api("ping").orThrow()).rejects.toThrow("denied");
   });
 
-  it("passes the definition's temporal to every instance", () => {
-    const seen: unknown[] = [];
-    const temporal = globalThis.Temporal;
+  it("validates the $api result against `returns`", async () => {
+    const db = betterSupabase.connect(executor, {});
 
-    const recorder = defineBlock({
-      name: "recorder",
-      create: (context: BlockContext) => {
-        seen.push(context.temporal);
+    const result = await db.$api("ping", {}, { returns: VALUE }).orThrow();
 
-        return { ping: (): boolean => true };
-      },
-      category: "work",
-    });
+    expect(result).toEqual({ rows: [{ value: 1 }], count: null });
 
-    const db = defineSupabase(schema, { temporal })
-      .blocks(
-        defineBlocks(
-          {
-            recorder: { schema: "better_supabase", options: {} },
-            second: {
-              block: "recorder",
-              schema: "better_supabase",
-              options: {},
-            },
-          },
-          { recorder, second: recorder },
-        ),
-      )
-      .connect(executor, {});
+    const refused = await db.$api("ping", {}, { returns: NEVER });
 
-    expect(db.recorder.ping()).toBe(true);
-    expect(db.second.ping()).toBe(true);
-    expect(seen).toEqual([temporal, temporal]);
+    expect(refused).toMatchObject({ ok: false, error: { kind: "validation" } });
+  });
+
+  it("returns a database error from BlockSet.call as a Result", async () => {
+    const failing = {
+      ...executor,
+      rpc: async () => err(dbError("raised", "boom")),
+    };
+
+    const db = betterSupabase.connect(failing, {});
+    const result = await blockSet.call(db, "ping", {});
+
+    expect(result).toMatchObject({ ok: false, error: { message: "boom" } });
+    expect(
+      await defineBlocks(
+        { probe: { schema: "better_supabase", options: {} } },
+        { probe },
+      ).call(db, "ping", {}),
+    ).toMatchObject({ ok: false, error: { kind: "unsupported" } });
   });
 
   it("leaves a table its property and keeps the instance under $blocks", () => {
@@ -167,6 +178,13 @@ describe("block instances on db", () => {
     >();
     // @ts-expect-error not an instance
     void db.leadscoring;
+    expectTypeOf(db.$api("ping")).toEqualTypeOf<AsyncResult<unknown>>();
+    expectTypeOf(db.$api("ping", {}, { returns: VALUE })).toEqualTypeOf<
+      AsyncResult<{ readonly rows: readonly unknown[] }>
+    >();
+    expectTypeOf(blockSet.call(db, "ping", {})).toEqualTypeOf<
+      AsyncResult<unknown>
+    >();
     // @ts-expect-error a definition without blocks has no $api
     void defineSupabase(schema).connect(executor, {}).$api;
   });
