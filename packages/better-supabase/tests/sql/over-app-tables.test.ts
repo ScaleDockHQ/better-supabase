@@ -221,6 +221,247 @@ describe("blocks over the app's tables", () => {
   });
 });
 
+// The tables a block can't build over the app's own table yet, by module. The
+// list only shrinks: a table that gains `app` has to leave it.
+const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
+  "api-keys": ["keys"],
+  settings: ["user", "organization", "platform"],
+  usage: ["counters", "events", "history", "distinct", "quotas"],
+  billing: ["customers", "subscriptions"],
+  flags: ["flags", "overrides"],
+  attachments: ["attachments", "versions", "scans", "cleanup"],
+  "data-lifecycle": ["exports", "deletions", "policies", "holds"],
+  sso: [
+    "domains",
+    "providers",
+    "scimUsers",
+    "scimGroups",
+    "scimMembers",
+    "syncLog",
+  ],
+  waitlist: ["entries", "codes", "redemptions"],
+  announcements: ["announcements", "dismissals"],
+  streams: ["streams", "chunks"],
+  workflows: ["schedules", "semaphores", "startRequests"],
+  "workflow-editor": [
+    "versions",
+    "triggers",
+    "webhookTokens",
+    "credentials",
+    "steps",
+    "alerts",
+    "alertFires",
+  ],
+  "chat-sdk-state": [
+    "subscriptions",
+    "locks",
+    "cache",
+    "lists",
+    "queues",
+    "installations",
+  ],
+  inbox: [
+    "inboxes",
+    "members",
+    "teams",
+    "teamMembers",
+    "contacts",
+    "identities",
+    "conversations",
+    "events",
+    "details",
+    "deliveries",
+    "inbound",
+    "templates",
+    "scheduled",
+  ],
+  "ai-chat": [
+    "projects",
+    "chats",
+    "messages",
+    "runs",
+    "approvals",
+    "policies",
+    "inputs",
+    "sources",
+    "feedback",
+    "shares",
+    "models",
+    "moderation",
+    "steps",
+    "sandboxes",
+    "harness",
+  ],
+  "ai-files": [
+    "files",
+    "providerFiles",
+    "documents",
+    "versions",
+    "suggestions",
+  ],
+  knowledge: ["documents", "chunks"],
+  memory: ["memories", "messageEmbeddings", "documents"],
+  agents: ["agents", "installs", "ratings", "skills"],
+  connectors: ["servers", "grants", "sessions", "fingerprints"],
+  "ai-schedules": ["tasks", "runs"],
+  push: ["devices", "tickets"],
+  "ai-cache": ["entries"],
+  "ai-keys": ["keys", "batches", "items"],
+  reactions: ["reactions", "scores", "emoji"],
+  "access-requests": ["requests"],
+  documents: ["documents", "updates", "snapshots", "suggestions"],
+  orders: [
+    "fulfillmentLines",
+    "returnLines",
+    "kitchenStations",
+    "kitchenRoutes",
+    "preparations",
+  ],
+  promotions: ["promotions", "codes", "cartCodes", "redemptions"],
+  identities: ["links", "codes"],
+  templates: ["workflows"],
+  pipelines: ["pipelines", "stages", "transitions", "history"],
+  contacts: ["personContacts"],
+  activities: ["engagements", "links", "recordings", "segments", "notes"],
+  deals: ["deals", "contacts", "members", "lines"],
+  quotes: ["lines"],
+  invoices: ["lines"],
+  sla: ["policies", "clocks"],
+  goals: ["targets"],
+  collections: ["collections", "entries", "favorites", "savedItems"],
+  "signing-keys": ["keys"],
+  "security-events": ["streams", "events", "received"],
+  "oauth-server": ["clients", "grants", "codes", "devices", "revocations"],
+  domains: ["hostnames"],
+  moderation: ["items", "reports", "actions", "bans"],
+  reviews: ["reviews", "stats"],
+  automations: ["rules", "defaults", "versions", "evaluations", "fields"],
+  "vercel-marketplace": [
+    "installations",
+    "resources",
+    "plans",
+    "invoices",
+    "meterReports",
+  ],
+  ledger: ["balances", "holds"],
+  scores: ["models", "versions", "scores"],
+  enrollments: ["programs", "enrollments", "steps"],
+  guests: ["guests", "grants"],
+  passes: ["passes", "checkIns"],
+  "billable-time": ["rates", "billed"],
+  leases: ["leases", "charges"],
+  donations: ["funds", "pledges", "receipts", "donations"],
+  dispatch: ["workOrders", "routes", "stops", "parts"],
+  contracts: ["contracts", "obligations"],
+  compliance: [
+    "frameworks",
+    "controls",
+    "evidence",
+    "tasks",
+    "policies",
+    "acknowledgements",
+  ],
+  incidents: [
+    "components",
+    "history",
+    "incidents",
+    "updates",
+    "impacts",
+    "postmortems",
+    "pages",
+  ],
+  courses: ["courses", "modules", "lessons", "progress", "certificates"],
+  messaging: ["edits", "reads", "recordMentions", "summaries"],
+  channels: ["channels"],
+  "mail-sync": [
+    "accounts",
+    "threads",
+    "messages",
+    "trackedLinks",
+    "tracking",
+    "links",
+  ],
+  segments: ["segments", "members"],
+  assignment: ["queues", "members", "log"],
+  enrichment: ["enrichments"],
+  forecasts: ["snapshots", "deals"],
+  "field-history": ["changes"],
+  sequences: ["sequences", "members"],
+  "lead-scoring": ["checks"],
+  posts: ["boards", "posts"],
+  content: ["entries"],
+};
+
+// The tables a module creates without a `names.tables` entry, by module.
+const SPECLESS: Readonly<Record<string, readonly string[]>> = {
+  audit: ["audited_tables"],
+  "reserved-slugs": ["reserved_slugs"],
+  idempotency: ["idempotency_keys", "leases"],
+  "rate-limit": ["rate_limit_rules"],
+  // ADR 0098: the Workflow SDK owns the shape of its world's tables.
+  "workflow-sdk": [
+    "workflow_event_slots",
+    "workflow_events",
+    "workflow_hooks",
+    "workflow_invocations",
+    "workflow_runs",
+    "workflow_snapshots",
+    "workflow_steps",
+    "workflow_stream_chunks",
+    "workflow_waits",
+  ],
+};
+
+/** The modules registry every module writes its row to. */
+const REGISTRY = "blocks";
+
+const CREATE_TABLE = /create table (?:if not exists )?"?\w+"?\."?(\w+)"?/giu;
+
+describe("every block table", () => {
+  it("can be the app's own table", () => {
+    const missing = Object.entries(SQL_MODULES).flatMap(
+      ([module, definition]) =>
+        Object.entries(definition.names?.tables ?? {})
+          .filter(([, spec]) => spec.app === undefined)
+          .map(([table]) => `${module}.${table}`),
+    );
+
+    const allowed = Object.entries(NOT_ADOPTABLE).flatMap(([module, tables]) =>
+      tables.map((table) => `${module}.${table}`),
+    );
+
+    expect(missing).toEqual(allowed);
+  });
+
+  it("has a names.tables entry", () => {
+    const specless = Object.fromEntries(
+      ALONE.flatMap((module) => {
+        const names = new Set(
+          Object.values(SQL_MODULES[module]?.names?.tables ?? {}).map(
+            (spec) => spec.name,
+          ),
+        );
+
+        const tables = [
+          ...new Set(
+            renderBlocks([module])
+              .filter((file) => file.module === module)
+              .flatMap((file) =>
+                [...file.contents.matchAll(CREATE_TABLE)].map(
+                  (match) => match[1] ?? "",
+                ),
+              ),
+          ),
+        ].filter((table) => table !== REGISTRY && !names.has(table));
+
+        return tables.length === 0 ? [] : [[module, tables.toSorted()]];
+      }),
+    );
+
+    expect(specless).toEqual(SPECLESS);
+  });
+});
+
 describe("withoutAppTableEdits", () => {
   const sql = `alter table public.members drop constraint if exists members_role_check;
 alter table public.members
