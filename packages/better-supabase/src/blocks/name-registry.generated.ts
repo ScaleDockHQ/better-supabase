@@ -1455,7 +1455,7 @@ export interface BlockNameRegistry {
   };
   readonly "search": {
     readonly tables: {
-      readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt";
+      readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt" | "description";
     };
     readonly functions: "search" | "search_favorites" | "search_index_row" | "search_normalize" | "search_recents" | "search_refresh" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
     readonly actions: "read";

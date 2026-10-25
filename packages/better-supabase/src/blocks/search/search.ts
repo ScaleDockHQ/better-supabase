@@ -8,6 +8,7 @@ import {
   blockCall,
   nullableText,
   optionalInstant,
+  optionalText,
   recordsOf,
   run,
   textOf,
@@ -32,6 +33,8 @@ export interface SearchHit {
   readonly url: string | null;
   /** A fragment of the body around the match, without markup. */
   readonly snippet: string | null;
+  /** The record type's `search.description` column, when it declares one. */
+  readonly description?: string;
   readonly score: number;
 }
 
@@ -137,7 +140,10 @@ const vectorText = (values: readonly number[]): string => {
 };
 
 function hitOf(row: Record<string, unknown>): SearchHit {
+  const description = optionalText(row["description"]);
+
   return {
+    ...(description === undefined ? {} : { description }),
     organizationId: textOf(row["organizationId"]),
     subjectType: textOf(row["subjectType"]),
     subjectId: textOf(row["subjectId"]),

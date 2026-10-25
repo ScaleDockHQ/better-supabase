@@ -51,10 +51,7 @@ export interface SubjectConfig {
    */
   readonly deletedAt?: string;
   /** The columns a search index reads. */
-  readonly search?: {
-    readonly title?: string;
-    readonly body?: readonly string[];
-  };
+  readonly search?: SubjectSearch;
   /**
    * The text column holding the subject's rank key, and the column it is
    * grouped by (a board stage), for `move()`. ADR 0021.
@@ -86,6 +83,39 @@ export interface SubjectPermission {
   readonly rows?: string;
   /** A uuid column of the subject row that grants the action to its user. */
   readonly owner?: string;
+}
+
+/**
+ * What the search index reads for a record type: `title` and `body` columns of
+ * the row (or of `from`), a `description` returned with each hit, and an
+ * `exclude` column that keeps a row out of search while it is set.
+ */
+export interface SubjectSearch {
+  readonly title?: string;
+  readonly body?: readonly string[];
+  /** A column whose value each hit returns as `description`. */
+  readonly description?: string;
+  /**
+   * A column that keeps the row out of the index while it is set (not null, and
+   * not `false`), such as `archived_at`; other blocks still see the row.
+   */
+  readonly exclude?: string;
+  /**
+   * A view or table with one row per record, keyed by `key` (the record's id),
+   * that `title`, `body`, `description` and `exclude` read instead of the
+   * record's own row.
+   */
+  readonly from?: { readonly view: string; readonly key: string };
+  /**
+   * Tables whose changes re-index the record: `key` is the column holding the
+   * record's id, or, with `via`, the column the record's `via` column points
+   * at.
+   */
+  readonly watch?: readonly {
+    readonly table: string;
+    readonly key: string;
+    readonly via?: string;
+  }[];
 }
 
 /**

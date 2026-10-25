@@ -1429,6 +1429,44 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "description": {
+                "type": "string"
+              },
+              "exclude": {
+                "type": "string"
+              },
+              "from": {
+                "type": "object",
+                "properties": {
+                  "view": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": ["view", "key"],
+                "additionalProperties": false
+              },
+              "watch": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "via": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["table", "key"],
+                  "additionalProperties": false
+                }
               }
             },
             "additionalProperties": false

@@ -1389,20 +1389,20 @@ export default defineConfig({
 });
 ```
 
-| Key           | Default           | What it sets                                                                                                                      |
-| ------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `table`       | required          | The table, as `table` or `schema.table`                                                                                           |
-| `id`          | `id`              | The id column                                                                                                                     |
-| `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                                                                 |
-| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                           |
-| `title`       | none              | The column `subject_title` returns                                                                                                |
-| `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                    |
-| `permissions` | none              | Action to permission key, or to `{ key, rows, owner }` (see below); `read` is the key modules check before they attach to the row |
-| `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                                                                |
-| `cascade`     | none              | Delete a module's rows when the subject row is deleted                                                                            |
-| `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                                                          |
-| `search`      | none              | `title` and `body` columns for search                                                                                             |
-| `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses                                                  |
+| Key           | Default           | What it sets                                                                                                                                                   |
+| ------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table`       | required          | The table, as `table` or `schema.table`                                                                                                                        |
+| `id`          | `id`              | The id column                                                                                                                                                  |
+| `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                                                                                              |
+| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                                                        |
+| `title`       | none              | The column `subject_title` returns                                                                                                                             |
+| `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                                                 |
+| `permissions` | none              | Action to permission key, or to `{ key, rows, owner }` (see below); `read` is the key modules check before they attach to the row                              |
+| `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                                                                                             |
+| `cascade`     | none              | Delete a module's rows when the subject row is deleted                                                                                                         |
+| `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                                                                                       |
+| `search`      | none              | `title` and `body` columns for search, plus `description`, `exclude`, `from` and `watch` ([Search](/docs/blocks/search#labels-descriptions-and-archived-rows)) |
+| `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses                                                                               |
 
 A block's `on` works three ways:
 

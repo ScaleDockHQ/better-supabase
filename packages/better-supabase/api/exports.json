@@ -383,6 +383,7 @@
       "SubjectConfig",
       "SubjectPermission",
       "SubjectsConfig",
+      "SubjectSearch",
       "TableConfig",
       "ToolingConfig",
       "TopicTriggerConfig",

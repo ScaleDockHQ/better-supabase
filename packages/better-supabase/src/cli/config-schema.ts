@@ -783,12 +783,7 @@ const FLAT = {
         scope: v.optional(v.string()),
         cascade: v.optional(v.boolean()),
         deletedAt: v.optional(v.string()),
-        search: v.optional(
-          v.strictObject({
-            title: v.optional(v.string()),
-            body: v.optional(strings),
-          }),
-        ),
+        search: v.optional(blockSchemas.subjectSearchSchema),
         rank: v.optional(
           v.strictObject({ column: v.string(), group: v.optional(v.string()) }),
         ),

@@ -68,6 +68,7 @@ export type {
 export type {
   SubjectConfig,
   SubjectPermission,
+  SubjectSearch,
   SubjectsConfig,
 } from "./types/subjects.ts";
 

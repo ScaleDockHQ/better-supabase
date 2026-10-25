@@ -46,3 +46,33 @@ export const subjectPermissionsSchema: v.GenericSchema<SubjectPermissionsInput> 
       }),
     ]),
   );
+
+type SubjectSearchInput = {
+  title?: string | undefined;
+  body?: string[] | undefined;
+  description?: string | undefined;
+  exclude?: string | undefined;
+  from?: { view: string; key: string } | undefined;
+  watch?:
+    | { table: string; key: string; via?: string | undefined }[]
+    | undefined;
+};
+
+/** `records.<type>.search`. The subject registry checks the names. */
+export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
+  v.strictObject({
+    title: v.optional(v.string()),
+    body: v.optional(v.array(v.string())),
+    description: v.optional(v.string()),
+    exclude: v.optional(v.string()),
+    from: v.optional(v.strictObject({ view: v.string(), key: v.string() })),
+    watch: v.optional(
+      v.array(
+        v.strictObject({
+          table: v.string(),
+          key: v.string(),
+          via: v.optional(v.string()),
+        }),
+      ),
+    ),
+  });
