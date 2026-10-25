@@ -183,12 +183,103 @@ when your PowerSync schema renames a table. PowerSync tables key on a text
 
 Writes go to the local database and PowerSync uploads them.
 `createUploadConnector` replays them through repositories on PostgREST (a
-client without the engine), and
-`uploadRoute(server.db.attachments, { put: "create" })` inserts the rows of a
-write-once table, counting a conflict as already applied. `onError` reports a
-failed session read and retried uploads. See
+client without the engine), and `uploadRoute(server.db.events, { put: "create" })`
+inserts the rows of a write-once table, counting a conflict as already
+applied. `onError` reports a failed session read and retried uploads. See
 [Offline-first](/docs/guides/offline-first) for the routes, outcomes and
 conflicts.
+
+## Attachments
+
+The [attachments](/docs/blocks/attachments#offline) block works offline with
+`blocks.attachments.options.offline: true`. Without it, `authenticated` can't
+insert a record's `id`, so a record created offline fails to upload.
+`attachmentQueueRoute` replays the table: a `PUT` creates the record under
+the id the client chose and counts a conflict as applied, a `DELETE` removes
+the record first, which queues its files for deletion, and a `PATCH` is
+refused. It sends only the columns an insert accepts, so the synced
+`object_path` and `status` stay out of the upload; list your own columns in
+`extraColumns`.
+
+```ts title="src/lib/powersync/connector.ts"
+import { bindClient } from "better-supabase/client";
+import {
+  attachmentQueueRoute,
+  createUploadConnector,
+} from "better-supabase/powersync";
+import { betterSupabase } from "../supabase";
+import { supabase } from "../supabase/supabase.native";
+
+const server = bindClient(betterSupabase, supabase);
+
+export const attachments = attachmentQueueRoute(server.db.attachments, {
+  path: "{organization_id}/attachments/{id}.{ext}",
+});
+
+export const connector = createUploadConnector({
+  endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+  supabase,
+  tables: { attachments },
+});
+```
+
+`attachments.path(row)` returns the object path the database generates for
+the row (pass the block's `path` option when you changed it), so PowerSync's
+`AttachmentQueue` uploads the file where the record expects it. A storage
+trigger marks the record uploaded when the file lands, so the client never
+has to call `confirm`.
+
+## Offline-capable blocks
+
+Two blocks work offline on PowerSync: attachments (above) and notifications.
+Every other block calls its functions on the server, so on native it needs
+the network. `better-supabase powersync streams` writes the Sync Streams, the
+publication migration and the client schema for the instances you name; see
+[`powersync streams`](/docs/cli/powersync).
+
+With `gen.powersync` set, `gen` marks every other instance in the generated
+`blocks` map with `/** Needs the network on native. */`, so the editor shows
+which block calls fail offline. An app that doesn't own the database can set
+`gen.tasks: ["types"]` to get the marks without writing the block SQL or the
+publication migration; the `expo-powersync` example does this.
+
+`powersyncNotificationsTransport` runs the notifications feed on the synced
+tables: listing, paging, counts, and marking read, unread or dismissed. The
+local writes go into the upload queue, and `notificationRecipientsRoute`
+replays them through the server's functions, which check that the caller
+owns the row. Sending, preferences and resolving go to `server`.
+
+```ts title="src/lib/powersync/notifications.ts"
+import {
+  createNotifications,
+  rpcTransport,
+} from "better-supabase/blocks/notifications";
+import {
+  notificationRecipientsRoute,
+  powersyncNotificationsTransport,
+} from "better-supabase/powersync";
+import { supabase } from "../supabase/supabase.native";
+import { powersync } from "./database";
+
+const remote = createNotifications({ transport: rpcTransport(supabase) });
+
+export const notifications = createNotifications({
+  transport: powersyncNotificationsTransport(powersync, {
+    server: rpcTransport(supabase),
+  }),
+});
+
+export const notificationRoutes = {
+  notification_recipients: notificationRecipientsRoute(remote),
+};
+```
+
+The upload route takes the client on `rpcTransport`, not the local one: the
+local transport would write the change into SQLite again. Pass
+`powersyncTopicPort(powersync)` as `ports.topic` to
+`createNotificationsController`: the feed reloads when a sync or a local write
+changes the notification tables, without a Realtime channel. Pass `functions`
+and `tables` when the instance renames them.
 
 ## Uploaded columns
 

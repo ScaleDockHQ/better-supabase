@@ -46,6 +46,11 @@ import {
 } from "./audit-request.ts";
 import { retention } from "./audit-retention.ts";
 import { revert } from "./audit-revert.ts";
+import {
+  requestIpSql,
+  staffTest,
+  subjectColumnsSql,
+} from "./audit-subjects.ts";
 import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
@@ -70,12 +75,15 @@ const NAMES: BlockSqlNames = {
     "eventSource",
     "exempt",
     "impersonators",
+    "ipHeader",
     "keepMappedMetadata",
     "metadataColumns",
     "partitioned",
     "readPolicy",
     "requestIdHeader",
     "restricted",
+    "staffClaim",
+    "subjectColumns",
     "tenantColumn",
     "tenantLabel",
     "tenantLabelKey",
@@ -187,17 +195,23 @@ const NAMES: BlockSqlNames = {
 };
 
 /**
- * How the caller acted: service, support, impersonation, oauth-client, user or
- * system.
+ * How the caller acted: service, support, impersonation, oauth-client, staff
+ * (with `staffClaim`), user or system.
  */
-const ACTOR_KIND = `case
+function actorKind(ctx: BlockSqlContext): string {
+  const staff = staffTest(ctx);
+
+  return `case
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
-      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
+      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'${
+        staff === undefined ? "" : `\n      when ${staff} then 'staff'`
+      }
       when auth.uid() is not null then 'user'
       else 'system'
     end`;
+}
 
 const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')`;
 
@@ -216,7 +230,10 @@ function contextPairs(
   },
 ): (readonly [string, string])[] {
   return [
-    ["actorKind", auditWrite(ctx, "actorKind", values.actorKind ?? ACTOR_KIND)],
+    [
+      "actorKind",
+      auditWrite(ctx, "actorKind", values.actorKind ?? actorKind(ctx)),
+    ],
     ["actorLabel", values.actorLabel ?? ACTOR_LABEL],
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
@@ -264,12 +281,31 @@ function present(
   };
 }
 
+/** `subjectColumns`: indexed columns generated from the row and event JSON. */
+function subjects(ctx: BlockSqlContext, log: string): string {
+  const sources = (["new", "old", "metadata"] as const)
+    .filter((logical) => ctx.has("log", logical))
+    .map((logical) => ctx.col("log", logical));
+
+  const taken = [
+    ...Object.keys(NAMES.tables["log"]!.columns).map(
+      (logical) =>
+        ctx.config.columns["log"]?.[logical] ??
+        NAMES.tables["log"]!.columns[logical]!,
+    ),
+    ...metadataColumns(ctx).map(([column]) => column),
+  ];
+
+  return subjectColumnsSql(ctx, log, sources, taken);
+}
+
 function managedTables(ctx: BlockSqlContext, restricted: boolean): string {
   const log = ctx.table("log");
   const partitioned = partitionedOn(ctx);
   const sequence = `better_supabase.${ctx.naming.rename("audit_events_id_seq")}`;
   const fallback = `better_supabase.${ctx.naming.rename("audit_events_default")}`;
   const c = (logical: string) => ctx.col("log", logical);
+  const subjectDdl = subjects(ctx, log);
 
   const line = (logical: string, definition: string) =>
     ctx.has("log", logical) ? `\n  ${c(logical)} ${definition},` : "";
@@ -345,7 +381,7 @@ create index if not exists audit_events_correlation_idx on ${log} (${c("correlat
 create ${partitioned ? "" : "unique "}index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
       : ""
   }
-alter table ${log} enable row level security;
+${subjectDdl === "" ? "" : `${subjectDdl}\n`}alter table ${log} enable row level security;
 ${revokeTable(log)}
 grant select on ${log} to service_role;${restrictedTable}${
     partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(log)}` : ""
@@ -398,22 +434,7 @@ exception when others then
 end;
 $$;
 
-${REQUEST_ID_OR_NULL}
-
--- The client address the API gateway appended to x-forwarded-for (the
--- right-most hop; clients can forge the ones before it), or null.
-create or replace function better_supabase.request_ip()
-returns inet
-language plpgsql
-stable
-set search_path = ''
-as $$
-begin
-  return nullif(trim(reverse(split_part(reverse(current_setting('request.headers', true)::json ->> 'x-forwarded-for'), ',', 1))), '')::inet;
-exception when others then
-  return null;
-end;
-$$;`;
+${REQUEST_ID_OR_NULL}`;
 
 /**
  * SQL that writes the restricted details of `entry_id`, when the table is in
@@ -697,7 +718,7 @@ function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
       targetLabel: "target_label",
       summary: "summary",
       correlationId: `coalesce(better_supabase.request_id_or_null(correlation_id), ${correlationIdSql(ctx)})`,
-      actorKind: `coalesce(actor_kind, ${ACTOR_KIND})`,
+      actorKind: `coalesce(actor_kind, ${actorKind(ctx)})`,
       actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
       requestId: `coalesce(better_supabase.request_id_or_null(request_id), ${requestIdSql(ctx)})`,
       scope:
@@ -932,6 +953,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   return [
     SCHEMA,
     REGISTRY,
+    requestIpSql(ctx),
     ctx.manages ? managedTables(ctx, restricted) : "",
     triggerFunction(ctx, tenantColumn, restricted),
     EQUIVALENT_TRIGGERS.trim(),

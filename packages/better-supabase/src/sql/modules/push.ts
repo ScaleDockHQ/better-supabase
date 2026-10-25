@@ -18,6 +18,7 @@ import {
   SERVICE_CALLER,
   writeExtraColumns,
 } from "../shared.ts";
+import { pushTickets, ticketsContract } from "./push-tickets.ts";
 
 const EVENTS: BlockSqlEvents<PushEvents> = {
   "push.device_registered": {
@@ -48,6 +49,20 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         lastSeenAt: "last_seen_at",
       },
+    },
+    tickets: {
+      name: "push_tickets",
+      columns: {
+        id: "id",
+        delivery: "delivery_id",
+        token: "token",
+        ticket: "ticket_id",
+        status: "status",
+        error: "error",
+        createdAt: "created_at",
+        checkedAt: "checked_at",
+      },
+      optionalTable: true,
     },
   },
 };
@@ -259,7 +274,8 @@ revoke execute on function ${fn("prune_push_tokens")}(text[]) from public, anon,
 grant execute on function ${fn("register_push_device")}(text, text, text, text, text${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("unregister_push_device")}(text) to authenticated, service_role;
 grant execute on function ${fn("push_tokens_for")}(uuid[]) to service_role;
-grant execute on function ${fn("prune_push_tokens")}(text[]) to service_role;`;
+grant execute on function ${fn("prune_push_tokens")}(text[]) to service_role;
+${pushTickets(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -279,6 +295,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "unregister_push_device", args: ["text"], returns: "boolean" },
     { name: "push_tokens_for", args: ["uuid[]"], returns: "jsonb" },
     { name: "prune_push_tokens", args: ["text[]"], returns: "integer" },
+    ...ticketsContract(ctx),
   ];
 }
 
@@ -286,11 +303,20 @@ export const PUSH: BlockSqlDefinition = {
   name: "push",
   title: "Push devices",
   description:
-    "The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.",
+    "The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.",
   requires: [],
+  integrates: ["notifications"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "With the notifications block installed, push_tickets stores Expo's tickets per delivery; record_push_tickets, push_tickets_for, unchecked_push_tickets and complete_push_receipts are new, for retries that skip devices already sent to and the receipt check.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

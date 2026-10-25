@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -23,7 +23,7 @@ export const rateLimitSqlOptions: BlockOptionsSchema<RateLimitSqlOptions> =
   });
 
 /** `blocks.webhook-inbox.options`. */
-export type WebhookInboxSqlOptions = { readonly extraColumns?: unknown };
+export type WebhookInboxSqlOptions = { readonly extraColumns?: ExtraColumns };
 
 export const webhookInboxSqlOptions: BlockOptionsSchema<WebhookInboxSqlOptions> =
-  blockOptions<WebhookInboxSqlOptions>({ extraColumns: option.unknown() });
+  blockOptions<WebhookInboxSqlOptions>({ extraColumns: option.extraColumns() });

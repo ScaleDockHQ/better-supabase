@@ -112,6 +112,7 @@ export type {
   KeysConfig,
   MigrationSafetyConfig,
   OpenApiConfig,
+  PowerSyncGenConfig,
   SkillsAgent,
   SkillsConfig,
 } from "./types/tooling.ts";

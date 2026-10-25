@@ -45,6 +45,7 @@ const NAMES: BlockSqlNames = {
         lastName: "last_name",
         avatar: "avatar_url",
         avatarPath: "avatar_path",
+        locale: "locale",
         activeTenant: "active_organization_id",
         activeTeam: "active_team_id",
         onboarding: "onboarding",
@@ -60,6 +61,7 @@ const NAMES: BlockSqlNames = {
         "lastName",
         "avatar",
         "avatarPath",
+        "locale",
         "activeTenant",
         "activeTeam",
         "onboarding",
@@ -67,6 +69,8 @@ const NAMES: BlockSqlNames = {
         "createdAt",
         "updatedAt",
       ],
+      // An `extraColumns.locale` declared before version 3 keeps its column.
+      yieldsToExtra: ["locale"],
     },
   },
   hooks: [
@@ -85,12 +89,56 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
 ];
 
 export function hasAvatarPath(ctx: BlockSqlContext): boolean {
+  return added(ctx, "avatarPath");
+}
+
+/**
+ * The recipient's locale for notification delivery, like `avatarPath`. An
+ * `extraColumns` entry of the same name replaces it.
+ */
+function hasLocale(ctx: BlockSqlContext): boolean {
+  return added(ctx, "locale") && !extraNamed(ctx, "locale");
+}
+
+/** The quoted profiles column that holds the locale, or `null`. */
+export function localeColumn(ctx: BlockSqlContext): string | null {
+  if (hasLocale(ctx)) {
+    return ctx.col("profiles", "locale");
+  }
+
+  const name = profilePhysical(ctx, "locale");
+
   return (
-    ctx.has("profiles", "avatarPath") &&
-    (ctx.owns("profiles") ||
-      typeof ctx.config.columns["profiles"]?.["avatarPath"] === "string")
+    ctx.extraColumns("profiles").find((extra) => extra.name === name)?.ident ??
+    null
   );
 }
+
+function extraNamed(ctx: BlockSqlContext, logical: string): boolean {
+  const name = profilePhysical(ctx, logical);
+
+  return ctx.extraColumns("profiles").some((extra) => extra.name === name);
+}
+
+/**
+ * A column later versions added: a managed table gets it, an app's own table
+ * only when `columns.profiles` maps it.
+ */
+function added(ctx: BlockSqlContext, logical: string): boolean {
+  return (
+    ctx.has("profiles", logical) &&
+    (ctx.owns("profiles") ||
+      typeof ctx.config.columns["profiles"]?.[logical] === "string")
+  );
+}
+
+const ADDED: Readonly<Record<string, (ctx: BlockSqlContext) => boolean>> = {
+  avatarPath: hasAvatarPath,
+  locale: hasLocale,
+};
+
+const present = (ctx: BlockSqlContext, logical: string): boolean =>
+  ADDED[logical]?.(ctx) ?? ctx.has("profiles", logical);
 
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
@@ -211,7 +259,7 @@ function syncValues(ctx: BlockSqlContext): Map<string, string> {
   }
 
   if (has("email")) {
-    values.set(col("email"), "u.email");
+    values.set(col("email"), "lower(u.email)");
   }
 
   if (has("username") && ctx.flag("username", true)) {
@@ -471,6 +519,7 @@ function table(ctx: BlockSqlContext): string {
     ["lastName", "text"],
     ["avatar", "text"],
     ["avatarPath", "text"],
+    ["locale", "text"],
     ["activeTenant", id],
     ["activeTeam", id],
     ["onboarding", "jsonb not null default '{}'"],
@@ -480,11 +529,7 @@ function table(ctx: BlockSqlContext): string {
   ];
 
   const columns = definitions
-    .filter(
-      ([logical]) =>
-        ctx.has("profiles", logical) &&
-        (logical !== "avatarPath" || hasAvatarPath(ctx)),
-    )
+    .filter(([logical]) => present(ctx, logical))
     .map(([logical, type]) => `${c(logical)} ${type}`);
 
   const username = ctx.has("profiles", "username")
@@ -499,8 +544,7 @@ ${usernameCheck(ctx)}`
     ...definitions
       .map(([logical]) => logical)
       .filter(
-        (logical) =>
-          ctx.has("profiles", logical) && !PRIVATE_COLUMNS.has(logical),
+        (logical) => present(ctx, logical) && !PRIVATE_COLUMNS.has(logical),
       )
       .map(c),
     ...extra.map(([name]) => name),
@@ -519,7 +563,15 @@ grant select (${visible.join(", ")}) on ${t} to authenticated;`
   return `
 create table if not exists ${t} (
   ${columns.join(",\n  ")}
-);${hasAvatarPath(ctx) ? `\nalter table ${t} add column if not exists ${c("avatarPath")} text;` : ""}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
+);${Object.keys(ADDED)
+    .filter((logical) => present(ctx, logical))
+    .map(
+      (logical) =>
+        `\nalter table ${t} add column if not exists ${c(logical)} text;`,
+    )
+    .join(
+      "",
+    )}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
 drop policy if exists bsb_profiles_read on ${t};
@@ -654,14 +706,11 @@ function grants(ctx: BlockSqlContext): string {
     "lastName",
     "avatar",
     "avatarPath",
+    "locale",
     "username",
     "onboarding",
   ]
-    .filter((logical) =>
-      logical === "avatarPath"
-        ? hasAvatarPath(ctx)
-        : ctx.has("profiles", logical),
-    )
+    .filter((logical) => present(ctx, logical))
     .map((logical) => ctx.col("profiles", logical));
 
   const configured = ctx.option("updatable");
@@ -924,14 +973,11 @@ function selfUpdates(ctx: BlockSqlContext): string {
       "lastName",
       "avatar",
       "avatarPath",
+      "locale",
       "username",
       "onboarding",
     ] as const
-  ).filter((logical) =>
-    logical === "avatarPath"
-      ? hasAvatarPath(ctx)
-      : ctx.has("profiles", logical),
-  );
+  ).filter((logical) => present(ctx, logical));
 
   const t = ctx.table("profiles");
 
@@ -1012,7 +1058,8 @@ create trigger ${sync} after insert on auth.users
   if (ctx.has("profiles", "email") && ctx.flag("mirrorEmail", true)) {
     const email = ctx.col("profiles", "email");
     parts.push(`
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function ${ctx.fn("mirror_profile_email")}()
 returns trigger
 language plpgsql
@@ -1020,7 +1067,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update ${t} set ${email} = new.email where ${key} = new.id and ${email} is distinct from new.email;
+  update ${t} set ${email} = lower(new.email) where ${key} = new.id and ${email} is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -1067,13 +1114,30 @@ export const PROFILES: BlockSqlDefinition = {
   },
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Managed profiles get an avatar_path column for an avatar stored in Storage; sync never writes it from auth metadata.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "The email mirror and sign-up sync store the email lowercased; existing emails are lowercased unless that would duplicate another profile's. Managed profiles get a locale column the user may update, which notification deliveries render in.",
+      sql: (ctx) => {
+        if (!ctx.has("profiles", "email") || !ctx.flag("mirrorEmail", true)) {
+          return "";
+        }
+
+        const t = ctx.table("profiles");
+        const email = ctx.col("profiles", "email");
+
+        return `update ${t} p set ${email} = lower(p.${email})
+where p.${email} <> lower(p.${email})
+  and not exists (select 1 from ${t} o where o.${email} = lower(p.${email}));`;
+      },
     },
   ],
   names: NAMES,

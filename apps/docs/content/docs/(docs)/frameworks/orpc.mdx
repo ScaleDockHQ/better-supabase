@@ -47,7 +47,17 @@ export default {
 ```
 
 Calling `handler.handle(request, { context: { request } })` yourself also
-works, but then those cookies never reach the client.
+works, but then those cookies never reach the client. An adapter without a
+`Request`, such as the Node handler or a WebSocket peer, passes
+`{ context: { headers, url } }` instead; the middleware builds the request
+from them, once per `Headers` object. Read the request in a handler through
+`context.bsb` or, in a `rateLimit` key, through its `request` argument.
+
+Routes that only native apps and servers call can pass
+`middleware({ cookies: false })`: the middleware then resolves bearer tokens
+and API keys only, and never reads a session cookie a browser happens to send.
+`cookies: false` with `refresh` throws a `TypeError` at setup. The same option
+works on the Hono middleware and on `handle()`.
 
 On runtimes that stop the invocation after the response, pass `waitUntil` to
 `createOrpc`; `fetchHandler` hands it the
@@ -232,8 +242,8 @@ const limited = os.$context<OrpcRequestContext>().use(
     limiter,
     scope: "rpc",
     rule: { max: 60, period: "1 minute" },
-    key: ({ context, path }) => {
-      const key = context.request.headers.get("x-api-key");
+    key: ({ request, path }) => {
+      const key = request.headers.get("x-api-key");
       return key === null ? undefined : `${key}:${path.join(".")}`;
     },
   }),

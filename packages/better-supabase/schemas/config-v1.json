@@ -966,6 +966,9 @@
                   },
                   "idColumn": {
                     "type": "string"
+                  },
+                  "rolesTable": {
+                    "type": "string"
                   }
                 },
                 "required": ["table", "userColumn", "scope", "idColumn"],
@@ -1083,6 +1086,27 @@
                 },
                 "tenantClaim": {
                   "type": "string"
+                },
+                "activeOrganizationFrom": {
+                  "anyOf": [
+                    {
+                      "enum": ["claim", "resolver"],
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "profileColumn": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["profileColumn"],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "ownedClaims": {
                   "type": "array",
@@ -2528,7 +2552,7 @@
         "tasks": {
           "type": "array",
           "items": {
-            "enum": ["types", "sql", "spec", "seed", "env"],
+            "enum": ["types", "sql", "powersync", "spec", "seed", "env"],
             "type": "string"
           },
           "description": "The steps gen runs, in order. Without a list: types, plus sql, spec and seed when the project uses them. env runs only when listed."
@@ -2542,6 +2566,26 @@
           "type": "boolean",
           "description": "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
           "default": false
+        },
+        "powersync": {
+          "type": "object",
+          "properties": {
+            "instances": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "out": {
+              "type": "string"
+            },
+            "import": {
+              "type": "string"
+            }
+          },
+          "required": ["instances"],
+          "additionalProperties": false
         },
         "output": {
           "type": "string",
@@ -3543,7 +3587,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3562,7 +3611,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "recordings": {
                 "type": "boolean",
                 "default": false
@@ -3586,7 +3640,12 @@
                 "type": "number",
                 "default": 100000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3643,7 +3702,12 @@
                 "type": "string",
                 "default": "ai.output_tokens"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3674,7 +3738,12 @@
                 "type": "string",
                 "default": "1 day"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3715,7 +3784,12 @@
                 "type": "number",
                 "default": 20000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3736,7 +3810,12 @@
                 "type": "string",
                 "default": "announcement_changed"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3764,7 +3843,12 @@
                 "type": "string",
                 "default": "bs"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3778,7 +3862,12 @@
             "additionalProperties": false,
             "properties": {
               "policies": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3823,8 +3912,7 @@
                 "default": "attachments"
               },
               "requireScan": {
-                "type": "boolean",
-                "default": true
+                "type": "boolean"
               },
               "maxSize": {
                 "type": "number"
@@ -3854,7 +3942,15 @@
                 },
                 "default": []
               },
-              "extraColumns": {}
+              "offline": {
+                "type": "boolean"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -3905,6 +4001,7 @@
                 "type": "string",
                 "default": "show"
               },
+              "ipHeader": {},
               "keepMappedMetadata": {
                 "type": "boolean",
                 "default": false
@@ -3926,6 +4023,10 @@
                 "type": "boolean",
                 "default": false
               },
+              "staffClaim": {
+                "type": "string"
+              },
+              "subjectColumns": {},
               "tenantColumn": {
                 "type": "string"
               },
@@ -4021,7 +4122,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "recurring": {
                 "type": "boolean",
                 "default": false
@@ -4055,7 +4161,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4072,7 +4183,12 @@
                 "type": "string",
                 "default": "private"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "locales": {
                 "type": "array",
                 "items": {
@@ -4114,7 +4230,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4148,7 +4269,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4173,7 +4299,12 @@
                 "type": "string",
                 "default": "1 hour"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4188,7 +4319,12 @@
             "properties": {
               "companyLifecycles": {},
               "personLifecycles": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4236,7 +4372,12 @@
                 "type": "number",
                 "default": 14
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4249,7 +4390,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4372,7 +4518,12 @@
                 "type": "boolean",
                 "default": true
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4385,7 +4536,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
@@ -4449,7 +4605,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4480,7 +4641,12 @@
                 "type": "string",
                 "default": "fail"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4510,7 +4676,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4561,7 +4732,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4597,7 +4773,12 @@
             "additionalProperties": false,
             "properties": {
               "contexts": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4623,7 +4804,12 @@
             "properties": {
               "handlers": {},
               "publicLimit": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4636,7 +4822,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4677,7 +4868,12 @@
                 "type": "string",
                 "default": "person"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4783,7 +4979,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4796,7 +4997,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4841,7 +5047,17 @@
                 "type": "string",
                 "default": "7 days"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "defaultRole": {
+                "type": "string",
+                "default": "member"
+              },
+              "onAccept": {}
             }
           }
         }
@@ -4874,7 +5090,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4954,7 +5175,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -4979,7 +5205,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5026,7 +5257,8 @@
                 "default": "array"
               },
               "roleThrough": {},
-              "sameTenant": {}
+              "sameTenant": {},
+              "roles": {}
             }
           }
         }
@@ -5075,7 +5307,12 @@
                 "type": "string",
                 "default": "messaging"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "notify": {
                 "type": "boolean",
                 "default": true
@@ -5189,7 +5426,12 @@
                 "type": "string",
                 "default": "notification_updated"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5247,7 +5489,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "kitchen": {
                 "type": "boolean",
                 "default": false
@@ -5280,7 +5527,12 @@
                 "type": "string",
                 "default": "hard"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "formerOwnerRole": {
                 "type": "string",
                 "default": "admin"
@@ -5426,7 +5678,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5447,7 +5704,12 @@
                 "type": "number",
                 "default": 20000
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5463,7 +5725,12 @@
               "columnGrants": {
                 "type": "boolean"
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "metadata": {},
               "mirrorEmail": {
                 "type": "boolean",
@@ -5521,7 +5788,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5534,7 +5806,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5583,7 +5860,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5662,7 +5944,12 @@
             "additionalProperties": false,
             "properties": {
               "kinds": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5679,7 +5966,12 @@
                 "type": "string",
                 "default": "rrule"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5735,7 +6027,12 @@
                 "type": "boolean",
                 "default": false
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5759,7 +6056,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5863,7 +6165,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5913,7 +6220,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5926,7 +6238,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5939,7 +6256,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -5969,7 +6291,12 @@
             "additionalProperties": false,
             "properties": {
               "businessHours": {},
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6053,7 +6380,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6074,7 +6406,12 @@
                 "type": "number",
                 "default": 0
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6087,8 +6424,16 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "teamIdType": {},
-              "extraColumns": {}
+              "teamIdType": {
+                "type": "string",
+                "default": "uuid"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6101,7 +6446,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6119,7 +6469,12 @@
                 "type": "string",
                 "default": "UTC"
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6147,7 +6502,12 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "deletedAt": {
                 "type": "string",
                 "default": "deleted_at"
@@ -6245,7 +6605,12 @@
                 "type": "number",
                 "default": 300
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6272,7 +6637,12 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6285,7 +6655,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6353,7 +6728,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

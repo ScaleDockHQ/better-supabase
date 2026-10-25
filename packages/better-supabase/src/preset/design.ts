@@ -14,6 +14,7 @@ import type { PresetSpec } from "./spec.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
 import { asBlocksConfig } from "../config/blocks.ts";
+import { isSqlType } from "../config/sql-type.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { presetConfig, presetOf } from "./config.ts";
 import { defaultPreset } from "./presets.ts";
@@ -265,7 +266,6 @@ const MAX_COORDINATE = 1_000_000;
 
 const DESIGN_CODE = /^0[A-Za-z0-9_-]+$/;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
-const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 const QUALIFIED = /^[a-z_][a-z0-9_]{0,62}\.[a-z_][a-z0-9_]{0,62}$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -339,11 +339,7 @@ function extraColumnsOf(
           );
         }
 
-        if (
-          typeof type !== "string" ||
-          !SQL_TYPE.test(type) ||
-          type.includes("--")
-        ) {
+        if (typeof type !== "string" || !isSqlType(type)) {
           throw new DesignParseError(
             "invalid_type",
             jsonPointer("extraColumns", module, name),

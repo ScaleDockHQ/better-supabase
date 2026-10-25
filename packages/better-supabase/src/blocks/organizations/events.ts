@@ -17,6 +17,8 @@ export type OrganizationsEvents = {
   readonly "organization.member_suspended": OrganizationEventData;
   readonly "organization.member_resumed": OrganizationEventData;
   readonly "organization.role_changed": OrganizationEventData;
+  readonly "organization.role_added": OrganizationEventData;
+  readonly "organization.role_removed": OrganizationEventData;
   readonly "organization.ownership_transferred": OrganizationEventData;
   readonly "organization.switched": OrganizationEventData;
   readonly "invitation.created": InvitationEventData;
@@ -38,6 +40,8 @@ export const organizationsEvents: Events<OrganizationsEvents> = defineEvents({
   "organization.member_suspended": event<OrganizationEventData>(),
   "organization.member_resumed": event<OrganizationEventData>(),
   "organization.role_changed": event<OrganizationEventData>(),
+  "organization.role_added": event<OrganizationEventData>(),
+  "organization.role_removed": event<OrganizationEventData>(),
   "organization.ownership_transferred": event<OrganizationEventData>(),
   "organization.switched": event<OrganizationEventData>(),
   "invitation.created": event<InvitationEventData>(),

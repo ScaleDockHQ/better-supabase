@@ -1,11 +1,11 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.profiles.options`. */
 export type ProfilesSqlOptions = {
   readonly columnGrants?: boolean;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
   readonly metadata?: unknown;
   readonly mirrorEmail?: boolean;
   readonly readPolicy?: unknown;
@@ -23,7 +23,7 @@ export type ProfilesSqlOptions = {
 export const profilesSqlOptions: BlockOptionsSchema<ProfilesSqlOptions> =
   blockOptions<ProfilesSqlOptions>({
     columnGrants: option.boolean(),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
     metadata: option.unknown(),
     mirrorEmail: option.boolean({ default: true }),
     readPolicy: option.unknown(),

@@ -95,6 +95,7 @@ const NAMES: BlockSqlNames = {
         subjectLabel: "subject_label",
         summary: "summary",
         actionPath: "action_path",
+        actions: "actions",
         priority: "priority",
         data: "data",
         key: "idempotency_key",
@@ -109,6 +110,7 @@ const NAMES: BlockSqlNames = {
         "subjectLabel",
         "summary",
         "actionPath",
+        "actions",
         "priority",
         "key",
         "createdBy",
@@ -126,10 +128,11 @@ const NAMES: BlockSqlNames = {
         readAt: "read_at",
         dismissedAt: "dismissed_at",
         resolvedAt: "resolved_at",
+        resolution: "resolution",
         deliveredAt: "delivered_at",
         createdAt: "created_at",
       },
-      optional: ["tenant", "resolvedAt", "deliveredAt"],
+      optional: ["tenant", "resolvedAt", "resolution", "deliveredAt"],
     },
     deliveries: {
       name: "notification_deliveries",
@@ -281,6 +284,22 @@ $$;
 ${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
 }
 
+/** Columns version 9 added, for managed tables created before it. */
+function added(n: NotifyNames): string {
+  return (
+    [
+      ["events", "actions"],
+      ["recipients", "resolution"],
+    ] as const
+  )
+    .filter(([table, logical]) => n.has(table, logical))
+    .map(
+      ([table, logical]) =>
+        `alter table ${n.table(table)} add column if not exists ${n.col(table, logical)} jsonb;`,
+    )
+    .join("\n");
+}
+
 function tables(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!ctx.manages) {
     return "";
@@ -314,6 +333,7 @@ create table if not exists ${n.table("events")} (
     ...opt("events", "subjectLabel", "text"),
     ...opt("events", "summary", "text"),
     ...opt("events", "actionPath", "text"),
+    ...opt("events", "actions", "jsonb"),
     ...opt("events", "priority", "text not null default 'normal'"),
     `${c("events", "data")} jsonb not null default '{}'`,
     ...opt("events", "key", "text"),
@@ -348,11 +368,13 @@ create table if not exists ${n.table("recipients")} (
     `${c("recipients", "readAt")} timestamptz`,
     `${c("recipients", "dismissedAt")} timestamptz`,
     ...opt("recipients", "resolvedAt", "timestamptz"),
+    ...opt("recipients", "resolution", "jsonb"),
     ...opt("recipients", "deliveredAt", "timestamptz not null default now()"),
     `${c("recipients", "createdAt")} timestamptz not null default now()`,
     `unique (${c("recipients", "event")}, ${c("recipients", "user")})`,
   ].join(",\n  ")}
 );
+${added(n)}
 create index if not exists notification_recipients_inbox_idx on ${n.table("recipients")} (${c("recipients", "user")}, ${c("recipients", "createdAt")} desc) where ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_unread_idx on ${n.table("recipients")} (${c("recipients", "user")}) where ${c("recipients", "readAt")} is null and ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_user_idx on ${n.table("recipients")} (${c("recipients", "user")});
@@ -777,7 +799,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   if (ctx.has("recipients", "resolvedAt")) {
     fns.push({
       name: "resolve_notifications",
-      args: ["text", "text", "text", "{id}"],
+      args: [
+        "text",
+        "text",
+        "text",
+        "{id}",
+        ...(ctx.has("recipients", "resolution") ? ["jsonb"] : []),
+      ],
       returns: "jsonb",
     });
   }
@@ -850,7 +878,7 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   names: NAMES,
   contract,
   upgrades: [
@@ -901,6 +929,13 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
       description:
         "send_notifications(events) sends a batch in one call, with send_notification's checks per notification and a {notification} or {error} result each. options.partitioned partitions a new notification_delivery_events table by month on created_at and applies to new tables only.",
       sql: () => "",
+    },
+    {
+      from: 8,
+      description:
+        "Events get actions (an array of { key, label, operation, payload } that send_notification validates) and recipients a resolution that resolve_notifications stores; claim_notification_deliveries returns the recipient's profile locale.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("resolve_notifications")}(text, text, text, ${ctx.idType});`,
     },
   ],
   build,

@@ -1,12 +1,14 @@
-import type { DisabledRow } from "./blocks.ts";
+import type { ActiveTenantSource, DisabledRow } from "./blocks.ts";
 
 /**
  * SQL expression templates the SQL modules and the access policies call.
  * `{permission}` is a text expression (a literal or a parameter), `{user}` a
- * uuid expression, `{tenant}` an expression of the tenant id type and `{role}`
- * a text expression. `{scope}` is the scope's name unquoted, so it can be part
- * of a function name (`app.ids_{scope}({permission})`); write `'{scope}'` to
- * pass it as text.
+ * uuid expression, `{tenant}` an expression of the tenant id type, `{role}` a
+ * text expression and `{roles}` a `text[]` of the roles being assigned
+ * (`array[{role}]` for one role, the whole set with
+ * `blocks.memberships.options.roles.many`). `{scope}` is the scope's name
+ * unquoted, so it can be part of a function name
+ * (`app.ids_{scope}({permission})`); write `'{scope}'` to pass it as text.
  */
 export interface AuthorizationFunctions {
   /**
@@ -34,9 +36,15 @@ export interface AuthorizationFunctions {
    * `collections`, call it instead of reading `team_members`.
    */
   readonly teamIdsOf?: string;
-  /** Whether the caller may assign `{role}` in `{tenant}`. */
+  /**
+   * Whether the caller may assign `{role}` (or every one of `{roles}`) in
+   * `{tenant}`.
+   */
   readonly canAssign?: string;
-  /** Whether `{user}` may assign `{role}` in `{tenant}`. */
+  /**
+   * Whether `{user}` may assign `{role}` (or every one of `{roles}`) in
+   * `{tenant}`.
+   */
   readonly canAssignFor?: string;
   /**
    * The permission keys `{user}` holds in `{tenant}`, as a `text[]`. It fills
@@ -160,6 +168,13 @@ export interface AuthorizationMembership {
   /** The scope column, or the scope every row is in. */
   readonly scope: { readonly column: string } | { readonly value: string };
   readonly idColumn: string;
+  /**
+   * `schema.table` of the membership's role set, one row per `(scope id, user,
+   * role)`, when a member can hold several roles. better-supabase's own is
+   * `better_supabase.membership_roles`
+   * (`blocks.memberships.options.roles.many`).
+   */
+  readonly rolesTable?: string;
 }
 
 /** A membership table whose role column points into a roles table. */
@@ -183,6 +198,13 @@ export interface AuthorizationTokenHook {
   readonly function: string;
   /** The claim it writes the active tenant id to. */
   readonly tenantClaim?: string;
+  /**
+   * Where it reads the active organization from: the `auth.organization.claim`
+   * key in `app_metadata` (`"claim"`), a profile column, or the request
+   * (`"resolver"`). Doctor BS409 warns when `switch_organization` writes it
+   * somewhere else (`blocks.permissions.activeTenant`).
+   */
+  readonly activeOrganizationFrom?: ActiveTenantSource;
   /** Claims it writes itself, which a second writer would contradict. */
   readonly ownedClaims: readonly string[];
   /**

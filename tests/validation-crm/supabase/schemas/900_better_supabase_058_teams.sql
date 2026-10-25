@@ -1,6 +1,6 @@
 -- better-supabase module: teams
--- @bsb-block teams@1 managed
--- @bsb-hash sha256:d521b8f6a450eba931856be817c167c3ce3a0e7bd59afb95070c29fd9beb5349
+-- @bsb-block teams@2 managed
+-- @bsb-hash sha256:99bf7fc56b80804deb0b6ff2371491510e5478780413e21789d9e668bcc5ca42
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,14 +75,22 @@ create policy bsb_team_members_select on "public"."team_members" for select to a
 using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 
+-- A signed-in caller may only read their own teams; the service role and
+-- direct database sessions (no request role) may read anyone's.
 create or replace function "better_supabase"."team_ids_of"(member uuid)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select "team_id" from "public"."team_members" where "user_id" = team_ids_of.member
+begin
+  if team_ids_of.member is distinct from (select auth.uid())
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
+    raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
+  end if;
+  return query select "team_id" from "public"."team_members" where "user_id" = team_ids_of.member;
+end;
 $$;
 revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;

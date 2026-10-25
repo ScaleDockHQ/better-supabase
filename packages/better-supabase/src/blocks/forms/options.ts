@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -6,12 +6,12 @@ import { blockOptions, option } from "../options.ts";
 export type FormsSqlOptions = {
   readonly handlers?: unknown;
   readonly publicLimit?: unknown;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const formsSqlOptions: BlockOptionsSchema<FormsSqlOptions> =
   blockOptions<FormsSqlOptions>({
     handlers: option.unknown(),
     publicLimit: option.unknown(),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

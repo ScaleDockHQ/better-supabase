@@ -43,10 +43,10 @@ describe("createOrpc().rateLimit", () => {
         limiter,
         scope: "rpc",
         rule: { max: 2, period: "1 minute" },
-        key: ({ context, path }) =>
-          context.request.headers.get("x-client") === null
+        key: ({ request, path }) =>
+          request.headers.get("x-client") === null
             ? undefined
-            : `${context.request.headers.get("x-client")}:${path.join(".")}`,
+            : `${request.headers.get("x-client")}:${path.join(".")}`,
       }),
     );
 

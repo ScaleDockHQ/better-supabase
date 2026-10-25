@@ -296,6 +296,33 @@ describe("createOrganizations", () => {
     ]);
   });
 
+  it("emits invitation.accepted and invitation.declined for the by-id calls", async () => {
+    const { transport } = fake({
+      accept_invitation_by_id: "org-1",
+      decline_invitation_by_id: true,
+    });
+
+    const events = new EventHub();
+    const seen: BlockEvent[] = [];
+    events.on("block", (event) => seen.push(event));
+    const organizations = createOrganizations({ transport, events });
+
+    await organizations.acceptInvitationById("inv-1").orThrow();
+    await organizations.declineInvitationById("inv-2").orThrow();
+
+    expect(seen.map((event) => [event.type, event.data, event.tenant])).toEqual(
+      [
+        ["organization.member_added", expect.anything(), "org-1"],
+        [
+          "invitation.accepted",
+          { invitationId: "inv-1", organizationId: "org-1" },
+          "org-1",
+        ],
+        ["invitation.declined", { invitationId: "inv-2" }, undefined],
+      ],
+    );
+  });
+
   it("returns an error when onInvite throws", async () => {
     const { transport } = fake({ invite_member: invitationRow });
 
@@ -359,6 +386,56 @@ describe("createOrganizations", () => {
       "organization.switched",
       "organization.member_added",
       "organization.deleted",
+    ]);
+  });
+
+  it("adds and removes roles, and reads the role set", async () => {
+    const { transport, calls } = fake({
+      add_member_role: true,
+      remove_member_role: false,
+      list_members: [
+        { user_id: "user-2", role: "admin", roles: ["admin", "billing"] },
+      ],
+      invite_member: invitationRow,
+    });
+
+    const events = new EventHub();
+    const seen: string[] = [];
+    events.on("block", (event) => seen.push(event.type));
+    const organizations = createOrganizations({ transport, events });
+
+    expect(
+      await organizations.addMemberRole("org-1", "user-2", "billing"),
+    ).toMatchObject({ ok: true, data: true });
+    expect(
+      await organizations.removeMemberRole("org-1", "user-2", "member"),
+    ).toMatchObject({ ok: true, data: false });
+    expect(await organizations.members("org-1")).toMatchObject({
+      ok: true,
+      data: [{ userId: "user-2", role: "admin", roles: ["admin", "billing"] }],
+    });
+    await organizations.invite({
+      organizationId: "org-1",
+      email: "ada@example.com",
+      role: "member",
+      onAccept: { roles: ["billing"], teams: ["team-1"] },
+    });
+
+    expect(seen).toEqual(["organization.role_added", "invitation.created"]);
+    expect(calls.map((call) => [call.fn, call.args])).toMatchObject([
+      [
+        "add_member_role",
+        { organization: "org-1", member: "user-2", role: "billing" },
+      ],
+      [
+        "remove_member_role",
+        { organization: "org-1", member: "user-2", role: "member" },
+      ],
+      ["list_members", {}],
+      [
+        "invite_member",
+        { on_accept: { roles: ["billing"], teams: ["team-1"] } },
+      ],
     ]);
   });
 

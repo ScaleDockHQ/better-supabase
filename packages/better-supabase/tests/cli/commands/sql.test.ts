@@ -561,7 +561,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       /^supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
     const migration = await readFile(join(root, path), "utf-8");
-    expect(migration).toContain("values ('memberships', 2, 'managed')");
+    expect(migration).toContain("values ('memberships', 3, 'managed')");
     expect(migration).toContain("values ('rate-limit',");
     expect(migration).toContain(
       "alter role authenticator set pgrst.db_pre_request",
@@ -1084,12 +1084,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const check = await sql(["upgrade", "--check"], config);
     expect(check.code).toBe(1);
     expect(check.error).toContain(
-      "memberships is at version 1; the current version is 2",
+      "memberships is at version 1; the current version is 3",
     );
     expect(check.error).toContain("Run `better-supabase upgrade`.");
 
     const dry = await sql(["upgrade", "--dry-run"], config);
-    expect(dry.output).toContain("memberships: version 1 to 2");
+    expect(dry.output).toContain("memberships: version 1 to 3");
     expect(await readFile(path, "utf-8")).toBe(legacy);
 
     const done = await sql(["upgrade"], config);
@@ -1100,7 +1100,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "creates a migration from the module files",
     );
     expect(await readFile(path, "utf-8")).toContain(
-      "-- @bsb-block memberships@2",
+      "-- @bsb-block memberships@3",
     );
     expect((await sql(["upgrade"], config)).output).toBe(
       "SQL modules are at their current versions.",
@@ -1392,14 +1392,14 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       await writeFile(
         path,
         (await readFile(path, "utf-8")).replace(
-          /^-- @bsb-block memberships@2/m,
+          /^-- @bsb-block memberships@3/m,
           "-- @bsb-block memberships@1",
         ),
       );
       const check = await sql(["upgrade", "--check"], config);
       expect(check.code).toBe(1);
       expect(check.error).toContain(
-        "memberships is at version 1; the current version is 2",
+        "memberships is at version 1; the current version is 3",
       );
       const done = await sql(["upgrade"], config);
       expect(done.output).toContain(
@@ -1419,7 +1419,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
       expect(upgraded).toContain("-- @bsb-upgrade-start");
       expect(upgraded.indexOf("-- @bsb-upgrade-end")).toBeLessThan(
-        upgraded.indexOf("-- @bsb-block memberships@2"),
+        upgraded.indexOf("-- @bsb-block memberships@3"),
       );
       expect((await sql(["upgrade"], config)).output).toBe(
         "SQL modules are at their current versions.",

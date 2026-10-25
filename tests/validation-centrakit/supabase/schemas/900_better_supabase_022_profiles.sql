@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:e47fd163abe4dbab4d7bf7ce1a6d26b49e6de01a611b876d6fd4c31060ca3996
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:3658a69d696d7bbb7601cd105c0e58fca905322b48e3866e8dfbe8c036b1e01c
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,7 +150,7 @@ begin
     loop
       begin
         insert into "centrakit"."profiles" ("user_id", "first_name", "last_name", "email", "username")
-        values (user_id, nullif(btrim(coalesce(meta ->> 'first_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, nullif(btrim(coalesce(meta ->> 'first_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -247,7 +247,8 @@ revoke execute on function "better_supabase"."update_my_profile"(jsonb) from pub
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
 drop trigger if exists "bsb_profile_sync" on auth.users;
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -255,7 +256,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "centrakit"."profiles" set "email" = new.email where "user_id" = new.id and "email" is distinct from new.email;
+  update "centrakit"."profiles" set "email" = lower(new.email) where "user_id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;

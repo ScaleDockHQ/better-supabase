@@ -8,6 +8,32 @@ import {
   eventsPartitioned,
   keepsTemplateKey,
 } from "./notifications-tracking.ts";
+import { localeColumn } from "./profiles.ts";
+
+/** The recipient's profile locale for the claim, or null without one. */
+function recipientLocale(
+  ctx: BlockSqlContext,
+  n: NotifyNames,
+): { readonly value: string; readonly join: string } {
+  if (!ctx.installed("profiles")) {
+    return { value: "null::text", join: "" };
+  }
+
+  const profiles = ctx.of("profiles");
+  const column = localeColumn(profiles);
+
+  if (column === null) {
+    return { value: "null::text", join: "" };
+  }
+
+  const p = (logical: string) => profiles.col("profiles", logical);
+
+  return {
+    value: `pr.${column}::text`,
+    join: `
+  left join ${profiles.table("profiles")} pr on pr.${p("key")} = rc.${n.col("recipients", "user")}`,
+  };
+}
 
 /** The worker side: claim pending deliveries of a channel, then complete them. */
 export function delivery(ctx: BlockSqlContext, n: NotifyNames): string {
@@ -62,6 +88,7 @@ export function delivery(ctx: BlockSqlContext, n: NotifyNames): string {
   const retries = n.has("deliveries", "attempts");
   const backoff = n.has("deliveries", "nextAttemptAt");
   const suppression = claimSuppression(ctx, n);
+  const locale = recipientLocale(ctx, n);
 
   if (backoff) {
     set.push(
@@ -131,12 +158,13 @@ begin${lostLease}
     'attempts', ${retries ? `l.${d("attempts")}` : "1"},
     'user_id', rc.${r("user")},
     'email', u.email,
+    'locale', ${locale.value},
     'notification', ${itemJson(n)}${suppression.field}
   )), '[]') into claimed
   from leased l
   join ${n.table("recipients")} rc on rc.${r("id")} = l.${d("recipient")}
   join ${n.table("events")} ev on ev.${n.col("events", "id")} = rc.${r("event")}
-  left join auth.users u on u.id = rc.${r("user")}${suppression.join};
+  left join auth.users u on u.id = rc.${r("user")}${locale.join}${suppression.join};
   return claimed;
 end;
 $$;

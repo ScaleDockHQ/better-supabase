@@ -32,6 +32,14 @@ export {
 } from "./attachments.ts";
 
 export {
+  type AttachmentSweeper,
+  type AttachmentSweeperOptions,
+  createAttachmentSweeper,
+  type SweepQueuedOptions,
+  type SweepResult,
+} from "./sweep.ts";
+
+export {
   dbTransport,
   rpcTransport,
   sqlTransport,

@@ -25,6 +25,7 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
@@ -114,6 +115,36 @@ export interface PushDevices<F extends object = Record<never, never>> {
   ) => AsyncResult<readonly PushTarget<F>[]>;
   /** Service role: deletes the devices with `tokens`; resolves with how many. */
   readonly prune: (tokens: readonly string[]) => AsyncResult<number>;
+  /**
+   * Service role: stores Expo's tickets for one notification delivery. Needs
+   * push module version 2 with the notifications block.
+   */
+  readonly recordTickets: (
+    deliveryId: string,
+    tickets: readonly ExpoPushTicket[],
+  ) => AsyncResult<number>;
+  /** Service role: the tickets already stored for a delivery. */
+  readonly ticketsFor: (
+    deliveryId: string,
+  ) => AsyncResult<readonly ExpoPushTicket[]>;
+  /**
+   * Service role: reads the receipts of tickets older than `olderThan` (default
+   * 15 minutes), stores them, records `notification.delivered` or
+   * `notification.bounced` on their deliveries and prunes the devices Expo no
+   * longer reaches. Run it from a cron.
+   */
+  readonly checkReceipts: (
+    options?: CheckReceiptsOptions,
+  ) => AsyncResult<ExpoReceiptResult>;
+}
+
+export interface CheckReceiptsOptions {
+  /** Defaults to `expoPush({ devices })` over this client. */
+  readonly push?: ExpoPush;
+  /** Tickets per call, at most 1000. Default 1000. */
+  readonly limit?: number;
+  /** How long Expo needs before a receipt is ready. Default 15 minutes. */
+  readonly olderThan?: Temporal.Duration;
 }
 
 const PROVIDERS: ReadonlySet<string> = new Set([
@@ -145,6 +176,34 @@ function targetsOf(value: unknown): readonly PushTarget[] {
       : [];
   });
 }
+
+function ticketsOf(value: unknown): readonly ExpoPushTicket[] {
+  return recordsOf(value, "push_tickets_for").map((row) => {
+    const id = row["id"];
+    const error = row["error"];
+
+    return {
+      token: textOf(row["token"]),
+      ...(typeof id === "string" ? { id } : {}),
+      ...(typeof error === "string" ? { error } : {}),
+    };
+  });
+}
+
+interface UncheckedTicket {
+  readonly id: string;
+  readonly token: string;
+}
+
+function uncheckedOf(value: unknown): readonly UncheckedTicket[] {
+  return recordsOf(value, "unchecked_push_tickets").map((row) => ({
+    id: textOf(row["id"]),
+    token: textOf(row["token"]),
+  }));
+}
+
+const countOf = (value: unknown): number =>
+  typeof value === "number" ? value : Number(value ?? 0);
 
 export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
   options: PushDevicesOptions<S>,
@@ -182,9 +241,56 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
         (targets) => readAllFields(fields, targets),
       ),
     prune: (tokens) =>
-      call("prune_push_tokens", { tokens: [...tokens] }, (value) =>
-        typeof value === "number" ? value : Number(value ?? 0),
+      call("prune_push_tokens", { tokens: [...tokens] }, countOf),
+    recordTickets: (deliveryId, tickets) =>
+      call(
+        "record_push_tickets",
+        {
+          delivery: deliveryId,
+          tickets: tickets.map((ticket) => ({
+            token: ticket.token,
+            id: ticket.id ?? null,
+            error: ticket.error ?? null,
+          })),
+        },
+        countOf,
       ),
+    ticketsFor: (deliveryId) =>
+      call("push_tickets_for", { delivery: deliveryId }, ticketsOf),
+    checkReceipts: (checks = {}) =>
+      run(async (): Promise<ExpoReceiptResult> => {
+        const push = checks.push ?? expoPush({ devices: client });
+
+        const tickets = await call(
+          "unchecked_push_tickets",
+          {
+            max_items: checks.limit ?? 1000,
+            older_than: (
+              checks.olderThan ?? temporal().Duration.from({ minutes: 15 })
+            ).toString(),
+          },
+          uncheckedOf,
+        ).orThrow();
+
+        const result = await push.checkReceipts(tickets);
+
+        if (result.receipts.length > 0) {
+          await call(
+            "complete_push_receipts",
+            {
+              receipts: result.receipts.map((receipt) => ({
+                id: receipt.id,
+                status: receipt.status,
+                error: receipt.error ?? null,
+                message: receipt.message ?? null,
+              })),
+            },
+            countOf,
+          ).orThrow();
+        }
+
+        return result;
+      }),
   };
 
   return withBlockHooks(client, options.hooks, {
@@ -315,11 +421,22 @@ export interface ExpoPushTicket {
   readonly message?: string;
 }
 
+/** What Expo's receipt said about one ticket. */
+export interface ExpoPushReceipt {
+  readonly id: string;
+  readonly token: string;
+  readonly status: "ok" | "error";
+  readonly error?: string;
+  readonly message?: string;
+}
+
 export interface ExpoReceiptResult {
   readonly delivered: number;
   readonly failed: readonly ExpoPushTicket[];
   /** Tokens deleted because Expo reported `DeviceNotRegistered`. */
   readonly pruned: number;
+  /** Every receipt Expo had ready; tickets without one stay unchecked. */
+  readonly receipts: readonly ExpoPushReceipt[];
 }
 
 export interface ExpoPushOptions {
@@ -330,16 +447,43 @@ export interface ExpoPushOptions {
   readonly fetch?: typeof fetch;
   /** Defaults to `https://exp.host/--/api/v2/push`. */
   readonly endpoint?: string;
+  /**
+   * Retries of one request after a 429, a 5xx or a network error, waiting for
+   * `Retry-After` (at most 30 seconds) or 1, 2, 4 seconds. Default 3.
+   */
+  readonly maxRetries?: number;
+  /** Waits between retries. Defaults to `setTimeout`. */
+  readonly sleep?: (milliseconds: number) => Promise<void>;
 }
+
+export interface ExpoSendOptions {
+  /**
+   * Sent as the `idempotency-key` header per request, suffixed with the chunk
+   * number, e.g. the notification delivery id.
+   */
+  readonly idempotencyKey?: string;
+  /**
+   * Tickets an earlier attempt stored: tokens with a ticket id or
+   * `DeviceNotRegistered` are not sent again, and a chunk whose tokens all have
+   * one is skipped.
+   */
+  readonly sent?: readonly ExpoPushTicket[];
+}
+
+/** The error of every ticket in a chunk whose request failed after its retries. */
+export const EXPO_REQUEST_FAILED = "RequestFailed";
 
 export interface ExpoPush {
   /**
    * Sends `message` to each token, 100 per request; tickets come back in token
-   * order.
+   * order. A request that still fails after its retries gives its tokens a
+   * `RequestFailed` ticket instead of throwing, so chunks already sent keep
+   * their tickets.
    */
   readonly send: (
     tokens: readonly string[],
     message: ExpoPushMessage,
+    options?: ExpoSendOptions,
   ) => Promise<readonly ExpoPushTicket[]>;
   /**
    * Reads the receipts for tickets that have an id, about 15 minutes after
@@ -364,6 +508,32 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
+const MAX_WAIT = 30_000;
+
+const wait = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+
+const retryable = (status: number): boolean => status === 429 || status >= 500;
+
+/** `Retry-After` in seconds or as a date, else 1, 2, 4 seconds; at most 30. */
+function backoff(attempt: number, retryAfter: string | null): number {
+  if (retryAfter !== null) {
+    const seconds = Number(retryAfter);
+
+    const milliseconds = Number.isFinite(seconds)
+      ? seconds * 1000
+      : Date.parse(retryAfter) - Date.now();
+
+    if (Number.isFinite(milliseconds) && milliseconds >= 0) {
+      return Math.min(milliseconds, MAX_WAIT);
+    }
+  }
+
+  return Math.min(1000 * 2 ** attempt, MAX_WAIT);
+}
+
 function errorCode(entry: Readonly<Record<string, unknown>>): string {
   const details = recordOrEmpty(entry["details"]);
   const code = details["error"];
@@ -379,6 +549,8 @@ function errorCode(entry: Readonly<Record<string, unknown>>): string {
 export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
   const endpoint = options.endpoint ?? "https://exp.host/--/api/v2/push";
   const doFetch = options.fetch ?? globalThis.fetch;
+  const maxRetries = Math.max(0, options.maxRetries ?? 3);
+  const sleep = options.sleep ?? wait;
 
   const headers: Record<string, string> = {
     accept: "application/json",
@@ -388,24 +560,53 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
       : {}),
   };
 
-  const post = async (path: string, body: unknown): Promise<unknown> => {
-    const response = await doFetch(`${endpoint}/${path}`, {
+  const post = async (
+    path: string,
+    body: unknown,
+    idempotencyKey?: string,
+  ): Promise<unknown> => {
+    const init: RequestInit = {
       method: "POST",
-      headers,
+      headers: {
+        ...headers,
+        ...(idempotencyKey === undefined
+          ? {}
+          : { "idempotency-key": idempotencyKey }),
+      },
       body: JSON.stringify(body),
-    });
+    };
 
-    const text = await response.text();
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
 
-    if (!response.ok) {
+      try {
+        response = await doFetch(`${endpoint}/${path}`, init);
+      } catch (error) {
+        if (attempt >= maxRetries) {
+          throw error;
+        }
+
+        await sleep(backoff(attempt, null));
+        continue;
+      }
+
+      const text = await response.text();
+
+      if (response.ok) {
+        const parsed: unknown = text === "" ? {} : JSON.parse(text);
+
+        return recordOrEmpty(parsed)["data"];
+      }
+
+      if (attempt < maxRetries && retryable(response.status)) {
+        await sleep(backoff(attempt, response.headers.get("retry-after")));
+        continue;
+      }
+
       throw new Error(
         `Expo Push API ${path} answered ${String(response.status)}: ${text.slice(0, 500)}`,
       );
     }
-
-    const parsed: unknown = text === "" ? {} : JSON.parse(text);
-
-    return recordOrEmpty(parsed)["data"];
   };
 
   const prune = async (tokens: readonly string[]): Promise<number> => {
@@ -422,38 +623,89 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
     return pruned;
   };
 
+  const sendChunk = async (
+    tokens: readonly string[],
+    message: ExpoPushMessage,
+    idempotencyKey: string | undefined,
+  ): Promise<readonly ExpoPushTicket[]> => {
+    let data: unknown;
+
+    try {
+      data = await post(
+        "send",
+        tokens.map((to) => ({ ...message, to })),
+        idempotencyKey,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+
+      return tokens.map((token) => ({
+        token,
+        error: EXPO_REQUEST_FAILED,
+        message: reason.slice(0, 500),
+      }));
+    }
+
+    const list: readonly unknown[] = Array.isArray(data) ? data : [];
+
+    return tokens.map((token, at) => {
+      const entry = recordOrEmpty(list[at]);
+
+      const text =
+        typeof entry["message"] === "string" ? entry["message"] : undefined;
+
+      return entry["status"] === "ok" && typeof entry["id"] === "string"
+        ? { token, id: entry["id"] }
+        : {
+            token,
+            error: errorCode(entry),
+            ...(text === undefined ? {} : { message: text }),
+          };
+    });
+  };
+
   return {
-    send: async (tokens, message) => {
+    send: async (tokens, message, sendOptions = {}) => {
+      const done = new Map(
+        (sendOptions.sent ?? [])
+          .filter(
+            (ticket) =>
+              ticket.id !== undefined || ticket.error === NOT_REGISTERED,
+          )
+          .map((ticket) => [ticket.token, ticket] as const),
+      );
+
       const tickets: ExpoPushTicket[] = [];
+      const fresh: ExpoPushTicket[] = [];
 
-      for (const chunk of chunks(tokens, SEND_CHUNK)) {
-        const data = await post(
-          "send",
-          chunk.map((to) => ({ ...message, to })),
-        );
+      for (const [index, chunk] of chunks(tokens, SEND_CHUNK).entries()) {
+        const pending = chunk.filter((token) => !done.has(token));
 
-        const list: readonly unknown[] = Array.isArray(data) ? data : [];
+        const sent =
+          pending.length === 0
+            ? []
+            : await sendChunk(
+                pending,
+                message,
+                sendOptions.idempotencyKey === undefined
+                  ? undefined
+                  : `${sendOptions.idempotencyKey}:${String(index)}`,
+              );
 
-        for (const [at, token] of chunk.entries()) {
-          const entry = recordOrEmpty(list[at]);
+        fresh.push(...sent);
+        const byToken = new Map(sent.map((ticket) => [ticket.token, ticket]));
 
-          const message =
-            typeof entry["message"] === "string" ? entry["message"] : undefined;
+        for (const token of chunk) {
+          const ticket = done.get(token) ?? byToken.get(token);
 
-          tickets.push(
-            entry["status"] === "ok" && typeof entry["id"] === "string"
-              ? { token, id: entry["id"] }
-              : {
-                  token,
-                  error: errorCode(entry),
-                  ...(message === undefined ? {} : { message }),
-                },
-          );
+          if (ticket) {
+            tickets.push(ticket);
+          }
         }
       }
 
       await prune(
-        tickets
+        fresh
           .filter((ticket) => ticket.error === NOT_REGISTERED)
           .map((ticket) => ticket.token),
       );
@@ -471,32 +723,44 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
 
       let delivered = 0;
       const failed: ExpoPushTicket[] = [];
+      const receipts: ExpoPushReceipt[] = [];
 
       for (const ids of chunks([...byId.keys()], RECEIPT_CHUNK)) {
-        const receipts = recordOrEmpty(await post("getReceipts", { ids }));
+        const answered = recordOrEmpty(await post("getReceipts", { ids }));
 
         for (const id of ids) {
-          const receipt = receipts[id];
+          const receipt = answered[id];
 
           if (receipt === undefined) {
             continue;
           }
 
           const entry = recordOrEmpty(receipt);
+          const token = byId.get(id) ?? "";
 
           if (entry["status"] === "ok") {
             delivered += 1;
+            receipts.push({ id, token, status: "ok" });
             continue;
           }
 
-          const message =
+          const text =
             typeof entry["message"] === "string" ? entry["message"] : undefined;
 
-          failed.push({
-            token: byId.get(id) ?? "",
+          const ticket: ExpoPushTicket = {
+            token,
             id,
             error: errorCode(entry),
-            ...(message === undefined ? {} : { message }),
+            ...(text === undefined ? {} : { message: text }),
+          };
+
+          failed.push(ticket);
+          receipts.push({
+            id,
+            token,
+            status: "error",
+            error: errorCode(entry),
+            ...(text === undefined ? {} : { message: text }),
           });
         }
       }
@@ -507,7 +771,7 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
           .map((ticket) => ticket.token),
       );
 
-      return { delivered, failed, pruned };
+      return { delivered, failed, pruned, receipts };
     },
   };
 }
@@ -520,7 +784,14 @@ export interface ExpoPushChannelOptions {
   readonly name?: string;
   /** Overrides the message built from the notification and its rendered text. */
   readonly message?: (message: NotificationMessage) => ExpoPushMessage;
-  /** Receives the tickets, to check their receipts later. */
+  /**
+   * Stores each delivery's tickets in `push_tickets`, so a retried delivery
+   * skips the devices Expo already accepted and `devices.checkReceipts()` can
+   * confirm them. Needs push module version 2 with the notifications block.
+   * Default `true`.
+   */
+  readonly storeTickets?: boolean;
+  /** Receives the tickets, to check their receipts yourself. */
   readonly onTickets?: (
     tickets: readonly ExpoPushTicket[],
     message: NotificationMessage,
@@ -546,9 +817,11 @@ function defaultMessage(message: NotificationMessage): ExpoPushMessage {
 
 /**
  * A notifications channel that pushes each delivery to the recipient's Expo
- * devices. A recipient without devices is `skipped`; when every ticket fails
- * for a reason other than an unregistered device, it throws so the delivery is
- * retried.
+ * devices. A recipient without devices is `skipped`. It throws, so the delivery
+ * is retried, when a request to Expo failed after its own retries or when every
+ * ticket failed for a reason other than an unregistered device. The retry sends
+ * only to the devices without a stored ticket, with the delivery id as the
+ * idempotency key.
  *
  * ```ts
  * createNotifications({
@@ -579,8 +852,35 @@ export function expoPushChannel(
         return { status: "skipped", provider: "expo" };
       }
 
-      const tickets = await options.push.send(tokens, build(message));
+      const store = options.storeTickets ?? true;
+
+      const stored = store
+        ? await options.devices.ticketsFor(message.deliveryId).orThrow()
+        : [];
+
+      const tickets = await options.push.send(tokens, build(message), {
+        idempotencyKey: message.deliveryId,
+        sent: stored,
+      });
+
+      if (store) {
+        await options.devices
+          .recordTickets(message.deliveryId, tickets)
+          .orThrow();
+      }
+
       await options.onTickets?.(tickets, message);
+
+      const failed = tickets.find(
+        (ticket) => ticket.error === EXPO_REQUEST_FAILED,
+      );
+
+      if (failed) {
+        throw new Error(
+          `Expo push request failed: ${failed.message ?? EXPO_REQUEST_FAILED}`,
+        );
+      }
+
       const sent = tickets.find((ticket) => ticket.id !== undefined);
 
       if (sent?.id !== undefined) {

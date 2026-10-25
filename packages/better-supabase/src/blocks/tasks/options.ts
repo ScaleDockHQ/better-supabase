@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -6,12 +6,12 @@ import { blockOptions, option } from "../options.ts";
 export type TasksSqlOptions = {
   readonly prefix?: string;
   readonly maxAssignees?: number;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
   blockOptions<TasksSqlOptions>({
     prefix: option.string({ default: "TASK-" }),
     maxAssignees: option.number({ default: 0 }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@1 managed
--- @bsb-hash sha256:a5832c02ea9b15e2b0bf841132a15b8e8f5981d9e0c557391ba68fc030932f63
+-- @bsb-block teams@2 managed
+-- @bsb-hash sha256:4895502085230bfed606074d81cc43751b5b7806600fea980ae0ec98bd2fd7c8
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,14 +100,22 @@ alter table "better_supabase"."team_members"
   references "better_supabase"."memberships" ("workspace_id", "user_id");
 
 
+-- A signed-in caller may only read their own teams; the service role and
+-- direct database sessions (no request role) may read anyone's.
 create or replace function "better_supabase"."team_ids_of"(member uuid)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member
+begin
+  if team_ids_of.member is distinct from (select auth.uid())
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
+    raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
+  end if;
+  return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;
+end;
 $$;
 revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;
@@ -380,13 +388,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:19bfee5dda96e7973b73e19f76149b703738d4788a8e5d200273ec0604271d32
+-- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 1, 'managed')
+values ('teams', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

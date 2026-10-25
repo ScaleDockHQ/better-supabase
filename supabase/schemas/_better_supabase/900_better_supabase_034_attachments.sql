@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:10e91475623a69d223b5b112400fb1fc76061fc3ef7743e01aa1e8e80a77fdb6
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:7162ff466f1751ee356c8350aaf0e9d30f1e48944158dfe12b45ed0694460646
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -308,6 +308,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));

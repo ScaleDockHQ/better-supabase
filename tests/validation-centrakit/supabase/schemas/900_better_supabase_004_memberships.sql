@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:3ccff8bfe1e199a3bf480cff11368193b523fbef432618c278aafb40897ab517
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:4034a03449a4a6b4dcf054082acf3411b217232f8e1ee3a12f1bdcccf9004488
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,6 +31,10 @@ alter table "centrakit"."organization_users" add column if not exists "last_used
 alter table "centrakit"."organization_users" enable row level security;
 grant select on "centrakit"."organization_users" to authenticated;
 grant all on "centrakit"."organization_users" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "centrakit"."organization_users";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- blocks.memberships.options.roleThrough.where names the tenant roles. Every
 -- write to "centrakit"."organization_users" stores one of them, whoever writes it: a client policy, the
@@ -192,6 +196,21 @@ set search_path = ''
 as $$
   select (select r."key"::text from "centrakit"."roles" r where r."id"::text = (m."role_id")::text) from "centrakit"."organization_users" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."organization_id" in (select p.id from centrakit.authz_organization_member_ids_for(organization_member_role.member) as p(id))
 $$;
+
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[(select r."key"::text from "centrakit"."roles" r where r."id"::text = (m."role_id")::text)]::text[]
+  from "centrakit"."organization_users" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."organization_id" in (select p.id from centrakit.authz_organization_member_ids_for(organization_member_roles.member) as p(id))
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
 drop policy if exists bsb_memberships_read on "centrakit"."organization_users";
 create policy bsb_memberships_read on "centrakit"."organization_users"

@@ -17,6 +17,7 @@ import type { NotificationChannel } from "./channel.ts";
 import type { EmailChannelOptions } from "./email.ts";
 import type {
   NotificationItem,
+  NotificationAction,
   NotificationSubject,
   RenderedText,
 } from "./types.ts";
@@ -45,6 +46,11 @@ export interface SendInput<
   readonly subject?: NotificationSubject;
   readonly summary?: string;
   readonly actionPath?: string;
+  /**
+   * Buttons the recipient can pick, at most 10 with unique keys. Needs the
+   * events table's `actions` column (notifications version 9).
+   */
+  readonly actions?: readonly NotificationAction[];
   /** One of `blocks.notifications.options.priorities`. Defaults to `normal`. */
   readonly priority?: string;
   readonly data: D;
@@ -461,6 +467,12 @@ export interface Notifications<
     readonly type: TypeName<K>;
     readonly subject: NotificationSubject;
     readonly tenant?: string;
+    /**
+     * How it was resolved, e.g. `{ action: "approve" }`, stored per recipient.
+     * Needs the recipients table's `resolution` column (notifications version
+     * 9).
+     */
+    readonly resolution?: Readonly<Record<string, unknown>>;
   }): AsyncResult<NotificationUpdate>;
   /** Sets the user's level for a subject; `null` removes it. */
   subscribe(input: {

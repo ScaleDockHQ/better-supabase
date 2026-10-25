@@ -86,7 +86,7 @@ describe("sameModuleMigration and migrationHolds", () => {
   it("reads the installed modules and versions", () => {
     expect(
       migrationModules(
-        plain.replace("@bsb-block memberships@2", "@bsb-block memberships@1"),
+        plain.replace("@bsb-block memberships@3", "@bsb-block memberships@1"),
       ).get("memberships"),
     ).toBe(1);
     expect(migrationModules("").size).toBe(0);

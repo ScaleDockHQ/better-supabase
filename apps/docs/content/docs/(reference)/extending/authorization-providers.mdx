@@ -79,6 +79,7 @@ interface AuthorizationProvider {
     userColumn: string;
     scope: { column: string } | { value: string };
     idColumn: string;
+    rolesTable?: string;
   }[];
   suspension?: { user?: DisabledRow; tenant?: DisabledRow };
   roleSources?: AuthorizationRoleSource[];
@@ -148,8 +149,8 @@ puts the result into a policy or a module function:
 | `memberIds`      | `{scope}`                                                   | the `{scope}` ids the caller is a member of                                                |
 | `memberIdsFor`   | `{user}`, `{scope}`                                         | as `memberIds`, for another user                                                           |
 | `teamIdsOf`      | `{user}`                                                    | a set of the team ids `{user}` belongs to                                                  |
-| `canAssign`      | `{role}`, `{tenant}`, `{scope}`                             | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
-| `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`                   | as `canAssign`, for another user                                                           |
+| `canAssign`      | `{role}`, `{roles}`, `{tenant}`, `{scope}`                  | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
+| `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`        | as `canAssign`, for another user                                                           |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
 | `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
 | `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                             | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
@@ -158,6 +159,14 @@ puts the result into a policy or a module function:
 | `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}` | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
 | `portalSubjects` | `{action}`                                                  | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
 | `portalParties`  | none                                                        | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
+
+`{roles}` is the same role as a `text[]` (`array[role]::text[]`), for a
+function that checks a set of roles at once. A `memberships` entry's
+`rolesTable` names the table of a member's roles when a member can hold
+several, one row per scope id, user and role; better-supabase's own is
+`better_supabase.membership_roles`
+([`roles.many`](/docs/blocks/memberships#several-roles-per-member)). Doctor
+(BS411) warns when `roles.many` is on and no entry sets it.
 
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for
@@ -218,15 +227,16 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 
 `tokenHook` describes the custom access token hook the provider generates:
 
-| Field              | Used for                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `function`         | BS404 checks its grants, BS405 its shape                                                  |
-| `tenantClaim`      | BS409 compares it with `auth.organization.claim`                                          |
-| `ownedClaims`      | BS407 reports another hook that writes them; `add tenant` stops on `memberships`          |
-| `registeredClaims` | BS407 accepts these claims from the functions named, such as `features`                   |
-| `budget`           | BS405 measures the claims it lists against `bytes` for `doctor --as`                      |
-| `markers`          | comment lines in the provider's files, so doctor recognises its hook and grants migration |
-| `grantsCommand`    | the command BS404 suggests                                                                |
+| Field                    | Used for                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `function`               | BS404 checks its grants, BS405 its shape                                                     |
+| `tenantClaim`            | BS409 compares it with `auth.organization.claim`                                             |
+| `activeOrganizationFrom` | BS409 compares it with `blocks.permissions.activeTenant`, where `switch_organization` writes |
+| `ownedClaims`            | BS407 reports another hook that writes them; `add memberships` stops on them                 |
+| `registeredClaims`       | BS407 accepts these claims from the functions named, such as `features`                      |
+| `budget`                 | BS405 measures the claims it lists against `bytes` for `doctor --as`                         |
+| `markers`                | comment lines in the provider's files, so doctor recognises its hook and grants migration    |
+| `grantsCommand`          | the command BS404 suggests                                                                   |
 
 ### Approvals
 

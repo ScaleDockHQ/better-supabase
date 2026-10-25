@@ -84,6 +84,21 @@ describe("organizations module", () => {
     );
   });
 
+  it("checks members.read in list_members unless permissions remap listMembers", () => {
+    expect(body({})).toContain(
+      "member_can((select auth.uid()), organization, 'members.read'), false) then\n    raise exception 'Not allowed to list members'",
+    );
+    expect(
+      body({
+        organizations: {
+          permissions: { listMembers: "organization.members.view" },
+        },
+      }),
+    ).toContain(
+      "member_can((select auth.uid()), organization, 'organization.members.view'), false)",
+    );
+  });
+
   it("lets platform keys change roles and remove members", () => {
     const sql = body({
       organizations: {

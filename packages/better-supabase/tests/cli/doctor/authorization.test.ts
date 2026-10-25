@@ -7,6 +7,7 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 import type {
+  ActiveTenantSource,
   AuthorizationProvider,
   BetterSupabaseConfig,
 } from "../../../src/config/index.ts";
@@ -524,6 +525,42 @@ describe("BS409", () => {
     ]);
   });
 
+  it("warns when the hook reads the active organization from another place", async () => {
+    const reading = (activeOrganizationFrom: ActiveTenantSource) =>
+      withProvider({
+        tokenHook: { ...stubProvider.tokenHook, activeOrganizationFrom },
+      });
+
+    expect(
+      await findings("BS409", {
+        auth: {
+          organization: { claim: "tenant_id" },
+          authorization: reading("claim"),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS409", {
+        auth: {
+          organization: { claim: "tenant_id" },
+          authorization: reading({
+            profileColumn: "authz.sessions.organization_id",
+          }),
+        },
+        blocks: { permissions: { activeTenant: "claim" } },
+      }),
+    ).toEqual([
+      {
+        severity: "warning",
+        target: "blocks.permissions.activeTenant",
+        message: expect.stringContaining(
+          "reads the active organization from the profile column authz.sessions.organization_id, but switch_organization writes it to the app_metadata claim",
+        ),
+      },
+    ]);
+  });
+
   it("notes suspension and role sources the access model ignores", async () => {
     const provider = withProvider({
       suspension: {
@@ -614,6 +651,39 @@ describe("BS411", () => {
       target: "blocks.invitations.permissions.invite",
       message: expect.stringContaining('checks "documents.own" (invite)'),
     });
+  });
+
+  it("warns when the provider reads one role per member and roles.many is on", async () => {
+    const membership = {
+      table: "authz.members",
+      userColumn: "user_id",
+      scope: { column: "scope_id" },
+      idColumn: "scope_id",
+    };
+
+    const many = { memberships: { options: { roles: { many: true } } } };
+
+    expect(
+      await findings(
+        "BS411",
+        config(withProvider({ memberships: [membership] }), many),
+        { snapshot },
+      ),
+    ).toMatchObject([
+      { severity: "warning", target: "blocks.memberships.options.roles" },
+    ]);
+    expect(
+      await findings(
+        "BS411",
+        config(
+          withProvider({
+            memberships: [{ ...membership, rolesTable: "authz.member_roles" }],
+          }),
+          many,
+        ),
+        { snapshot },
+      ),
+    ).toEqual([]);
   });
 
   it("warns without canAssign, even with the tenant module", async () => {

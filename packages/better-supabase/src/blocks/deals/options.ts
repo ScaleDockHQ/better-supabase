@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -10,7 +10,7 @@ export type DealsSqlOptions = {
   readonly priorities?: unknown;
   readonly prefix?: string;
   readonly readAll?: boolean;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
@@ -21,5 +21,5 @@ export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
     priorities: option.unknown(),
     prefix: option.string({ default: "DEAL-" }),
     readAll: option.boolean({ default: true }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

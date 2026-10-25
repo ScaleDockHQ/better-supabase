@@ -149,6 +149,35 @@ describe("blocks.generated.ts", () => {
     expect(contents).not.toContain("TasksOptions");
   });
 
+  it("marks the instances PowerSync doesn't sync as needing the network", () => {
+    const blocks = {
+      memberships: {},
+      permissions: {},
+      notifications: {},
+      tags: {},
+    };
+
+    const synced = emitBlockConfig(
+      resolveConfig(
+        { blocks, gen: { powersync: { instances: ["notifications"] } } },
+        "/project",
+      ),
+    )?.contents;
+
+    const online = emitBlockConfig(
+      resolveConfig({ blocks }, "/project"),
+    )?.contents;
+
+    expect(synced).toContain(
+      "  /** Needs the network on native. */\n  tags: tagsBlockInstance,",
+    );
+    expect(synced).toContain("\n  notifications: notificationsBlockInstance,");
+    expect(synced).not.toContain(
+      "  /** Needs the network on native. */\n  notifications:",
+    );
+    expect(online).not.toContain("Needs the network on native.");
+  });
+
   it("writes an entry and a renamed block for each instance of a block", () => {
     const config = resolveConfig(
       {
@@ -328,11 +357,26 @@ describe("blocks.generated.ts", () => {
       `  attachments: {
     schema: "better_supabase",
     options: {
-      requireScan: true,
       publicBuckets: [],
     },
   },`,
     );
+  });
+
+  it("passes offline, and leaves requireScan to the client's default", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          attachments: { options: { offline: true } },
+        },
+      },
+      "/project",
+    );
+
+    const file = emitBlockConfig(config, { runtimeImport: "better-supabase" });
+    expect(file?.contents).toContain("offline: true");
+    expect(file?.contents).not.toContain("requireScan");
   });
 
   it("declares the events app tables emit", () => {

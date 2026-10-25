@@ -15,6 +15,7 @@ import {
   migrationOptionUses,
   moduleBody,
   moduleIdType,
+  moduleWritesText,
   SQL_MODULES,
 } from "../../sql/index.ts";
 
@@ -381,6 +382,23 @@ export function proposeAdoption(
           );
         }
 
+        continue;
+      }
+
+      const enumColumn =
+        table.optional?.includes(match.logical) === true &&
+        moduleWritesText(block, logical, match.logical)
+          ? existing.columns.find(
+              (column) =>
+                column.name === match.column && column.isEnum === true,
+            )
+          : undefined;
+
+      if (enumColumn !== undefined) {
+        mapped[match.logical] = null;
+        warnings.push(
+          `${name}.${match.column} is an enum, and the block writes text into ${logical}.${match.logical}, so it leaves that column unmapped. Change ${match.column} to text with a check constraint, then map blocks.${block}.columns.${logical}.${match.logical} to it.`,
+        );
         continue;
       }
 

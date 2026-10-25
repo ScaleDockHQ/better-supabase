@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
--- @bsb-block notifications@8 managed
--- @bsb-hash sha256:ec95666bf61519b3c774669c3d53d6f5e29fb7a6259b0dc878878cbaa0f75c21
+-- @bsb-block notifications@9 managed
+-- @bsb-hash sha256:74562d4ee326749a8858204eeaf97f0646673f2ce72b06a361e0a0db246248ac
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,8 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- centrakit.notification_events is the app's table, and it has every column this block needs.
+-- centrakit.notification_events is the app's table: this block adds only the columns it needs.
+alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
 create index if not exists notification_events_subject_idx on "centrakit"."notification_events" ("subject_type", "subject_id");
 create index if not exists notification_events_actor_idx on "centrakit"."notification_events" ("actor_user_id");
 create index if not exists notification_events_created_by_idx on "centrakit"."notification_events" ("created_by");
@@ -104,7 +105,10 @@ alter table "centrakit"."notification_events" enable row level security;
 grant select on "centrakit"."notification_events" to authenticated;
 grant all on "centrakit"."notification_events" to service_role;
 
--- centrakit.notification_recipients is the app's table, and it has every column this block needs.
+-- centrakit.notification_recipients is the app's table: this block adds only the columns it needs.
+alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
+alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
+alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
 create index if not exists notification_recipients_inbox_idx on "centrakit"."notification_recipients" ("recipient_user_id", "created_at" desc) where "dismissed_at" is null;
 create index if not exists notification_recipients_unread_idx on "centrakit"."notification_recipients" ("recipient_user_id") where "read_at" is null and "dismissed_at" is null;
 create index if not exists notification_recipients_user_idx on "centrakit"."notification_recipients" ("recipient_user_id");
@@ -289,6 +293,24 @@ begin
   if v_activity not in ('participating', 'all') then
     raise exception 'activity must be participating or all' using errcode = '22023', hint = 'NOTIFICATION_ACTIVITY_UNKNOWN';
   end if;
+  if notification ? 'actions' and jsonb_typeof(notification -> 'actions') <> 'null' and (
+    jsonb_typeof(notification -> 'actions') <> 'array'
+    or jsonb_array_length(notification -> 'actions') > 10
+    or exists (
+      select 1 from jsonb_array_elements(notification -> 'actions') a
+      where jsonb_typeof(a) <> 'object'
+        or jsonb_typeof(a -> 'key') is distinct from 'string'
+        or (a ->> 'key') !~ '^[A-Za-z0-9_.:-]{1,64}$'
+        or jsonb_typeof(a -> 'label') is distinct from 'string'
+        or length(a ->> 'label') not between 1 and 100
+        or (a ? 'operation' and jsonb_typeof(a -> 'operation') <> 'null' and (jsonb_typeof(a -> 'operation') <> 'string' or length(a ->> 'operation') not between 1 and 200))
+        or (a ? 'payload' and jsonb_typeof(a -> 'payload') not in ('object', 'null'))
+        or exists (select 1 from jsonb_object_keys(a) k where k not in ('key', 'label', 'operation', 'payload'))
+    )
+    or (select count(distinct a ->> 'key') from jsonb_array_elements(notification -> 'actions') a) <> jsonb_array_length(notification -> 'actions')
+  ) then
+    raise exception 'actions must be at most 10 { key, label, operation, payload } objects with unique keys' using errcode = '22023', hint = 'NOTIFICATION_ACTIONS_INVALID';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     if v_tenant is null or not coalesce(better_supabase.member_can(auth.uid(), v_tenant, 'notifications.send'), false) then
       raise exception 'Not allowed to send notifications here' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
@@ -379,8 +401,8 @@ begin
     select ev."id" into v_event from "centrakit"."notification_events" ev where ev."id" = v_hash::uuid;
     v_event := coalesce(v_event, overlay(overlay(v_hash placing '8' from 13 for 1) placing to_hex(8 | (('x' || substr(v_hash, 17, 1))::bit(4)::integer & 3)) from 17 for 1)::uuid);
   end if;
-  insert into "centrakit"."notification_events" ("id", "type", "metadata", "organization_id", "actor_user_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "priority", "created_by")
-  values (v_event, v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', v_priority, auth.uid())
+  insert into "centrakit"."notification_events" ("id", "type", "metadata", "organization_id", "actor_user_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "created_by")
+  values (v_event, v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, auth.uid())
   on conflict do nothing;
 
   insert into "centrakit"."notification_recipients" ("event_id", "organization_id", "recipient_user_id", "dismissed_at", "resolved_at", "created_at")
@@ -497,7 +519,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "centrakit"."notification_recipients" rc
     join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
     where rc."recipient_user_id" = auth.uid()
@@ -542,7 +564,7 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "centrakit"."notification_recipients" rc
     join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
     where rc."recipient_user_id" = auth.uid()
@@ -605,7 +627,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "centrakit"."notification_recipients" rc
   join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -631,7 +653,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
   )
   from rc
   join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
@@ -656,7 +678,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
   )
   from rc
   join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
@@ -680,7 +702,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
   )
   from rc
   join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
@@ -688,7 +710,9 @@ $$;
 
 -- Marks every recipient's notification of this type about this subject
 -- resolved (and read), e.g. once the approval it asked for is given.
-create or replace function "better_supabase"."resolve_notifications"(type text, subject_type text, subject_id text, tenant uuid default null)
+-- resolution records how, e.g. {"action": "approve"}.
+drop function if exists "better_supabase"."resolve_notifications"(text, text, text, uuid);
+create or replace function "better_supabase"."resolve_notifications"(type text, subject_type text, subject_id text, tenant uuid default null, resolution jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -703,9 +727,12 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) or coalesce(better_supabase.member_can(auth.uid(), resolve_notifications.tenant, 'notifications.send'), false)) then
     raise exception 'Not allowed to resolve notifications here' using errcode = '42501', hint = 'NOTIFICATION_FORBIDDEN';
   end if;
+  if resolve_notifications.resolution is not null and jsonb_typeof(resolve_notifications.resolution) <> 'object' then
+    raise exception 'resolution must be a JSON object' using errcode = '22023', hint = 'NOTIFICATION_RESOLUTION_INVALID';
+  end if;
   with rc as (
     update "centrakit"."notification_recipients" rc
-    set "resolved_at" = now(), "read_at" = coalesce(rc."read_at", now())
+    set "resolved_at" = now(), "read_at" = coalesce(rc."read_at", now()), "resolution" = resolve_notifications.resolution
     from "centrakit"."notification_events" ev
     where ev."id" = rc."event_id"
       and ev."type" = resolve_notifications.type
@@ -718,7 +745,7 @@ begin
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."recipient_user_id" = auth.uid()), '[]')
   )
   from rc
   join "centrakit"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -759,8 +786,8 @@ revoke execute on function "better_supabase".dismiss_notifications(uuid[]) from 
 grant execute on function "better_supabase".dismiss_notifications(uuid[]) to authenticated, service_role;
 revoke execute on function "better_supabase".get_notification(uuid) from public, anon;
 grant execute on function "better_supabase".get_notification(uuid) to authenticated, service_role;
-revoke execute on function "better_supabase".resolve_notifications(text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase".resolve_notifications(text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase".resolve_notifications(text, text, text, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase".resolve_notifications(text, text, text, uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase".notification_actors(uuid[]) from public, anon;
 grant execute on function "better_supabase".notification_actors(uuid[]) to authenticated, service_role;
 
@@ -932,7 +959,8 @@ begin
     'attempts', 1,
     'user_id', rc."recipient_user_id",
     'email', u.email,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'priority', ev."priority", 'resolved_at', rc."resolved_at"),
+    'locale', null::text,
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l

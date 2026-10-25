@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:a20f4889ca8186b2be2e2bcf2eee9c3aba659cb6ab265ba2a0e7abef0d8e5ba2
+-- @bsb-hash sha256:0bd5b6c73415dc9d69a62c2a1805002f830aeddd2e1b12960919452055cd535d
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -251,6 +251,7 @@ begin
     'token', token
   ) || "better_supabase"."invitation_extra"(platform_created."id"));
   end if;
+  invitee_role := coalesce(invitee_role, 'member');
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
   end if;

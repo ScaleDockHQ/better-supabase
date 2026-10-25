@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
--- @bsb-block attachments@5 managed
--- @bsb-hash sha256:5ee1c25aa599f173132f815767d096b08347273fc454a595c78052612cbba3a4
+-- @bsb-block attachments@6 managed
+-- @bsb-hash sha256:8eb7fae706861017c60df7535cefb36f16c3878d232f4066b7a7a62ec2f1f4e2
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -272,6 +272,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
+
+drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
+drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
+drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
 create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select centrakit.authz_actor_may_write()));

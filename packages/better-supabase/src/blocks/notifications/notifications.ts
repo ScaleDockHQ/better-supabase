@@ -1,12 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
 import type {
   BlockFields,
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
-import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
 import type { Result } from "../../core/result.ts";
 import type {
   DeliveryEventKind,
@@ -29,6 +27,7 @@ import type {
   SuppressionReason,
 } from "./api-types.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
+import type { Claimed, Hydration } from "./delivery-batch.ts";
 import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
 
@@ -58,7 +57,12 @@ import {
   nullableInstant,
   nullableText,
 } from "../shared.ts";
-import { emailChannel } from "./email.ts";
+import {
+  byLocale,
+  deliveryChannels,
+  deliveryData,
+  subscriberEventOf,
+} from "./delivery-batch.ts";
 import {
   LEVELS,
   cursorOf,
@@ -152,67 +156,6 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
             },
           ];
     }),
-});
-
-/**
- * The data of `notification.delivered` and `notification.failed` for one
- * delivery.
- */
-const deliveryData = (
-  message: NotificationMessage,
-  channel: string,
-): NotificationDeliveryEventData => {
-  const notification = message.notification;
-
-  return {
-    notificationId: notification.eventId,
-    organizationId: notification.tenant,
-    type: notification.type,
-    channel,
-    deliveryId: message.deliveryId,
-    subjectType: notification.subject?.type ?? "notification",
-    subjectId: notification.subject?.id ?? notification.eventId,
-  };
-};
-
-interface Claimed {
-  readonly message: NotificationMessage;
-  /** The suppression's reason when the address is suppressed on the channel. */
-  readonly suppressed: string | null;
-}
-
-function deliveryChannels(
-  options: Pick<NotificationsOptions<NotificationTypes>, "channels" | "email">,
-): readonly NotificationChannel[] {
-  const channels = options.channels ?? [];
-
-  if (options.email === undefined) {
-    return channels;
-  }
-
-  if (channels.some((channel) => channel.name === "email")) {
-    throw new TypeError(
-      'createNotifications: `email` adds the "email" channel; remove the channel named "email" from `channels`',
-    );
-  }
-
-  return [...channels, emailChannel(options.email)];
-}
-
-/**
- * The event a delivery's audience check sees: the notification, as its
- * recipients read it.
- */
-const subscriberEventOf = (
-  notification: NotificationItem,
-): SubscriberEvent => ({
-  type: notification.type,
-  tenant: notification.tenant,
-  actorId: notification.actorId,
-  payload: notification.data,
-  subject: notification.subject
-    ? `${notification.subject.type}/${notification.subject.id}`
-    : null,
 });
 
 export function createNotifications<
@@ -443,8 +386,8 @@ export function createNotifications<
         attempts: Number(row["attempts"] ?? 1),
         userId: String(row["user_id"]),
         email: nullableText(row["email"]),
+        locale: nullableText(row["locale"]),
         notification,
-        ...(options.render ? { text: options.render(notification, {}) } : {}),
       },
       suppressed: nullableText(row["suppressed"]),
     };
@@ -538,26 +481,80 @@ export function createNotifications<
       );
 
       for (const message of messages) {
-        outcomes.push(
-          allowed.has(message)
-            ? await deliverOne(channel, message, maxAttempts)
-            : await skip(message, "audience"),
-        );
+        if (!allowed.has(message)) {
+          outcomes.push(await skip(message, "audience"));
+        }
+      }
+
+      for (const [locale, group] of byLocale(
+        messages.filter((message) => allowed.has(message)),
+      )) {
+        const hydrated = await hydrateFor(group, locale);
+
+        for (const message of group) {
+          outcomes.push(
+            await deliverOne(channel, message, maxAttempts, hydrated),
+          );
+        }
       }
     }
 
     return outcomes;
   }
 
+  /**
+   * `hydrate` once for a locale's messages. A throwing hydrate fails only those
+   * deliveries, inside `deliverOne`.
+   */
+  const hydrateFor = async (
+    messages: readonly NotificationMessage[],
+    locale: string | null,
+  ): Promise<Hydration<H>> => {
+    if (!options.hydrate) {
+      return { ok: true, value: undefined };
+    }
+
+    try {
+      return {
+        ok: true,
+        value: await options.hydrate(
+          messages.map((message) => message.notification),
+          locale === null ? {} : { locale },
+        ),
+      };
+    } catch (cause) {
+      return { ok: false, cause };
+    }
+  };
+
   async function deliverOne(
     channel: NotificationChannel,
     message: NotificationMessage,
     maxAttempts: number,
+    hydration: Hydration<H>,
   ): Promise<"sent" | "skipped" | "failed"> {
     const notification = message.notification;
 
     try {
-      const result = await channel.send(message);
+      if (!hydration.ok) {
+        throw hydration.cause;
+      }
+
+      const text = options.render
+        ? options.render(notification, {
+            ...(message.locale === null ? {} : { locale: message.locale }),
+            ...(hydration.value === undefined
+              ? {}
+              : { hydrated: hydration.value }),
+          })
+        : undefined;
+
+      const result = await channel.send({
+        ...message,
+        ...(text === undefined ? {} : { text }),
+        ...(hydration.value === undefined ? {} : { hydrated: hydration.value }),
+      });
+
       const status = result?.status ?? "sent";
       await call("complete_notification_delivery", {
         delivery: message.deliveryId,
@@ -644,6 +641,7 @@ export function createNotifications<
       subject_label: input.subject?.label,
       summary: input.summary,
       action_path: input.actionPath,
+      actions: input.actions,
       priority: input.priority,
       key: input.key,
       channels: input.channels,
@@ -847,6 +845,9 @@ export function createNotifications<
           subject_type: input.subject.type,
           subject_id: input.subject.id,
           tenant: input.tenant ?? null,
+          ...(input.resolution === undefined
+            ? {}
+            : { resolution: input.resolution }),
         },
         updateOf,
       );

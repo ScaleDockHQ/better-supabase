@@ -1,6 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
+import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 /** The keys `list_my_organizations` returns, which no attribute may shadow. */
@@ -79,6 +80,13 @@ export function organizationReads(
 
   const disabledValue = disabledAt === undefined ? "" : `, m.${disabledAt}`;
 
+  const members = ctx.of("memberships");
+  const rolesColumn = manyRoles(members) ? ",\n  roles text[]" : "";
+
+  const rolesValue = manyRoles(members)
+    ? `, array(select r."role" from ${membershipRolesTable(members)} r where r.${n.tenant} = m.${n.tenant} and r.${n.user} = m.${n.user} order by r."role")`
+    : "";
+
   const attributes = organizationAttributes(ctx).filter(
     (column) => !MEMBERSHIP_KEYS.includes(column),
   );
@@ -95,14 +103,14 @@ create or replace function ${ctx.fn("list_my_organizations")}()
 returns table (
   id ${ctx.idType},
   name text${slug === undefined ? "" : ",\n  slug text"},
-  role text${disabledColumn}${attributesColumn}
+  role text${rolesColumn}${disabledColumn}${attributesColumn}
 )
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text${disabledValue}${attributesValue}
+  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text${rolesValue}${disabledValue}${attributesValue}
   from ${n.m} m
   join ${n.organization} o on o.${n.id} = m.${n.tenant}
   where m.${n.user} = (select auth.uid())${flags}
@@ -112,18 +120,18 @@ $$;
 
 drop function if exists ${ctx.fn("list_members")}(${ctx.idType});
 create or replace function ${ctx.fn("list_members")}(organization ${ctx.idType})
-returns table (user_id uuid, role text${disabledColumn.replace(",\n  ", ", ")})
+returns table (user_id uuid, role text${`${rolesColumn}${disabledColumn}`.replaceAll(",\n  ", ", ")})
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.member_can((select auth.uid()), organization, 'members.read'), false) then
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx, "listMembers", OPERATIONS["organizations.listMembers"])}), false) then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list members")}
   end if;
   return query
-  select m.${n.user}, m.${n.role}::text${disabledValue}
+  select m.${n.user}, m.${n.role}::text${rolesValue}${disabledValue}
   from ${n.m} m
   where m.${n.tenant} = organization
   order by m.${n.user};

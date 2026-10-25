@@ -1,8 +1,8 @@
 -- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
--- @bsb-block push@1 managed
+-- @bsb-block push@2 managed
 -- @bsb-hash sha256:7eec64e89b9f7c7b11db80c00e84bd36f90cab2cdac60b3155c6c3341ee26e34
--- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
+-- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -239,13 +239,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block-data push
--- @bsb-hash sha256:ecfc643601573b09c38204845d671e7293bcc766df172746d5d46d6bae55e8ab
+-- @bsb-hash sha256:7b7d164757126320c261094b3bca9cb4cccefb671267b0edf6726ff5cdcc5e76
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('push', 1, 'managed')
+values ('push', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

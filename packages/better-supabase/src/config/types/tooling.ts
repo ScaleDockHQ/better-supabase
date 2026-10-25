@@ -83,6 +83,31 @@ export interface GenConfig {
    * `tsconfig.json` and `tsc --runExternalCode`. Defaults to `false`.
    */
   readonly contentMapper?: boolean;
+  /**
+   * Writes PowerSync sync streams for these block instances:
+   * `sync-streams.yaml` and `schema.ts` in `out`, and a migration that adds
+   * their tables to the `powersync` publication. Runs as the `powersync` task,
+   * and as `better-supabase powersync streams`.
+   */
+  readonly powersync?: PowerSyncGenConfig;
+}
+
+export interface PowerSyncGenConfig {
+  /**
+   * The block instances to sync, by their key in `blocks`: instances of
+   * `notifications` and `attachments`.
+   */
+  readonly instances: readonly string[];
+  /**
+   * The folder for `sync-streams.yaml` and `schema.ts`. Defaults to
+   * `powersync`.
+   */
+  readonly out?: string;
+  /**
+   * The module `schema.ts` imports `column` and `Table` from. Defaults to
+   * `@powersync/common`.
+   */
+  readonly import?: string;
 }
 
 /** Glue `better-supabase init` and `add` write for a framework or runtime. */

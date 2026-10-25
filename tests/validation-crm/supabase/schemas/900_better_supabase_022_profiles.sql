@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:634edcb9c1c6cf5bf5d2351d64380bf0653a95c10b4ee1c5c892f5fcec742a65
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:5dc4bfde992ba6757bafac5528221a7032a74add90278e6ba0ff78f571c1173a
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,7 +150,7 @@ begin
     loop
       begin
         insert into "public"."profiles" ("user_id", "first_name", "last_name", "email", "username")
-        values (user_id, nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -301,7 +301,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -309,7 +310,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "public"."profiles" set "email" = new.email where "user_id" = new.id and "email" is distinct from new.email;
+  update "public"."profiles" set "email" = lower(new.email) where "user_id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;

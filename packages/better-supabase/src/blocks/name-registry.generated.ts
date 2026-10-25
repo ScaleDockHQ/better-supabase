@@ -196,6 +196,7 @@ export interface BlockNameRegistry {
       readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata" | "version" | "width" | "height" | "pages";
       readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "archivedAt";
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
+      readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
     readonly functions: "attachment_object_allowed" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachment_versions" | "list_attachments" | "object_clean" | "object_scan" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
@@ -1020,7 +1021,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "memberships": "tenant" | "user" | "role" | "createdAt" | "updatedAt" | "lastUsedAt" | "disabledAt";
     };
-    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "organization_member_role";
+    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "membership_role_from_roles" | "membership_roles_from_role" | "organization_member_role" | "organization_member_roles";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {
@@ -1096,8 +1097,8 @@ export interface BlockNameRegistry {
   };
   readonly "notifications": {
     readonly tables: {
-      readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "priority" | "data" | "key" | "createdBy" | "createdAt";
-      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "deliveredAt" | "createdAt";
+      readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "actions" | "priority" | "data" | "key" | "createdBy" | "createdAt";
+      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "resolution" | "deliveredAt" | "createdAt";
       readonly "deliveries": "id" | "recipient" | "tenant" | "channel" | "status" | "provider" | "providerMessageId" | "error" | "attempts" | "attemptedAt" | "nextAttemptAt" | "deliveredAt" | "providerStatus" | "providerStatusAt" | "templateKey" | "createdAt";
       readonly "deliveryEvents": "id" | "delivery" | "tenant" | "kind" | "provider" | "providerEventId" | "occurredAt" | "detail" | "createdAt";
       readonly "subscriptions": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "level" | "createdAt" | "updatedAt";
@@ -1172,8 +1173,8 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "organizations": "id" | "name" | "slug" | "createdBy" | "createdAt" | "updatedAt" | "disabledAt" | "deletedAt";
     };
-    readonly functions: "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
-    readonly actions: "update" | "delete" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership";
+    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_organization";
+    readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};
     readonly primary: never;
@@ -1257,7 +1258,7 @@ export interface BlockNameRegistry {
   };
   readonly "profiles": {
     readonly tables: {
-      readonly "profiles": "key" | "email" | "username" | "fullName" | "firstName" | "lastName" | "avatar" | "avatarPath" | "activeTenant" | "activeTeam" | "onboarding" | "disabledAt" | "createdAt" | "updatedAt";
+      readonly "profiles": "key" | "email" | "username" | "fullName" | "firstName" | "lastName" | "avatar" | "avatarPath" | "locale" | "activeTenant" | "activeTeam" | "onboarding" | "disabledAt" | "createdAt" | "updatedAt";
     };
     readonly functions: "allocate_username" | "backfill_profiles" | "guard_profile" | "mirror_profile_email" | "my_profile" | "on_auth_user_created" | "sync_profile" | "update_my_profile";
     readonly actions: never;
@@ -1283,6 +1284,7 @@ export interface BlockNameRegistry {
   readonly "push": {
     readonly tables: {
       readonly "devices": "id" | "user" | "token" | "platform" | "provider" | "deviceName" | "appVersion" | "createdAt" | "lastSeenAt";
+      readonly "tickets": "id" | "delivery" | "token" | "ticket" | "status" | "error" | "createdAt" | "checkedAt";
     };
     readonly functions: "prune_push_tokens" | "push_tokens_for" | "register_push_device" | "unregister_push_device";
     readonly actions: never;

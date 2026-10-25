@@ -19,6 +19,14 @@ import {
   updatedAt,
 } from "../shared.ts";
 import {
+  holdsRole,
+  manyRoles,
+  memberRolesFunction,
+  membershipRolesPolicy,
+  membershipRolesSql,
+  membershipRolesTable,
+} from "./membership-roles.ts";
+import {
   accessModel,
   providerPlatformRoles,
   roleNames,
@@ -377,7 +385,7 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       ? `  select m.${tenant}
   from ${m} m
   where m.${user} = (select auth.uid())
-    and (member_organization_ids.roles is null or ${role} = any (member_organization_ids.roles))
+    and (member_organization_ids.roles is null or ${holdsRole(ctx, "m", "member_organization_ids.roles", role)})
     and not better_supabase.user_disabled(m.${user})
     and not better_supabase.tenant_disabled(m.${tenant})${active}`
       : `  select p.id
@@ -390,7 +398,7 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   from ${m} m
   where member_organization_ids.roles is not null
     and m.${user} = (select auth.uid())
-    and ${role} = any (member_organization_ids.roles)
+    and ${holdsRole(ctx, "m", "member_organization_ids.roles", role)}
     and not better_supabase.user_disabled(m.${user})
     and not better_supabase.tenant_disabled(m.${tenant})${active}${inProvider(`m.${tenant}`)}`;
 
@@ -401,7 +409,7 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     from ${m} m
     where m.${tenant} = has_organization_role.organization
       and m.${user} = auth.uid()
-      and (has_organization_role.roles is null or ${role} = any (has_organization_role.roles))
+      and (has_organization_role.roles is null or ${holdsRole(ctx, "m", "has_organization_role.roles", role)})
       and not better_supabase.user_disabled(m.${user})
       and not better_supabase.tenant_disabled(m.${tenant})${active}
   )`
@@ -415,13 +423,19 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : ` and m.${tenant} in (select p.id from ${members.idsFor("organization_member_role.member")} as p(id))`
   }`;
 
+  const many = manyRoles(ctx);
+
+  const roleSet = many
+    ? `(select coalesce(jsonb_agg(r."role" order by r."role"), '[]'::jsonb) from ${membershipRolesTable(ctx)} r where r.${tenant} = m.${tenant} and r.${user} = m.${user})`
+    : `jsonb_build_array(${role})`;
+
   const claimJson =
     ctx.text("claimFormat", "array") === "map"
-      ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${role}), '{}'::jsonb)`
+      ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${many ? roleSet : role}), '{}'::jsonb)`
       : `coalesce(jsonb_agg(jsonb_build_object(
       'scope', ${sqlString(ctx.claims.scope)},
       'id', m.${tenant},
-      'roles', jsonb_build_array(${role})
+      'roles', ${roleSet}
     ) order by m.${createdAt}, m.${tenant}), '[]'::jsonb)`;
 
   const table = ctx.manages
@@ -470,7 +484,7 @@ create policy bsb_memberships_read on ${m}
 
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${roleScope(ctx)}${sameTenantSql(ctx, layout)}${accessHelpers ? "" : disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${membershipRolesSql(ctx)}${roleScope(ctx)}${sameTenantSql(ctx, layout)}${accessHelpers ? "" : disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
@@ -515,7 +529,7 @@ set search_path = ''
 as $$
   select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member${memberRoleFilter}
 $$;
-${policy}
+${memberRolesFunction(ctx, role, memberRoleFilter.replaceAll("organization_member_role.member", "organization_member_roles.member"))}${policy}${membershipRolesPolicy(ctx)}
 revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public, anon;
 revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public, anon;
 revoke execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) from public, anon, authenticated;
@@ -556,10 +570,10 @@ export const TENANT: BlockSqlDefinition = {
   requires: ["updated-at"],
   integrates: ["permissions", "invitations", "organizations"],
   target: "schema",
-  version: 2,
+  version: 3,
   modes: ["managed", "custom"],
   names: {
-    options: ["claimFormat", "roleThrough", "sameTenant"],
+    options: ["claimFormat", "roleThrough", "sameTenant", "roles"],
     entities: { organization: { singular: "organization", global: true } },
     tables: {
       memberships: {
@@ -610,6 +624,12 @@ export const TENANT: BlockSqlDefinition = {
               columns: [["org_id", "organization_id"]],
             })
           : "",
+    },
+    {
+      from: 2,
+      description:
+        "Adds organization_member_roles(), and with blocks.memberships.options.roles.many the membership_roles table, filled from each membership's role.",
+      sql: () => "",
     },
   ],
   deprecated: [

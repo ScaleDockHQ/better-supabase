@@ -360,10 +360,10 @@ describe("module modes", () => {
     );
 
     const file = tenant.find((module) => module.kind === "schema");
-    expect(file!.contents).toContain("-- @bsb-block memberships@2 managed\n");
+    expect(file!.contents).toContain("-- @bsb-block memberships@3 managed\n");
     expect(moduleFileVersion(file!.contents)).toEqual({
       module: "memberships",
-      version: 2,
+      version: 3,
     });
     expect(moduleFileVersion("-- no marker")).toBeUndefined();
     expect(file!.contents).not.toContain("insert into");
@@ -376,7 +376,7 @@ describe("module modes", () => {
       path: "supabase/better-supabase-data/900_better_supabase_004_memberships.sql",
     });
     expect(data!.contents).toContain("-- @bsb-block-data memberships\n");
-    expect(data!.contents).toContain("values ('memberships', 2, 'managed')");
+    expect(data!.contents).toContain("values ('memberships', 3, 'managed')");
     expect(isModuleDataFile(data!.contents)).toBe(true);
     expect(isModuleDataFile(file!.contents)).toBe(false);
 

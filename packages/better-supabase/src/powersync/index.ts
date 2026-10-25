@@ -71,3 +71,23 @@ export type {
   UploadRoute,
   UploadRouteOptions,
 } from "./connector.ts";
+
+export { attachmentQueueRoute } from "./attachments.ts";
+
+export type {
+  AttachmentPathRow,
+  AttachmentQueueRoute,
+  AttachmentQueueRouteOptions,
+} from "./attachments.ts";
+
+export {
+  notificationRecipientsRoute,
+  powersyncNotificationsTransport,
+  powersyncTopicPort,
+} from "./notifications.ts";
+
+export type {
+  LocalNotificationFunction,
+  NotificationRecipientWrites,
+  PowerSyncNotificationsOptions,
+} from "./notifications.ts";

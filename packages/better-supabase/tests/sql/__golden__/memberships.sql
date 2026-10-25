@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:5387ddcdbe633e9a92c8dd3a3295e749b7ed3d317c422bfeea21b06e6ba79d2c
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:ecd1e1fee8a9e184a468b91df97688ecbcd8d140469370920856ae8aac394dc4
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,10 @@ alter table "better_supabase"."memberships"
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -139,6 +143,21 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
 
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
@@ -207,21 +226,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0bf566194ea1eda38d7475a6cb148c1899e3ee0dfbae1e37c0de887381adeb28
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memberships', 2, 'managed')
+values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:62cfba67261f2e80b82318415cd3fcaac3ead2f09baae2a5d9a33c88759bf4e2
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:1b24f8c5fbe7280441df5c9f6b9c386525bc17d3429a031c5a6ab5f1b033db0d
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,6 +281,10 @@ alter table "better_supabase"."memberships"
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
@@ -333,6 +356,21 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
 
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
@@ -402,21 +440,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0bf566194ea1eda38d7475a6cb148c1899e3ee0dfbae1e37c0de887381adeb28
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memberships', 2, 'managed')
+values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:ecdcb3f24e6a455bd7c703bedc3cfa258af3105f100bbb9990bdf51bfd285113
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:4ec91ce50a229d1ca613a5e185b3cacc9c0b41cba5d92df92dd5c6fe757f0707
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -458,6 +496,10 @@ alter table "app_private"."memberships"
 alter table "app_private"."memberships" enable row level security;
 grant select on "app_private"."memberships" to authenticated;
 grant all on "app_private"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "app_private"."memberships";
+drop function if exists "app_private"."membership_roles_from_role"() cascade;
+drop function if exists "app_private"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -556,6 +598,21 @@ as $$
   select m."role" from "app_private"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
 
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "app_private"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
 drop policy if exists bsb_memberships_read on "app_private"."memberships";
 create policy bsb_memberships_read on "app_private"."memberships"
   for select to authenticated
@@ -624,21 +681,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0bf566194ea1eda38d7475a6cb148c1899e3ee0dfbae1e37c0de887381adeb28
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memberships', 2, 'managed')
+values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:a7265596feb4119e0a7554c8438b340e64f35fbe4c6716b90060be68ef54288c
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:86d501c7b53913736001dde73a8b8c73a746eb8d96a54ed8a8e2b4a1425fe2fa
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -678,6 +735,10 @@ alter table "better_supabase"."memberships"
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -776,6 +837,21 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member and m."disabled_at" is null
 $$;
 
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member and m."disabled_at" is null
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
@@ -859,6 +935,15 @@ as $$ select "better_supabase"."current_tenant_id"() $$;
 revoke execute on function "api"."current_tenant_id"() from public;
 grant execute on function "api"."current_tenant_id"() to anon, authenticated, service_role;
 
+create or replace function "api"."organization_member_roles"(organization uuid, member uuid)
+returns text[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."organization_member_roles"($1, $2) $$;
+revoke execute on function "api"."organization_member_roles"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "api"."organization_member_roles"(uuid, uuid) to service_role;
+
 create or replace function "api"."member_organization_ids"(roles text[] default null)
 returns setof uuid
 language sql
@@ -911,21 +996,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0bf566194ea1eda38d7475a6cb148c1899e3ee0dfbae1e37c0de887381adeb28
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memberships', 2, 'managed')
+values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
--- @bsb-block memberships@2 managed
--- @bsb-hash sha256:a17540dac3c698f7c5886cd99880d58dcf028cf569648c45266103711791518b
+-- @bsb-block memberships@3 managed
+-- @bsb-hash sha256:409e7921d70826f4510d282d313a9ddebd9281cf8170ee4d1f7bb4d1c08519d1
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -959,6 +1044,10 @@ alter table "better_supabase"."memberships" add column if not exists "last_used_
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
+
+drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
+drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
+drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 drop trigger if exists "bsb_role_scope" on "better_supabase"."memberships";
 drop function if exists "better_supabase"."membership_role_scope"();
@@ -1060,6 +1149,21 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
 $$;
 
+-- The roles of a user in a tenant, highest-ranked first, or null when they
+-- aren't a member.
+create or replace function better_supabase.organization_member_roles(organization uuid, member uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select array[m."role"]::text[]
+  from "better_supabase"."memberships" m where m."organization_id" = organization_member_roles.organization and m."user_id" = organization_member_roles.member
+$$;
+revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
+
 drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
@@ -1128,13 +1232,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0bf566194ea1eda38d7475a6cb148c1899e3ee0dfbae1e37c0de887381adeb28
+-- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memberships', 2, 'managed')
+values ('memberships', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

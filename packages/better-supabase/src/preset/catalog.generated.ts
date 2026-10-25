@@ -67,7 +67,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "organizations",
-        "profiles"
+        "profiles",
+        "teams"
       ],
       "manifest": "organizations",
       "scopes": [
@@ -1318,7 +1319,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Push devices",
       "category": "messaging",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "notifications"
+      ],
       "manifest": "push",
       "extraColumns": "devices"
     },
@@ -7304,6 +7307,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AttachmentStorage"
+        },
+        {
+          "name": "AttachmentSweeper"
+        },
+        {
+          "name": "AttachmentSweeperOptions"
         },
         {
           "name": "AttachmentsWrites"
@@ -15982,6 +15991,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "organization.member_suspended",
           "organization.member_resumed",
           "organization.role_changed",
+          "organization.role_added",
+          "organization.role_removed",
           "organization.ownership_transferred",
           "organization.switched",
           "invitation.created",

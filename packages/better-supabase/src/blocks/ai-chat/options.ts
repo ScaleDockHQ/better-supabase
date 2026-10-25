@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -12,7 +12,7 @@ export type AiChatSqlOptions = {
   readonly meterUsage?: boolean;
   readonly inputMeter?: string;
   readonly outputMeter?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
@@ -25,5 +25,5 @@ export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
     meterUsage: option.boolean({ default: true }),
     inputMeter: option.string({ default: "ai.input_tokens" }),
     outputMeter: option.string({ default: "ai.output_tokens" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

@@ -88,7 +88,10 @@ const WRITES = /^\s*(?:insert into|update|delete from)\s+"([^"]+)"/i;
  * A `PowerSyncDatabaseLike` over `node:sqlite`, with the `uuid()` function
  * PowerSync registers and change notifications for written tables.
  */
-export function createSqlite(meta: SchemaMeta): {
+export function createSqlite(
+  meta: SchemaMeta,
+  extraDdl: readonly string[] = [],
+): {
   readonly db: PowerSyncDatabaseLike;
   readonly sqlite: DatabaseSync;
   readonly statements: string[];
@@ -96,7 +99,7 @@ export function createSqlite(meta: SchemaMeta): {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.function("uuid", () => randomUUID());
 
-  for (const statement of sqliteDdl(meta)) {
+  for (const statement of [...sqliteDdl(meta), ...extraDdl]) {
     sqlite.exec(statement);
   }
 

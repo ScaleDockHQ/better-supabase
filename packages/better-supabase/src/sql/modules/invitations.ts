@@ -21,6 +21,13 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
+  defaultRole,
+  onAcceptColumns,
+  onAcceptGrant,
+  onAcceptInvite,
+  onAcceptParam,
+} from "./invitations-on-accept.ts";
+import {
   invitePlatform,
   platformAssignment,
   platformRoleScope,
@@ -98,6 +105,8 @@ const NAMES: BlockSqlNames = {
     "tokenStorage",
     "validFor",
     "extraColumns",
+    "defaultRole",
+    "onAccept",
   ],
   tables: {
     invitations: {
@@ -177,7 +186,7 @@ create table if not exists ${t.table} (
 );
 alter table ${t.table} alter column ${c("tenant")} set not null;
 alter table ${t.table} alter column ${c("role")} drop default;
-${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${addExtraColumns(t.table, t.extras).trimStart()}${t.extras.length === 0 ? "" : "\n"}
+${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${addExtraColumns(t.table, t.extras).trimStart()}${t.extras.length === 0 ? "" : "\n"}${onAcceptColumns(ctx, t)}
 drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on ${t.table} (${c("tenant")}, lower(${c("email")})) where ${where};
@@ -407,13 +416,21 @@ function invite(ctx: BlockSqlContext): string {
 -- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
-${extraFieldsArg(t.extras).drop(ctx.fn("invite_member"), `${id}, text, text, interval, jsonb`)}
+${[
+  ...new Set([
+    extraFieldsArg(t.extras).drop(
+      ctx.fn("invite_member"),
+      `${id}, text, text, interval, jsonb`,
+    ),
+    `drop function if exists ${ctx.fn("invite_member")}(${id}, text, text, interval, jsonb${extraFieldsArg(t.extras).type}, jsonb);`,
+  ]),
+].join("\n")}
 create or replace function ${ctx.fn("invite_member")}(
   tenant ${id},
   invitee_email text,
   invitee_role text,
   valid_for interval default ${validFor},
-  prefill jsonb default '{}'${extraFieldsArg(t.extras).param}
+  prefill jsonb default '{}'${extraFieldsArg(t.extras).param}${onAcceptParam(ctx).param}
 )
 returns jsonb
 language plpgsql
@@ -430,6 +447,7 @@ begin
   if tenant is null then
     ${platformInvite(ctx, p)}
   end if;
+  invitee_role := coalesce(invitee_role, ${sqlString(defaultRole(ctx))});
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", OPERATIONS["invitations.invite"])}), false) then
     ${fail("INVITATION_FORBIDDEN", "Not allowed to invite members")}
   end if;
@@ -463,7 +481,7 @@ begin
       ? ""
       : `${writeExtraColumns(t.table, t.extras, "invite_member.fields", `x.${c("id")} = created.${c("id")}`)}
   select * into created from ${t.table} i where i.${c("id")} = created.${c("id")};`
-  }
+  }${onAcceptInvite(ctx, t)}
   ${ctx.record({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `created.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "created", "token", `created.${c("tenant")}`)};
 end;
@@ -474,7 +492,7 @@ drop function if exists ${ctx.fn("create_invitation")}(${id}, text, text, interv
 create or replace function ${ctx.fn("create_invitation")}(
   organization ${id},
   invitee_email text,
-  invitee_role text default 'member',
+  invitee_role text default ${sqlString(defaultRole(ctx))},
   valid_for interval default ${validFor}
 )
 returns text
@@ -884,7 +902,7 @@ begin
     ${fail("INVITATION_ALREADY_MEMBER", "You are already a member")}
   end if;${recheck}${roleKnown}
   insert into ${m} (${mt}, ${mu}, ${mr})
-  values (invite.${c("tenant")}, me, ${role});
+  values (invite.${c("tenant")}, me, ${role});${onAcceptGrant(ctx, t)}
   update ${t.table}
   set ${c("acceptedAt")} = now()${t.has("acceptedBy") ? `, ${c("acceptedBy")} = me` : ""}
   where ${c("id")} = invite.${c("id")};
@@ -914,7 +932,7 @@ grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
 
   return `${schemaPreamble(ctx)}
 ${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
-${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}`, "authenticated, service_role")}
+${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}${onAcceptParam(ctx).type}`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
 ${grant("update_invitation", "uuid, text, text, jsonb", "authenticated, service_role")}
@@ -935,7 +953,7 @@ export const INVITATIONS: BlockSqlDefinition = {
   description:
     "invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.",
   requires: ["memberships", "permissions", "updated-at"],
-  integrates: ["organizations", "profiles"],
+  integrates: ["organizations", "profiles", "teams"],
   providerFunctions: ["idsWithFor", "isPlatformFor", "canAssignFor"],
   target: "schema",
   version: 2,
@@ -951,6 +969,7 @@ export const INVITATIONS: BlockSqlDefinition = {
         "interval",
         "jsonb",
         ...extraFieldsArg(tenantTable(ctx).extras).contract,
+        ...(onAcceptParam(ctx).type === "" ? [] : ["jsonb"]),
       ],
       returns: "jsonb",
     },

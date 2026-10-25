@@ -1596,7 +1596,11 @@ entitlements` refuses to render the module then; set
 disagree.** The provider's hook writes the active tenant to
 `tokenHook.tenantClaim`. Doctor warns when `auth.organization.claim` names another
 claim, because the memberships extension, the guards and the module's RLS would then
-read a claim the hook never writes. It notes when `auth.claims.scope` is neither
+read a claim the hook never writes. It also warns when the provider's
+`tokenHook.activeOrganizationFrom` (the app_metadata claim, a profile column or
+the request) differs from `blocks.permissions.activeTenant`, where
+`switch_organization` writes the active organization, since switching would
+then never change the token. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
 `suspension` or `roleSources` while `blocks.permissions.model` is not
 `provider` (only that model reads them), and reports every entry of the

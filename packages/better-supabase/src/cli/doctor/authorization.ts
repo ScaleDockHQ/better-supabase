@@ -1,4 +1,5 @@
 import type {
+  ActiveTenantSource,
   AuthorizationProvider,
   ResolvedConfig,
 } from "../../config/index.ts";
@@ -9,6 +10,7 @@ import type {
 } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   modulePermissionKeys,
   resolveBlocks,
@@ -38,6 +40,18 @@ const TEMPLATE_EFFECT: Readonly<
   canAssignFor:
     "better_supabase.can_assign_as is not written and the inviter's right to assign the role is not checked again when the invitation is accepted",
 };
+
+function activeTenantLabel(source: ActiveTenantSource): string {
+  if (source === "claim") {
+    return "the app_metadata claim";
+  }
+
+  if (source === "resolver") {
+    return "the request (the tenant resolver)";
+  }
+
+  return `the profile column ${source.profileColumn}`;
+}
 
 /** The optional templates installed modules call that the provider doesn't set. */
 function missingTemplates(
@@ -592,7 +606,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -618,6 +632,22 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         findings.push({
           message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but auth.organization.claim is "${context.config.claims.tenant}". Set auth.organization.claim to "${tenantClaim}", or change the provider's tenant claim.`,
           target: "claims.tenant",
+        });
+      }
+
+      const readsFrom = provider.tokenHook?.activeOrganizationFrom;
+
+      const writesTo =
+        context.config.blocks.permissions?.activeTenant ??
+        DEFAULT_ACTIVE_TENANT;
+
+      if (
+        readsFrom !== undefined &&
+        activeTenantLabel(readsFrom) !== activeTenantLabel(writesTo)
+      ) {
+        findings.push({
+          message: `The hook of ${label} reads the active organization from ${activeTenantLabel(readsFrom)}, but switch_organization writes it to ${activeTenantLabel(writesTo)} (blocks.permissions.activeTenant), so switching never changes the token. Set blocks.permissions.activeTenant to match the provider.`,
+          target: "blocks.permissions.activeTenant",
         });
       }
 
@@ -656,7 +686,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
+      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
     check: (context) => {
       const mode = accessModule(context);
 
@@ -706,6 +736,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           severity: "warning",
           message: `Neither blocks.permissions.functions.canAssign nor ${providerLabel(provider)} sets canAssign, so under the provider model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes. Use a provider that sets authorization.functions.canAssign, or set blocks.permissions.functions.canAssign.`,
           target: "blocks.permissions.functions.canAssign",
+        });
+      }
+
+      const roles = context.config.blocks["memberships"]?.options?.["roles"];
+
+      const many =
+        typeof roles === "object" &&
+        roles !== null &&
+        "many" in roles &&
+        roles.many === true;
+
+      if (
+        many &&
+        (provider.memberships ?? []).length > 0 &&
+        !(provider.memberships ?? []).some(
+          (membership) => membership.rolesTable !== undefined,
+        )
+      ) {
+        findings.push({
+          severity: "warning",
+          message: `blocks.memberships.options.roles.many keeps several roles per member in better_supabase.membership_roles, but ${providerLabel(provider)} reads one role per membership: none of its authorization.memberships sets rolesTable. A member's extra roles then grant nothing through the provider. Use a provider that reads the role set, or turn roles.many off.`,
+          target: "blocks.memberships.options.roles",
         });
       }
 
@@ -999,7 +1051,7 @@ const CONTRACT_CALL =
   /\bbetter_supabase"?\s*\.\s*"?(can|tenant_ids_with)"?\s*\(/gi;
 
 const ROLE_HELPER_CALL =
-  /\bbetter_supabase"?\s*\.\s*"?(member_organization_ids|has_organization_role|organization_member_role)"?\s*\(/gi;
+  /\bbetter_supabase"?\s*\.\s*"?(member_organization_ids|has_organization_role|organization_member_roles?)"?\s*\(/gi;
 
 /** The tenant role helpers `text` calls, outside string literals. */
 function roleHelperCalls(text: string): string[] {

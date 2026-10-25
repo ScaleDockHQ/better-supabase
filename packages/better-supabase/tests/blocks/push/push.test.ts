@@ -31,7 +31,8 @@ function transport(
 
 function expoFetch(
   answer: (path: string, body: unknown) => unknown,
-  status = 200,
+  status: number | (() => number) = 200,
+  headers: Record<string, string> = {},
 ) {
   const calls: { path: string; body: unknown; headers: Headers }[] = [];
 
@@ -40,11 +41,16 @@ function expoFetch(
     const body: unknown = JSON.parse(String(init?.body));
     calls.push({ path, body, headers: new Headers(init?.headers) });
 
-    return Response.json({ data: answer(path, body) }, { status });
+    return Response.json(
+      { data: answer(path, body) },
+      { status: typeof status === "number" ? status : status(), headers },
+    );
   });
 
   return { calls, fetch };
 }
+
+const noSleep = vi.fn(async (_milliseconds: number) => undefined);
 
 describe("createPush", () => {
   it("maps calls to the module functions", async () => {
@@ -92,6 +98,117 @@ describe("createPush", () => {
       users: ["u1"],
     });
     expect(await devices.prune(["a", "b"]).orThrow()).toBe(2);
+  });
+
+  it("stores tickets and reads them back", async () => {
+    const { call, transport: t } = transport((fn) =>
+      fn === "record_push_tickets"
+        ? 2
+        : [
+            { token: "a", id: "r1", error: null },
+            { token: "b", id: null, error: "MessageTooBig" },
+          ],
+    );
+
+    const devices = createPush({ transport: t });
+    expect(
+      await devices
+        .recordTickets("dl1", [
+          { token: "a", id: "r1" },
+          { token: "b", error: "MessageTooBig", message: "too big" },
+        ])
+        .orThrow(),
+    ).toBe(2);
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "record_push_tickets",
+      {
+        delivery: "dl1",
+        tickets: [
+          { token: "a", id: "r1", error: null },
+          { token: "b", id: null, error: "MessageTooBig" },
+        ],
+      },
+    );
+    expect(await devices.ticketsFor("dl1").orThrow()).toEqual([
+      { token: "a", id: "r1" },
+      { token: "b", error: "MessageTooBig" },
+    ]);
+  });
+
+  it("checks receipts of unchecked tickets and completes them", async () => {
+    const { call, transport: t } = transport((fn) =>
+      fn === "unchecked_push_tickets"
+        ? [{ id: "r1", token: "a", deliveryId: "dl1" }]
+        : 1,
+    );
+
+    const checkReceipts = vi.fn(async () => ({
+      delivered: 0,
+      failed: [{ token: "a", id: "r1", error: "DeviceNotRegistered" }],
+      pruned: 1,
+      receipts: [
+        {
+          id: "r1",
+          token: "a",
+          status: "error" as const,
+          error: "DeviceNotRegistered",
+        },
+      ],
+    }));
+
+    const devices = createPush({ transport: t });
+
+    const result = await devices
+      .checkReceipts({
+        push: { send: vi.fn(), checkReceipts },
+        limit: 50,
+        olderThan: Temporal.Duration.from({ minutes: 30 }),
+      })
+      .orThrow();
+
+    expect(result.pruned).toBe(1);
+    expect(call.mock.calls[0]?.slice(1)).toEqual([
+      "unchecked_push_tickets",
+      { max_items: 50, older_than: "PT30M" },
+    ]);
+    expect(checkReceipts).toHaveBeenCalledWith([{ id: "r1", token: "a" }]);
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "complete_push_receipts",
+      {
+        receipts: [
+          {
+            id: "r1",
+            status: "error",
+            error: "DeviceNotRegistered",
+            message: null,
+          },
+        ],
+      },
+    );
+  });
+
+  it("skips completing when Expo has no receipts ready", async () => {
+    const { call, transport: t } = transport(() => []);
+
+    const devices = createPush({ transport: t });
+
+    const checkReceipts = vi.fn(async () => ({
+      delivered: 0,
+      failed: [],
+      pruned: 0,
+      receipts: [],
+    }));
+
+    await devices
+      .checkReceipts({ push: { send: vi.fn(), checkReceipts } })
+      .orThrow();
+    expect(call).toHaveBeenCalledOnce();
+    expect(call.mock.calls[0]?.[2]).toEqual({
+      max_items: 1000,
+      older_than: "PT15M",
+    });
   });
 });
 
@@ -364,15 +481,147 @@ describe("expoPush", () => {
         { token: "c", id: "r3", error: "MessageTooBig", message: "too big" },
       ],
       pruned: 1,
+      receipts: [
+        { id: "r1", token: "a", status: "ok" },
+        { id: "r2", token: "b", status: "error", error: "DeviceNotRegistered" },
+        {
+          id: "r3",
+          token: "c",
+          status: "error",
+          error: "MessageTooBig",
+          message: "too big",
+        },
+      ],
     });
     expect(prune).toHaveBeenCalledWith(["b"]);
   });
 
-  it("throws on an HTTP error", async () => {
-    const { fetch } = expoFetch(() => null, 500);
-    await expect(expoPush({ fetch }).send(["a"], {})).rejects.toThrow(
-      "Expo Push API send answered 500",
+  it("turns a chunk that keeps failing into RequestFailed tickets", async () => {
+    const { calls, fetch } = expoFetch(() => null, 500);
+
+    const tickets = await expoPush({ fetch, sleep: noSleep }).send(["a"], {});
+
+    expect(calls).toHaveLength(4);
+    expect(tickets).toEqual([
+      {
+        token: "a",
+        error: "RequestFailed",
+        message: expect.stringContaining("Expo Push API send answered 500"),
+      },
+    ]);
+    expect(noSleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000]);
+  });
+
+  it("does not retry a 4xx and throws when receipts can't be read", async () => {
+    const { calls, fetch } = expoFetch(() => null, 400);
+
+    expect(
+      (await expoPush({ fetch, sleep: noSleep }).send(["a"], {}))[0]?.error,
+    ).toBe("RequestFailed");
+    expect(calls).toHaveLength(1);
+    await expect(
+      expoPush({ fetch, sleep: noSleep }).checkReceipts([
+        { token: "a", id: "r1" },
+      ]),
+    ).rejects.toThrow("Expo Push API getReceipts answered 400");
+  });
+
+  it("honours Retry-After on a 429, then succeeds", async () => {
+    noSleep.mockClear();
+    let attempt = 0;
+
+    const { fetch } = expoFetch(
+      () => [{ status: "ok", id: "r1" }],
+      () => {
+        attempt += 1;
+
+        return attempt === 1 ? 429 : 200;
+      },
+      { "retry-after": "7" },
     );
+
+    expect(await expoPush({ fetch, sleep: noSleep }).send(["a"], {})).toEqual([
+      { token: "a", id: "r1" },
+    ]);
+    expect(noSleep).toHaveBeenCalledWith(7000);
+  });
+
+  it("retries a network error and keeps tickets of chunks already sent", async () => {
+    let attempt = 0;
+
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        attempt += 1;
+
+        if (attempt > 1) {
+          throw new TypeError("network down");
+        }
+
+        const body = JSON.parse(String(init?.body)) as { to: string }[];
+
+        return Response.json({
+          data: body.map((m) => ({ status: "ok", id: `r-${m.to}` })),
+        });
+      },
+    );
+
+    const tokens = Array.from({ length: 101 }, (_, i) => `t${i}`);
+
+    const tickets = await expoPush({
+      fetch,
+      sleep: noSleep,
+      maxRetries: 1,
+    }).send(tokens, {});
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(tickets[0]).toEqual({ token: "t0", id: "r-t0" });
+    expect(tickets[100]).toEqual({
+      token: "t100",
+      error: "RequestFailed",
+      message: "network down",
+    });
+  });
+
+  it("sends an idempotency key per chunk and skips tokens already sent", async () => {
+    const { calls, fetch } = expoFetch((_path, body) =>
+      (body as { to: string }[]).map((m) => ({
+        status: "ok",
+        id: `r-${m.to}`,
+      })),
+    );
+
+    const tokens = Array.from({ length: 102 }, (_, i) => `t${i}`);
+
+    const sent = Array.from({ length: 100 }, (_, i) => ({
+      token: `t${i}`,
+      id: `old-${i}`,
+    }));
+
+    const tickets = await expoPush({ fetch }).send(
+      tokens,
+      {},
+      {
+        idempotencyKey: "dl1",
+        sent: [
+          ...sent.slice(1),
+          { token: "t0", error: "RequestFailed" },
+          { token: "t101", error: "DeviceNotRegistered" },
+        ],
+      },
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.headers.get("idempotency-key")).toBe("dl1:0");
+    expect(calls[0]?.body).toEqual([{ to: "t0" }]);
+    expect(calls[1]?.headers.get("idempotency-key")).toBe("dl1:1");
+    expect(calls[1]?.body).toEqual([{ to: "t100" }]);
+    expect(tickets).toHaveLength(102);
+    expect(tickets[0]).toEqual({ token: "t0", id: "r-t0" });
+    expect(tickets[1]).toEqual({ token: "t1", id: "old-1" });
+    expect(tickets[101]).toEqual({
+      token: "t101",
+      error: "DeviceNotRegistered",
+    });
   });
 });
 
@@ -382,6 +631,7 @@ describe("expoPushChannel", () => {
     channel: "push",
     attempts: 1,
     userId: "u1",
+    locale: null,
     email: null,
     notification: {
       id: "n1",
@@ -397,18 +647,33 @@ describe("expoPushChannel", () => {
       createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       readAt: null,
       resolvedAt: null,
+      resolution: null,
+      actions: [],
       fields: {},
     },
     text: { title: "Ada commented", body: "Looks good" },
   };
 
+  const recorded: unknown[] = [];
+
   const devicesWith = (
     tokens: readonly { token: string; provider: string }[],
+    stored: readonly unknown[] = [],
   ) =>
     createPush({
-      transport: transport(() =>
-        tokens.map((t) => ({ userId: "u1", platform: "ios", ...t })),
-      ).transport,
+      transport: transport((fn, args) => {
+        if (fn === "push_tickets_for") {
+          return stored;
+        }
+
+        if (fn === "record_push_tickets") {
+          recorded.push(args);
+
+          return 1;
+        }
+
+        return tokens.map((t) => ({ userId: "u1", platform: "ios", ...t }));
+      }).transport,
     });
 
   it("pushes the rendered text to the user's Expo devices", async () => {
@@ -432,15 +697,23 @@ describe("expoPushChannel", () => {
       provider: "expo",
       providerMessageId: "r-a",
     });
-    expect(send).toHaveBeenCalledWith(["a"], {
-      title: "Ada commented",
-      body: "Looks good",
-      sound: "default",
-      data: {
-        notificationId: "n1",
-        type: "comment.created",
-        actionPath: "/posts/1",
+    expect(send).toHaveBeenCalledWith(
+      ["a"],
+      {
+        title: "Ada commented",
+        body: "Looks good",
+        sound: "default",
+        data: {
+          notificationId: "n1",
+          type: "comment.created",
+          actionPath: "/posts/1",
+        },
       },
+      { idempotencyKey: "dl1", sent: [] },
+    );
+    expect(recorded.at(-1)).toEqual({
+      delivery: "dl1",
+      tickets: [{ token: "a", id: "r-a", error: null }],
     });
     expect(onTickets).toHaveBeenCalledWith(
       [{ token: "a", id: "r-a" }],
@@ -476,6 +749,54 @@ describe("expoPushChannel", () => {
         message: () => ({ title: "custom" }),
       }).send(message),
     ).toEqual({ status: "skipped", provider: "expo" });
-    expect(push.send).toHaveBeenLastCalledWith(["a"], { title: "custom" });
+    expect(push.send).toHaveBeenLastCalledWith(
+      ["a"],
+      { title: "custom" },
+      { idempotencyKey: "dl1", sent: [] },
+    );
+  });
+
+  it("passes stored tickets on a retry and throws when a request failed", async () => {
+    const send = vi.fn(async () => [
+      { token: "a", id: "old" },
+      { token: "b", error: "RequestFailed", message: "Expo answered 503" },
+    ]);
+
+    const channel = expoPushChannel({
+      devices: devicesWith(
+        [
+          { token: "a", provider: "expo" },
+          { token: "b", provider: "expo" },
+        ],
+        [{ token: "a", id: "old", error: null }],
+      ),
+      push: { send, checkReceipts: vi.fn() },
+    });
+
+    await expect(channel.send(message)).rejects.toThrow("Expo answered 503");
+    expect(send).toHaveBeenCalledWith(["a", "b"], expect.anything(), {
+      idempotencyKey: "dl1",
+      sent: [{ token: "a", id: "old" }],
+    });
+    expect(recorded.at(-1)).toMatchObject({ delivery: "dl1" });
+  });
+
+  it("leaves tickets alone with storeTickets false", async () => {
+    const { call, transport: t } = transport((fn) =>
+      fn === "push_tokens_for"
+        ? [{ userId: "u1", token: "a", platform: "ios", provider: "expo" }]
+        : null,
+    );
+
+    const send = vi.fn(async () => [{ token: "a", id: "r1" }]);
+
+    expect(
+      await expoPushChannel({
+        devices: createPush({ transport: t }),
+        push: { send, checkReceipts: vi.fn() },
+        storeTickets: false,
+      }).send(message),
+    ).toEqual({ provider: "expo", providerMessageId: "r1" });
+    expect(call).toHaveBeenCalledOnce();
   });
 });

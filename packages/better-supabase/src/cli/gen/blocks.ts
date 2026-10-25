@@ -508,6 +508,7 @@ function renamedBlockLines(
 function instanceMapLines(
   entries: Readonly<Record<string, GeneratedBlock>>,
   renamed: ReadonlyMap<string, string>,
+  synced: ReadonlySet<string> | undefined,
 ): { readonly imports: readonly string[]; readonly lines: readonly string[] } {
   const imported = new Map<string, { local: string; subpath: string }>();
   const members: string[] = [];
@@ -518,6 +519,10 @@ function instanceMapLines(
 
     if (manifest === undefined || client === undefined || client === null) {
       continue;
+    }
+
+    if (synced !== undefined && !synced.has(instance)) {
+      members.push("  /** Needs the network on native. */");
     }
 
     const constant = renamed.get(instance);
@@ -548,6 +553,12 @@ function instanceMapLines(
       " * Every installed block instance with a client, under its key, for",
       " * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give",
       " * a block its ports (`notifications: notificationsBlock.using(...)`).",
+      ...(synced === undefined
+        ? []
+        : [
+            " * Instances outside `gen.powersync.instances` call the Data API, so",
+            " * their hooks need the network on native.",
+          ]),
       " * @public",
       " */",
       "export const blocks = {",
@@ -632,6 +643,7 @@ export function emitBlockConfig(
     | "casing"
     | "instances"
     | "output"
+    | "gen"
     | "sql"
     | "subjects"
   >,
@@ -646,7 +658,13 @@ export function emitBlockConfig(
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
   const constants = nameConstantLines(config, entries);
-  const instances = instanceMapLines(entries, renamed.constants);
+  const synced = config.gen.powersync?.instances;
+
+  const instances = instanceMapLines(
+    entries,
+    renamed.constants,
+    synced === undefined ? undefined : new Set(synced),
+  );
 
   const specifiers = [
     ...(events.length === 0

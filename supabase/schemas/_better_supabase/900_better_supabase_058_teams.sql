@@ -1,6 +1,6 @@
 -- better-supabase module: teams
--- @bsb-block teams@1 managed
--- @bsb-hash sha256:130a2f8c53bd448d094871de389e37f3ecc51e30296d467569816acb2054f985
+-- @bsb-block teams@2 managed
+-- @bsb-hash sha256:e068580477fb6dac2db2256a062d152fcca8b7457ea5644611e7618c5159e0c8
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -131,14 +131,22 @@ alter table "better_supabase"."inbox_conversations"
 alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
   foreign key ("team_id") references "better_supabase"."teams" ("id") on delete set null;
+-- A signed-in caller may only read their own teams; the service role and
+-- direct database sessions (no request role) may read anyone's.
 create or replace function "better_supabase"."team_ids_of"(member uuid)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member
+begin
+  if team_ids_of.member is distinct from (select auth.uid())
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
+    raise exception 'team_ids_of reads only the caller''s teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
+  end if;
+  return query select "team_id" from "better_supabase"."team_members" where "user_id" = team_ids_of.member;
+end;
 $$;
 revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;

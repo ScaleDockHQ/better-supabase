@@ -3,7 +3,7 @@ title: Teams
 description: Tenant teams and their members, shared with the inbox.
 ---
 
-`teams` stores a tenant's teams and who is on them. Creating, changing, archiving and deleting a team needs `teams.manage`. `team_ids_of(user)` lists the teams a user belongs to.
+`teams` stores a tenant's teams and who is on them. Creating, changing, archiving and deleting a team needs `teams.manage`. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
 
 ```bash
 better-supabase add teams
@@ -46,7 +46,7 @@ export const { useList: useTeams } = defineDataHooks(
 ```
 
 ```ts
-const rows = await db.teams.list({ limit: 50 }).orThrow();
+const rows = await db.teams.list(organizationId).orThrow();
 ```
 
 ```tsx title="src/features/teams/list.tsx"

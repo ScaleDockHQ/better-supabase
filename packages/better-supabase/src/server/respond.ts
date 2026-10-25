@@ -52,6 +52,30 @@ export interface MiddlewareOptions extends GuardOptions {
    * refreshes page loads and form posts only (`shouldRefresh`).
    */
   readonly refresh?: RefreshPolicy;
+  /**
+   * Read the session cookie. Defaults to true; `false` resolves bearer tokens
+   * and API keys only, for routes that native apps and servers call. It can't
+   * be combined with `refresh`, which rewrites cookies.
+   */
+  readonly cookies?: boolean;
+}
+
+/**
+ * Refuses `cookies: false` with a `refresh` policy at setup: a refresh reads
+ * and writes the session cookie.
+ */
+export function assertCookieRefresh(
+  options: Pick<MiddlewareOptions, "cookies" | "refresh">,
+): void {
+  if (
+    options.cookies === false &&
+    options.refresh !== undefined &&
+    options.refresh !== false
+  ) {
+    throw new TypeError(
+      "better-supabase: `cookies: false` can't be combined with `refresh`; a refresh needs the session cookie",
+    );
+  }
 }
 
 /**

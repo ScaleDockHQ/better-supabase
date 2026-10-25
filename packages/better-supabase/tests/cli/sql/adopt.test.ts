@@ -201,6 +201,22 @@ describe("proposeAdoption", () => {
         MEMBERS,
       ]).errors,
     ).toEqual([]);
+
+    const profiles = proposeAdoption("profiles", [
+      enumColumn(
+        table("profiles", { id: "uuid", email: "text", locale: "text" }),
+        "locale",
+        "app_locale",
+      ),
+    ]);
+
+    expect(profiles.errors).toEqual([]);
+    expect(profiles.entry.columns?.["profiles"]).toMatchObject({
+      locale: null,
+    });
+    expect(profiles.warnings).toContainEqual(
+      expect.stringContaining("public.profiles.locale is an enum"),
+    );
   });
 
   it("takes the id type from the tenant column", () => {

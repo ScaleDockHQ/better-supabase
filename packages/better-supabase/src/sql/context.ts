@@ -20,6 +20,7 @@ import type { BlockSqlScope } from "./scope.ts";
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
+import { isSqlType } from "../config/sql-type.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -82,6 +83,7 @@ export interface BlockSqlTableSpec {
    * enum: the module writes and compares them through `ctx.cast`.
    */
   readonly typed?: readonly string[];
+  readonly yieldsToExtra?: readonly string[];
 }
 
 export interface BlockSqlTableLifecycle {
@@ -317,6 +319,7 @@ const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
     "member_organization_ids",
     "has_organization_role",
     "organization_member_role",
+    "organization_member_roles",
   ]),
 };
 
@@ -585,7 +588,6 @@ export interface ExtraColumn {
 }
 
 const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
-const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
@@ -1336,11 +1338,9 @@ export function createModuleContext(
 
       const taken = new Set([
         ...reserved,
-        ...Object.keys(known.columns).flatMap((logical) => {
-          const name = column(table, logical);
-
-          return name === null ? [] : [name];
-        }),
+        ...Object.keys(known.columns)
+          .filter((logical) => !known.yieldsToExtra?.includes(logical))
+          .flatMap((logical) => column(table, logical) ?? []),
       ]);
 
       return Object.entries(value).map(([name, type]) => {
@@ -1354,11 +1354,7 @@ export function createModuleContext(
           );
         }
 
-        if (
-          typeof type !== "string" ||
-          !SQL_TYPE.test(type) ||
-          type.includes("--")
-        ) {
+        if (typeof type !== "string" || !isSqlType(type)) {
           throw new TypeError(
             `${at}.${name} must be a SQL type such as "text not null default 'en'"`,
           );

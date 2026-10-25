@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:98e091680094e1590a2f9b1eff9c40eeeda4a8a5f3ecc7bc00c5069925d9ed9e
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,6 +51,7 @@ create table if not exists "better_supabase"."profiles" (
   "last_name" text,
   "avatar_url" text,
   "avatar_path" text,
+  "locale" text,
   "active_organization_id" uuid,
   "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
@@ -59,6 +60,7 @@ create table if not exists "better_supabase"."profiles" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
+alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
 alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
@@ -91,7 +93,7 @@ grant all on "better_supabase"."profiles" to service_role;
 
 -- Users update only these columns; the rest go through the module's functions.
 revoke update on "better_supabase"."profiles" from authenticated;
-grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -181,7 +183,7 @@ begin
     loop
       begin
         insert into "better_supabase"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
-        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -259,6 +261,7 @@ begin
     "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
     "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
     "avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end,
+    "locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end,
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
     "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
@@ -336,7 +339,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -344,7 +348,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "better_supabase"."profiles" set "email" = new.email where "id" = new.id and "email" is distinct from new.email;
+  update "better_supabase"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -369,7 +373,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
+-- @bsb-hash sha256:ab80b3837365dff9910f5918c9250069c5fc621b6f8fe7ab925508801c48eb9f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -379,14 +383,14 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'managed')
+values ('profiles', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:98e091680094e1590a2f9b1eff9c40eeeda4a8a5f3ecc7bc00c5069925d9ed9e
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -436,6 +440,7 @@ create table if not exists "better_supabase"."profiles" (
   "last_name" text,
   "avatar_url" text,
   "avatar_path" text,
+  "locale" text,
   "active_organization_id" uuid,
   "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
@@ -444,6 +449,7 @@ create table if not exists "better_supabase"."profiles" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
+alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
 alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
@@ -476,7 +482,7 @@ grant all on "better_supabase"."profiles" to service_role;
 
 -- Users update only these columns; the rest go through the module's functions.
 revoke update on "better_supabase"."profiles" from authenticated;
-grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -566,7 +572,7 @@ begin
     loop
       begin
         insert into "better_supabase"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
-        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -644,6 +650,7 @@ begin
     "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
     "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
     "avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end,
+    "locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end,
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
     "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
@@ -721,7 +728,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -729,7 +737,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "better_supabase"."profiles" set "email" = new.email where "id" = new.id and "email" is distinct from new.email;
+  update "better_supabase"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -754,7 +762,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
+-- @bsb-hash sha256:ab80b3837365dff9910f5918c9250069c5fc621b6f8fe7ab925508801c48eb9f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -764,14 +772,14 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'managed')
+values ('profiles', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:0c10dae3a777c0d9d174eb05682cd8f5401713418a6c146df74ddf1b06d58087
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:ec95279872e5fda1903d46056d627c95aba19537acc5cbc2a0e776b16d3a64ba
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,6 +831,7 @@ create table if not exists "app_private"."profiles" (
   "last_name" text,
   "avatar_url" text,
   "avatar_path" text,
+  "locale" text,
   "active_organization_id" uuid,
   "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
@@ -831,6 +840,7 @@ create table if not exists "app_private"."profiles" (
   "updated_at" timestamptz not null default now()
 );
 alter table "app_private"."profiles" add column if not exists "avatar_path" text;
+alter table "app_private"."profiles" add column if not exists "locale" text;
 
 create unique index if not exists profiles_username_idx on "app_private"."profiles" (lower("username"));
 alter table "app_private"."profiles" drop constraint if exists profiles_username_check;
@@ -863,7 +873,7 @@ grant all on "app_private"."profiles" to service_role;
 
 -- Users update only these columns; the rest go through the module's functions.
 revoke update on "app_private"."profiles" from authenticated;
-grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "app_private"."profiles" to authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "app_private"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -953,7 +963,7 @@ begin
     loop
       begin
         insert into "app_private"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
-        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), u.email, "app_private"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "app_private"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -1031,6 +1041,7 @@ begin
     "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
     "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
     "avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end,
+    "locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end,
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
     "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
@@ -1108,7 +1119,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "app_private"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "app_private"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -1116,7 +1128,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "app_private"."profiles" set "email" = new.email where "id" = new.id and "email" is distinct from new.email;
+  update "app_private"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -1141,7 +1153,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
+-- @bsb-hash sha256:ab80b3837365dff9910f5918c9250069c5fc621b6f8fe7ab925508801c48eb9f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1151,14 +1163,14 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'managed')
+values ('profiles', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:0e9e6bc99e2b8a5c74d0a3794179fa62968334aa34c1cffa6b14e9571d333726
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:710847181ab1e2526099ba8d242958a3e5cff3995af0c6359907bb87c6e8928d
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1208,6 +1220,7 @@ create table if not exists "better_supabase"."profiles" (
   "last_name" text,
   "avatar_url" text,
   "avatar_path" text,
+  "locale" text,
   "active_organization_id" uuid,
   "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
@@ -1216,6 +1229,7 @@ create table if not exists "better_supabase"."profiles" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
+alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
 alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
@@ -1248,7 +1262,7 @@ grant all on "better_supabase"."profiles" to service_role;
 
 -- Users update only these columns; the rest go through the module's functions.
 revoke update on "better_supabase"."profiles" from authenticated;
-grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -1338,7 +1352,7 @@ begin
     loop
       begin
         insert into "better_supabase"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
-        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -1416,6 +1430,7 @@ begin
     "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
     "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
     "avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end,
+    "locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end,
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
     "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
@@ -1493,7 +1508,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -1501,7 +1517,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "better_supabase"."profiles" set "email" = new.email where "id" = new.id and "email" is distinct from new.email;
+  update "better_supabase"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -1595,7 +1611,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
+-- @bsb-hash sha256:ab80b3837365dff9910f5918c9250069c5fc621b6f8fe7ab925508801c48eb9f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1605,14 +1621,14 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'managed')
+values ('profiles', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
--- @bsb-block profiles@2 managed
--- @bsb-hash sha256:1e31aef682c58bca4e2480a36b341f0e65e539a4c52401b65138f3cbeb23eb46
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:ac8928e0f4e6ca6d59463b49f30a5e1020843bdae01efb1fb17af3073025bee3
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1775,7 +1791,7 @@ begin
     loop
       begin
         insert into "better_supabase"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
-        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), u.email, "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
         created := true;
         exit;
       exception when unique_violation then
@@ -1929,7 +1945,8 @@ drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
--- Keeps the profile's email equal to the confirmed address in auth.users.
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
 create or replace function "better_supabase"."mirror_profile_email"()
 returns trigger
 language plpgsql
@@ -1937,7 +1954,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  update "better_supabase"."profiles" set "email" = new.email where "id" = new.id and "email" is distinct from new.email;
+  update "better_supabase"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
   return new;
 end;
 $$;
@@ -1962,7 +1979,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
--- @bsb-hash sha256:45eb922a57d2c451d84537ff0eabe7454ea0b51feab4ae418357c20a37ce6116
+-- @bsb-hash sha256:ab80b3837365dff9910f5918c9250069c5fc621b6f8fe7ab925508801c48eb9f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1972,6 +1989,6 @@ grant select on better_supabase.blocks to service_role;
 select better_supabase.replace_equivalent_triggers('auth.users', 'bsb_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('profiles', 2, 'managed')
+values ('profiles', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

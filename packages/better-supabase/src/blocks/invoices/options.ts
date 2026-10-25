@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -9,7 +9,7 @@ export type InvoicesSqlOptions = {
   readonly prefix?: string;
   readonly creditPrefix?: string;
   readonly termsDays?: number;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -19,5 +19,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     prefix: option.string({ default: "INV-" }),
     creditPrefix: option.string({ default: "CN-" }),
     termsDays: option.number({ default: 30 }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

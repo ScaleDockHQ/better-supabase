@@ -81,7 +81,7 @@ const NAMES: BlockSqlNames = {
 /** The keys the team reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function teamIdType(ctx: BlockSqlContext): "uuid" | "bigint" {
+export function teamIdType(ctx: BlockSqlContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
 
   if (value !== "uuid" && value !== "bigint") {
@@ -180,14 +180,22 @@ ${membershipFk(ctx, members, memberTenant, memberUser)}
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
 ${tables}
 ${inboxMove(ctx, teams, members, id, tenant, name, slug)}
+-- A signed-in caller may only read their own teams; the service role and
+-- direct database sessions (no request role) may read anyone's.
 create or replace function ${fn("team_ids_of")}(member uuid)
 returns setof ${idType}
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  ${teamIdsBody}
+begin
+  if team_ids_of.member is distinct from (select auth.uid())
+    and coalesce((select auth.jwt() ->> 'role'), 'service_role') <> 'service_role' then
+    ${fail("TEAM_FORBIDDEN", "team_ids_of reads only the caller's teams")}
+  end if;
+  return query ${teamIdsBody};
+end;
 $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
@@ -543,7 +551,15 @@ export const TEAMS: BlockSqlDefinition = {
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "team_ids_of(member) refuses a signed-in caller that names another user; the service role and direct database sessions still read anyone's teams.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

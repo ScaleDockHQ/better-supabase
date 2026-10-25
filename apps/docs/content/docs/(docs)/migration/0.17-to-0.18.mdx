@@ -1,0 +1,107 @@
+---
+title: From 0.17 to 0.18
+description: What to check when upgrading to better-supabase 0.18, which closes two access gaps, lowercases profile emails and adds multi-role members, offline attachments and notifications, notification actions and cookie-free middleware.
+---
+
+0.18 needs no codemod. Two security fixes change what a caller may do, and
+one upgrade rewrites stored data; everything else is opt-in. Upgrade the
+package, then regenerate the block files and a migration:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase gen
+npx better-supabase db diff -f blocks_0_16
+```
+
+## `team_ids_of` refuses another user
+
+`team_ids_of(member)` returned any user's teams to any signed-in caller. It
+now fails with `TEAM_FORBIDDEN` when a signed-in caller names someone else.
+The caller's own id, the service role and direct database sessions work as
+before. If your code asked for another member's teams from the client, call it
+from the server with the service role instead.
+
+`list_members` also checks a permission key you can remap with
+`blocks.organizations.permissions.listMembers`. Its default is the key it
+checked before, `members.read`. When your authorization provider doesn't list
+that key, `upgrade` now stops and names it: set `listMembers` to a key every
+member holds. Before 0.18 that call failed for every caller.
+
+## Profile emails are lowercase
+
+The `profiles` block stores the email mirror in lowercase, so lookups by email
+match whatever casing the user signed up with. The upgrade migration
+lowercases the existing rows, except one whose lowercase address another
+profile already has, which keeps its casing. A trigger keeps the mirror
+lowercase when a user changes their email.
+
+## Members can hold several roles
+
+Set `blocks.memberships.options.roles.many` to give a member more than one
+role. The memberships block (version 3) then adds a `membership_roles` table
+filled from each membership's role, and the role column keeps the member's
+highest role. Role checks, claims and permissions read the whole set, and the
+organizations client gets `addMemberRole` and `removeMemberRole`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  memberships: { options: { roles: { many: true } } },
+},
+```
+
+Invitations take `defaultRole` and `onAccept`, which grants extra roles and
+teams when the invitation is accepted. An authorization provider that reads
+one role per member should name a `rolesTable` in its `memberships`; doctor
+BS411 warns when it doesn't.
+
+## Offline attachments
+
+`blocks.attachments.options.offline` lets a client create the record with its
+own id and upload the file later. A trigger on `storage.objects` marks the
+upload done, and deleting a record queues its files in `attachment_cleanup`
+for `createAttachmentSweeper` to remove. With `offline`, `requireScan`
+defaults to `false`. `options.path` takes an `{ext}` placeholder. On
+PowerSync, `attachmentQueueRoute` from `better-supabase/powersync` replays the
+table and computes the object path.
+
+## Notification actions and resolution
+
+The notifications block moves to version 9. An event can carry `actions`
+(`{ key, label, operation, payload }`, checked in `send_notification`), and
+`notifications.resolve({ type, subject, resolution })` stores how each
+recipient's notification was resolved. Deliveries render one at a time, so a
+render that throws fails only its own delivery, and each recipient's locale
+comes from the new `profiles.locale` column.
+
+The push block moves to version 2: `expoPush` retries rate limits and server
+errors, and `devices.checkReceipts()` records Expo's receipts as delivery
+events. Run it from a cron job.
+
+On PowerSync, `powersyncNotificationsTransport` serves the feed, counts and
+marking read from the synced tables; see
+[offline-capable blocks](/docs/frontend/powersync#offline-capable-blocks).
+`better-supabase powersync streams` (or `gen.powersync`) writes the Sync
+Streams and the publication migration for both blocks.
+
+## Middleware without cookies
+
+The oRPC, Hono and `handle()` middleware take `cookies: false`, which resolves
+bearer tokens and API keys only. Use it for an API that mobile apps or other
+servers call. `cookies: false` with `refresh` throws a `TypeError` at setup,
+because a refresh writes cookies. The MCP handler takes the same option and
+defaults to `false`.
+
+## Typed block options
+
+Every block's options type `extraColumns`, and the nested options of
+memberships, organizations and teams have their own types
+(`RoleThroughOption`, `SameTenantOption`, `PlatformRolesOption`). A config
+that passed a wrong shape now fails to typecheck instead of failing in `sql`.
+Column types and defaults may use quoted strings and casts, such as
+`text default 'draft'::text`; a type with `;` or a comment is still refused.
+
+## Doctor
+
+BS409 also warns when the provider's `tokenHook.activeOrganizationFrom`
+differs from `blocks.permissions.activeTenant`, the place
+`switch_organization` writes the active organization.

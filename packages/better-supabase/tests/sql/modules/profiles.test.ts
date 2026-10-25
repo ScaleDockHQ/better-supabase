@@ -36,6 +36,35 @@ const overApp = (modules: AnyBlocksConfig) =>
   moduleBody("profiles", { modules, ownTables: ownTablesOf(modules) })!;
 
 describe("profiles module", () => {
+  it("keeps a locale column users may update, on a managed table only", () => {
+    const sql = body({});
+    expect(sql).toContain('  "locale" text,');
+    expect(sql).toContain(
+      'alter table "better_supabase"."profiles" add column if not exists "locale" text;',
+    );
+    expect(sql).toContain(
+      `"locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end`,
+    );
+
+    const appTable = overApp({
+      profiles: {
+        tables: { profiles: "public.profiles" },
+        options: { columnGrants: true },
+      },
+    });
+
+    expect(appTable).not.toContain("attrs ? 'locale'");
+    expect(
+      overApp({
+        profiles: {
+          tables: { profiles: "public.profiles" },
+          columns: { profiles: { locale: "language" } },
+          options: { columnGrants: true },
+        },
+      }),
+    ).toMatch(/grant update \([^)]*"language"/);
+  });
+
   it("keeps an avatar_path column that auth metadata never writes", () => {
     const sql = body({});
     expect(sql).toContain('  "avatar_path" text,');
@@ -92,7 +121,7 @@ describe("profiles module", () => {
       'create table if not exists "better_supabase"."profiles" (',
     );
     expect(sql).toContain(
-      'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
+      'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
     expect(sql).toContain(

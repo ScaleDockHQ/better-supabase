@@ -98,6 +98,8 @@ export default defineConfig({
         schema: "centrakit",
         functions: { after_organization_create: "seed_organization" },
       },
+      // CentraKit has no `members.read`; every role holds `people.read`.
+      permissions: { listMembers: "people.read" },
       options: {
         attributes: ["website", "logo_path", "default_currency"],
         reservedSlugs: ["app", "admin"],

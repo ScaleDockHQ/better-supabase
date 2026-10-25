@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -11,17 +11,20 @@ export type AttachmentsSqlOptions = {
   readonly path?: string;
   readonly scanBuckets?: readonly string[];
   readonly publicBuckets?: readonly string[];
-  readonly extraColumns?: unknown;
+  readonly offline?: boolean;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
   blockOptions<AttachmentsSqlOptions>({
     bucket: option.string({ default: "attachments" }),
-    requireScan: option.boolean({ default: true, client: true }),
+    // No default: it is true, or false with offline.
+    requireScan: option.boolean({ client: true }),
     maxSize: option.number(),
     allowedMimeTypes: option.strings({ default: [] }),
     path: option.string({ default: "{organization_id}/attachments/{id}" }),
     scanBuckets: option.strings({ default: [] }),
     publicBuckets: option.strings({ default: [], client: true }),
-    extraColumns: option.unknown(),
+    offline: option.boolean({ client: true }),
+    extraColumns: option.extraColumns(),
   });

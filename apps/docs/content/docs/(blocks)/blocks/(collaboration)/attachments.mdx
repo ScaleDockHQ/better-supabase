@@ -52,7 +52,8 @@ The module creates the bucket as private with `maxSize` (default 50 MiB) as
 its file size limit and `allowedMimeTypes` as its allowed types; an existing
 bucket keeps its settings. The table checks the same limits. With
 `requireScan: false`, `confirm` marks a file clean right away, and files
-nobody scanned are served too (an `infected` one never is). The client reads
+nobody scanned are served too (an `infected` one never is). `requireScan`
+defaults to `true`, or to `false` with [`offline`](#offline). The client reads
 `requireScan` from `blocks.generated.ts`, which `better-supabase gen` writes
 from this config, so `defineBlocks` passes it to `createAttachments` and you
 never repeat it (see [the generated config](/docs/blocks/create-blocks#the-generated-config)).
@@ -176,7 +177,10 @@ const rows = useAttachments({ limit: 50 });
 
 `path` sets the object path, from `{organization_id}` (required first),
 `{id}` (required), `{subject_type}` and `{subject_id}` (a file without a
-subject gets `-`). It defaults to `{organization_id}/attachments/{id}`.
+subject gets `-`), and `{ext}`, the file name's extension in lowercase
+without the dot (empty when the name has none). It defaults to
+`{organization_id}/attachments/{id}`. `{organization_id}/attachments/{id}.{ext}`
+keeps the extension in the object name, for tools that read it.
 Changing it later rewrites the column on Postgres 17; on older versions,
 recreate the column in a migration.
 
@@ -236,7 +240,7 @@ changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
 passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
 `list({ type, id })` lists a record's files oldest first (`list()` lists
 every file of the tenant), and `remove(id)` deletes the object and then the
-row.
+row (with [`offline`](#offline), the row first).
 
 With the [profiles](/docs/blocks/profiles) module installed, each file that
 `list` returns carries `author` (type `Author`): the uploader's `id`, `name`
@@ -412,6 +416,62 @@ const next = await attachments
 const [previous] = await attachments.versions(attachmentId).orThrow();
 await attachments.restore(attachmentId, previous.version).orThrow();
 ```
+
+## Offline
+
+`offline: true` lets a client that writes to a local database (PowerSync)
+create, upload and delete files while it has no network, and replay the
+changes later:
+
+```ts title="better-supabase.config.ts"
+attachments: {
+  options: { offline: true },
+},
+```
+
+| Change             | What it does                                                                                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client ids         | `authenticated` may insert `id`, so a record created offline keeps the id the client chose. The insert policy still sets `uploaded_by` to the caller.                      |
+| Upload trigger     | An object written to a pending record's path marks the record uploaded and copies its size and type, as `confirm` does. `confirm` stays and returns the record afterwards. |
+| No scan by default | `requireScan` defaults to `false`, because a file uploaded offline has no scan to wait for. Set `requireScan: true` to keep the gate.                                      |
+| Row-first delete   | Deleting a record queues its objects (every version) in `attachment_cleanup`. Storage lets the caller delete a queued object only once no record uses its path.            |
+
+`remove(id)` deletes the record first and then the files. A file delete
+that fails (the client went offline in between) leaves the file queued, and
+`createAttachmentSweeper` deletes it later with the service role.
+`sweepQueued({ limit })` takes the oldest queued objects (100 by default, at
+most 1000), deletes them per bucket and drops them from the queue; a bucket
+that refuses keeps its objects queued for the next run. Run it from a cron:
+
+```ts title="app/api/cron/attachment-cleanup/route.ts"
+import {
+  createAttachmentSweeper,
+  sqlTransport,
+} from "better-supabase/blocks/attachments";
+
+const sweeper = createAttachmentSweeper({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+});
+
+export async function GET(): Promise<Response> {
+  const { removed, failed } = await sweeper
+    .sweepQueued({ limit: 500 })
+    .orThrow();
+
+  return Response.json({ removed, failed });
+}
+```
+
+```json title="vercel.json"
+{
+  "crons": [{ "path": "/api/cron/attachment-cleanup", "schedule": "0 * * * *" }]
+}
+```
+
+With PowerSync, replay the attachments table through
+[`attachmentQueueRoute`](/docs/frontend/powersync#attachments), which
+creates records under the client's id and deletes them row first.
 
 ## Image previews
 

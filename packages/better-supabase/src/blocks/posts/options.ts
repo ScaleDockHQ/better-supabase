@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -11,12 +11,12 @@ export type PostsSqlOptions = {
   readonly moderation?: string;
   /** The longest post body, in characters. Default 20000. */
   readonly maxBodyLength?: number;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const postsSqlOptions: BlockOptionsSchema<PostsSqlOptions> =
   blockOptions<PostsSqlOptions>({
     moderation: option.string({ default: "post" }),
     maxBodyLength: option.number({ default: 20_000 }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });

@@ -71,6 +71,47 @@ membershipsExtension<v.InferOutput<typeof Claims>>({
 });
 ```
 
+## Several roles per member
+
+A membership has one role by default. Turn on `roles.many` to let a member
+hold several, for example `admin` and `billing`:
+
+```ts
+blocks: {
+  memberships: { options: { roles: { many: true } } },
+},
+```
+
+The block then adds `better_supabase.membership_roles`, one row per
+organization, user and role, and fills it from each membership's current
+role. The `role` column on the membership stays: it holds the member's
+highest role in `blocks.permissions.roles` order, so code that reads one role
+keeps working. Writing `role` directly (as `update_member_role` does) replaces
+the member's set with that one role.
+
+With the option on:
+
+- `has_organization_role()`, `member_organization_ids()` and the policies
+  count a member as holding a role when it is anywhere in the set;
+- the token claims carry the set (`roles` in the array format);
+- `can()` and `member_permissions()` grant the union of the permissions of
+  every role;
+- the organizations block adds `add_member_role` and `remove_member_role`
+  (`addMemberRole` and `removeMemberRole` from TypeScript), and
+  `list_members` and `list_my_organizations` return a `roles` column;
+- invitations accept `onAccept.roles`, extra roles granted on accept.
+
+`organization_member_roles(organization, member)` returns a member's roles as
+`text[]` in every mode (one element without the option), for the service role.
+Members read their own role rows, and the rows of the organizations they
+belong to.
+
+The option needs the managed memberships table and the roles model: the
+catalog model and `roleThrough` store role ids, not names, and fail the
+render. An [authorization provider](/docs/extending/authorization-providers)
+that reads memberships itself sees the set only when its `memberships` entry
+names `rolesTable`; `doctor` (BS411) warns when none does.
+
 ## Missing organization
 
 A query on an organization table without an organization is left to RLS by

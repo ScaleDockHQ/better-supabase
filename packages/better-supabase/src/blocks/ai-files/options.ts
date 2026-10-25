@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema } from "../options.ts";
+import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,7 @@ export type AiFilesSqlOptions = {
   readonly maxSize?: number;
   readonly allowedMimeTypes?: readonly string[];
   readonly pendingTtl?: string;
-  readonly extraColumns?: unknown;
+  readonly extraColumns?: ExtraColumns;
 };
 
 export const aiFilesSqlOptions: BlockOptionsSchema<AiFilesSqlOptions> =
@@ -17,5 +17,5 @@ export const aiFilesSqlOptions: BlockOptionsSchema<AiFilesSqlOptions> =
     maxSize: option.number(),
     allowedMimeTypes: option.strings({ default: [] }),
     pendingTtl: option.string({ default: "1 day" }),
-    extraColumns: option.unknown(),
+    extraColumns: option.extraColumns(),
   });
