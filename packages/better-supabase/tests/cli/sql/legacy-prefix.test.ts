@@ -22,6 +22,14 @@ describe("legacyPrefixNames", () => {
   it("returns nothing for text without the old prefix", () => {
     expect(legacyPrefixNames("create trigger bsb_audit")).toEqual([]);
   });
+
+  it("skips the old permission cap claim the access functions still read", () => {
+    expect(
+      legacyPrefixNames(
+        "coalesce(jwt -> 'bsb_permission_cap', jwt -> 'bs_permission_cap')",
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("legacyPrefixSql", () => {

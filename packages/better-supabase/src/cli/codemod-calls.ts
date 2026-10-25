@@ -59,22 +59,53 @@ function cliCalls(text: string, migrate: CliCallMigration): CliCall[] {
   return calls;
 }
 
+/**
+ * A CLI call followed by `&&` and the same call again. The call starts after a
+ * shell operator, a quote, a line break or a YAML `run:`, and the repeat ends
+ * at one, so only whole commands match.
+ */
+const REPEATED_CALL =
+  /((?:^|&&|\|\||[;:\n"'`(])[ \t]*)([^&|;\n"'`()]*?(?<![\w.@-])(?:better-supabase|bsb)(?:@[\w.^~-]+)?[ \t][^&|;\n"'`()]*?)[ \t]*&&[ \t]*\2(?=[ \t]*(?:&&|\|\||[;\n"'`)]|$))/g;
+
+/**
+ * `text` with each run of identical CLI calls joined by `&&` kept once. Two old
+ * commands can move to the same new one (`sql sync` and `sql upgrade` both
+ * become `upgrade`), and running it twice in a row does the work twice.
+ */
+function collapseRepeatedCalls(text: string): string {
+  let out = text;
+  let previous: string | undefined;
+
+  while (out !== previous) {
+    previous = out;
+    out = out.replaceAll(REPEATED_CALL, "$1$2");
+  }
+
+  return out;
+}
+
 /** `text` with every moved CLI call spelled the new way. */
 export function rewriteCliCalls(
   text: string,
   migrate: CliCallMigration,
 ): string {
+  const calls = cliCalls(text, migrate);
+
+  if (calls.length === 0) {
+    return text;
+  }
+
   let out = "";
   let cursor = 0;
 
-  for (const call of cliCalls(text, migrate)) {
+  for (const call of calls) {
     const original = text.slice(call.start, call.end);
     const trailing = /\s*$/u.exec(original)?.[0] ?? "";
     out += `${text.slice(cursor, call.start)} ${call.to.join(" ")}${trailing}`;
     cursor = call.end;
   }
 
-  return out + text.slice(cursor);
+  return collapseRepeatedCalls(out + text.slice(cursor));
 }
 
 /** One review line per moved CLI call, with the new spelling. */

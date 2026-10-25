@@ -9,6 +9,7 @@ import type { Paint } from "../style.ts";
 
 import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
 import { DESIGN_FILE_NAME } from "../codemod-preset-code.ts";
+import { legacySqlNameHints } from "../codemod-sql-names.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -147,6 +148,10 @@ export async function runCodemod(
     if (result.text !== source) {
       edits.push({ path: file, contents: result.text, policy: "edit" });
     }
+  }
+
+  if (codemod.sqlNames === true) {
+    review.push(...(await legacySqlNameHints(config)));
   }
 
   const plan: FilePlan = {
