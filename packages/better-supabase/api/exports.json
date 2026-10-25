@@ -610,6 +610,7 @@
       "withKind"
     ],
     "types": [
+      "* from ./issue.ts",
       "* from ./types.ts"
     ]
   },
