@@ -706,6 +706,15 @@ using sub = notifications.subscribe(
   when the upstream join fails (`upstream_error`). The client reconnects on
   its own, every reconnect checks access again, and the rejoin it reports
   makes live queries refetch what they missed.
+- **Retries.** A join that fails for a reason that may pass is retried with
+  a backoff that doubles from one second up to `maxBackoffMs` (30000), and
+  each failed attempt reports `CHANNEL_ERROR` once. That covers an
+  `upstream_error` before the first join, for example while a local Realtime
+  service starts, a 503 when the policy check can't reach Postgres, other
+  5xx answers and network errors. The client tells these apart from a
+  refusal with one `fetch` of the stream URL after the stream fails: a 400,
+  401, 403 or 404 stops the channel with `The relay refused <topic>`, and
+  nothing retries it. A successful join resets the backoff.
 - **Connections.** Joins of one topic share one upstream channel per server
   process. Each topic is one stream per browser tab, so serve the route over
   HTTP/2.

@@ -312,25 +312,33 @@ export function realtimeRelay(
   const topicOf = (name: string): RelayTopic | undefined =>
     options.topics.find((each) => each.match(name) !== null);
 
-  const allowed = async (input: RelayAccessInput): Promise<boolean> => {
-    try {
-      if (authorize) {
+  const allowed = async (
+    input: RelayAccessInput,
+  ): Promise<boolean | "unavailable"> => {
+    if (authorize) {
+      try {
         return await authorize(input);
+      } catch {
+        return false;
       }
+    }
 
-      if (input.auth.kind === "service") {
-        return true;
-      }
+    if (input.auth.kind === "service") {
+      return true;
+    }
 
-      return postgres
-        ? await realtimeTopicAccess(postgres, {
-            claims: input.claims,
-            topic: input.topic,
-            action: input.action,
-          })
-        : false;
-    } catch {
+    if (!postgres) {
       return false;
+    }
+
+    try {
+      return await realtimeTopicAccess(postgres, {
+        claims: input.claims,
+        topic: input.topic,
+        action: input.action,
+      });
+    } catch {
+      return "unavailable";
     }
   };
 
@@ -416,6 +424,14 @@ export function realtimeRelay(
             support,
             claims: claimsOf(auth, support),
           });
+
+    if (ok === "unavailable") {
+      return {
+        refusal: ctx.apply(
+          problem(dbError("network", `Could not check access to "${name}"`)),
+        ),
+      };
+    }
 
     if (!ok) {
       return {

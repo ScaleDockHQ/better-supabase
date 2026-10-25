@@ -28,7 +28,10 @@ export interface RelayClientOptions {
    * Defaults to 15000.
    */
   readonly timeoutMs?: number;
-  /** The longest wait between reconnects after the relay refused. Defaults to 30000. */
+  /**
+   * The longest wait between reconnects after a stream closed or a join failed
+   * for a reason that may pass. Defaults to 30000.
+   */
   readonly maxBackoffMs?: number;
 }
 
@@ -72,6 +75,8 @@ interface RelayChannel {
 }
 
 const CLOSED_STATE = 2;
+
+const PERMANENT_STATUSES = new Set([400, 401, 403, 404]);
 
 function parse(event: { readonly data?: unknown }): unknown {
   if (typeof event.data !== "string") {
@@ -164,6 +169,26 @@ export function relayRealtimeClient(
     }
   };
 
+  const refusedForGood = async (streamUrl: string): Promise<boolean> => {
+    const controller = new AbortController();
+
+    try {
+      const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+
+      const response = await doFetch(streamUrl, {
+        credentials: "include",
+        headers: { accept: "text/event-stream" },
+        signal: controller.signal,
+      });
+
+      return PERMANENT_STATUSES.has(response.status);
+    } catch {
+      return false;
+    } finally {
+      controller.abort();
+    }
+  };
+
   const create = (name: string): RelayChannel => {
     const topic = `realtime:${name}`;
     const listeners: Listener[] = [];
@@ -209,11 +234,18 @@ export function relayRealtimeClient(
       }
 
       const separator = url.includes("?") ? "&" : "?";
+      const streamUrl = `${url}${separator}topic=${encodeURIComponent(name)}`;
+      const next = new Source(streamUrl, { withCredentials: true });
+      let joined = false;
 
-      const next = new Source(
-        `${url}${separator}topic=${encodeURIComponent(name)}`,
-        { withCredentials: true },
-      );
+      const retry = (message: string): void => {
+        next.close();
+        source = undefined;
+        clearTimeout(joinTimer);
+        status?.("CHANNEL_ERROR", new Error(message));
+        retryTimer = setTimeout(open, backoff);
+        backoff = Math.min(backoff * 2, maxBackoffMs);
+      };
 
       source = next;
       clearTimeout(joinTimer);
@@ -234,6 +266,7 @@ export function relayRealtimeClient(
         if (data["status"] === "subscribed") {
           clearTimeout(joinTimer);
           subscribed = true;
+          joined = true;
           ending = false;
           backoff = 1000;
           status?.("SUBSCRIBED");
@@ -271,8 +304,25 @@ export function relayRealtimeClient(
         dispatch("presence", "sync", {});
       });
 
-      next.addEventListener("end", () => {
-        ending = true;
+      next.addEventListener("end", (event) => {
+        if (removed || source !== next) {
+          return;
+        }
+
+        if (joined) {
+          ending = true;
+
+          return;
+        }
+
+        const data = parse(event);
+
+        const reason =
+          isRecord(data) && typeof data["reason"] === "string"
+            ? data["reason"]
+            : "closed";
+
+        retry(`The relay could not join ${name} (${reason}); retrying`);
       });
 
       next.addEventListener("error", () => {
@@ -292,21 +342,26 @@ export function relayRealtimeClient(
         }
 
         next.close();
-        source = undefined;
+        clearTimeout(joinTimer);
 
-        if (!subscribed) {
-          clearTimeout(joinTimer);
-          status?.("CHANNEL_ERROR", new Error(`The relay refused ${name}`));
+        void refusedForGood(streamUrl).then((permanent) => {
+          if (removed || source !== next) {
+            return;
+          }
 
-          return;
-        }
+          if (permanent) {
+            source = undefined;
+            status?.("CHANNEL_ERROR", new Error(`The relay refused ${name}`));
 
-        status?.(
-          "CHANNEL_ERROR",
-          new Error(`The relay closed ${name}; reconnecting`),
-        );
-        retryTimer = setTimeout(open, backoff);
-        backoff = Math.min(backoff * 2, maxBackoffMs);
+            return;
+          }
+
+          retry(
+            subscribed
+              ? `The relay closed ${name}; reconnecting`
+              : `The relay could not join ${name}; retrying`,
+          );
+        });
       });
     };
 

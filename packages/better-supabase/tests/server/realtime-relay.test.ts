@@ -271,7 +271,12 @@ describe("realtimeRelay", () => {
     expect((await throwing.GET(get("org:o1:notes:u1"))).status).toBe(403);
 
     const { EventSource } = inProcessEventSource(deny.GET);
-    const client = relayRealtimeClient("/api/realtime", { EventSource });
+
+    const client = relayRealtimeClient("/api/realtime", {
+      EventSource,
+      fetch: async (input, init) =>
+        deny.GET(new Request(new URL(String(input), "https://app.test"), init)),
+    });
 
     const sub = notifications.subscribe(
       client,
@@ -506,7 +511,9 @@ describe("realtimeRelay edges", () => {
       postgres: { transaction: () => Promise.reject(new Error("pool down")) },
     });
 
-    expect((await stream(failing, "org:o1:notes:u1")).status).toBe(403);
+    const unavailable = await stream(failing, "org:o1:notes:u1");
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toMatchObject({ kind: "network" });
   });
 
   it("lets a service caller through without a policy check and passes api key claims", async () => {
