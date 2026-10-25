@@ -5,7 +5,7 @@ import type { Issue } from "../issue.ts";
 import type { RawCatalog, RawColumn, RawTable } from "./catalog.ts";
 import type { SandboxOptions } from "./sandbox.ts";
 
-import { defineApi } from "../../spec/index.ts";
+import { defineApi } from "../../spec/api.ts";
 import { loadProject } from "../project.ts";
 import { openSandbox } from "./sandbox.ts";
 
