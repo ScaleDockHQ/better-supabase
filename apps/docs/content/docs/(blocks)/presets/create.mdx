@@ -221,6 +221,43 @@ A `breaking` refusal lists the expand and contract steps for each change. An
 `unsupported` refusal covers any other change, such as a new default or a
 change outside `tables`, so a deploy never guesses.
 
+## Import an existing project
+
+`importProject` in `better-supabase/create/lite` reads a project that already
+exists and returns a `Design` plus a report, so Create can open it.
+
+```ts
+import { importProject } from "better-supabase/create/lite";
+
+const { design, report } = await importProject({
+  source: { kind: "supabase", projectRef, accessToken },
+});
+```
+
+There are three sources:
+
+| Source                                          | Reads                                                                                                                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{ kind: "files", files }`                      | A declarative schema folder or a migrations folder, as `{ path, contents }`. The files run in path order against an in-memory PGlite database. |
+| `{ kind: "queryable", queryable }`              | Any object with `query(sql)` that returns `{ rows }`, such as a `pg` pool.                                                                     |
+| `{ kind: "supabase", projectRef, accessToken }` | A hosted project, through the Management API's read-only query endpoint.                                                                       |
+
+The design models each `public` table that has a single `uuid` or `bigint`
+`id` key: its columns, references to other modeled tables or `auth.users`,
+unique keys and plain btree indexes. Tables come in with `scope: "none"`,
+because their columns are already explicit. Anything the design cannot express
+is listed in `report.preserved` and is never dropped, because a deploy applies
+only what the design adds. That covers views, functions, triggers, policies,
+composite keys, generated columns and types such as `interval`. Tables named
+`bsb_*` are listed in `report.blockOwned`.
+
+`report.tables` gives each table an adoption rung: `open` (row level security
+off), `locked` (on, no policies) or `protected` (on, with policies).
+`report.issues` holds SQL errors from a `files` source and the security
+findings, which have `source: "verifier"`: `verify_rls_disabled` and
+`verify_no_policies`. Pass `design` to `loadProject` with a preset to check and
+render it.
+
 ## Validate in Postgres
 
 `better-supabase/create/lite` applies the generated files to an in-memory
