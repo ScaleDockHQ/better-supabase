@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:f7b6b83aa378b62bb03170c77583b9c1fe322588806de5da1041670d5e99bf97
+-- @bsb-hash sha256:41b7e225e9b090390368284d34cf3bc2b04c666757c44787c11fe2eb11011ecf
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -390,6 +390,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -656,6 +657,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -1030,7 +1032,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:21b869b418c49eea03f6a1d8558fab70c9cbbee2ed1e68e6f623119017c74270
+-- @bsb-hash sha256:dfdc40b4c44c5356a8c7703f4f07efd902f326c3a19108b3d85ddb439637a08b
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1419,6 +1421,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -1685,6 +1688,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -2059,7 +2063,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:abe6b441846858fa5172a25f522e4874830a4a404fcccc33538da68f9815bf1f
+-- @bsb-hash sha256:9abe164a2c2e0d2c5fffd1f891c52fb1b5b09e5e8c4493c55b5c06313966c883
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2450,6 +2454,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "app_private"."subject_collections";
   v_id text;
@@ -2716,6 +2721,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -3090,7 +3096,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:593a867ee1726bc029b9934f55e48e0ca6e4b6f2d56d1e15913be089becd20a0
+-- @bsb-hash sha256:e810c831da9fa679b85f25abdde0939efc478be2fe17b557d619115a4cf36336
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3479,6 +3485,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -3745,6 +3752,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -4315,7 +4323,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:15cbe0942cac0a4580ae15fd34bf7705046bda14107d68a5e481502926a562ff
+-- @bsb-hash sha256:69a1b3c412959e253163277c157e5251fbc022feb1787ca3bd3eebc95676b661
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4710,6 +4718,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -4976,6 +4985,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
@@ -5350,7 +5360,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:543bf4f9575168f98559a833b282346bbc0e246ba1708c33eba47c4a69635d9b
+-- @bsb-hash sha256:de883a8c7a80c2cbf20bcac8a94911e082b324666cdc1ed7bc12c655043503dc
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5739,6 +5749,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -6005,6 +6016,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;

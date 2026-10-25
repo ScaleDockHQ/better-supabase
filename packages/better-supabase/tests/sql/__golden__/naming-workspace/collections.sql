@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:565233bf2cba92212228c2af45198d48fa36be6dd94283a8ff2ec3affdb94c6b
+-- @bsb-hash sha256:66e3ff26da8bdb70d5e44cc7f5105ea0b46ca09c91f2def2cd73b0c761312639
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -390,6 +390,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."subject_collections";
   v_id text;
@@ -656,6 +657,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;

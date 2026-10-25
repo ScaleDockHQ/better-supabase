@@ -295,6 +295,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${t("collections")};
   v_id text;
@@ -486,6 +487,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_user uuid := auth.uid();
   v_last text;
