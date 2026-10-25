@@ -189,7 +189,7 @@ export async function dataMigration(
   }
 
   const files = rendered.filter((file) => file.kind === "data");
-  const contents = `-- better-supabase add --adopt: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
+  const contents = `-- better-supabase add --adopt: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\nset lock_timeout = '5s';\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
 
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(

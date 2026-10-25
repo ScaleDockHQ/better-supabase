@@ -84,6 +84,7 @@ export {
   adoptedTables,
   type AdoptedView,
   adoptedViews,
+  moduleWritesText,
 } from "./adopted-columns.ts";
 
 export { auditRegistrations } from "./audit-registrations.ts";

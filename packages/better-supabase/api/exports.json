@@ -7575,6 +7575,7 @@
       "modulePermissionKeys",
       "moduleSchemaExtensions",
       "moduleTopics",
+      "moduleWritesText",
       "notNullCheckName",
       "policyGrants",
       "renamedBlock",

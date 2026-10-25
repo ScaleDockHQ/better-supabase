@@ -124,6 +124,19 @@ function managedTextColumns(
   return tables;
 }
 
+/** Whether `module`'s functions write text into `logical.column` by default. */
+export function moduleWritesText(
+  module: string,
+  logical: string,
+  column: string,
+): boolean {
+  return (
+    managedTextColumns(module)
+      .get(logical)
+      ?.some(([name, byDefault]) => name === column && byDefault) === true
+  );
+}
+
 /** Per logical table, the columns the module's configuration doesn't use. */
 function unusedColumns(
   name: string,
