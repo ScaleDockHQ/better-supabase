@@ -450,6 +450,31 @@ export function withoutCoveredPolicies(
   });
 }
 
+const APP_POLICIES_NOTE = `the app's policies govern this table (ownTablePolicies "app"), so the block adds no`;
+
+const APP_POLICIES = new RegExp(
+  String.raw`^-- (\S+): ${APP_POLICIES_NOTE.replaceAll(/[()]/g, String.raw`\$&`)} (\S+) for ([a-z, ]+)\.$`,
+  "gm",
+);
+
+export function appTablePolicyNotes(
+  sql: string,
+): {
+  readonly table: string;
+  readonly policy: string;
+  readonly commands: readonly PolicyCommand[];
+}[] {
+  return [...sql.matchAll(APP_POLICIES)].map(
+    ([, table = "", policy = "", commands = ""]) => ({
+      table,
+      policy,
+      commands: COMMANDS.filter((command) =>
+        commands.split(", ").includes(command),
+      ),
+    }),
+  );
+}
+
 export function withoutAppTablePolicies(
   sql: string,
   tables: ReadonlySet<string>,
@@ -465,13 +490,11 @@ export function withoutAppTablePolicies(
         return;
       }
 
-      const govern = `the app's policies govern this table (ownTablePolicies "app"), so the block adds no`;
-
       return policy.permissive
-        ? `${govern} ${policy.name} for ${COMMANDS.filter((command) =>
-            coversCommand(policy, command),
+        ? `${APP_POLICIES_NOTE} ${policy.name} for ${COMMANDS.filter(
+            (command) => coversCommand(policy, command),
           ).join(", ")}.`
-        : `${govern} restrictive ${policy.name}.`;
+        : `${APP_POLICIES_NOTE} restrictive ${policy.name}.`;
     },
     true,
   );

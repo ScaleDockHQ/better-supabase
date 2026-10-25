@@ -401,12 +401,12 @@ describe("schemaExtensions", () => {
     ]);
   });
 
-  it("passes stamp server to the updated-at and created-by extensions", async () => {
+  it("passes stamp trigger to the updated-at and created-by extensions", async () => {
     const config = resolveConfig(
       {
         blocks: {
-          "created-by": { options: { stamp: "server" } },
-          "updated-at": { options: { stamp: "server" } },
+          "created-by": { options: { stamp: "trigger" } },
+          "updated-at": { options: { stamp: "trigger" } },
           trash: {},
         },
         gen: { output: "src/db/generated.ts" },
@@ -418,12 +418,12 @@ describe("schemaExtensions", () => {
       {
         export: "createdByExtension",
         subpath: "blocks/created-by",
-        args: '{ stamp: "server" }',
+        args: '{ stamp: "trigger" }',
       },
       {
         export: "updatedAtExtension",
         subpath: "blocks/updated-at",
-        args: '{ stamp: "server" }',
+        args: '{ stamp: "trigger" }',
       },
       { export: "trashExtension", subpath: "blocks/trash", args: "" },
     ]);
@@ -433,17 +433,17 @@ describe("schemaExtensions", () => {
     ).find((file) => file.path === "src/db/generated.ts")?.contents;
 
     expect(main).toContain(
-      'const extensions: Extensions = [createdByExtension({ stamp: "server" }), updatedAtExtension({ stamp: "server" }), trashExtension()];',
+      'const extensions: Extensions = [createdByExtension({ stamp: "trigger" }), updatedAtExtension({ stamp: "trigger" }), trashExtension()];',
     );
     expect(() =>
       schemaExtensions(
         resolveConfig(
-          // @ts-expect-error -- stamp takes "client" or "server"
+          // @ts-expect-error -- stamp takes "client" or "trigger"
           { blocks: { "updated-at": { options: { stamp: "db" } } } },
           "/project",
         ),
       ),
-    ).toThrow('blocks.updated-at.options.stamp must be "client" or "server"');
+    ).toThrow('blocks.updated-at.options.stamp must be "client" or "trigger"');
   });
 
   it("scopes by the organization column without the memberships block", () => {

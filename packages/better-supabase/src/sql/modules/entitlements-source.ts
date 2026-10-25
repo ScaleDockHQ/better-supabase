@@ -75,9 +75,26 @@ function providerEntitlementMembers(
 export function customerSource(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
-): Required<Omit<EntitlementsSource, "source" | "claim">> & {
+): CustomerSource {
+  const source = resolvedCustomerSource(ctx, layout);
+
+  if (source === undefined) {
+    throw new TypeError(
+      "The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
+    );
+  }
+
+  return source;
+}
+
+type CustomerSource = Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
-} {
+};
+
+function resolvedCustomerSource(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): CustomerSource | undefined {
   const configured = layout.entitlements;
 
   if (configured?.table !== undefined && configured.column !== undefined) {
@@ -116,9 +133,7 @@ export function customerSource(
     };
   }
 
-  throw new TypeError(
-    "The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
-  );
+  return undefined;
 }
 
 export function readsOrganizationCustomer(
@@ -132,11 +147,9 @@ export function readsOrganizationCustomer(
     return false;
   }
 
-  let source: ReturnType<typeof customerSource>;
+  const source = resolvedCustomerSource(ctx.of("entitlements"), layout);
 
-  try {
-    source = customerSource(ctx.of("entitlements"), layout);
-  } catch {
+  if (source === undefined) {
     return false;
   }
 

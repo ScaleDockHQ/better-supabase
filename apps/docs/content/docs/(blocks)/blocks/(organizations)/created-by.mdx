@@ -62,16 +62,16 @@ defineSupabase(schema).use(
 
 A table with column-level grants that leave out `created_by` and
 `updated_by` refuses a write that names them, with `permission denied`. Set
-`options.stamp` to `server` so the extension sends neither and the
+`options.stamp` to `trigger` so the extension sends neither and the
 `track_actor` trigger fills them from `auth.uid()`:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "created-by": { options: { stamp: "server" } },
+  "created-by": { options: { stamp: "trigger" } },
 },
 ```
 
-`gen` then installs `createdByExtension({ stamp: "server" })`, which still
+`gen` then installs `createdByExtension({ stamp: "trigger" })`, which still
 refuses caller-supplied values without `{ override: true }`. The default,
 `client`, stamps the rows from the request's actor.
 

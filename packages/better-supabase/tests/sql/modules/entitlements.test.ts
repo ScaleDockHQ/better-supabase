@@ -121,6 +121,15 @@ describe("entitlements sources", () => {
     expect(
       organizations({
         entitlements: {
+          table: "better_supabase.organizations",
+          column: "stripe_customer_id",
+          key: "id",
+        },
+      }),
+    ).toContain(column);
+    expect(
+      organizations({
+        entitlements: {
           table: "public.billing_customers",
           column: "customer",
           key: "organization_id",

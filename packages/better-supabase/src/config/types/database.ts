@@ -66,6 +66,12 @@ export interface SqlConfig {
    * every signed-in user reads and writes).
    */
   readonly scope?: BlockScope;
+  /**
+   * Whose policies govern the app's tables a block runs over, unless
+   * `blocks.<name>.ownTablePolicies` sets its own: `block` (the default) or
+   * `app`, which keeps every `bsb_` policy, permissive or restrictive, off
+   * them.
+   */
   readonly ownTablePolicies?: OwnTablePolicies;
 }
 

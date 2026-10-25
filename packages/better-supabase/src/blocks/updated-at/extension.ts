@@ -18,7 +18,7 @@ import {
  * when the runtime has no Temporal.
  */
 export interface UpdatedAtExtensionOptions {
-  readonly stamp?: "client" | "server";
+  readonly stamp?: "client" | "trigger";
 }
 
 export function updatedAtExtension(
@@ -58,7 +58,7 @@ export function updatedAtExtension(
       const updated = dbName(table, flags.updatedAt);
       guardManaged(op, [created, updated], "timestamps", options);
 
-      if (op.kind === "delete" || extension.stamp === "server") {
+      if (op.kind === "delete" || extension.stamp === "trigger") {
         return op;
       }
 

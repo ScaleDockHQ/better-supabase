@@ -334,12 +334,12 @@ function stampArgs(name: string, stamp: unknown): string {
     return "";
   }
 
-  if (stamp === "server") {
-    return '{ stamp: "server" }';
+  if (stamp === "trigger") {
+    return '{ stamp: "trigger" }';
   }
 
   throw new TypeError(
-    `blocks.${name}.options.stamp must be "client" or "server", got ${JSON.stringify(stamp)}`,
+    `blocks.${name}.options.stamp must be "client" or "trigger", got ${JSON.stringify(stamp)}`,
   );
 }
 

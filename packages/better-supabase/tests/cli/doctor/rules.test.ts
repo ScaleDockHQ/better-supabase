@@ -2259,21 +2259,28 @@ describe("app table governs its policies but lacks one (BS350)", () => {
     ),
   });
 
-  it("reports a command the app has no policy for", async () => {
+  it("reports a command the app has no policy for, with RLS on or off", async () => {
     expect(await run("BS350", rooted(withOrgs(true, []), "app"))).toEqual([
       expect.objectContaining({
-        severity: "info",
+        severity: "warning",
         target: "public.orgs",
         message: expect.stringContaining("no permissive policy for select"),
       }),
     ]);
+    expect(await run("BS350", rooted(withOrgs(false, []), "app"))).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        message: expect.stringContaining(
+          "row level security off, which the block's file turns on",
+        ),
+      }),
+    ]);
   });
 
-  it("passes the app's own policy, RLS off and ownTablePolicies block", async () => {
+  it("passes the app's own policy and ownTablePolicies block", async () => {
     expect(await run("BS350", rooted(withOrgs(true, ["all"]), "app"))).toEqual(
       [],
     );
-    expect(await run("BS350", rooted(withOrgs(false, []), "app"))).toEqual([]);
     expect(await run("BS350", rooted(withOrgs(true, []), "block"))).toEqual([]);
   });
 });

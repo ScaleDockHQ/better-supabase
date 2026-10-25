@@ -17,7 +17,7 @@ export interface CreatedByExtensionOptions {
    * services.
    */
   readonly resolve?: (context: RequestContext) => string | undefined;
-  readonly stamp?: "client" | "server";
+  readonly stamp?: "client" | "trigger";
 }
 
 function defaultActor(context: RequestContext): string | undefined {
@@ -54,7 +54,7 @@ export function createdByExtension(
       const impersonated = dbName(table, flags.impersonatedBy);
       guardManaged(op, [created, updated, impersonated], "actor", options);
 
-      if (extension.stamp === "server") {
+      if (extension.stamp === "trigger") {
         return op;
       }
 

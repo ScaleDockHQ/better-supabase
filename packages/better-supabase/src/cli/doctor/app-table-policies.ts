@@ -3,6 +3,7 @@ import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import {
   adoptedTables,
+  appTablePolicyNotes,
   moduleDeprecations,
   SQL_MODULES,
   widenedCommands,
@@ -68,7 +69,7 @@ export function widenedAppTablePolicies(
 
         return [
           {
-            message: `${blocks} adds policy ${policy.name} on ${target}, and ${reason}. Postgres ORs permissive policies; doctor compares conditions as text and can't prove that one implies another. If the block's condition is what the app means, repeat it in the app's policy; otherwise narrow the permission key it checks, or drop ${policy.name} in a schema file that runs after the block's.`,
+            message: `${blocks} adds policy ${policy.name} on ${target}, and ${reason}. Postgres ORs permissive policies; doctor compares conditions as text and can't prove that one implies another. If the block's condition is what the app means, repeat it in the app's policy; otherwise narrow the permission key it checks, drop ${policy.name} in a schema file that runs after the block's, or set ownTablePolicies: "app" on the block (or in database.sql) so the app's policies alone govern the table.`,
             target: `${target}.${policy.name}`,
             object: {
               kind: "policy",
@@ -81,9 +82,6 @@ export function widenedAppTablePolicies(
       });
   });
 }
-
-const APP_POLICIES =
-  /^-- (\S+): the app's policies govern this table \(ownTablePolicies "app"\), so the block adds no (\S+) for ([a-z, ]+)\.$/gm;
 
 export async function appTablesWithoutPolicies(
   context: DoctorContext,
@@ -100,21 +98,19 @@ export async function appTablesWithoutPolicies(
       continue;
     }
 
-    for (const [, target = "", , commands = ""] of file.contents.matchAll(
-      APP_POLICIES,
-    )) {
-      const entry = left.get(target) ?? {
+    for (const note of appTablePolicyNotes(file.contents)) {
+      const entry = left.get(note.table) ?? {
         blocks: new Set<string>(),
         commands: new Set<string>(),
       };
 
       entry.blocks.add(`blocks.${file.instance ?? file.module}`);
 
-      for (const command of commands.split(", ")) {
+      for (const command of note.commands) {
         entry.commands.add(command);
       }
 
-      left.set(target, entry);
+      left.set(note.table, entry);
     }
   }
 
@@ -126,7 +122,7 @@ export async function appTablesWithoutPolicies(
     const target = qualified(table);
     const entry = left.get(target);
 
-    if (entry === undefined || !table.rls) {
+    if (entry === undefined) {
       return [];
     }
 
@@ -145,11 +141,16 @@ export async function appTablesWithoutPolicies(
 
     const blocks = [...entry.blocks].join(" and ");
 
+    const state = table.rls
+      ? "has row level security on"
+      : "has row level security off, which the block's file turns on,";
+
     return [
       {
-        message: `${blocks} leaves the policies on ${target} to the app's (ownTablePolicies "app"), and ${target} has row level security on but no permissive policy for ${missing.join(", ")}, which the block's own policies would have granted. Postgres then denies those commands to every caller, so the block's functions that run as the caller and its TypeScript API find no rows for them. Add the app's policy for each command the app uses, or set ownTablePolicies to "block" for this block.`,
+        message: `${blocks} leaves the policies on ${target} to the app's (ownTablePolicies "app"), and ${target} ${state} but no permissive policy for ${missing.join(", ")}, which the block's own policies would have granted. Postgres then denies those commands to every caller, so the block's functions that run as the caller and its TypeScript API find no rows for them. Add the app's policy for each command the app uses, or set ownTablePolicies to "block" for this block.`,
         target,
         object: { kind: "table", schema: table.schema, name: table.name },
+        ...(missing.includes("select") ? {} : { severity: "info" as const }),
       },
     ];
   });

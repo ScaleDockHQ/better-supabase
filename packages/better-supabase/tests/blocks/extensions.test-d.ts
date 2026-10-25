@@ -40,7 +40,7 @@ describe("plugin extensions", () => {
     db.tags.delete("t", { hard: true });
   });
 
-  it("takes override on filter-form updates and deletes", () => {
+  it("takes override on filter-form updates", () => {
     expectTypeOf(
       db.customers.update(
         { where: { name: "A" } },
@@ -48,7 +48,11 @@ describe("plugin extensions", () => {
         { override: true },
       ),
     ).toEqualTypeOf<AsyncResult<{ count: number }>>();
-    db.customers.delete({ where: { name: "A" } }, { override: true });
+    db.customers.update(
+      { where: { name: "A" } },
+      { name: "B" },
+      { override: true, allowAll: false, returning: true, select: ["id"] },
+    );
   });
 
   it("keeps the base API intact", async () => {

@@ -1418,18 +1418,20 @@ the view work; the API calls that write it fail. Write those rows to the table
 under the view, add `instead of` triggers, or map the block's table to a table.
 See [Blocks over your schemas](/docs/blocks/own-schemas#views).
 
-## Auth config
-
 ### BS350
 
-**Info: app table governs its policies but lacks one for a command.** A
+**Warning: app table governs its policies but lacks one for a command.** A
 block runs over one of your tables with `ownTablePolicies: "app"`, so it adds
-none of its `bsb_` policies there, and the table has row level
-security on but no permissive policy for a command one of those policies
-would have granted. Postgres denies that command to every caller, so the
-block's functions that run as the caller and its TypeScript API find no rows
-for it. Add your own policy for each command your app uses, or set
+none of its `bsb_` policies there, and the table has no permissive policy for
+a command one of those policies would have granted. With row level security
+on, or off (the block's file turns it on), Postgres denies that command to
+every caller, so the block's functions that run as the caller and its
+TypeScript API find no rows for it. A missing `select` policy is a warning;
+a missing write policy is info, since your app may not write through the
+block. Add your own policy for each command your app uses, or set
 `ownTablePolicies` back to `block` for that block.
+
+## Auth config
 
 ### BS401
 

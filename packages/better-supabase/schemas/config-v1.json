@@ -3058,7 +3058,8 @@
         },
         "ownTablePolicies": {
           "enum": ["block", "app"],
-          "type": "string"
+          "type": "string",
+          "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
         },
         "functions": {
           "type": "object",
@@ -3243,7 +3244,8 @@
         },
         "ownTablePolicies": {
           "enum": ["block", "app"],
-          "type": "string"
+          "type": "string",
+          "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
         },
         "functions": {
           "type": "object",

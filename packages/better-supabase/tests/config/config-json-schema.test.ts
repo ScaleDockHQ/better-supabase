@@ -10,4 +10,39 @@ describe("schemas/config-v1.json", () => {
       JSON.parse(renderConfigSchema()),
     );
   });
+
+  it("describes ownTablePolicies globally and on every block entry", () => {
+    const found: unknown[] = [];
+
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          walk(item);
+        }
+      } else if (typeof node === "object" && node !== null) {
+        for (const [key, value] of Object.entries(node)) {
+          if (key === "ownTablePolicies") {
+            found.push(value);
+          }
+
+          walk(value);
+        }
+      }
+    };
+
+    walk(JSON.parse(renderConfigSchema()));
+
+    expect(found.length).toBeGreaterThanOrEqual(3);
+
+    for (const entry of found) {
+      expect(entry).toMatchObject({
+        enum: ["block", "app"],
+        description: expect.stringContaining(
+          "bsb_ policy, permissive or restrictive",
+        ),
+      });
+    }
+
+    expect(found).toContainEqual(expect.objectContaining({ default: "block" }));
+  });
 });

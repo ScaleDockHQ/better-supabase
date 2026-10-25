@@ -567,6 +567,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant.",
   },
+  "$defs.moduleConfig.ownTablePolicies": {
+    description:
+      "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block.",
+  },
   "$defs.moduleConfig.functions": {
     description:
       "Function name to the name the block writes it under, such as create_organization to start_company.",
@@ -576,6 +580,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "$defs.permissionsBlock.owner": {
     description:
       "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant.",
+  },
+  "$defs.permissionsBlock.ownTablePolicies": {
+    description:
+      "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block.",
   },
   "$defs.permissionsBlock.model": { default: "roles" },
   "$defs.permissionsBlock.platformClaim": { default: "platform_permissions" },

@@ -7510,6 +7510,7 @@
       "APP_TABLES_MARKER",
       "APP_TABLES_MODULE",
       "appTableEventTypes",
+      "appTablePolicyNotes",
       "appTablesFiles",
       "AUDIT_CATEGORIES",
       "auditRegistrations",

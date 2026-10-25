@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogPolicy } from "../../src/config/snapshot.ts";
 
 import {
+  appTablePolicyNotes,
   canonicalCondition,
   declaredPolicies,
   parsePolicy,
@@ -264,6 +265,24 @@ create policy bsb_teams_all on public.teams for all to authenticated using (true
         new Set(["public.t"]),
       ),
     ).toContain("adds no bsb_t_all for select, insert, update, delete.");
+  });
+
+  it("reads back the policies it left out, but not the restrictive ones", () => {
+    const sql = withoutAppTablePolicies(
+      `create policy bsb_t_all on public.t for all to authenticated using (true);
+create policy bsb_t_select on public.t for select to authenticated using (true);
+create policy bsb_tenant_scope on public.t as restrictive for all to authenticated using (true);`,
+      new Set(["public.t"]),
+    );
+
+    expect(appTablePolicyNotes(sql)).toEqual([
+      {
+        table: "public.t",
+        policy: "bsb_t_all",
+        commands: ["select", "insert", "update", "delete"],
+      },
+      { table: "public.t", policy: "bsb_t_select", commands: ["select"] },
+    ]);
   });
 
   it("keeps everything without app tables", () => {

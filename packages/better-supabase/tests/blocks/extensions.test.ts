@@ -103,11 +103,11 @@ describe("timestamps", () => {
   });
 });
 
-describe("server stamps", () => {
-  it("leaves timestamps and actors to the triggers with stamp server, still guarding them", async () => {
+describe("trigger stamps", () => {
+  it("leaves timestamps and actors to the triggers with stamp trigger, still guarding them", async () => {
     const db = base
-      .use(updatedAtExtension({ stamp: "server" }))
-      .use(createdByExtension({ stamp: "server" }));
+      .use(updatedAtExtension({ stamp: "trigger" }))
+      .use(createdByExtension({ stamp: "trigger" }));
 
     const { client, requests } = capturingClient(() => ({
       status: 201,
