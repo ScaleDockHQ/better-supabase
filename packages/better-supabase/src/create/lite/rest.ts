@@ -349,7 +349,8 @@ function statusOf(code: string, persona: Persona): number {
       return 409;
     }
 
-    case "42P01": {
+    case "42P01":
+    case "42883": {
       return 404;
     }
 
@@ -619,6 +620,7 @@ export async function handleRest(
 
   const wantsRows =
     request.method === "GET" ||
+    request.method === "HEAD" ||
     request.headers.get("prefer")?.includes("return=representation") === true;
 
   if (!wantsRows) {
