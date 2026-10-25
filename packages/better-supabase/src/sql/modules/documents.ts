@@ -88,6 +88,8 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      app: {},
+      optional: ["createdBy", "updatedAt"],
     },
     updates: {
       name: "document_updates",
@@ -100,6 +102,8 @@ const NAMES: BlockSqlNames = {
         actor: "actor",
         createdAt: "created_at",
       },
+      app: {},
+      optional: ["actor", "createdAt"],
     },
     snapshots: {
       name: "document_snapshots",
@@ -111,6 +115,8 @@ const NAMES: BlockSqlNames = {
         seq: "seq",
         createdAt: "created_at",
       },
+      app: {},
+      optional: ["createdAt"],
     },
     suggestions: {
       name: "document_suggestions",
@@ -128,6 +134,9 @@ const NAMES: BlockSqlNames = {
         decidedAt: "decided_at",
         note: "note",
       },
+      app: {},
+      optional: ["summary", "decidedBy", "decidedAt", "note"],
+      typed: ["status"],
     },
   },
 };
@@ -162,6 +171,20 @@ function build(ctx: BlockSqlContext): string {
   const suggestions = ctx.table("suggestions");
   const g = (column: string): string => ctx.col("suggestions", column);
   const fn = (name: string): string => ctx.fn(name);
+
+  /** `row.column`, or null when the table lacks the optional column. */
+  const opt = (table: string, row: string, column: string): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : "null";
+
+  // The column line of an optional column, empty when the table lacks it.
+  const line = (table: string, column: string, sql: () => string): string =>
+    ctx.has(table, column) ? `\n  ${sql()},` : "";
+
+  const unique = (table: string, what: string, columns: string): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${ctx.table(table)} (${columns});`;
+
   const read = ctx.permission("read", OPERATIONS["documents.read"]);
   const write = ctx.permission("write", OPERATIONS["documents.write"]);
   const suggest = ctx.permission("suggest", OPERATIONS["documents.suggest"]);
@@ -203,7 +226,7 @@ function build(ctx: BlockSqlContext): string {
     `(${canWrite(row)} or ${canSuggestOnly(row)})`;
 
   const suggestionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${g("id")}, 'documentId', ${row}.${g("document")}, 'summary', ${row}.${g("summary")}, 'status', ${row}.${g("status")}, 'createdBy', ${row}.${g("createdBy")}, 'createdAt', ${row}.${g("createdAt")}, 'decidedBy', ${row}.${g("decidedBy")}, 'decidedAt', ${row}.${g("decidedAt")}, 'note', ${row}.${g("note")}, 'update', ${b64(`${row}.${g("update")}`)})`;
+    `jsonb_build_object('id', ${row}.${g("id")}, 'documentId', ${row}.${g("document")}, 'summary', ${opt("suggestions", row, "summary")}, 'status', ${row}.${g("status")}, 'createdBy', ${row}.${g("createdBy")}, 'createdAt', ${row}.${g("createdAt")}, 'decidedBy', ${opt("suggestions", row, "decidedBy")}, 'decidedAt', ${opt("suggestions", row, "decidedAt")}, 'note', ${opt("suggestions", row, "note")}, 'update', ${b64(`${row}.${g("update")}`)})`;
 
   const suggestionEvent = (type: keyof DocumentsEvents): string =>
     ctx.record({
@@ -222,7 +245,7 @@ function build(ctx: BlockSqlContext): string {
     });
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'name', ${row}.${c("name")}, 'topic', ${sqlString(`${topic}:`)} || ${row}.${c("id")}::text, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'name', ${row}.${c("name")}, 'topic', ${sqlString(`${topic}:`)} || ${row}.${c("id")}::text, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${opt("documents", row, "updatedAt")})`;
 
   const notFound = fail("DOCUMENT_NOT_FOUND", "document not found", "P0002");
 
@@ -242,10 +265,14 @@ function build(ctx: BlockSqlContext): string {
 
   // Needs v_doc, v_seq and v_since in the calling function.
   const append = (bytes: string, actor: string): string =>
-    `insert into ${updates} (${u("document")}, ${u("tenant")}, ${u("update")}, ${u("actor")})
-  values (v_doc.${c("id")}, v_doc.${c("tenant")}, ${bytes}, ${actor})
-  returning ${u("seq")} into v_seq;
-  update ${documents} d set ${c("updatedAt")} = now() where d.${c("id")} = v_doc.${c("id")};
+    `insert into ${updates} (${u("document")}, ${u("tenant")}, ${u("update")}${ctx.has("updates", "actor") ? `, ${u("actor")}` : ""})
+  values (v_doc.${c("id")}, v_doc.${c("tenant")}, ${bytes}${ctx.has("updates", "actor") ? `, ${actor}` : ""})
+  returning ${u("seq")} into v_seq;${
+    ctx.has("documents", "updatedAt")
+      ? `
+  update ${documents} d set ${c("updatedAt")} = now() where d.${c("id")} = v_doc.${c("id")};`
+      : ""
+  }
   select count(*) into v_since from ${updates} x
   where x.${u("document")} = v_doc.${c("id")}
     and x.${u("seq")} > coalesce((select y.${s("seq")} from ${snapshots} y where y.${s("document")} = v_doc.${c("id")}), 0);
@@ -271,13 +298,11 @@ function build(ctx: BlockSqlContext): string {
   ${c("tenant")} ${ctx.idType} not null,
   ${c("subjectType")} text not null,
   ${c("subjectId")} text not null,
-  ${c("name")} text not null default 'body' check (${c("name")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${c("createdBy")} uuid,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("updatedAt")} timestamptz not null default now(),
+  ${c("name")} text not null default 'body' check (${c("name")} ~ '^[a-z][a-z0-9_-]{0,62}$'),${line("documents", "createdBy", () => `${c("createdBy")} uuid`)}
+  ${c("createdAt")} timestamptz not null default now(),${line("documents", "updatedAt", () => `${c("updatedAt")} timestamptz not null default now()`)}
   unique (${c("subjectType")}, ${c("subjectId")}, ${c("name")})
-);
-create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant_idx`)} on ${documents} (${c("tenant")}, ${c("updatedAt")} desc);
+);${unique("documents", "subject", `${c("subjectType")}, ${c("subjectId")}, ${c("name")}`)}
+create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant_idx`)} on ${documents} (${c("tenant")}${ctx.has("documents", "updatedAt") ? `, ${c("updatedAt")} desc` : ""});
 ${lockTable(documents, { read: true })}
 drop policy if exists ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents};
 create policy ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents} for select to authenticated
@@ -287,9 +312,14 @@ create table if not exists ${updates} (
   ${u("seq")} bigint generated always as identity primary key,
   ${u("document")} uuid not null references ${documents} (${c("id")}) on delete cascade,
   ${u("tenant")} ${ctx.idType} not null,
-  ${u("update")} bytea not null,
-  ${u("actor")} uuid,
-  ${u("createdAt")} timestamptz not null default now()
+  ${u("update")} bytea not null${[
+    ...(ctx.has("updates", "actor") ? [`${u("actor")} uuid`] : []),
+    ...(ctx.has("updates", "createdAt")
+      ? [`${u("createdAt")} timestamptz not null default now()`]
+      : []),
+  ]
+    .map((column) => `,\n  ${column}`)
+    .join("")}
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("updates").name}_${ctx.naming.rename("document")}_idx`)} on ${updates} (${u("document")}, ${u("seq")});
 ${lockTable(updates, { read: false })}
@@ -298,23 +328,28 @@ create table if not exists ${snapshots} (
   ${s("document")} uuid primary key references ${documents} (${c("id")}) on delete cascade,
   ${s("tenant")} ${ctx.idType} not null,
   ${s("state")} bytea not null,
-  ${s("seq")} bigint not null,
-  ${s("createdAt")} timestamptz not null default now()
-);
+  ${s("seq")} bigint not null${ctx.has("snapshots", "createdAt") ? `,\n  ${s("createdAt")} timestamptz not null default now()` : ""}
+);${unique("snapshots", "document", s("document"))}
 ${lockTable(snapshots, { read: false })}
 
 create table if not exists ${suggestions} (
   ${g("id")} uuid primary key default gen_random_uuid(),
   ${g("document")} uuid not null references ${documents} (${c("id")}) on delete cascade,
   ${g("tenant")} ${ctx.idType} not null,
-  ${g("update")} bytea not null,
-  ${g("summary")} text check (length(${g("summary")}) between 1 and 500),
+  ${g("update")} bytea not null,${line("suggestions", "summary", () => `${g("summary")} text check (length(${g("summary")}) between 1 and 500)`)}
   ${g("status")} text not null default 'open' check (${g("status")} in (${SUGGESTION_STATUSES.map(sqlString).join(", ")})),
   ${g("createdBy")} uuid,
-  ${g("createdAt")} timestamptz not null default now(),
-  ${g("decidedBy")} uuid,
-  ${g("decidedAt")} timestamptz,
-  ${g("note")} text check (length(${g("note")}) between 1 and 500)
+  ${g("createdAt")} timestamptz not null default now()${[
+    ...(ctx.has("suggestions", "decidedBy") ? [`${g("decidedBy")} uuid`] : []),
+    ...(ctx.has("suggestions", "decidedAt")
+      ? [`${g("decidedAt")} timestamptz`]
+      : []),
+    ...(ctx.has("suggestions", "note")
+      ? [`${g("note")} text check (length(${g("note")}) between 1 and 500)`]
+      : []),
+  ]
+    .map((column) => `,\n  ${column}`)
+    .join("")}
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("suggestions").name}_${ctx.naming.rename("document")}_idx`)} on ${suggestions} (${g("document")}, ${g("status")}, ${g("createdAt")});
 ${lockTable(suggestions, { read: false })}
@@ -520,8 +555,8 @@ begin
       ["text", "open_document.subject_id"],
       ["text", "open_document.name"],
     ])}
-    insert into ${documents} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("name")}, ${c("createdBy")})
-    values (open_document.tenant, open_document.subject_type, open_document.subject_id, open_document.name, auth.uid())
+    insert into ${documents} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("name")}${ctx.has("documents", "createdBy") ? `, ${c("createdBy")}` : ""})
+    values (open_document.tenant, open_document.subject_type, open_document.subject_id, open_document.name${ctx.has("documents", "createdBy") ? ", auth.uid()" : ""})
     on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("name")}) do nothing
     returning * into v_doc;
     if found then
@@ -621,8 +656,8 @@ begin
     ${fail("DOCUMENT_FORBIDDEN", "not allowed to suggest changes to this document")}
   end if;
   ${decodeUpdate("suggest_document_change.payload")}
-  insert into ${suggestions} (${g("document")}, ${g("tenant")}, ${g("update")}, ${g("summary")}, ${g("createdBy")})
-  values (v_doc.${c("id")}, v_doc.${c("tenant")}, v_bytes, nullif(trim(suggest_document_change.summary), ''), auth.uid())
+  insert into ${suggestions} (${g("document")}, ${g("tenant")}, ${g("update")}${ctx.has("suggestions", "summary") ? `, ${g("summary")}` : ""}, ${g("status")}, ${g("createdBy")})
+  values (v_doc.${c("id")}, v_doc.${c("tenant")}, v_bytes${ctx.has("suggestions", "summary") ? ", nullif(trim(suggest_document_change.summary), '')" : ""}, ${ctx.cast("suggestions", "status", "'open'")}, auth.uid())
   returning * into v_suggestion;
   ${suggestionEvent("document.suggested")}
   return ${suggestionJson("v_suggestion")};
@@ -650,7 +685,7 @@ begin
     select coalesce(jsonb_agg(${suggestionJson("x")} order by x.${g("createdAt")}, x.${g("id")}), '[]'::jsonb)
     from ${suggestions} x
     where x.${g("document")} = v_doc.${c("id")}
-      and (coalesce(list_document_suggestions.status, 'all') = 'all' or x.${g("status")} = list_document_suggestions.status)
+      and (coalesce(list_document_suggestions.status, 'all') = 'all' or x.${g("status")}::text = list_document_suggestions.status)
   );
 end;
 $$;
@@ -696,8 +731,18 @@ begin
     ${append(`v_suggestion.${g("update")}`, `v_suggestion.${g("createdBy")}`)}
   end if;
   update ${suggestions} x
-    set ${g("status")} = decide_document_suggestion.decision, ${g("decidedBy")} = auth.uid(), ${g("decidedAt")} = now(),
-      ${g("note")} = nullif(trim(decide_document_suggestion.note), '')
+    set ${[
+      `${g("status")} = ${ctx.cast("suggestions", "status", "decide_document_suggestion.decision")}`,
+      ...(ctx.has("suggestions", "decidedBy")
+        ? [`${g("decidedBy")} = auth.uid()`]
+        : []),
+      ...(ctx.has("suggestions", "decidedAt")
+        ? [`${g("decidedAt")} = now()`]
+        : []),
+      ...(ctx.has("suggestions", "note")
+        ? [`${g("note")} = nullif(trim(decide_document_suggestion.note), '')`]
+        : []),
+    ].join(", ")}
     where x.${g("id")} = v_suggestion.${g("id")}
     returning * into v_suggestion;
   if v_suggestion.${g("status")} = 'accepted' then
@@ -774,7 +819,7 @@ begin
   insert into ${snapshots} (${s("document")}, ${s("tenant")}, ${s("state")}, ${s("seq")})
   values (v_doc.${c("id")}, v_doc.${c("tenant")}, decode(compact_document.state, 'base64'), compact_document.through_seq)
   on conflict (${s("document")}) do update
-    set ${s("state")} = excluded.${s("state")}, ${s("seq")} = excluded.${s("seq")}, ${s("createdAt")} = now();
+    set ${s("state")} = excluded.${s("state")}, ${s("seq")} = excluded.${s("seq")}${ctx.has("snapshots", "createdAt") ? `, ${s("createdAt")} = now()` : ""};
   delete from ${updates} x where x.${u("document")} = v_doc.${c("id")} and x.${u("seq")} <= compact_document.through_seq;
   return true;
 end;

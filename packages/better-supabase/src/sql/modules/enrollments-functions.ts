@@ -55,11 +55,47 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
     "P0002",
   );
 
+  /** Column `column` of row `row` in `table`, or null when the table lacks it. */
+  const field = (table: string, row: string, column: string): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : "null";
+
+  const hasDescription = ctx.has("programs", "description");
+  const hasVersion = ctx.has("enrollments", "programVersion");
+
+  const programInsert = (
+    [
+      ["tenant", "save_enrollment_program.tenant"],
+      ["key", "v_key"],
+      ["name", "v_name"],
+      ["description", "v_description"],
+      ["subjectTypes", "v_types"],
+      ["steps", "v_steps"],
+      ["enabled", "v_enabled"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => ctx.has("programs", column));
+
+  const enrollmentInsert = (
+    [
+      ["tenant", "enrollment_ensure.tenant"],
+      ["program", "enrollment_ensure.program"],
+      ["programVersion", "enrollment_ensure.program_version"],
+      ["subjectType", "enrollment_ensure.subject_type"],
+      ["subjectId", "enrollment_ensure.subject_id"],
+      [
+        "user",
+        "case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end",
+      ],
+      ["steps", "enrollment_ensure.steps"],
+      ["enrolledBy", "enrollment_ensure.actor"],
+    ] as const
+  ).filter(([column]) => ctx.has("enrollments", column));
+
   const self = (row: string): string =>
     `(${row}.${e("user")} is not null and ${row}.${e("user")} = auth.uid())`;
 
   const programJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${row}.${p("description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'version', ${row}.${p("version")}, 'createdBy', ${row}.${p("createdBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${field("programs", row, "description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'version', ${row}.${p("version")}, 'createdBy', ${field("programs", row, "createdBy")}, 'createdAt', ${field("programs", row, "createdAt")}, 'updatedAt', ${field("programs", row, "updatedAt")})`;
 
   const programRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -101,7 +137,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   // status; a cancelled enrollment stays cancelled.
   const recount = (id: string, into: string): string => `update ${enrollments} x
   set ${e("completedSteps")} = ${count},
-    ${e("status")} = case when x.${e("status")} = 'cancelled' then 'cancelled' when ${done(count)} then 'completed' else 'active' end,
+    ${e("status")} = ${ctx.cast("enrollments", "status", `case when x.${e("status")} = 'cancelled' then 'cancelled' when ${done(count)} then 'completed' else 'active' end`)},
     ${e("completedAt")} = case when x.${e("status")} <> 'cancelled' and ${done(count)} then coalesce(x.${e("completedAt")}, now()) end,
     ${e("updatedAt")} = now()
   where x.${e("id")} = ${id}
@@ -119,7 +155,7 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'id', x.${e("id")}, 'organizationId', x.${e("tenant")}, 'program', x.${e("program")}, 'programVersion', x.${e("programVersion")},
+    'id', x.${e("id")}, 'organizationId', x.${e("tenant")}, 'program', x.${e("program")}, 'programVersion', ${field("enrollments", "x", "programVersion")},
     'subjectType', x.${e("subjectType")}, 'subjectId', x.${e("subjectId")}, 'status', x.${e("status")},
     'steps', to_jsonb(x.${e("steps")}), 'completedSteps', x.${e("completedSteps")}, 'totalSteps', cardinality(x.${e("steps")}),
     'enrolledBy', x.${e("enrolledBy")}, 'enrolledAt', x.${e("enrolledAt")}, 'completedAt', x.${e("completedAt")},
@@ -153,9 +189,8 @@ begin
     and x.${e("subjectType")} = enrollment_ensure.subject_type and x.${e("subjectId")} = enrollment_ensure.subject_id
   for update;
   if v_row.${e("id")} is null then
-    insert into ${enrollments} (${e("tenant")}, ${e("program")}, ${e("programVersion")}, ${e("subjectType")}, ${e("subjectId")}, ${e("user")}, ${e("steps")}, ${e("enrolledBy")})
-    values (enrollment_ensure.tenant, enrollment_ensure.program, enrollment_ensure.program_version, enrollment_ensure.subject_type, enrollment_ensure.subject_id,
-      case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end, enrollment_ensure.steps, enrollment_ensure.actor)
+    insert into ${enrollments} (${enrollmentInsert.map(([column]) => e(column)).join(", ")})
+    values (${enrollmentInsert.map(([, value]) => value).join(", ")})
     on conflict do nothing
     returning * into v_row;
     if v_row.${e("id")} is null then
@@ -166,8 +201,8 @@ begin
     end if;${emit("enrollment.created", "v_row")}
     return v_row.${e("id")};
   end if;
-  if v_row.${e("steps")} is distinct from enrollment_ensure.steps or v_row.${e("programVersion")} is distinct from enrollment_ensure.program_version then
-    update ${enrollments} x set ${e("steps")} = enrollment_ensure.steps, ${e("programVersion")} = enrollment_ensure.program_version
+  if v_row.${e("steps")} is distinct from enrollment_ensure.steps${hasVersion ? ` or v_row.${e("programVersion")} is distinct from enrollment_ensure.program_version` : ""} then
+    update ${enrollments} x set ${e("steps")} = enrollment_ensure.steps${hasVersion ? `, ${e("programVersion")} = enrollment_ensure.program_version` : ""}
     where x.${e("id")} = v_row.${e("id")};
     ${recount(`v_row.${e("id")}`, "v_row")}
   end if;
@@ -272,7 +307,7 @@ begin
   v_key := coalesce(save_enrollment_program.program ->> 'key', v_old.${p("key")});
   v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old.${p("name")}));
   v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old.${p("description")} end;
+    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else ${field("programs", "v_old", "description")} end;
   v_types := case when save_enrollment_program.program ? 'subjectTypes'
     then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old.${p("subjectTypes")}, '{}') end;
@@ -318,8 +353,8 @@ begin
     from jsonb_array_elements(v_steps) with ordinality as t(value, ord)
   );
   if v_old.${p("id")} is null then
-    insert into ${programs} (${p("tenant")}, ${p("key")}, ${p("name")}, ${p("description")}, ${p("subjectTypes")}, ${p("steps")}, ${p("enabled")}, ${p("createdBy")})
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    insert into ${programs} (${programInsert.map(([column]) => p(column)).join(", ")})
+    values (${programInsert.map(([, value]) => value).join(", ")})
     on conflict (${p("tenant")}, ${p("key")}) do nothing
     returning * into v_row;
     if v_row.${p("id")} is null then
@@ -327,10 +362,14 @@ begin
     end if;
   else
     update ${programs} x
-    set ${p("name")} = v_name, ${p("description")} = v_description, ${p("subjectTypes")} = v_types, ${p("steps")} = v_steps,
+    set ${p("name")} = v_name,${hasDescription ? ` ${p("description")} = v_description,` : ""} ${p("subjectTypes")} = v_types, ${p("steps")} = v_steps,
       ${p("enabled")} = v_enabled,
-      ${p("version")} = x.${p("version")} + case when x.${p("steps")} is distinct from v_steps then 1 else 0 end,
-      ${p("updatedAt")} = now()
+      ${p("version")} = x.${p("version")} + case when x.${p("steps")} is distinct from v_steps then 1 else 0 end${
+        ctx.has("programs", "updatedAt")
+          ? `,
+      ${p("updatedAt")} = now()`
+          : ""
+      }
     where x.${p("id")} = v_old.${p("id")}
     returning * into v_row;
   end if;
@@ -429,7 +468,7 @@ begin
   if v_row.${e("status")} = 'cancelled' then
     update ${enrollments} x
     set ${e("status")} = 'active', ${e("cancelledAt")} = null, ${e("enrolledBy")} = auth.uid(), ${e("enrolledAt")} = now(),
-      ${e("steps")} = v_steps, ${e("programVersion")} = v_program.${p("version")}
+      ${e("steps")} = v_steps${hasVersion ? `, ${e("programVersion")} = v_program.${p("version")}` : ""}
     where x.${e("id")} = v_row.${e("id")};
     ${recount(`v_row.${e("id")}`, "v_row")}${emit("enrollment.created", "v_row")}
     v_id := v_row.${e("id")};
@@ -490,7 +529,7 @@ begin
         and (list_enrollments.program is null or x.${e("program")} = list_enrollments.program)
         and (list_enrollments.subject_type is null or x.${e("subjectType")} = list_enrollments.subject_type)
         and (list_enrollments.subject_id is null or x.${e("subjectId")} = list_enrollments.subject_id)
-        and (list_enrollments.status is null or x.${e("status")} = list_enrollments.status)
+        and (list_enrollments.status is null or x.${e("status")} = ${ctx.cast("enrollments", "status", "list_enrollments.status")})
         and (list_enrollments.before is null or x.${e("updatedAt")} < list_enrollments.before)
       order by x.${e("updatedAt")} desc, x.${e("id")}
       limit ${pageSize("list_enrollments.page_size", 50, 200)}

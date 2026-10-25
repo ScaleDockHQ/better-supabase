@@ -59,6 +59,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     segments: {
       name: "segments",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -73,9 +74,11 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["description", "createdBy"],
     },
     members: {
       name: "segment_members",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         segment: "segment_id",
@@ -98,6 +101,8 @@ interface SegmentNames {
   readonly t: (table: string) => string;
   readonly s: (column: string) => string;
   readonly m: (column: string) => string;
+  /** Whether the segments table has an optional column. */
+  readonly has: (column: string) => boolean;
   readonly read: string;
   readonly edit: string;
   readonly maxMembers: number;
@@ -119,6 +124,7 @@ function names(ctx: BlockSqlContext): SegmentNames {
     t: (table) => ctx.table(table),
     s: (column) => ctx.col("segments", column),
     m: (column) => ctx.col("members", column),
+    has: (column) => ctx.has("segments", column),
     read: ctx.permission("read", keys.read),
     edit: ctx.permission("edit", keys.edit),
     maxMembers,
@@ -136,26 +142,27 @@ function tables(ctx: BlockSqlContext, n: SegmentNames): string {
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
   ${s("name")} text not null check (length(${s("name")}) between 1 and 200),
-  ${s("description")} text check (length(${s("description")}) <= 2000),
-  ${s("subjectType")} text not null check (${s("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
+${n.has("description") ? `  ${s("description")} text check (length(${s("description")}) <= 2000),\n` : ""}  ${s("subjectType")} text not null check (${s("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${s("conditions")} jsonb not null check (jsonb_typeof(${s("conditions")}) = 'object'),
   ${s("memberCount")} integer not null default 0,
   ${s("refreshedAt")} timestamptz,
-  ${s("createdBy")} uuid references auth.users (id) on delete set null,
-  ${s("createdAt")} timestamptz not null default now(),
+${n.has("createdBy") ? `  ${s("createdBy")} uuid references auth.users (id) on delete set null,\n` : ""}  ${s("createdAt")} timestamptz not null default now(),
   ${s("updatedAt")} timestamptz not null default now(),
   unique (${s("tenant")}, ${s("name")})
 );
 create index if not exists ${ctx.naming.rename("segments_due_idx")} on ${t("segments")} (${s("refreshedAt")} nulls first);
-create index if not exists ${ctx.naming.rename("segments_created_by_idx")} on ${t("segments")} (${s("createdBy")}) where ${s("createdBy")} is not null;
-${lockTable(t("segments"), { read: true })}
+${n.has("createdBy") ? `create index if not exists ${ctx.naming.rename("segments_created_by_idx")} on ${t("segments")} (${s("createdBy")}) where ${s("createdBy")} is not null;\n` : ""}${lockTable(t("segments"), { read: true })}
 create table if not exists ${t("members")} (
   ${m("segment")} uuid not null references ${t("segments")} (${s("id")}) on delete cascade,
   ${m("tenant")} ${ctx.idType} not null,
   ${m("subjectId")} text not null,
   ${m("enteredAt")} timestamptz not null default now(),
   primary key (${m("segment")}, ${m("subjectId")})
-);
+);${
+    ctx.owns("members")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("members").name}_subject_key`)} on ${t("members")} (${m("segment")}, ${m("subjectId")});`
+  }
 create index if not exists ${ctx.naming.rename("segment_members_subject_idx")} on ${t("members")} (${m("tenant")}, ${m("subjectId")});
 ${lockTable(t("members"), { read: true })}
 drop policy if exists ${policy("segments")} on ${t("segments")};
@@ -238,8 +245,14 @@ function functions(ctx: BlockSqlContext, n: SegmentNames): string {
   const known = n.subjects.map((subject) => sqlString(subject.type));
   const knownList = known.length === 0 ? "(null)" : `(${known.join(", ")})`;
 
+  const optional = (row: string, column: string): string =>
+    n.has(column) ? `${row}.${s(column)}` : "null";
+
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'name', ${row}.${s("name")}, 'description', ${row}.${s("description")}, 'subjectType', ${row}.${s("subjectType")}, 'conditions', ${row}.${s("conditions")}, 'memberCount', ${row}.${s("memberCount")}, 'refreshedAt', ${row}.${s("refreshedAt")}, 'createdBy', ${row}.${s("createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'name', ${row}.${s("name")}, 'description', ${optional(row, "description")}, 'subjectType', ${row}.${s("subjectType")}, 'conditions', ${row}.${s("conditions")}, 'memberCount', ${row}.${s("memberCount")}, 'refreshedAt', ${row}.${s("refreshedAt")}, 'createdBy', ${optional(row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+
+  const optionalColumn = (column: string): string =>
+    n.has(column) ? `${s(column)}, ` : "";
 
   const segmentRecord = (event: string, row: string): string =>
     ctx.record({
@@ -312,7 +325,13 @@ begin
   if v_name is null or length(v_name) > 200 then
     ${fail("SEGMENT_INVALID", "A segment needs a name of at most 200 characters", "22023")}
   end if;
-  v_description := case when segment ? 'description' then nullif(trim(segment ->> 'description'), '') else v_old.${s("description")} end;
+${
+  n.has("description")
+    ? `  v_description := case when segment ? 'description' then nullif(trim(segment ->> 'description'), '') else v_old.${s("description")} end;`
+    : `  if nullif(trim(segment ->> 'description'), '') is not null then
+    ${fail("SEGMENT_DESCRIPTION_UNSUPPORTED", "this segments table has no description column", "22023")}
+  end if;`
+}
   v_conditions := coalesce(segment -> 'conditions', v_old.${s("conditions")});
   if jsonb_typeof(v_conditions) is distinct from 'object' then
     ${fail("SEGMENT_INVALID", "A segment needs conditions, a filter tree", "22023")}
@@ -323,17 +342,16 @@ begin
   end if;
   perform ${check}(v_conditions, v_fields, 1);
   if v_old.${s("id")} is null then
-    insert into ${t("segments")} (${s("tenant")}, ${s("name")}, ${s("description")}, ${s("subjectType")}, ${s("conditions")}, ${s("createdBy")})
-    values (save_segment.tenant, v_name, v_description, v_type, v_conditions, auth.uid())
+    insert into ${t("segments")} (${s("tenant")}, ${s("name")}, ${optionalColumn("description")}${s("subjectType")}, ${s("conditions")}${n.has("createdBy") ? `, ${s("createdBy")}` : ""})
+    values (save_segment.tenant, v_name, ${n.has("description") ? "v_description, " : ""}v_type, v_conditions${n.has("createdBy") ? ", auth.uid()" : ""})
     returning * into v_row;
-  elsif v_old.${s("name")} = v_name and v_old.${s("description")} is not distinct from v_description
+  elsif v_old.${s("name")} = v_name${n.has("description") ? ` and v_old.${s("description")} is not distinct from v_description` : ""}
     and v_old.${s("conditions")} = v_conditions then
     return ${json("v_old")};
   else
     update ${t("segments")} x set
       ${s("name")} = v_name,
-      ${s("description")} = v_description,
-      ${s("conditions")} = v_conditions,
+${n.has("description") ? `      ${s("description")} = v_description,\n` : ""}      ${s("conditions")} = v_conditions,
       ${s("refreshedAt")} = case when x.${s("conditions")} = v_conditions then x.${s("refreshedAt")} end,
       ${s("updatedAt")} = now()
     where x.${s("id")} = v_old.${s("id")}

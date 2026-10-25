@@ -14,6 +14,11 @@ export interface SequenceSql {
   readonly e: (column: string) => string;
   /** A column of the enrollment steps table, the completed steps. */
   readonly d: (column: string) => string;
+  readonly has: (table: string, column: string) => boolean;
+  /** `alias`'s optional column of `table`, or null when the table has none. */
+  readonly opt: (alias: string, table: string, column: string) => string;
+  /** A text expression written to a fixed-value column of `table`. */
+  readonly cast: (table: string, column: string, value: string) => string;
   readonly sequences: string;
   readonly members: string;
   readonly enrollments: string;
@@ -80,6 +85,10 @@ export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
     r,
     e: (column) => enrolled.col("enrollments", column),
     d: (column) => enrolled.col("steps", column),
+    has: (table, column) => ctx.has(table, column),
+    opt: (alias, table, column) =>
+      ctx.has(table, column) ? `${alias}.${ctx.col(table, column)}` : "null",
+    cast: (table, column, value) => ctx.cast(table, column, value),
     sequences: ctx.table("sequences"),
     members: ctx.table("members"),
     enrollments: enrolled.table("enrollments"),
@@ -102,7 +111,7 @@ export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
     ),
     program: (sequence) => `('sequence:' || ${sequence}::text)`,
     sequenceJson: (row) =>
-      `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'key', ${row}.${s("key")}, 'name', ${row}.${s("name")}, 'description', ${row}.${s("description")}, 'status', ${row}.${s("status")}, 'exitOnReply', ${row}.${s("exitOnReply")}, 'accountId', ${row}.${s("account")}, 'steps', ${row}.${s("steps")}, 'version', ${row}.${s("version")}, 'createdBy', ${row}.${s("createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'key', ${row}.${s("key")}, 'name', ${row}.${s("name")}, 'description', ${ctx.has("sequences", "description") ? `${row}.${s("description")}` : "null"}, 'status', ${row}.${s("status")}, 'exitOnReply', ${row}.${s("exitOnReply")}, 'accountId', ${row}.${s("account")}, 'steps', ${row}.${s("steps")}, 'version', ${row}.${s("version")}, 'createdBy', ${row}.${s("createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`,
     memberRecord: (type, summary, step = "null::text", reason = "null::text") =>
       ctx.record({
         type,

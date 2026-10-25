@@ -47,7 +47,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     models: {
       name: "score_models",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      optional: ["description", "createdBy", "createdAt", "updatedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -67,7 +69,9 @@ const NAMES: BlockSqlNames = {
     },
     versions: {
       name: "score_model_versions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "savedBy", export: true },
+      optional: ["savedBy", "savedAt"],
       columns: {
         model: "model_id",
         version: "version",
@@ -81,7 +85,9 @@ const NAMES: BlockSqlNames = {
     },
     scores: {
       name: "scores",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["breakdown"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -118,15 +124,25 @@ function build(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (ident: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
+  const versionKey = ctx.owns("versions")
+    ? ""
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("versions").name}_version_key`)} on ${versions} (${v("model")}, ${v("version")});`;
+
   const tables = ctx.manages
     ? `create table if not exists ${models} (
   ${m("id")} uuid primary key default gen_random_uuid(),
   ${m("tenant")} ${ctx.idType} not null,
   -- lead, health, or the app's own key.
   ${m("key")} text not null check (${m("key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${m("name")} text not null check (length(${m("name")}) between 1 and 200),
-  ${m("description")} text check (${m("description")} is null or length(${m("description")}) <= 2000),
-  ${m("subjectType")} text not null check (${m("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  ${m("name")} text not null check (length(${m("name")}) between 1 and 200),${optional("models", "description", (c) => `${c} text check (${c} is null or length(${c}) <= 2000)`)}
+  ${m("subjectType")} text not null check (${m("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
   ${jsonArray(m("rules"))},
@@ -135,10 +151,7 @@ function build(ctx: BlockSqlContext): string {
   -- [{ label, min }], highest min first: the first band the score reaches.
   ${jsonArray(m("bands"))},
   ${m("enabled")} boolean not null default true,
-  ${m("version")} integer not null default 1,
-  ${m("createdBy")} uuid,
-  ${m("createdAt")} timestamptz not null default now(),
-  ${m("updatedAt")} timestamptz not null default now(),
+  ${m("version")} integer not null default 1,${optional("models", "createdBy", (c) => `${c} uuid`)}${optional("models", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("models", "updatedAt", (c) => `${c} timestamptz not null default now()`)}
   unique (${m("tenant")}, ${m("key")})
 );
 create index if not exists ${name("models", "subject_idx")} on ${models} (${m("tenant")}, ${m("subjectType")});
@@ -149,11 +162,9 @@ create table if not exists ${versions} (
   ${v("tenant")} ${ctx.idType} not null,
   ${jsonArray(v("rules"))},
   ${jsonArray(v("metrics"))},
-  ${jsonArray(v("bands"))},
-  ${v("savedBy")} uuid,
-  ${v("savedAt")} timestamptz not null default now(),
+  ${jsonArray(v("bands"))},${optional("versions", "savedBy", (c) => `${c} uuid`)}${optional("versions", "savedAt", (c) => `${c} timestamptz not null default now()`)}
   primary key (${v("model")}, ${v("version")})
-);
+);${versionKey}
 
 create table if not exists ${scores} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -163,9 +174,13 @@ create table if not exists ${scores} (
   ${s("subjectType")} text not null,
   ${s("subjectId")} text not null,
   ${s("score")} numeric not null,
-  ${s("band")} text,
+  ${s("band")} text,${
+    ctx.has("scores", "breakdown")
+      ? `
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  ${s("breakdown")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${s("breakdown")}) = 'object'),
+  ${s("breakdown")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${s("breakdown")}) = 'object'),`
+      : ""
+  }
   ${s("current")} boolean not null default true,
   ${s("computedAt")} timestamptz not null default now()
 );

@@ -20,6 +20,12 @@ export function logsBookings(
     );
   }
 
+  if (!ctx.has("engagements", "externalRef")) {
+    throw new TypeError(
+      "blocks.activities.options.bookings needs the engagements externalRef column",
+    );
+  }
+
   if (!types.includes(MEETING)) {
     throw new TypeError(
       'blocks.activities.options.bookings needs "meeting" in blocks.activities.options.types',
@@ -52,6 +58,31 @@ export function bookingEngagementsSql(ctx: BlockSqlContext): string {
     ? `new.${b("notes")}`
     : "null::text";
 
+  const has = (column: string): boolean => ctx.has("engagements", column);
+
+  const met = (
+    [
+      ["tenant", "v_tenant"],
+      ["type", `'${MEETING}'`],
+      ["title", "coalesce(v_title, 'Booking')"],
+      ["body", notes],
+      ["owner", "v_owner"],
+      ["dueAt", `lower(new.${b("during")})`],
+      [
+        "durationSeconds",
+        `extract(epoch from upper(new.${b("during")}) - lower(new.${b("during")}))::integer`,
+      ],
+      ["externalRef", "v_ref"],
+      ["createdBy", createdBy],
+    ] as const
+  ).filter(([column]) => has(column));
+
+  const touched = has("updatedAt") ? `, ${e("updatedAt")} = now()` : "";
+
+  const order = ctx.has("links", "position")
+    ? `sx.${l("position")}`
+    : `sx.${l("subjectType")}, sx.${l("subjectId")}`;
+
   const parties = ctx.installed("contacts") ? ctx.of("contacts") : undefined;
 
   const linkParties =
@@ -74,7 +105,7 @@ export function bookingEngagementsSql(ctx: BlockSqlContext): string {
     });
 
   const subjects = `
-    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by sx.${l("position")}) from ${t("links")} sx where sx.${l("engagement")} = v_id), '[]'::jsonb);
+    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${order}) from ${t("links")} sx where sx.${l("engagement")} = v_id), '[]'::jsonb);
     v_first := v_subjects -> 0;`;
 
   return `
@@ -106,12 +137,11 @@ begin
     select left(coalesce(sv.${s("name")}, 'Booking') || coalesce(' with ' || nullif(trim(new.${b("customerName")}), ''), ''), 500)
     into v_title
     from ${bookings.table("services")} sv where sv.${s("id")} = new.${b("service")};
-    insert into ${t("engagements")} (${e("tenant")}, ${e("type")}, ${e("title")}, ${e("body")}, ${e("owner")}, ${e("dueAt")}, ${e("durationSeconds")}, ${e("externalRef")}, ${e("createdBy")})
-    values (v_tenant, '${MEETING}', coalesce(v_title, 'Booking'), ${notes}, v_owner, lower(new.${b("during")}),
-      extract(epoch from upper(new.${b("during")}) - lower(new.${b("during")}))::integer, v_ref, ${createdBy})
+    insert into ${t("engagements")} (${met.map(([column]) => e(column)).join(", ")})
+    values (${met.map(([, value]) => value).join(", ")})
     on conflict (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null do update set
-      ${e("dueAt")} = excluded.${e("dueAt")}, ${e("durationSeconds")} = excluded.${e("durationSeconds")},
-      ${e("doneAt")} = null, ${e("outcome")} = null, ${e("updatedAt")} = now()
+      ${e("dueAt")} = excluded.${e("dueAt")},${has("durationSeconds") ? ` ${e("durationSeconds")} = excluded.${e("durationSeconds")},` : ""}
+      ${e("doneAt")} = null, ${e("outcome")} = null${touched}
     returning ${e("id")}, (xmax = 0) into v_id, v_inserted;${linkParties.link}${subjects}
     if v_inserted then
       ${record("engagement.logged")}
@@ -121,8 +151,7 @@ begin
   elsif new.${b("status")} = 'cancelled' and tg_op = 'UPDATE' and old.${b("status")} = 'confirmed' then
     update ${t("engagements")} x set
       ${e("doneAt")} = coalesce(new.${b("cancelledAt")}, now()),
-      ${e("outcome")} = left('cancelled' || coalesce(': ' || nullif(trim(new.${b("cancelReason")}), ''), ''), 500),
-      ${e("updatedAt")} = now()
+      ${e("outcome")} = left('cancelled' || coalesce(': ' || nullif(trim(new.${b("cancelReason")}), ''), ''), 500)${has("updatedAt") ? `,\n      ${e("updatedAt")} = now()` : ""}
     where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = v_ref and x.${e("doneAt")} is null
     returning x.${e("id")} into v_id;
     if v_id is not null then${subjects}
@@ -154,6 +183,8 @@ function partyLinksSql(
   const co = (column: string): string => parties.col("companies", column);
   const li = (column: string): string => parties.col("links", column);
   const l = (column: string): string => ctx.col("links", column);
+  const ranked = ctx.has("links", "position");
+  const position = ranked ? `, ${l("position")}` : "";
   const person = sqlString(parties.naming.rename("person"));
   const company = sqlString(parties.naming.rename("company"));
 
@@ -169,11 +200,11 @@ function partyLinksSql(
     v_owner := coalesce(v_owner, v_person_owner);`,
     link: `
     if v_person is not null then
-      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}, ${l("position")})
-      values (v_tenant, v_id, ${person}, v_person::text, 1)
+      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${position})
+      values (v_tenant, v_id, ${person}, v_person::text${ranked ? ", 1" : ""})
       on conflict do nothing;
-      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}, ${l("position")})
-      select v_tenant, v_id, ${company}, c.${co("id")}::text, 2
+      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${position})
+      select v_tenant, v_id, ${company}, c.${co("id")}::text${ranked ? ", 2" : ""}
       from ${parties.table("links")} k
       join ${parties.table("companies")} c on c.${co("id")} = k.${li("company")}
       where k.${li("person")} = v_person and c.${co("archivedAt")} is null

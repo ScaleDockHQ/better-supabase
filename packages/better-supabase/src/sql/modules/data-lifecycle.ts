@@ -15,6 +15,7 @@ import {
   raise,
 } from "../shared.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
+import { asText, lifecycleJson } from "./data-lifecycle-app.ts";
 import { autoTablesOf, autoTablesSql } from "./data-lifecycle-auto-tables.ts";
 import {
   CREDENTIALS_CONTRACT,
@@ -66,6 +67,9 @@ const NAMES: BlockSqlNames = {
         completedAt: "completed_at",
         expiresAt: "expires_at",
       },
+      app: {},
+      optional: ["error"],
+      typed: ["status", "subject"],
     },
     deletions: {
       name: "organization_deletions",
@@ -78,6 +82,8 @@ const NAMES: BlockSqlNames = {
         purgedAt: "purged_at",
         previouslyDisabled: "previously_disabled",
       },
+      app: {},
+      optional: ["requestedBy", "requestedAt"],
     },
     ...RETENTION_TABLES,
   },
@@ -95,6 +101,19 @@ function build(ctx: BlockSqlContext): string {
   const cd = (logical: string): string => ctx.col("deletions", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("data-lifecycle");
+
+  const exportJson = (row: string, whole?: string): string =>
+    lifecycleJson(ctx, "exports", row, whole);
+
+  const deletionJson = (row: string, whole?: string): string =>
+    lifecycleJson(ctx, "deletions", row, whole);
+
+  const errored = ctx.has("exports", "error");
+
+  const requested = (logical: string): boolean => ctx.has("deletions", logical);
+
+  const subjectOf = (row: string): string =>
+    asText(ctx, "exports", `${row}.${ce("subject")}`);
 
   const can = (tenant: string, action: keyof typeof permissions): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
@@ -248,8 +267,7 @@ create table if not exists ${e} (
   ${ce("status")} text not null default 'pending' check (${ce("status")} in ('pending', 'running', 'ready', 'failed')),
   ${ce("bucket")} text not null default ${bucket},
   ${ce("files")} text[] not null default '{}',
-  ${ce("error")} text,
-  ${ce("requestedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
+${errored ? `  ${ce("error")} text,\n` : ""}  ${ce("requestedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
   ${ce("requestedAt")} timestamptz not null default now(),
   ${ce("completedAt")} timestamptz,
   ${ce("expiresAt")} timestamptz,
@@ -273,16 +291,13 @@ create policy "data_exports_read" on ${e} for select to authenticated
 -- disabled before.
 create table if not exists ${d} (
   ${cd("tenant")} ${id} primary key,
-  ${cd("requestedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${cd("requestedAt")} timestamptz not null default now(),
-  ${cd("purgeAfter")} timestamptz not null,
+${requested("requestedBy") ? `  ${cd("requestedBy")} uuid references auth.users (id) on delete set null default auth.uid(),\n` : ""}${requested("requestedAt") ? `  ${cd("requestedAt")} timestamptz not null default now(),\n` : ""}  ${cd("purgeAfter")} timestamptz not null,
   ${cd("cancelledAt")} timestamptz,
   ${cd("purgedAt")} timestamptz,
   ${cd("previouslyDisabled")} boolean not null default false
 );
 create index if not exists ${ctx.naming.rename("organization_deletions_due_idx")} on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
-create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
-${lockTable(d)}
+${requested("requestedBy") ? `create index if not exists ${ctx.naming.rename("organization_deletions_requested_by_idx")} on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;\n` : ""}${ctx.owns("deletions") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("deletions").name}_tenant_key`)} on ${d} (${cd("tenant")});\n`}${lockTable(d)}
 
 ${retentionSql(ctx)}
 
@@ -358,7 +373,7 @@ begin
   else
     ${fail("DATA_EXPORT_SUBJECT", "subject must be user or organization", "22023")}
   end if;
-  return to_jsonb(v_row);
+  return ${exportJson("v_row")};
 end;
 $$;
 
@@ -369,7 +384,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${ce("requestedAt")} desc, x.${ce("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${exportJson("x", "x.*")} order by x.${ce("requestedAt")} desc, x.${ce("id")}), '[]'::jsonb)
   from ${e} x
   where case when list_data_exports.tenant is null
     then x.${ce("subject")} = 'user' and x.${ce("user")} = auth.uid()
@@ -384,7 +399,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x.*) from ${e} x where x.${ce("id")} = get_data_export.id
+  select ${exportJson("x", "x.*")} from ${e} x where x.${ce("id")} = get_data_export.id
 $$;
 
 -- Starts a pending (or failed) export and returns it with the tables to
@@ -401,16 +416,16 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
-  update ${e} x set ${ce("status")} = 'running', ${ce("error")} = null
+  update ${e} x set ${ce("status")} = 'running'${errored ? `, ${ce("error")} = null` : ""}
   where x.${ce("id")} = claim_data_export.id and x.${ce("status")} in ('pending', 'failed')
   returning * into v_row;
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('tables', (
+  return ${exportJson("v_row")} || jsonb_build_object('tables', (
     select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
     from ${fn("data_lifecycle_tables")}() t
-    where t.subject = v_row.${ce("subject")} and t.exported and to_regclass(t.tbl) is not null
+    where t.subject = ${subjectOf("v_row")} and t.exported and to_regclass(t.tbl) is not null
   ));
 end;
 $$;
@@ -438,7 +453,7 @@ begin
     ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
   select * into v_table from ${fn("data_lifecycle_tables")}() t
-  where t.subject = v_row.${ce("subject")} and t.name = data_export_rows.table_name and t.exported;
+  where t.subject = ${subjectOf("v_row")} and t.name = data_export_rows.table_name and t.exported;
   if v_table.tbl is null or to_regclass(v_table.tbl) is null then
     ${raise("The export has no table %", "22023", "DATA_EXPORT_TABLE", "data_export_rows.table_name")}
   end if;
@@ -479,7 +494,7 @@ begin
     ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
   ${exportEvent("data_export.completed", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`, true)}
-  return to_jsonb(v_row);
+  return ${exportJson("v_row")};
 end;
 $$;
 
@@ -495,14 +510,14 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
   end if;
-  update ${e} x set ${ce("status")} = 'failed', ${ce("error")} = fail_data_export.error, ${ce("completedAt")} = now()
+  update ${e} x set ${ce("status")} = 'failed', ${errored ? `${ce("error")} = fail_data_export.error, ` : ""}${ce("completedAt")} = now()
   where x.${ce("id")} = fail_data_export.id and x.${ce("status")} = 'running'
   returning * into v_row;
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  ${exportEvent("data_export.failed", `, 'error', v_row.${ce("error")}`, true)}
-  return to_jsonb(v_row);
+  ${exportEvent("data_export.failed", `, 'error', ${errored ? `v_row.${ce("error")}` : "fail_data_export.error"}`, true)}
+  return ${exportJson("v_row")};
 end;
 $$;
 
@@ -528,17 +543,15 @@ begin
     ${fail("ORGANIZATION_PURGED", "The organization was already purged", "P0002")}
   end if;
   ${disableSql}
-  insert into ${d} as x (${cd("tenant")}, ${cd("requestedBy")}, ${cd("purgeAfter")}, ${cd("previouslyDisabled")})
-  values (request_organization_deletion.tenant, auth.uid(), now() + request_organization_deletion.grace, coalesce(v_disabled, false))
+  insert into ${d} as x (${cd("tenant")}, ${requested("requestedBy") ? `${cd("requestedBy")}, ` : ""}${cd("purgeAfter")}, ${cd("previouslyDisabled")})
+  values (request_organization_deletion.tenant, ${requested("requestedBy") ? "auth.uid(), " : ""}now() + request_organization_deletion.grace, coalesce(v_disabled, false))
   on conflict (${cd("tenant")}) do update set
-    ${cd("requestedBy")} = excluded.${cd("requestedBy")},
-    ${cd("requestedAt")} = now(),
-    ${cd("purgeAfter")} = excluded.${cd("purgeAfter")},
+${requested("requestedBy") ? `    ${cd("requestedBy")} = excluded.${cd("requestedBy")},\n` : ""}${requested("requestedAt") ? `    ${cd("requestedAt")} = now(),\n` : ""}    ${cd("purgeAfter")} = excluded.${cd("purgeAfter")},
     ${cd("previouslyDisabled")} = case when x.${cd("cancelledAt")} is null then x.${cd("previouslyDisabled")} else excluded.${cd("previouslyDisabled")} end,
     ${cd("cancelledAt")} = null
   returning * into v_row;
   ${deletionEvent("organization.deletion_requested", "auth.uid()")}
-  return to_jsonb(v_row);
+  return ${deletionJson("v_row")};
 end;
 $$;
 
@@ -560,7 +573,7 @@ begin
   if v_row.${cd("tenant")} is null then
     return null;
   end if;
-  if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${allowed})${platform} then
+  if not (${SERVICE_CALLER} or ${requested("requestedBy") ? `v_row.${cd("requestedBy")} = auth.uid() or ` : ""}${allowed})${platform} then
     ${fail("ORGANIZATION_DELETION_FORBIDDEN", "You may not cancel this deletion")}
   end if;
   update ${d} x set ${cd("cancelledAt")} = now()
@@ -568,7 +581,7 @@ begin
   returning * into v_row;
   ${enableSql}
   ${deletionEvent("organization.deletion_cancelled", "auth.uid()")}
-  return to_jsonb(v_row);
+  return ${deletionJson("v_row")};
 end;
 $$;
 
@@ -580,7 +593,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select to_jsonb(x.*) from ${d} x
+  select ${deletionJson("x", "x.*")} from ${d} x
   where x.${cd("tenant")} = organization_deletion.tenant
     and x.${cd("cancelledAt")} is null
     and (${SERVICE_CALLER} or exists (select 1 from ${m} mm where mm.${mTenant} = organization_deletion.tenant and mm.${mUser} = auth.uid()))
@@ -593,7 +606,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${cd("purgeAfter")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${deletionJson("x", "x.*")} order by x.${cd("purgeAfter")}), '[]'::jsonb)
   from (
     select * from ${d} y
     where y.${cd("purgeAfter")} <= now() and y.${cd("cancelledAt")} is null and y.${cd("purgedAt")} is null

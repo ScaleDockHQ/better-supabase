@@ -44,6 +44,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     snapshots: {
       name: "forecast_snapshots",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -58,9 +59,11 @@ const NAMES: BlockSqlNames = {
         takenBy: "taken_by",
         takenAt: "taken_at",
       },
+      optional: ["target", "takenBy"],
     },
     deals: {
       name: "forecast_snapshot_deals",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         snapshot: "snapshot_id",
@@ -75,6 +78,8 @@ const NAMES: BlockSqlNames = {
         closeOn: "expected_close_on",
         closedAt: "closed_at",
       },
+      optional: ["owner", "stage", "forecast", "closeOn", "closedAt"],
+      typed: ["forecast", "outcome"],
     },
   },
 };
@@ -84,6 +89,14 @@ interface ForecastNames {
   readonly t: (table: string) => string;
   readonly s: (column: string) => string;
   readonly sd: (column: string) => string;
+  /** A snapshot or snapshot deal column, or null when the table has none. */
+  readonly opt: (
+    table: string,
+    column: string,
+    alias: string,
+    type: string,
+  ) => string;
+  readonly has: (table: string, column: string) => boolean;
   readonly d: (column: string) => string;
   readonly p: (column: string) => string;
   readonly deals: string;
@@ -103,6 +116,11 @@ function names(ctx: BlockSqlContext): ForecastNames {
     t: (table) => ctx.table(table),
     s: (column) => ctx.col("snapshots", column),
     sd: (column) => ctx.col("deals", column),
+    opt: (table, column, alias, type) =>
+      ctx.has(table, column)
+        ? `${alias}.${ctx.col(table, column)}`
+        : `null::${type}`,
+    has: (table, column) => ctx.has(table, column),
     d: (column) => deals.col("deals", column),
     p: (column) => pipelines.col("pipelines", column),
     deals: deals.table("deals"),
@@ -114,7 +132,15 @@ function names(ctx: BlockSqlContext): ForecastNames {
 }
 
 function tables(ctx: BlockSqlContext, n: ForecastNames): string {
-  const { t, s, sd, p } = n;
+  const { t, s, sd, p, has } = n;
+
+  const line = (
+    table: string,
+    column: string,
+    sql: (name: string) => string,
+  ): string =>
+    has(table, column) ? `  ${sql(ctx.col(table, column))},\n` : "";
+
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
   return `create table if not exists ${t("snapshots")} (
@@ -124,30 +150,22 @@ function tables(ctx: BlockSqlContext, n: ForecastNames): string {
   ${s("since")} date not null,
   ${s("until")} date not null,
   ${s("currency")} text not null check (${s("currency")} ~ '^[A-Z]{3}$'),
-  ${s("target")} bigint check (${s("target")} >= 0),
-  ${s("totals")} jsonb not null check (jsonb_typeof(${s("totals")}) = 'object'),
+${line("snapshots", "target", (c) => `${c} bigint check (${c} >= 0)`)}  ${s("totals")} jsonb not null check (jsonb_typeof(${s("totals")}) = 'object'),
   ${s("dealCount")} integer not null default 0,
-  ${s("takenBy")} uuid references auth.users (id) on delete set null,
-  ${s("takenAt")} timestamptz not null default clock_timestamp(),
+${line("snapshots", "takenBy", (c) => `${c} uuid references auth.users (id) on delete set null`)}  ${s("takenAt")} timestamptz not null default clock_timestamp(),
   check (${s("until")} >= ${s("since")})
 );
 create index if not exists ${ctx.naming.rename("forecast_snapshots_period_idx")} on ${t("snapshots")} (${s("tenant")}, ${s("since")}, ${s("until")}, ${s("takenAt")} desc);
 create index if not exists ${ctx.naming.rename("forecast_snapshots_pipeline_idx")} on ${t("snapshots")} (${s("pipeline")}) where ${s("pipeline")} is not null;
-create index if not exists ${ctx.naming.rename("forecast_snapshots_taken_by_idx")} on ${t("snapshots")} (${s("takenBy")}) where ${s("takenBy")} is not null;
-${lockTable(t("snapshots"), { read: true })}
+${has("snapshots", "takenBy") ? `create index if not exists ${ctx.naming.rename("forecast_snapshots_taken_by_idx")} on ${t("snapshots")} (${s("takenBy")}) where ${s("takenBy")} is not null;\n` : ""}${lockTable(t("snapshots"), { read: true })}
 create table if not exists ${t("deals")} (
   ${sd("snapshot")} uuid not null references ${t("snapshots")} (${s("id")}) on delete cascade,
   ${sd("tenant")} ${ctx.idType} not null,
   ${sd("deal")} uuid not null,
   ${sd("name")} text not null,
-  ${sd("owner")} uuid,
-  ${sd("stage")} uuid,
-  ${sd("forecast")} text,
-  ${sd("outcome")} text not null,
+${line("deals", "owner", (c) => `${c} uuid`)}${line("deals", "stage", (c) => `${c} uuid`)}${line("deals", "forecast", (c) => `${c} text`)}  ${sd("outcome")} text not null,
   ${sd("amount")} bigint not null,
-  ${sd("closeOn")} date,
-  ${sd("closedAt")} timestamptz,
-  primary key (${sd("snapshot")}, ${sd("deal")})
+${line("deals", "closeOn", (c) => `${c} date`)}${line("deals", "closedAt", (c) => `${c} timestamptz`)}  primary key (${sd("snapshot")}, ${sd("deal")})
 );
 create index if not exists ${ctx.naming.rename("forecast_snapshot_deals_deal_idx")} on ${t("deals")} (${sd("tenant")}, ${sd("deal")});
 ${lockTable(t("deals"), { read: true })}
@@ -161,13 +179,19 @@ using (${ctx.scope.check(sd("tenant"), n.read)});
 }
 
 function functions(ctx: BlockSqlContext, n: ForecastNames): string {
-  const { fn, t, s, sd, d, p } = n;
+  const { fn, t, s, sd, d, p, opt, has } = n;
+
+  const snap = (row: string, column: string, type: string): string =>
+    opt("snapshots", column, row, type);
+
+  const kept = (row: string, column: string, type: string): string =>
+    opt("deals", column, row, type);
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'pipelineId', ${row}.${s("pipeline")}, 'since', ${row}.${s("since")}, 'until', ${row}.${s("until")}, 'currency', ${row}.${s("currency")}, 'target', ${row}.${s("target")}::text, 'totals', ${row}.${s("totals")}, 'dealCount', ${row}.${s("dealCount")}, 'takenBy', ${row}.${s("takenBy")}, 'takenAt', ${row}.${s("takenAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'pipelineId', ${row}.${s("pipeline")}, 'since', ${row}.${s("since")}, 'until', ${row}.${s("until")}, 'currency', ${row}.${s("currency")}, 'target', ${snap(row, "target", "bigint")}::text, 'totals', ${row}.${s("totals")}, 'dealCount', ${row}.${s("dealCount")}, 'takenBy', ${snap(row, "takenBy", "uuid")}, 'takenAt', ${row}.${s("takenAt")})`;
 
   const dealJson = (row: string): string =>
-    `jsonb_build_object('dealId', ${row}.${sd("deal")}, 'name', ${row}.${sd("name")}, 'ownerId', ${row}.${sd("owner")}, 'stageId', ${row}.${sd("stage")}, 'forecast', ${row}.${sd("forecast")}, 'outcome', ${row}.${sd("outcome")}, 'amount', ${row}.${sd("amount")}::text, 'closeOn', ${row}.${sd("closeOn")}, 'closedAt', ${row}.${sd("closedAt")})`;
+    `jsonb_build_object('dealId', ${row}.${sd("deal")}, 'name', ${row}.${sd("name")}, 'ownerId', ${kept(row, "owner", "uuid")}, 'stageId', ${kept(row, "stage", "uuid")}, 'forecast', ${kept(row, "forecast", "text")}::text, 'outcome', ${row}.${sd("outcome")}::text, 'amount', ${row}.${sd("amount")}::text, 'closeOn', ${kept(row, "closeOn", "date")}, 'closedAt', ${kept(row, "closedAt", "timestamptz")})`;
 
   const invalid = (message: string): string =>
     fail("FORECAST_INVALID", message, "22023");
@@ -191,11 +215,55 @@ function functions(ctx: BlockSqlContext, n: ForecastNames): string {
 
   const differs = `a.${sd("deal")} is null or b.${sd("deal")} is null
       or a.${sd("amount")} <> b.${sd("amount")}
-      or a.${sd("forecast")} is distinct from b.${sd("forecast")}
-      or a.${sd("stage")} is distinct from b.${sd("stage")}
-      or a.${sd("outcome")} <> b.${sd("outcome")}
-      or a.${sd("closeOn")} is distinct from b.${sd("closeOn")}
-      or a.${sd("owner")} is distinct from b.${sd("owner")}`;
+      or a.${sd("outcome")} <> b.${sd("outcome")}${[
+        "forecast",
+        "stage",
+        "closeOn",
+        "owner",
+      ]
+        .filter((column) => has("deals", column))
+        .map(
+          (column) =>
+            `\n      or a.${sd(column)} is distinct from b.${sd(column)}`,
+        )
+        .join("")}`;
+
+  const copied = (
+    [
+      ["snapshot", `v_row.${s("id")}`],
+      ["tenant", `x.${d("tenant")}`],
+      ["deal", `x.${d("id")}`],
+      ["name", `x.${d("name")}`],
+      ["owner", `x.${d("owner")}`],
+      ["stage", `x.${d("stage")}`],
+      [
+        "forecast",
+        has("deals", "forecast")
+          ? ctx.cast("deals", "forecast", `x.${d("forecast")}::text`)
+          : "",
+      ],
+      ["outcome", ctx.cast("deals", "outcome", `x.${d("outcome")}::text`)],
+      ["amount", `x.${d("amount")}`],
+      ["closeOn", `x.${d("closeOn")}`],
+      ["closedAt", `x.${d("closedAt")}`],
+    ] as const
+  ).filter(([column]) => has("deals", column));
+
+  const snapshotColumns = (
+    [
+      ["tenant", "take_forecast_snapshot.tenant"],
+      ["pipeline", "take_forecast_snapshot.pipeline"],
+      ["since", "take_forecast_snapshot.since"],
+      ["until", "take_forecast_snapshot.until"],
+      ["currency", "v_currency"],
+      ["target", "take_forecast_snapshot.target"],
+      [
+        "totals",
+        `${n.dealForecast}(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null)`,
+      ],
+      ["takenBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => has("snapshots", column));
 
   return `
 -- Takes a snapshot of the forecast call for one currency between since and
@@ -226,20 +294,25 @@ begin
   end if;
   if take_forecast_snapshot.target < 0 then
     ${invalid("target must not be negative")}
-  end if;
+  end if;${
+    has("snapshots", "target")
+      ? ""
+      : `
+  if take_forecast_snapshot.target is not null then
+    ${fail("FORECAST_TARGET_UNSUPPORTED", "this forecast snapshots table has no target column", "22023")}
+  end if;`
+  }
   if take_forecast_snapshot.pipeline is not null and not exists (
     select 1 from ${n.pipelines} x
     where x.${p("id")} = take_forecast_snapshot.pipeline and x.${p("tenant")} = take_forecast_snapshot.tenant
   ) then
     ${fail("FORECAST_PIPELINE_UNKNOWN", "The organization has no pipeline with this id", "P0002")}
   end if;
-  insert into ${t("snapshots")} (${s("tenant")}, ${s("pipeline")}, ${s("since")}, ${s("until")}, ${s("currency")}, ${s("target")}, ${s("totals")}, ${s("takenBy")})
-  values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target,
-    ${n.dealForecast}(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null),
-    auth.uid())
+  insert into ${t("snapshots")} (${snapshotColumns.map(([column]) => s(column)).join(", ")})
+  values (${snapshotColumns.map(([, value]) => value).join(", ")})
   returning * into v_row;
-  insert into ${t("deals")} (${sd("snapshot")}, ${sd("tenant")}, ${sd("deal")}, ${sd("name")}, ${sd("owner")}, ${sd("stage")}, ${sd("forecast")}, ${sd("outcome")}, ${sd("amount")}, ${sd("closeOn")}, ${sd("closedAt")})
-  select v_row.${s("id")}, x.${d("tenant")}, x.${d("id")}, x.${d("name")}, x.${d("owner")}, x.${d("stage")}, x.${d("forecast")}, x.${d("outcome")}, x.${d("amount")}, x.${d("closeOn")}, x.${d("closedAt")}
+  insert into ${t("deals")} (${copied.map(([column]) => sd(column)).join(", ")})
+  select ${copied.map(([, value]) => value).join(", ")}
   from ${n.deals} x
   where x.${d("tenant")} = take_forecast_snapshot.tenant
     and x.${d("currency")} = v_currency

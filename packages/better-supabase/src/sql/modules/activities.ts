@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -80,6 +80,9 @@ const NAMES: BlockSqlNames = {
     engagements: {
       name: "engagements",
       lifecycle: { tenant: "tenant", user: "owner", export: true },
+      app: {},
+      optional: ["durationSeconds", "externalRef", "createdBy", "updatedAt"],
+      typed: ["type"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -100,6 +103,8 @@ const NAMES: BlockSqlNames = {
     links: {
       name: "engagement_subjects",
       lifecycle: { tenant: "tenant", export: true },
+      app: {},
+      optional: ["position"],
       columns: {
         tenant: "tenant_id",
         engagement: "engagement_id",
@@ -113,6 +118,24 @@ const NAMES: BlockSqlNames = {
 };
 
 const TYPE = /^[a-z][a-z0-9_]{0,62}$/;
+
+/**
+ * Row `alias` of logical table `table` as JSON keyed by the module's column
+ * names. Over the app's table it lists the module's columns only, with null for
+ * the ones the app lacks.
+ */
+function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
+  if (ctx.owns(table)) {
+    return `to_jsonb(${alias})`;
+  }
+
+  const columns = Object.entries(NAMES.tables[table]?.columns ?? {}).map(
+    ([logical, name]) =>
+      `${sqlString(name)}, ${ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : "null"}`,
+  );
+
+  return `jsonb_build_object(${columns.join(", ")})`;
+}
 
 function types(ctx: BlockSqlContext): readonly string[] {
   const list = ctx.list("types", ENGAGEMENT_TYPES);
@@ -143,6 +166,18 @@ function build(ctx: BlockSqlContext): string {
   const typeList = `${sqlString(`{${types(ctx).join(",")}}`)}::text[]`;
   const canSubject = ctx.of("subjects").fn("can_subject");
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
+  const linkOrder = (alias: string): string =>
+    ctx.has("links", "position")
+      ? `${alias}.${l("position")}`
+      : `${alias}.${l("subjectType")}, ${alias}.${l("subjectId")}`;
+
   const payload = (
     id: string,
     type: string,
@@ -168,14 +203,29 @@ function build(ctx: BlockSqlContext): string {
       ...(key === undefined ? {} : { key }),
     });
 
+  const owned = (column: string): boolean => ctx.has("engagements", column);
+
+  /** `, <column> = <value>` when the engagements table has `column`. */
+  const set = (
+    column: string,
+    value: (name: string) => string,
+    gap = " ",
+  ): string =>
+    owned(column) ? `,${gap}${e(column)} = ${value(e(column))}` : "";
+
+  const typeText = (alias: string): string =>
+    ctx.owns("engagements")
+      ? `${alias}.${e("type")}`
+      : `${alias}.${e("type")}::text`;
+
   const editable = (alias: string): string =>
-    `(auth.role() = 'service_role' or ${alias}.${e("createdBy")} = auth.uid() or ${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
+    `(auth.role() = 'service_role' or ${owned("createdBy") ? `${alias}.${e("createdBy")} = auth.uid() or ` : ""}${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
 
   const subjectsOf = (id: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by sx.${l("position")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${linkOrder("sx")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('subjects', ${subjectsOf(`${alias}.${e("id")}`)}, 'overdue', ${alias}.${e("doneAt")} is null and ${alias}.${e("dueAt")} < now()${extraFieldsJson(alias, extras)})`;
+    `${rowJson(ctx, "engagements", alias)} || jsonb_build_object('subjects', ${subjectsOf(`${alias}.${e("id")}`)}, 'overdue', ${alias}.${e("doneAt")} is null and ${alias}.${e("dueAt")} < now()${extraFieldsJson(alias, extras)})`;
 
   const setSubjects = (
     engagement: string,
@@ -191,8 +241,8 @@ function build(ctx: BlockSqlContext): string {
     end if;
   end loop;
   delete from ${t("links")} x where x.${l("engagement")} = ${engagement};
-  insert into ${t("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}, ${l("position")})
-  select ${tenant}, ${engagement}, s.value ->> 'type', s.value ->> 'id', s.ordinality::integer
+  insert into ${t("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${ctx.has("links", "position") ? `, ${l("position")}` : ""})
+  select ${tenant}, ${engagement}, s.value ->> 'type', s.value ->> 'id'${ctx.has("links", "position") ? ", s.ordinality::integer" : ""}
   from jsonb_array_elements(coalesce(${list}, '[]')) with ordinality s
   on conflict do nothing;
   v_subjects := ${subjectsOf(engagement)};
@@ -200,6 +250,25 @@ function build(ctx: BlockSqlContext): string {
 
   const attrs = (name: string, key: string): string =>
     `${name}.attrs ->> ${sqlString(key)}`;
+
+  const logged = (
+    [
+      ["tenant", "v_tenant"],
+      ["type", ctx.cast("engagements", "type", "v_type")],
+      ["title", "v_title"],
+      ["body", attrs("log_engagement", "body")],
+      ["outcome", attrs("log_engagement", "outcome")],
+      ["owner", "v_owner"],
+      ["dueAt", `(${attrs("log_engagement", "dueAt")})::timestamptz`],
+      ["doneAt", `(${attrs("log_engagement", "doneAt")})::timestamptz`],
+      [
+        "durationSeconds",
+        `(${attrs("log_engagement", "durationSeconds")})::integer`,
+      ],
+      ["externalRef", attrs("log_engagement", "externalRef")],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => owned(column));
 
   const has = (name: string, key: string): string =>
     `${name}.attrs ? ${sqlString(key)}`;
@@ -238,25 +307,24 @@ ${
   ${e("outcome")} text,
   ${e("owner")} uuid,
   ${e("dueAt")} timestamptz,
-  ${e("doneAt")} timestamptz,
-  ${e("durationSeconds")} integer check (${e("durationSeconds")} >= 0),
-  ${e("externalRef")} text,
-  ${e("createdBy")} uuid,
-  ${e("createdAt")} timestamptz not null default now(),
-  ${e("updatedAt")} timestamptz not null default now()
+  ${e("doneAt")} timestamptz,${optional("engagements", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("engagements", "externalRef", (x) => `${x} text`)}${optional("engagements", "createdBy", (x) => `${x} uuid`)}
+  ${e("createdAt")} timestamptz not null default now()${owned("updatedAt") ? `,\n  ${e("updatedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("engagements_owner_open_idx")} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
 create index if not exists ${ctx.naming.rename("engagements_tenant_created_idx")} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;${addExtraColumns(t("engagements"), extras)}
+${owned("externalRef") ? `create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
   ${l("engagement")} uuid not null references ${t("engagements")} (${e("id")}) on delete cascade,
   ${l("subjectType")} text not null,
-  ${l("subjectId")} text not null,
-  ${l("position")} integer not null default 1,
+  ${l("subjectId")} text not null,${optional("links", "position", (x) => `${x} integer not null default 1`)}
   primary key (${l("engagement")}, ${l("subjectType")}, ${l("subjectId")})
-);
+);${
+        ctx.owns("links")
+          ? ""
+          : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("links").name}_subject_key`)} on ${t("links")} (${l("engagement")}, ${l("subjectType")}, ${l("subjectId")});`
+      }
 create index if not exists ${ctx.naming.rename("engagement_subjects_subject_idx")} on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
 ${lockTable(t("links"), { read: true })}
 -- A link is visible when its record is; an engagement when one of its
@@ -309,14 +377,15 @@ begin
     ["jsonb", "log_engagement.attrs"],
     ["jsonb", "log_engagement.subjects"],
   ])}
-  insert into ${t("engagements")} (${e("tenant")}, ${e("type")}, ${e("title")}, ${e("body")}, ${e("outcome")}, ${e("owner")}, ${e("dueAt")}, ${e("doneAt")}, ${e("durationSeconds")}, ${e("externalRef")}, ${e("createdBy")})
-  values (v_tenant, v_type, v_title, ${attrs("log_engagement", "body")}, ${attrs("log_engagement", "outcome")}, v_owner,
-    (${attrs("log_engagement", "dueAt")})::timestamptz, (${attrs("log_engagement", "doneAt")})::timestamptz,
-    (${attrs("log_engagement", "durationSeconds")})::integer, ${attrs("log_engagement", "externalRef")}, auth.uid())
+  insert into ${t("engagements")} (${logged.map(([column]) => e(column)).join(", ")})
+  values (${logged.map(([, value]) => value).join(", ")})${
+    owned("externalRef")
+      ? `
   on conflict (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null do update set
     ${e("title")} = excluded.${e("title")}, ${e("body")} = excluded.${e("body")}, ${e("outcome")} = excluded.${e("outcome")},
-    ${e("dueAt")} = excluded.${e("dueAt")}, ${e("doneAt")} = excluded.${e("doneAt")},
-    ${e("durationSeconds")} = excluded.${e("durationSeconds")}, ${e("updatedAt")} = now()
+    ${e("dueAt")} = excluded.${e("dueAt")}, ${e("doneAt")} = excluded.${e("doneAt")}${set("durationSeconds", (x) => `excluded.${x}`)}${set("updatedAt", () => "now()")}`
+      : ""
+  }
   returning ${e("id")} into v_id;${writeExtraColumns(t("engagements"), extras, "log_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   ${setSubjects("v_id", "log_engagement.subjects", "v_tenant")}
   ${record("engagement.logged", "v_id", "v_type", "v_tenant")}${notifyOwner}
@@ -355,14 +424,18 @@ begin
     ${fail("ENGAGEMENT_TYPE_INVALID", "unknown engagement type", "22023")}
   end if;
   update ${t("engagements")} x set
-    ${e("type")} = coalesce(${attrs("update_engagement", "type")}, x.${e("type")}),
+    ${e("type")} = coalesce(${ctx.cast("engagements", "type", attrs("update_engagement", "type"))}, x.${e("type")}),
     ${e("title")} = coalesce(nullif(trim(${attrs("update_engagement", "title")}), ''), x.${e("title")}),
-    ${["body", "outcome", "externalRef"].map((key) => `${e(key)} = case when ${has("update_engagement", key)} then ${attrs("update_engagement", key)} else x.${e(key)} end`).join(",\n    ")},
+    ${["body", "outcome", "externalRef"]
+      .filter(owned)
+      .map(
+        (key) =>
+          `${e(key)} = case when ${has("update_engagement", key)} then ${attrs("update_engagement", key)} else x.${e(key)} end`,
+      )
+      .join(",\n    ")},
     ${e("owner")} = case when ${has("update_engagement", "ownerId")} then nullif(${attrs("update_engagement", "ownerId")}, '')::uuid else x.${e("owner")} end,
     ${e("dueAt")} = case when ${has("update_engagement", "dueAt")} then (${attrs("update_engagement", "dueAt")})::timestamptz else x.${e("dueAt")} end,
-    ${e("doneAt")} = case when ${has("update_engagement", "doneAt")} then (${attrs("update_engagement", "doneAt")})::timestamptz else x.${e("doneAt")} end,
-    ${e("durationSeconds")} = case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${e("durationSeconds")} end,
-    ${e("updatedAt")} = now()
+    ${e("doneAt")} = case when ${has("update_engagement", "doneAt")} then (${attrs("update_engagement", "doneAt")})::timestamptz else x.${e("doneAt")} end${set("durationSeconds", (x) => `case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${x} end`, "\n    ")}${set("updatedAt", () => "now()", "\n    ")}
   where x.${e("id")} = v_id
   returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;${writeExtraColumns(t("engagements"), extras, "update_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   if update_engagement.subjects is not null then
@@ -393,8 +466,7 @@ declare
 begin
   update ${t("engagements")} x set
     ${e("doneAt")} = case when complete_engagement.done then coalesce(x.${e("doneAt")}, now()) end,
-    ${e("outcome")} = coalesce(complete_engagement.outcome, x.${e("outcome")}),
-    ${e("updatedAt")} = now()
+    ${e("outcome")} = coalesce(complete_engagement.outcome, x.${e("outcome")})${set("updatedAt", () => "now()", "\n    ")}
   where x.${e("id")} = v_id and ${editable("x")}
   returning x.${e("tenant")}, x.${e("type")} into v_tenant, v_type;
   if v_tenant is null then
@@ -448,7 +520,7 @@ as $$
     from ${t("engagements")} x
     join ${t("links")} k on k.${l("engagement")} = x.${e("id")}
     where k.${l("subjectType")} = engagements_of.subject_type and k.${l("subjectId")} = engagements_of.subject_id
-      and (engagements_of.types is null or x.${e("type")} = any (engagements_of.types))
+      and (engagements_of.types is null or ${typeText("x")} = any (engagements_of.types))
       and (engagements_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < engagements_of.before)
     order by at desc, id desc
     limit ${pageSize("engagements_of.page_size", 50, 200)}

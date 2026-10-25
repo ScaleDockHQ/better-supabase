@@ -909,7 +909,7 @@ function itemRows(ctx: BlockSqlContext, decided: boolean): string {
 
   return `insert into ${moderated.table("items")} (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}, ${mi("author")}, ${mi("status")}, ${mi("reason")}, ${mi("decidedBy")}, ${mi("decidedAt")}, ${mi("createdAt")}, ${mi("updatedAt")})
   select x.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, x.${r("id")}::text, x.${r("author")},
-    case x.${r("status")} when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    ${moderated.cast("items", "status", `case x.${r("status")}::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end`)},
     ${ctx.has("reviews", "rejectionReason") ? `case when x.${r("status")} = 'rejected' then x.${r("rejectionReason")} end` : "null"}, ${decision}, x.${r("createdAt")}, x.${r(ctx.has("reviews", "updatedAt") ? "updatedAt" : "createdAt")}
   from ${ctx.table("reviews")} x
   on conflict (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}) do nothing;`;
@@ -937,7 +937,7 @@ begin
   end if;
   ${itemRows(ctx, true)}
   insert into ${moderated.table("actions")} (${ma("tenant")}, ${ma("item")}, ${ma("action")}, ${ma("fromStatus")}, ${ma("toStatus")}, ${ma("reason")}, ${ma("actor")}, ${ma("createdAt")})
-  select x.${mi("tenant")}, x.${mi("id")}, case x.${mi("status")} when 'visible' then 'approve' else 'hide' end, 'pending', x.${mi("status")}, x.${mi("reason")}, x.${mi("decidedBy")}, x.${mi("decidedAt")}
+  select x.${mi("tenant")}, x.${mi("id")}, ${moderated.cast("actions", "action", `case x.${mi("status")}::text when 'visible' then 'approve' else 'hide' end`)}, ${moderated.cast("actions", "fromStatus", "'pending'")}, ${moderated.cast("actions", "toStatus", `x.${mi("status")}::text`)}, x.${mi("reason")}, x.${mi("decidedBy")}, x.${mi("decidedAt")}
   from ${moderated.table("items")} x
   where x.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)} and x.${mi("decidedAt")} is not null;
   alter table ${ctx.table("reviews")} drop column moderated_by, drop column moderated_at;

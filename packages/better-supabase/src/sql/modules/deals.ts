@@ -9,13 +9,8 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { DealNames } from "./deals-functions.ts";
 
-import { sqlString } from "../../core/template.ts";
-import {
-  lineExtraColumns,
-  lineTableSpec,
-  TOTAL_COLUMNS,
-  totalColumnsSql,
-} from "../line-items-sql.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
+import { lineTableSpec, totalColumnsSql } from "../line-items-sql.ts";
 import {
   addExtraColumns,
   fail,
@@ -24,7 +19,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
-import { dealFunctions } from "./deals-functions.ts";
+import { DEAL_COLUMNS, dealFunctions } from "./deals-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const DEAL = [
@@ -82,54 +77,30 @@ const NAMES: BlockSqlNames = {
   tables: {
     deals: {
       name: "deals",
+      app: {},
       lifecycle: { tenant: "tenant", user: "owner", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        number: "number",
-        identifier: "identifier",
-        name: "name",
-        companyType: "company_type",
-        companyId: "company_id",
-        motion: "motion",
-        priority: "priority",
-        owner: "owner_user_id",
-        product: "product",
-        seats: "seats",
-        amount: "amount",
-        existingAmount: "existing_amount",
-        currency: "currency",
-        valuePeriod: "value_period",
-        amountSource: "amount_source",
-        pipeline: "pipeline_id",
-        stage: "stage_id",
-        stageEnteredAt: "stage_entered_at",
-        outcome: "outcome",
-        probability: "probability",
-        forecast: "forecast_category",
-        openedOn: "opened_on",
-        closeOn: "expected_close_on",
-        slippedFrom: "slipped_from",
-        pushCount: "push_count",
-        closedAt: "closed_at",
-        nextStep: "next_step",
-        nextAt: "next_at",
-        nextKind: "next_kind",
-        flags: "flags",
-        source: "source",
-        note: "note",
-        lostReason: "lost_reason",
-        locked: "locked",
-        rank: "rank",
-        archivedAt: "archived_at",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-        ...TOTAL_COLUMNS,
-      },
+      columns: DEAL_COLUMNS,
+      optional: [
+        "motion",
+        "priority",
+        "product",
+        "seats",
+        "existingAmount",
+        "slippedFrom",
+        "pushCount",
+        "nextStep",
+        "nextAt",
+        "nextKind",
+        "flags",
+        "source",
+        "lostReason",
+        "createdBy",
+      ],
+      typed: ["valuePeriod", "amountSource", "outcome", "forecast"],
     },
     contacts: {
       name: "deal_contacts",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",
@@ -139,9 +110,11 @@ const NAMES: BlockSqlNames = {
         role: "role",
         isPrimary: "is_primary",
       },
+      optional: ["role"],
     },
     members: {
       name: "deal_members",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         tenant: "tenant_id",
@@ -149,6 +122,7 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         role: "role",
       },
+      optional: ["role"],
     },
     lines: lineTableSpec("deal_lines"),
   },
@@ -189,49 +163,95 @@ function tables(ctx: BlockSqlContext, n: DealNames): string {
       or ${ctx.scope.check(d("tenant"), n.manage)}
       or exists (select 1 from ${t("members")} x where x.${m("deal")} = ${d("id")} and x.${m("user")} = (select auth.uid())))`;
 
+  const definitions: readonly (readonly [string, (name: string) => string])[] =
+    [
+      ["id", () => "uuid primary key default gen_random_uuid()"],
+      ["tenant", () => `${ctx.idType} not null`],
+      ["number", () => "bigint not null"],
+      ["identifier", () => "text not null"],
+      [
+        "name",
+        (name) => `text not null check (length(${name}) between 1 and 300)`,
+      ],
+      ["companyType", () => "text"],
+      ["companyId", () => "text"],
+      ["motion", () => "text"],
+      ["priority", () => "text"],
+      ["owner", () => "uuid"],
+      ["product", () => "text"],
+      ["seats", (name) => `integer check (${name} >= 0)`],
+      ["amount", (name) => `bigint not null default 0 check (${name} >= 0)`],
+      [
+        "existingAmount",
+        (name) => `bigint not null default 0 check (${name} >= 0)`,
+      ],
+      ["currency", (name) => `char(3) not null check (${name} ~ '^[A-Z]{3}$')`],
+      [
+        "valuePeriod",
+        (name) =>
+          `text not null default 'one_time' check (${name} in ('one_time', 'monthly', 'annual'))`,
+      ],
+      [
+        "amountSource",
+        (name) =>
+          `text not null default 'manual' check (${name} in ('manual', 'line_items'))`,
+      ],
+      ["pipeline", () => "uuid"],
+      ["stage", () => "uuid"],
+      ["stageEnteredAt", () => "timestamptz"],
+      [
+        "outcome",
+        (name) =>
+          `text not null default 'open' check (${name} in ('open', 'won', 'lost'))`,
+      ],
+      [
+        "probability",
+        (name) => `smallint check (${name} >= 0 and ${name} <= 100)`,
+      ],
+      [
+        "forecast",
+        (name) =>
+          `text check (${name} in ('commit', 'best_case', 'pipeline', 'omit'))`,
+      ],
+      ["openedOn", () => "date not null default current_date"],
+      ["closeOn", () => "date not null"],
+      ["slippedFrom", () => "date"],
+      ["pushCount", () => "integer not null default 0"],
+      ["closedAt", () => "timestamptz"],
+      ["nextStep", () => "text"],
+      ["nextAt", () => "timestamptz"],
+      ["nextKind", () => "text"],
+      ["flags", () => "text[] not null default '{}'"],
+      ["source", () => "text"],
+      ["note", () => "text"],
+      ["lostReason", () => "text"],
+      ["locked", () => "boolean not null default false"],
+      ["rank", () => `text collate "C" not null default 'V'`],
+      ["archivedAt", () => "timestamptz"],
+      ["createdBy", () => "uuid"],
+      ["createdAt", () => "timestamptz not null default now()"],
+      ["updatedAt", () => "timestamptz not null default now()"],
+    ];
+
+  const columns = definitions
+    .filter(([logical]) => n.has("deals", logical))
+    .map(([logical, type]) => `${d(logical)} ${type(d(logical))}`)
+    .join(",\n  ");
+
+  // Contacts and members are replaced with `on conflict do nothing`, which
+  // needs the key the module's own primary key gives.
+  const appKey = (
+    table: string,
+    what: string,
+    keys: readonly string[],
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${what}_key`)} on ${t(table)} (${keys.map((key) => c(table, key)).join(", ")});`;
+
   return `
 create table if not exists ${t("deals")} (
-  ${d("id")} uuid primary key default gen_random_uuid(),
-  ${d("tenant")} ${ctx.idType} not null,
-  ${d("number")} bigint not null,
-  ${d("identifier")} text not null,
-  ${d("name")} text not null check (length(${d("name")}) between 1 and 300),
-  ${d("companyType")} text,
-  ${d("companyId")} text,
-  ${d("motion")} text,
-  ${d("priority")} text,
-  ${d("owner")} uuid,
-  ${d("product")} text,
-  ${d("seats")} integer check (${d("seats")} >= 0),
-  ${d("amount")} bigint not null default 0 check (${d("amount")} >= 0),
-  ${d("existingAmount")} bigint not null default 0 check (${d("existingAmount")} >= 0),
-  ${d("currency")} char(3) not null check (${d("currency")} ~ '^[A-Z]{3}$'),
-  ${d("valuePeriod")} text not null default 'one_time' check (${d("valuePeriod")} in ('one_time', 'monthly', 'annual')),
-  ${d("amountSource")} text not null default 'manual' check (${d("amountSource")} in ('manual', 'line_items')),
-  ${d("pipeline")} uuid,
-  ${d("stage")} uuid,
-  ${d("stageEnteredAt")} timestamptz,
-  ${d("outcome")} text not null default 'open' check (${d("outcome")} in ('open', 'won', 'lost')),
-  ${d("probability")} smallint check (${d("probability")} >= 0 and ${d("probability")} <= 100),
-  ${d("forecast")} text check (${d("forecast")} in ('commit', 'best_case', 'pipeline', 'omit')),
-  ${d("openedOn")} date not null default current_date,
-  ${d("closeOn")} date not null,
-  ${d("slippedFrom")} date,
-  ${d("pushCount")} integer not null default 0,
-  ${d("closedAt")} timestamptz,
-  ${d("nextStep")} text,
-  ${d("nextAt")} timestamptz,
-  ${d("nextKind")} text,
-  ${d("flags")} text[] not null default '{}',
-  ${d("source")} text,
-  ${d("note")} text,
-  ${d("lostReason")} text,
-  ${d("locked")} boolean not null default false,
-  ${d("rank")} text collate "C" not null default 'V',
-  ${d("archivedAt")} timestamptz,
-  ${d("createdBy")} uuid,
-  ${d("createdAt")} timestamptz not null default now(),
-  ${d("updatedAt")} timestamptz not null default now(),
+  ${columns},
   ${totalColumnsSql(ctx, "deals")},
   unique (${d("tenant")}, ${d("number")}),
   check ((${d("companyType")} is null) = (${d("companyId")} is null))
@@ -247,10 +267,9 @@ create table if not exists ${t("contacts")} (
   ${k("deal")} uuid not null references ${t("deals")} (${d("id")}) on delete cascade,
   ${k("contactType")} text not null,
   ${k("contactId")} text not null,
-  ${k("role")} text,
-  ${k("isPrimary")} boolean not null default false,
+  ${n.has("contacts", "role") ? `${k("role")} text,\n  ` : ""}${k("isPrimary")} boolean not null default false,
   primary key (${k("deal")}, ${k("contactType")}, ${k("contactId")})
-);
+);${appKey("contacts", "contact", ["deal", "contactType", "contactId"])}
 create index if not exists ${ctx.naming.rename("deal_contacts_contact_idx")} on ${t("contacts")} (${k("contactType")}, ${k("contactId")});
 create unique index if not exists ${ctx.naming.rename("deal_contacts_primary_idx")} on ${t("contacts")} (${k("deal")}) where ${k("isPrimary")};
 ${lockTable(t("contacts"), { read: true })}
@@ -259,9 +278,8 @@ create table if not exists ${t("members")} (
   ${m("tenant")} ${ctx.idType} not null,
   ${m("deal")} uuid not null references ${t("deals")} (${d("id")}) on delete cascade,
   ${m("user")} uuid not null,
-  ${m("role")} text,
-  primary key (${m("deal")}, ${m("user")})
-);
+  ${n.has("members", "role") ? `${m("role")} text,\n  ` : ""}primary key (${m("deal")}, ${m("user")})
+);${appKey("members", "user", ["deal", "user"])}
 create index if not exists ${ctx.naming.rename("deal_members_user_idx")} on ${t("members")} (${m("user")});
 ${lockTable(t("members"), { read: true })}
 
@@ -320,33 +338,51 @@ function guard(ctx: BlockSqlContext, n: DealNames): string {
     subjectId: `new.${d("id")}::text`,
   });
 
-  const locked = Object.values({
-    name: d("name"),
-    companyType: d("companyType"),
-    companyId: d("companyId"),
-    motion: d("motion"),
-    priority: d("priority"),
-    owner: d("owner"),
-    product: d("product"),
-    seats: d("seats"),
-    amount: d("amount"),
-    existingAmount: d("existingAmount"),
-    currency: d("currency"),
-    valuePeriod: d("valuePeriod"),
-    pipeline: d("pipeline"),
-    stage: d("stage"),
-    probability: d("probability"),
-    forecast: d("forecast"),
-    closeOn: d("closeOn"),
-    nextStep: d("nextStep"),
-    nextAt: d("nextAt"),
-    nextKind: d("nextKind"),
-    flags: d("flags"),
-    source: d("source"),
-    lostReason: d("lostReason"),
-  })
+  const locked = [
+    "name",
+    "companyType",
+    "companyId",
+    "motion",
+    "priority",
+    "owner",
+    "product",
+    "seats",
+    "amount",
+    "existingAmount",
+    "currency",
+    "valuePeriod",
+    "pipeline",
+    "stage",
+    "probability",
+    "forecast",
+    "closeOn",
+    "nextStep",
+    "nextAt",
+    "nextKind",
+    "flags",
+    "source",
+    "lostReason",
+  ]
+    .filter((column) => n.has("deals", column))
+    .map(d)
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join("\n      or ");
+
+  const slips = [
+    n.has("deals", "slippedFrom")
+      ? `\n    new.${d("slippedFrom")} := coalesce(old.${d("slippedFrom")}, old.${d("closeOn")});`
+      : "",
+    n.has("deals", "pushCount")
+      ? `\n    new.${d("pushCount")} := old.${d("pushCount")} + 1;`
+      : "",
+  ].join("");
+
+  const slip =
+    slips === ""
+      ? ""
+      : `
+  if new.${d("closeOn")} > old.${d("closeOn")} and old.${d("outcome")} = 'open' then${slips}
+  end if;`;
 
   const guardName = ctx.naming.rename("bsb_deal_guard");
 
@@ -372,21 +408,16 @@ begin
   end if;
   if new.${d("openedOn")} is distinct from old.${d("openedOn")} and not ${n.service} then
     ${fail("DEAL_OPENED_ON_FIXED", "the open date never moves", "22023")}
-  end if;
-  if new.${d("closeOn")} > old.${d("closeOn")} and old.${d("outcome")} = 'open' then
-    new.${d("slippedFrom")} := coalesce(old.${d("slippedFrom")}, old.${d("closeOn")});
-    new.${d("pushCount")} := old.${d("pushCount")} + 1;
-  end if;
+  end if;${slip}
   if new.${d("forecast")} is distinct from old.${d("forecast")} and new.${d("outcome")} <> 'open' and old.${d("outcome")} <> 'open' then
     ${fail("DEAL_FORECAST_CLOSED", "a closed deal is called by its stage, not a forecast", "22023")}
   end if;
   if new.${d("outcome")} is distinct from old.${d("outcome")} then
     new.${d("closedAt")} := case when new.${d("outcome")} <> 'open' then now() end;
     if new.${d("outcome")} = 'open' then
-      new.${d("lostReason")} := null;
-      ${ctx.record({ type: "deal.reopened", payload: payload(""), subject, tenant, audit: false })}
+${n.has("deals", "lostReason") ? `      new.${d("lostReason")} := null;\n` : ""}      ${ctx.record({ type: "deal.reopened", payload: payload(""), subject, tenant, audit: false })}
     else
-      ${ctx.record({ type: "deal.closed", payload: payload(`, 'outcome', new.${d("outcome")}, 'amount', new.${d("amount")}::text, 'currency', new.${d("currency")}, 'reason', new.${d("lostReason")}`), subject, tenant, audit: false })}
+      ${ctx.record({ type: "deal.closed", payload: payload(`, 'outcome', new.${d("outcome")}, 'amount', new.${d("amount")}::text, 'currency', new.${d("currency")}, 'reason', ${n.has("deals", "lostReason") ? `new.${d("lostReason")}` : "null::text"}`), subject, tenant, audit: false })}
     end if;${outcomeNotify}
   end if;${
     watchOwner === ""
@@ -419,6 +450,7 @@ function build(ctx: BlockSqlContext): string {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
+    has: (table, column) => ctx.has(table, column),
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
     manage: ctx.permission("manage", keys.manage),
@@ -459,16 +491,18 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
-/** How deals run on pipelines. */
-const DEAL_PIPELINE: Readonly<Record<string, unknown>> = {
-  enteredAt: "stage_entered_at",
-  amount: "amount",
-  currency: "currency",
-  probability: "probability",
-  owner: "owner_user_id",
+/** How deals run on pipelines, under the deal column names `column` gives. */
+const dealPipeline = (
+  column: (logical: string) => string,
+): Readonly<Record<string, unknown>> => ({
+  enteredAt: column("stageEnteredAt"),
+  amount: column("amount"),
+  currency: column("currency"),
+  probability: column("probability"),
+  owner: column("owner"),
   categories: { open: "open", won: "success", lost: "failure" },
   status: {
-    column: "outcome",
+    column: column("outcome"),
     values: { open: "open", won: "won", lost: "lost" },
   },
   stages: [
@@ -494,7 +528,7 @@ const DEAL_PIPELINE: Readonly<Record<string, unknown>> = {
       probability: 0,
     },
   ],
-};
+});
 
 const CONTRIBUTES: BlockContributes = {
   pipelines: (own) => {
@@ -505,7 +539,7 @@ const CONTRIBUTES: BlockContributes = {
         type: own.resolved.entityNaming.rename("deal"),
         table: `${schema}.${name}`,
         tenant: own.colName("deals", "tenant"),
-        entry: DEAL_PIPELINE,
+        entry: dealPipeline((logical) => own.colName("deals", logical)),
       },
     ];
   },

@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./pipelines-bindings.ts";
 
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -81,6 +82,8 @@ const NAMES: BlockSqlNames = {
     pipelines: {
       name: "pipelines",
       lifecycle: tenantExport,
+      app: {},
+      optional: ["createdAt", "updatedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -98,6 +101,17 @@ const NAMES: BlockSqlNames = {
     stages: {
       name: "pipeline_stages",
       lifecycle: tenantExport,
+      app: {},
+      optional: [
+        "systemKey",
+        "color",
+        "probability",
+        "rottingAfterDays",
+        "wipLimit",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["category", "outcome"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -121,6 +135,7 @@ const NAMES: BlockSqlNames = {
       name: "pipeline_transitions",
       optionalTable: true,
       lifecycle: tenantExport,
+      app: {},
       columns: {
         tenant: "tenant_id",
         pipeline: "pipeline_id",
@@ -131,6 +146,9 @@ const NAMES: BlockSqlNames = {
     history: {
       name: "pipeline_stage_history",
       lifecycle: { tenant: "tenant", user: "actor", export: true },
+      app: {},
+      optional: ["stageName", "category", "amount", "currency", "actor"],
+      typed: ["category", "outcome"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -159,6 +177,27 @@ function tables(ctx: BlockSqlContext, names: Names): string {
 
   const { t, c } = names;
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (name: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(c(table, column))},` : "";
+
+  const stamps = (table: string): string =>
+    `${optional(table, "createdAt", (x) => `${x} timestamptz not null default now()`)}${optional(table, "updatedAt", (x) => `${x} timestamptz not null default now()`)}`;
+
+  // Over the app's table the render drops the inline keys the module relies on.
+  const key = (
+    table: string,
+    suffix: string,
+    columns: string,
+    nulls = "",
+  ): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${suffix}`)} on ${t(table)} (${columns})${nulls};`;
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
@@ -173,7 +212,7 @@ create table if not exists ${t("transitions")} (
   ${c("transitions", "from")} uuid not null references ${t("stages")} (${c("stages", "id")}) on delete cascade,
   ${c("transitions", "to")} uuid not null references ${t("stages")} (${c("stages", "id")}) on delete cascade,
   primary key (${c("transitions", "from")}, ${c("transitions", "to")})
-);
+);${key("transitions", "pair_key", `${c("transitions", "from")}, ${c("transitions", "to")}`)}
 create index if not exists ${ctx.naming.rename("pipeline_transitions_pipeline_idx")} on ${t("transitions")} (${c("transitions", "pipeline")});
 create index if not exists ${ctx.naming.rename("pipeline_transitions_to_idx")} on ${t("transitions")} (${c("transitions", "to")});
 ${lockTable(t("transitions"), { read: true })}
@@ -194,11 +233,9 @@ create table if not exists ${t("pipelines")} (
   ${c("pipelines", "name")} text not null check (length(${c("pipelines", "name")}) between 1 and 200),
   ${c("pipelines", "rank")} text collate "C" not null default 'V',
   ${c("pipelines", "isDefault")} boolean not null default false,
-  ${c("pipelines", "archivedAt")} timestamptz,
-  ${c("pipelines", "createdAt")} timestamptz not null default now(),
-  ${c("pipelines", "updatedAt")} timestamptz not null default now(),
+  ${c("pipelines", "archivedAt")} timestamptz,${stamps("pipelines")}
   unique nulls not distinct (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")})
-);
+);${key("pipelines", "key_key", `${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")}`, " nulls not distinct")}
 create unique index if not exists ${ctx.naming.rename("pipelines_default_idx")} on ${t("pipelines")} (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, coalesce(${c("pipelines", "scope")}, ''))
   where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;${addExtraColumns(t("pipelines"), names.extras)}
 ${lockTable(t("pipelines"), { read: true })}
@@ -208,21 +245,14 @@ create table if not exists ${t("stages")} (
   ${c("stages", "id")} uuid primary key default gen_random_uuid(),
   ${c("stages", "tenant")} ${ctx.idType} not null,
   ${c("stages", "pipeline")} uuid not null references ${t("pipelines")} (${c("pipelines", "id")}) on delete cascade,
-  ${c("stages", "key")} text not null check (${c("stages", "key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${c("stages", "systemKey")} text,
-  ${c("stages", "name")} text not null check (length(${c("stages", "name")}) between 1 and 200),
-  ${c("stages", "color")} text,
+  ${c("stages", "key")} text not null check (${c("stages", "key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),${optional("stages", "systemKey", (x) => `${x} text`)}
+  ${c("stages", "name")} text not null check (length(${c("stages", "name")}) between 1 and 200),${optional("stages", "color", (x) => `${x} text`)}
   ${c("stages", "rank")} text collate "C" not null default 'V',
   ${c("stages", "category")} text not null,
-  ${c("stages", "outcome")} text not null check (${c("stages", "outcome")} in ('open', 'success', 'failure')),
-  ${c("stages", "probability")} smallint check (${c("stages", "probability")} >= 0 and ${c("stages", "probability")} <= 100),
-  ${c("stages", "rottingAfterDays")} integer check (${c("stages", "rottingAfterDays")} > 0),
-  ${c("stages", "wipLimit")} integer check (${c("stages", "wipLimit")} > 0),
-  ${c("stages", "archivedAt")} timestamptz,
-  ${c("stages", "createdAt")} timestamptz not null default now(),
-  ${c("stages", "updatedAt")} timestamptz not null default now(),
+  ${c("stages", "outcome")} text not null check (${c("stages", "outcome")} in ('open', 'success', 'failure')),${optional("stages", "probability", (x) => `${x} smallint check (${x} >= 0 and ${x} <= 100)`)}${optional("stages", "rottingAfterDays", (x) => `${x} integer check (${x} > 0)`)}${optional("stages", "wipLimit", (x) => `${x} integer check (${x} > 0)`)}
+  ${c("stages", "archivedAt")} timestamptz,${stamps("stages")}
   unique (${c("stages", "pipeline")}, ${c("stages", "key")})
-);
+);${key("stages", "key_key", `${c("stages", "pipeline")}, ${c("stages", "key")}`)}
 create index if not exists ${ctx.naming.rename("pipeline_stages_pipeline_idx")} on ${t("stages")} (${c("stages", "pipeline")}, ${c("stages", "rank")});
 ${lockTable(t("stages"), { read: true })}
 ${read("stages")}
@@ -234,13 +264,8 @@ create table if not exists ${t("history")} (
   ${h("subjectId")} text not null,
   ${h("pipeline")} uuid not null,
   ${h("fromStage")} uuid,
-  ${h("toStage")} uuid not null,
-  ${h("stageName")} text not null,
-  ${h("category")} text not null,
-  ${h("outcome")} text not null,
-  ${h("amount")} bigint,
-  ${h("currency")} char(3),
-  ${h("actor")} uuid,
+  ${h("toStage")} uuid not null,${optional("history", "stageName", (x) => `${x} text not null`)}${optional("history", "category", (x) => `${x} text not null`)}
+  ${h("outcome")} text not null,${optional("history", "amount", (x) => `${x} bigint`)}${optional("history", "currency", (x) => `${x} char(3)`)}${optional("history", "actor", (x) => `${x} uuid`)}
   ${h("enteredAt")} timestamptz not null default now(),
   ${h("exitedAt")} timestamptz
 );
@@ -253,6 +278,24 @@ drop policy if exists ${ctx.naming.rename("pipeline_stage_history_read")} on ${t
 create policy ${ctx.naming.rename("pipeline_stage_history_read")} on ${t("history")} for select to authenticated
 using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read'));
 `;
+}
+
+/**
+ * Row `alias` of logical table `table` as JSON keyed by the module's column
+ * names. Over the app's table it lists the module's columns only, with null for
+ * the ones the app lacks.
+ */
+function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
+  if (ctx.owns(table)) {
+    return `to_jsonb(${alias})`;
+  }
+
+  const columns = Object.entries(NAMES.tables[table]?.columns ?? {}).map(
+    ([logical, name]) =>
+      `${sqlString(name)}, ${ctx.has(table, logical) ? `${alias}.${ctx.col(table, logical)}` : "null"}`,
+  );
+
+  return `jsonb_build_object(${columns.join(", ")})`;
 }
 
 /**
@@ -276,6 +319,8 @@ function build(ctx: BlockSqlContext): string {
     manage: ctx.permission("manage", keys.manage),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
+    has: (table, column) => ctx.has(table, column),
+    json: (table, alias) => rowJson(ctx, table, alias),
   };
 
   const bindings = pipelineBindings(ctx);

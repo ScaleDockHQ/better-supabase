@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:094ae084fc8b13a2521d75ab91a59690a3e93c52dd65ad70b82e6ee8e06a1f2b
+-- @bsb-hash sha256:8e6eb1795bde7d52a06617181bce341cefaa07636e590635838ede3a22684f73
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,8 +180,7 @@ begin
   for update;
   if v_row."id" is null then
     insert into "better_supabase"."enrollments" ("tenant_id", "program", "program_version", "subject_type", "subject_id", "user_id", "steps", "enrolled_by")
-    values (enrollment_ensure.tenant, enrollment_ensure.program, enrollment_ensure.program_version, enrollment_ensure.subject_type, enrollment_ensure.subject_id,
-      case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end, enrollment_ensure.steps, enrollment_ensure.actor)
+    values (enrollment_ensure.tenant, enrollment_ensure.program, enrollment_ensure.program_version, enrollment_ensure.subject_type, enrollment_ensure.subject_id, case when enrollment_ensure.subject_type = 'user' then enrollment_ensure.subject_id::uuid end, enrollment_ensure.steps, enrollment_ensure.actor)
     on conflict do nothing
     returning * into v_row;
     if v_row."id" is null then

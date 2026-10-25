@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:0aa5c27d85ab91fc2ab09e79dba60f02b69d1b492795a1097387c611a99ebeb1
+-- @bsb-hash sha256:ab8e0b0245f12caebc95ecb1418c64895d568c49330fa127a0cb807e9925fa37
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,13 +149,10 @@ begin
     end if;
   end;
   insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "outcome", "owner_user_id", "due_at", "done_at", "duration_seconds", "external_ref", "created_by")
-  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner,
-    (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz,
-    (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
+  values (v_tenant, v_type, v_title, log_engagement.attrs ->> 'body', log_engagement.attrs ->> 'outcome', v_owner, (log_engagement.attrs ->> 'dueAt')::timestamptz, (log_engagement.attrs ->> 'doneAt')::timestamptz, (log_engagement.attrs ->> 'durationSeconds')::integer, log_engagement.attrs ->> 'externalRef', auth.uid())
   on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
     "title" = excluded."title", "body" = excluded."body", "outcome" = excluded."outcome",
-    "due_at" = excluded."due_at", "done_at" = excluded."done_at",
-    "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
+    "due_at" = excluded."due_at", "done_at" = excluded."done_at", "duration_seconds" = excluded."duration_seconds", "updated_at" = now()
   returning "id" into v_id;
   update "better_supabase"."engagements" x set "app_note" = case when log_engagement.attrs -> 'fields' ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."engagements", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(log_engagement.attrs -> 'fields') e where e.key in ('app_note'))) r

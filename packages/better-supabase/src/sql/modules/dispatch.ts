@@ -1,17 +1,11 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { WORK_ORDER_PRIORITIES } from "../../blocks/dispatch/statuses.ts";
+import { sqlString } from "../../core/template.ts";
 import {
-  WORK_ORDER_PRIORITIES,
-  WORK_ORDER_STATUSES,
-} from "../../blocks/dispatch/statuses.ts";
-import { sqlIdent, sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  addForeignKey,
   extraFieldsArg,
   fail,
-  lockTable,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -23,223 +17,13 @@ import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { DISPATCH_NAMES, dispatchContract } from "./dispatch-names.ts";
+import { BUSY, dispatchTables, linked, list } from "./dispatch-tables.ts";
 import { locationsOf } from "./inventory-stock.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-
-/** The statuses that hold a technician's slot. */
-const BUSY = ["scheduled", "en_route", "on_site"] as const;
 
 /** The longest span `dispatch_board` reads, in days. */
 const BOARD_DAYS = 31;
-
-const list = (values: readonly string[]): string =>
-  values.map((value) => sqlString(value)).join(", ");
-
-interface Linked {
-  readonly assets: BlockSqlContext | undefined;
-  readonly bookings: BlockSqlContext | undefined;
-  readonly catalog: BlockSqlContext | undefined;
-  readonly inventory: BlockSqlContext | undefined;
-}
-
-const linked = (ctx: BlockSqlContext): Linked => ({
-  assets: ctx.installed("assets") ? ctx.of("assets") : undefined,
-  bookings: ctx.installed("bookings") ? ctx.of("bookings") : undefined,
-  catalog: ctx.installed("catalog") ? ctx.of("catalog") : undefined,
-  inventory: ctx.installed("inventory") ? ctx.of("inventory") : undefined,
-});
-
-function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
-  const orders = ctx.table("workOrders");
-  const routes = ctx.table("routes");
-  const stops = ctx.table("stops");
-  const parts = ctx.table("parts");
-  const w = (column: string): string => ctx.col("workOrders", column);
-  const r = (column: string): string => ctx.col("routes", column);
-  const s = (column: string): string => ctx.col("stops", column);
-  const q = (column: string): string => ctx.col("parts", column);
-  const { assets, bookings, catalog, inventory } = linked(ctx);
-  const read = ctx.permission("read", moduleOperations("dispatch").read);
-  const readable = (tenant: string): string => ctx.scope.check(tenant, read);
-
-  const index = (logical: string, suffix: string): string =>
-    sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
-
-  const key = (
-    table: string,
-    logical: string,
-    column: string,
-    suffix: string,
-    references: string,
-  ): string =>
-    addForeignKey({
-      table,
-      name: `${ctx.tableName(logical).name}_${suffix}_fkey`,
-      column,
-      references,
-      onDelete: "set null",
-    });
-
-  const keys = [
-    assets &&
-      key(
-        orders,
-        "workOrders",
-        w("location"),
-        "location",
-        `${assets.table("locations")} (${assets.col("locations", "id")})`,
-      ),
-    assets &&
-      key(
-        orders,
-        "workOrders",
-        w("asset"),
-        "asset",
-        `${assets.table("assets")} (${assets.col("assets", "id")})`,
-      ),
-    bookings &&
-      key(
-        orders,
-        "workOrders",
-        w("booking"),
-        "booking",
-        `${bookings.table("bookings")} (${bookings.col("bookings", "id")})`,
-      ),
-    assets &&
-      key(
-        parts,
-        "parts",
-        q("asset"),
-        "asset",
-        `${assets.table("assets")} (${assets.col("assets", "id")})`,
-      ),
-    catalog &&
-      key(
-        parts,
-        "parts",
-        q("variant"),
-        "variant",
-        `${catalog.table("variants")} (${catalog.col("variants", "id")})`,
-      ),
-    inventory &&
-      key(
-        parts,
-        "parts",
-        q("location"),
-        "location",
-        `${locationsOf(inventory).table} (${locationsOf(inventory).col("id")})`,
-      ),
-  ]
-    .filter((sql): sql is string => typeof sql === "string")
-    .join("\n");
-
-  return `
--- Work orders: a job at a place (an asset location or an address), for an
--- asset or a record, scheduled into a technician's slot and worked through
--- en route, on site and done.
-create table if not exists ${orders} (
-  ${w("id")} uuid primary key default gen_random_uuid(),
-  ${w("tenant")} ${ctx.idType} not null,
-  ${w("title")} text not null check (length(${w("title")}) >= 1 and length(${w("title")}) <= 200),
-  ${w("description")} text check (${w("description")} is null or length(${w("description")}) <= 10000),
-  ${w("priority")} text not null default 'normal' check (${w("priority")} in (${list(WORK_ORDER_PRIORITIES)})),
-  ${w("status")} text not null default 'unscheduled' check (${w("status")} in (${list(WORK_ORDER_STATUSES)})),
-  ${w("technician")} uuid references auth.users (id) on delete set null,
-  ${w("startsAt")} timestamptz,
-  ${w("endsAt")} timestamptz,
-  ${w("location")} uuid,
-  ${w("asset")} uuid,
-  ${w("booking")} uuid,
-  ${w("subjectType")} text check (${w("subjectType")} is null or ${w("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${w("subjectId")} text check (${w("subjectId")} is null or length(${w("subjectId")}) >= 1 and length(${w("subjectId")}) <= 200),
-  ${w("address")} text check (${w("address")} is null or length(${w("address")}) >= 1 and length(${w("address")}) <= 500),
-  ${w("enRouteAt")} timestamptz,
-  ${w("arrivedAt")} timestamptz,
-  ${w("completedAt")} timestamptz,
-  ${w("cancelledAt")} timestamptz,
-  ${w("cancelReason")} text check (${w("cancelReason")} is null or length(${w("cancelReason")}) <= 1000),
-  ${w("completionNote")} text check (${w("completionNote")} is null or length(${w("completionNote")}) <= 10000),
-  ${w("createdBy")} uuid,
-  ${w("createdAt")} timestamptz not null default now(),
-  ${w("updatedAt")} timestamptz not null default now(),
-  check ((${w("subjectType")} is null) = (${w("subjectId")} is null)),
-  check ((${w("startsAt")} is null) = (${w("endsAt")} is null)),
-  check (${w("endsAt")} is null or ${w("endsAt")} > ${w("startsAt")}),
-  check (${w("status")} not in (${list(BUSY)}) or (${w("technician")} is not null and ${w("startsAt")} is not null))
-);${addExtraColumns(orders, extras)}
-create index if not exists ${index("workOrders", "tenant_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")} desc);
-create index if not exists ${index("workOrders", "slot_idx")} on ${orders} (${w("technician")}, ${w("startsAt")}) where ${w("startsAt")} is not null;
-create index if not exists ${index("workOrders", "board_idx")} on ${orders} (${w("tenant")}, ${w("startsAt")}) where ${w("startsAt")} is not null;
-create index if not exists ${index("workOrders", "backlog_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")}) where ${w("status")} = 'unscheduled';
-create index if not exists ${index("workOrders", "location_idx")} on ${orders} (${w("location")});
-create index if not exists ${index("workOrders", "asset_idx")} on ${orders} (${w("asset")});
-create index if not exists ${index("workOrders", "booking_idx")} on ${orders} (${w("booking")});
-create index if not exists ${index("workOrders", "subject_idx")} on ${orders} (${w("tenant")}, ${w("subjectType")}, ${w("subjectId")});
-${lockTable(orders, { read: true })}
-drop policy if exists ${index("workOrders", "read")} on ${orders};
-create policy ${index("workOrders", "read")} on ${orders} for select to authenticated
-  using (${w("technician")} = (select auth.uid()) or ${readable(w("tenant"))});
--- A technician's plan for one day: the work orders in the order they drive to
--- them.
-create table if not exists ${routes} (
-  ${r("id")} uuid primary key default gen_random_uuid(),
-  ${r("tenant")} ${ctx.idType} not null,
-  ${r("technician")} uuid not null references auth.users (id) on delete cascade,
-  ${r("routeDate")} date not null,
-  ${r("plannedBy")} uuid,
-  ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now(),
-  unique (${r("tenant")}, ${r("technician")}, ${r("routeDate")})
-);
-create index if not exists ${index("routes", "technician_idx")} on ${routes} (${r("technician")}, ${r("routeDate")});
-${lockTable(routes, { read: true })}
-drop policy if exists ${index("routes", "read")} on ${routes};
-create policy ${index("routes", "read")} on ${routes} for select to authenticated
-  using (${r("technician")} = (select auth.uid()) or ${readable(r("tenant"))});
-create table if not exists ${stops} (
-  ${s("id")} uuid primary key default gen_random_uuid(),
-  ${s("tenant")} ${ctx.idType} not null,
-  ${s("route")} uuid not null references ${routes} (${r("id")}) on delete cascade,
-  ${s("workOrder")} uuid not null references ${orders} (${w("id")}) on delete cascade,
-  ${s("position")} integer not null check (${s("position")} >= 1),
-  unique (${s("route")}, ${s("position")}),
-  unique (${s("route")}, ${s("workOrder")})
-);
-create index if not exists ${index("stops", "job_idx")} on ${stops} (${s("workOrder")});
-${lockTable(stops, { read: true })}
-drop policy if exists ${index("stops", "read")} on ${stops};
-create policy ${index("stops", "read")} on ${stops} for select to authenticated
-  using (${readable(s("tenant"))});
--- The parts a job used: free text, or an asset, or a catalog variant taken
--- from an inventory location.
-create table if not exists ${parts} (
-  ${q("id")} uuid primary key default gen_random_uuid(),
-  ${q("tenant")} ${ctx.idType} not null,
-  ${q("workOrder")} uuid not null references ${orders} (${w("id")}) on delete cascade,
-  ${q("name")} text not null check (length(${q("name")}) >= 1 and length(${q("name")}) <= 200),
-  ${q("quantity")} numeric(14, 3) not null check (${q("quantity")} > 0),
-  ${q("unit")} text check (${q("unit")} is null or length(${q("unit")}) >= 1 and length(${q("unit")}) <= 20),
-  ${q("asset")} uuid,
-  ${q("variant")} uuid,
-  ${q("location")} uuid,
-  ${q("recordedBy")} uuid,
-  ${q("createdAt")} timestamptz not null default now()
-);
-create index if not exists ${index("parts", "job_idx")} on ${parts} (${q("workOrder")}, ${q("createdAt")});
-create index if not exists ${index("parts", "asset_idx")} on ${parts} (${q("asset")});
-create index if not exists ${index("parts", "variant_idx")} on ${parts} (${q("variant")});
-create index if not exists ${index("parts", "location_idx")} on ${parts} (${q("location")});
-${lockTable(parts, { read: true })}
-drop policy if exists ${index("parts", "read")} on ${parts};
-create policy ${index("parts", "read")} on ${parts} for select to authenticated
-  using (${readable(q("tenant"))});
-${keys}
-`;
-}
 
 function functions(
   ctx: BlockSqlContext,
@@ -254,6 +38,29 @@ function functions(
   const s = (column: string): string => ctx.col("stops", column);
   const q = (column: string): string => ctx.col("parts", column);
   const fn = (name: string): string => ctx.fn(name);
+
+  // `<row>.<column>`, or null when the app maps the column to null.
+  const or = (table: string, row: string, logical: string): string =>
+    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+
+  // ", <column>" for an insert list, when the column exists.
+  const also = (table: string, logical: string): string =>
+    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+
+  // ", <value>" for an insert's values, when the column exists.
+  const alsoValue = (table: string, logical: string, value: string): string =>
+    ctx.has(table, logical) ? `, ${value}` : "";
+
+  // Sets a work order column to value when the new status is to, and keeps
+  // it otherwise; left out when the app maps the column to null.
+  const set = (logical: string, to: string, value: string): string =>
+    ctx.has("workOrders", logical)
+      ? `\n    ${w(logical)} = case when set_work_order_status.status = '${to}' then ${value} else x.${w(logical)} end,`
+      : "";
+
+  const status = (row: string): string =>
+    asText(ctx, "workOrders", `${row}.${w("status")}`);
+
   const idType = ctx.idType;
   const keys = moduleOperations("dispatch");
   const read = ctx.permission("read", keys.read);
@@ -275,13 +82,13 @@ function functions(
 
   const orderJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${w("id")}, 'organizationId', ${row}.${w("tenant")}::text, 'title', ${row}.${w("title")}, 'description', ${row}.${w("description")}, 'priority', ${row}.${w("priority")}, 'status', ${row}.${w("status")}, 'technicianId', ${row}.${w("technician")}, 'startsAt', ${row}.${w("startsAt")}, 'endsAt', ${row}.${w("endsAt")}, 'day', (${row}.${w("startsAt")} at time zone ${zone})::date, 'locationId', ${row}.${w("location")}, 'assetId', ${row}.${w("asset")}, 'bookingId', ${row}.${w("booking")}, 'subjectType', ${row}.${w("subjectType")}, 'subjectId', ${row}.${w("subjectId")}, 'address', ${row}.${w("address")}, 'enRouteAt', ${row}.${w("enRouteAt")}, 'arrivedAt', ${row}.${w("arrivedAt")}, 'completedAt', ${row}.${w("completedAt")}, 'cancelledAt', ${row}.${w("cancelledAt")}, 'cancelReason', ${row}.${w("cancelReason")}, 'completionNote', ${row}.${w("completionNote")}, 'createdBy', ${row}.${w("createdBy")}, 'createdAt', ${row}.${w("createdAt")}, 'updatedAt', ${row}.${w("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${w("id")}, 'organizationId', ${row}.${w("tenant")}::text, 'title', ${row}.${w("title")}, 'description', ${or("workOrders", row, "description")}, 'priority', ${row}.${w("priority")}, 'status', ${row}.${w("status")}, 'technicianId', ${row}.${w("technician")}, 'startsAt', ${row}.${w("startsAt")}, 'endsAt', ${row}.${w("endsAt")}, 'day', (${row}.${w("startsAt")} at time zone ${zone})::date, 'locationId', ${row}.${w("location")}, 'assetId', ${row}.${w("asset")}, 'bookingId', ${or("workOrders", row, "booking")}, 'subjectType', ${row}.${w("subjectType")}, 'subjectId', ${row}.${w("subjectId")}, 'address', ${or("workOrders", row, "address")}, 'enRouteAt', ${or("workOrders", row, "enRouteAt")}, 'arrivedAt', ${or("workOrders", row, "arrivedAt")}, 'completedAt', ${row}.${w("completedAt")}, 'cancelledAt', ${row}.${w("cancelledAt")}, 'cancelReason', ${or("workOrders", row, "cancelReason")}, 'completionNote', ${or("workOrders", row, "completionNote")}, 'createdBy', ${row}.${w("createdBy")}, 'createdAt', ${row}.${w("createdAt")}, 'updatedAt', ${row}.${w("updatedAt")})`,
       row,
       extras,
     );
 
   const partJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}::text, 'workOrderId', ${row}.${q("workOrder")}, 'name', ${row}.${q("name")}, 'quantity', ${row}.${q("quantity")}::text, 'unit', ${row}.${q("unit")}, 'assetId', ${row}.${q("asset")}, 'variantId', ${row}.${q("variant")}, 'locationId', ${row}.${q("location")}, 'recordedBy', ${row}.${q("recordedBy")}, 'createdAt', ${row}.${q("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}::text, 'workOrderId', ${row}.${q("workOrder")}, 'name', ${row}.${q("name")}, 'quantity', ${row}.${q("quantity")}::text, 'unit', ${or("parts", row, "unit")}, 'assetId', ${row}.${q("asset")}, 'variantId', ${row}.${q("variant")}, 'locationId', ${row}.${q("location")}, 'recordedBy', ${row}.${q("recordedBy")}, 'createdAt', ${row}.${q("createdAt")})`;
 
   const subject = (row: string): string =>
     `'work-orders/' || ${row}.${w("id")}::text`;
@@ -489,11 +296,11 @@ ${slotChecks("create_work_order.tenant", "create_work_order.technician", "v_star
     ${fail("DISPATCH_TECHNICIAN_INVALID", "the technician is not a member who can do field work here", "22023")}
   end if;
   begin
-    insert into ${orders} (${w("tenant")}, ${w("title")}, ${w("description")}, ${w("priority")}, ${w("status")}, ${w("technician")}, ${w("startsAt")}, ${w("endsAt")}, ${w("location")}, ${w("asset")}, ${w("booking")}, ${w("subjectType")}, ${w("subjectId")}, ${w("address")}, ${w("createdBy")})
-    values (create_work_order.tenant, btrim(create_work_order.title), create_work_order.description, coalesce(create_work_order.priority, 'normal'),
-      case when v_starts is null then 'unscheduled' else 'scheduled' end, create_work_order.technician, v_starts, v_ends,
-      create_work_order.location_id, create_work_order.asset_id, create_work_order.booking_id,
-      create_work_order.subject_type, create_work_order.subject_id, nullif(btrim(create_work_order.address), ''), auth.uid())
+    insert into ${orders} (${w("tenant")}, ${w("title")}${also("workOrders", "description")}, ${w("priority")}, ${w("status")}, ${w("technician")}, ${w("startsAt")}, ${w("endsAt")}, ${w("location")}, ${w("asset")}${also("workOrders", "booking")}, ${w("subjectType")}, ${w("subjectId")}${also("workOrders", "address")}, ${w("createdBy")})
+    values (create_work_order.tenant, btrim(create_work_order.title)${alsoValue("workOrders", "description", "create_work_order.description")}, ${ctx.cast("workOrders", "priority", "coalesce(create_work_order.priority, 'normal')")},
+      ${ctx.cast("workOrders", "status", "case when v_starts is null then 'unscheduled' else 'scheduled' end")}, create_work_order.technician, v_starts, v_ends,
+      create_work_order.location_id, create_work_order.asset_id${alsoValue("workOrders", "booking", "create_work_order.booking_id")},
+      create_work_order.subject_type, create_work_order.subject_id${alsoValue("workOrders", "address", "nullif(btrim(create_work_order.address), '')")}, auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation then
     ${fail("DISPATCH_INVALID", "a work order needs a title of 1 to 200 characters and a known priority", "22023")}
@@ -527,12 +334,10 @@ begin
 ${placeChecks(`v_row.${w("tenant")}`, "update_work_order.location_id", "update_work_order.asset_id", undefined)}
   begin
     update ${orders} x set
-      ${w("title")} = coalesce(btrim(update_work_order.title), x.${w("title")}),
-      ${w("description")} = coalesce(update_work_order.description, x.${w("description")}),
-      ${w("priority")} = coalesce(update_work_order.priority, x.${w("priority")}),
+      ${w("title")} = coalesce(btrim(update_work_order.title), x.${w("title")}),${ctx.has("workOrders", "description") ? `\n      ${w("description")} = coalesce(update_work_order.description, x.${w("description")}),` : ""}
+      ${w("priority")} = ${ctx.cast("workOrders", "priority", `coalesce(update_work_order.priority, ${asText(ctx, "workOrders", `x.${w("priority")}`)})`)},
       ${w("location")} = coalesce(update_work_order.location_id, x.${w("location")}),
-      ${w("asset")} = coalesce(update_work_order.asset_id, x.${w("asset")}),
-      ${w("address")} = coalesce(nullif(btrim(update_work_order.address), ''), x.${w("address")}),
+      ${w("asset")} = coalesce(update_work_order.asset_id, x.${w("asset")}),${ctx.has("workOrders", "address") ? `\n      ${w("address")} = coalesce(nullif(btrim(update_work_order.address), ''), x.${w("address")}),` : ""}
       ${w("updatedAt")} = now()
     where x.${w("id")} = v_row.${w("id")}
     returning * into v_row;
@@ -648,7 +453,7 @@ begin
   if not found or not ${worker("v_row")} then
     ${fail("DISPATCH_NOT_FOUND", "work order not found", "P0002")}
   end if;
-  v_from := v_row.${w("status")};
+  v_from := ${status("v_row")};
   if set_work_order_status.status = v_from then
     return ${orderJson("v_row")};
   end if;
@@ -664,24 +469,20 @@ begin
     ${fail("DISPATCH_FORBIDDEN", "only a dispatcher can cancel a work order")}
   end if;
   update ${orders} x set
-    ${w("status")} = set_work_order_status.status,
-    ${w("enRouteAt")} = case when set_work_order_status.status = 'en_route' then now() else x.${w("enRouteAt")} end,
-    ${w("arrivedAt")} = case when set_work_order_status.status = 'on_site' then now() else x.${w("arrivedAt")} end,
-    ${w("completedAt")} = case when set_work_order_status.status = 'done' then now() else x.${w("completedAt")} end,
-    ${w("completionNote")} = case when set_work_order_status.status = 'done' then set_work_order_status.note else x.${w("completionNote")} end,
-    ${w("cancelledAt")} = case when set_work_order_status.status = 'cancelled' then now() else x.${w("cancelledAt")} end,
-    ${w("cancelReason")} = case when set_work_order_status.status = 'cancelled' then set_work_order_status.note else x.${w("cancelReason")} end,
+    ${w("status")} = ${ctx.cast("workOrders", "status", "set_work_order_status.status")},${set("enRouteAt", "en_route", "now()")}${set("arrivedAt", "on_site", "now()")}
+    ${w("completedAt")} = case when set_work_order_status.status = 'done' then now() else x.${w("completedAt")} end,${set("completionNote", "done", "set_work_order_status.note")}
+    ${w("cancelledAt")} = case when set_work_order_status.status = 'cancelled' then now() else x.${w("cancelledAt")} end,${set("cancelReason", "cancelled", "set_work_order_status.note")}
     ${w("updatedAt")} = now()
   where x.${w("id")} = v_row.${w("id")}
   returning * into v_row;
   ${ctx.record({
     type: "work_order.status_changed",
-    payload: `jsonb_build_object(${base("v_row")}, 'from', v_from, 'to', v_row.${w("status")}, 'technicianId', v_row.${w("technician")})`,
+    payload: `jsonb_build_object(${base("v_row")}, 'from', v_from, 'to', ${status("v_row")}, 'technicianId', v_row.${w("technician")})`,
     subject: subject("v_row"),
     tenant: `v_row.${w("tenant")}`,
     audit: {
       ...audited("v_row", "work order"),
-      summary: `'work order ' || replace(v_row.${w("status")}, '_', ' ')`,
+      summary: `'work order ' || replace(${status("v_row")}, '_', ' ')`,
     },
   })}
   return ${orderJson("v_row")};
@@ -731,7 +532,7 @@ begin
       select ${orderJson("x")} as item, x.${w("createdAt")} as created, x.${w("id")} as id
       from ${orders} x
       where x.${w("tenant")} = list_work_orders.tenant
-        and (list_work_orders.status is null or x.${w("status")} = list_work_orders.status)
+        and (list_work_orders.status is null or ${status("x")} = list_work_orders.status)
         and (list_work_orders.technician is null or x.${w("technician")} = list_work_orders.technician)
         and (list_work_orders.subject_type is null or (x.${w("subjectType")} = list_work_orders.subject_type and x.${w("subjectId")} = list_work_orders.subject_id))
         and (list_work_orders.from_at is null or x.${w("endsAt")} > list_work_orders.from_at)
@@ -790,11 +591,11 @@ begin
     'backlog', (
       select coalesce(jsonb_agg(z.item order by z.rank desc, z.created, z.id), '[]'::jsonb)
       from (
-        select ${orderJson("b")} as item, array_position(array[${list(WORK_ORDER_PRIORITIES)}], b.${w("priority")}) as rank,
+        select ${orderJson("b")} as item, array_position(array[${list(WORK_ORDER_PRIORITIES)}], ${asText(ctx, "workOrders", `b.${w("priority")}`)}) as rank,
           b.${w("createdAt")} as created, b.${w("id")} as id
         from ${orders} b
         where b.${w("tenant")} = dispatch_board.tenant and b.${w("status")} = 'unscheduled'
-        order by array_position(array[${list(WORK_ORDER_PRIORITIES)}], b.${w("priority")}) desc, b.${w("createdAt")}, b.${w("id")}
+        order by array_position(array[${list(WORK_ORDER_PRIORITIES)}], ${asText(ctx, "workOrders", `b.${w("priority")}`)}) desc, b.${w("createdAt")}, b.${w("id")}
         limit 200
       ) z
     )
@@ -884,10 +685,10 @@ begin
   ) then
     ${fail("DISPATCH_ROUTE_INVALID", "every stop must be a live work order of this technician", "22023")}
   end if;
-  insert into ${routes} (${r("tenant")}, ${r("technician")}, ${r("routeDate")}, ${r("plannedBy")})
-  values (plan_dispatch_route.tenant, plan_dispatch_route.technician, plan_dispatch_route.route_date, auth.uid())
+  insert into ${routes} (${r("tenant")}, ${r("technician")}, ${r("routeDate")}${also("routes", "plannedBy")})
+  values (plan_dispatch_route.tenant, plan_dispatch_route.technician, plan_dispatch_route.route_date${alsoValue("routes", "plannedBy", "auth.uid()")})
   on conflict (${r("tenant")}, ${r("technician")}, ${r("routeDate")})
-    do update set ${r("plannedBy")} = excluded.${r("plannedBy")}, ${r("updatedAt")} = now()
+    do update set ${ctx.has("routes", "plannedBy") ? `${r("plannedBy")} = excluded.${r("plannedBy")}, ` : ""}${r("updatedAt")} = now()
   returning * into v_route;
   delete from ${stops} st where st.${s("route")} = v_route.${r("id")};
   insert into ${stops} (${s("tenant")}, ${s("route")}, ${s("workOrder")}, ${s("position")})
@@ -929,9 +730,9 @@ begin
   end if;
 ${partChecks(`v_order.${w("tenant")}`)}
   begin
-    insert into ${parts} (${q("tenant")}, ${q("workOrder")}, ${q("name")}, ${q("quantity")}, ${q("unit")}, ${q("asset")}, ${q("variant")}, ${q("location")}, ${q("recordedBy")})
+    insert into ${parts} (${q("tenant")}, ${q("workOrder")}, ${q("name")}, ${q("quantity")}${also("parts", "unit")}, ${q("asset")}, ${q("variant")}, ${q("location")}, ${q("recordedBy")})
     values (v_order.${w("tenant")}, v_order.${w("id")}, btrim(record_work_order_part.name), coalesce(record_work_order_part.quantity, 1),
-      record_work_order_part.unit, record_work_order_part.asset_id, record_work_order_part.variant_id, record_work_order_part.location_id, auth.uid())
+      ${ctx.has("parts", "unit") ? "record_work_order_part.unit, " : ""}record_work_order_part.asset_id, record_work_order_part.variant_id, record_work_order_part.location_id, auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or numeric_value_out_of_range then
     ${fail("DISPATCH_PART_INVALID", "a part needs a name of 1 to 200 characters and a positive quantity", "22023")}
@@ -1037,7 +838,7 @@ function build(ctx: BlockSqlContext): string {
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
-${tables(ctx, extras)}${functions(ctx, extras)}${workOrderMerges(ctx)}`;
+${dispatchTables(ctx, extras)}${functions(ctx, extras)}${workOrderMerges(ctx)}`;
 }
 
 export const DISPATCH: BlockSqlDefinition = {

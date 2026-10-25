@@ -302,6 +302,10 @@ export interface Names {
   readonly manage: string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
+  /** Whether logical table `table` has `column`. */
+  readonly has: (table: string, column: string) => boolean;
+  /** Row `alias` of logical table `table` as JSON, as `to_jsonb` keys it. */
+  readonly json: (table: string, alias: string) => string;
 }
 
 /**

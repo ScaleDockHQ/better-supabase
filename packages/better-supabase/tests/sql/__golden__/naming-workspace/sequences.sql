@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:6b0946f32068d48d1676640c2a6208247c3422773d5d35e6fb5ca0f1e58b68b6
+-- @bsb-hash sha256:6969c19e587d3679dd6134edaa75a54919ab8a84233bc507ca18f53eacaad051
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -396,7 +396,7 @@ begin
   v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
   v_description := case when save_sequence.sequence ? 'description'
     then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status", 'draft');
+  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
   v_exit := case when save_sequence.sequence ? 'exitOnReply'
     then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
   v_account := case when save_sequence.sequence ? 'accountId'
@@ -429,8 +429,8 @@ begin
     raise exception 'accountId needs the mail-sync block' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, auth.uid())
+    insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
+    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -483,7 +483,7 @@ begin
     from "better_supabase"."sequence_enrollments" m where m."sequence_id" = x."id")) order by x."name", x."id")
     from "better_supabase"."sequences" x
     where x."tenant_id" = list_sequences.tenant
-      and (case when list_sequences.status is null then x."status" <> 'archived' else x."status" = list_sequences.status end)
+      and (case when list_sequences.status is null then x."status" <> 'archived' else x."status"::text = list_sequences.status end)
   ), '[]'::jsonb);
 end;
 $$;
@@ -632,9 +632,9 @@ begin
   v_id := "better_supabase"."enrollment_ensure"(v_sequence."tenant_id", ('sequence:' || v_sequence."id"::text), v_sequence."version", array(select t.value ->> 'id' from jsonb_array_elements(v_sequence."steps") with ordinality as t(value, ord) order by t.ord),
     enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, auth.uid());
   insert into "better_supabase"."sequence_enrollments" ("enrollment_id", "tenant_id", "sequence_id", "subject_type", "subject_id", "address", "name",
-    "mail_account_id", "variables", "enrolled_by")
+    "mail_account_id", "variables", "status", "enrolled_by")
   values (v_id, v_sequence."tenant_id", v_sequence."id", enroll_in_sequence.subject_type, enroll_in_sequence.subject_id, v_address, v_name,
-    v_account, v_variables, auth.uid())
+    v_account, v_variables, 'active', auth.uid())
   on conflict ("enrollment_id") do update
   set "address" = excluded."address", "name" = excluded."name", "mail_account_id" = excluded."mail_account_id",
     "variables" = excluded."variables", "enrolled_by" = excluded."enrolled_by", "status" = 'active',
@@ -731,7 +731,7 @@ begin
         and (v_parent is null or x."sequence_id" = v_parent)
         and (v_filter ->> 'subjectType' is null or x."subject_type" = v_filter ->> 'subjectType')
         and (v_filter ->> 'subjectId' is null or x."subject_id" = v_filter ->> 'subjectId')
-        and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
+        and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
         and (v_filter ->> 'before' is null or x."created_at" < (v_filter ->> 'before')::timestamptz)
       order by x."created_at" desc, x."enrollment_id" desc
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)

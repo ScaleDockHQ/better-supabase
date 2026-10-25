@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, revokeTable } from "../shared.ts";
+import { namedRowJson, statusFrom } from "./attachments-app.ts";
 
 type Column = (logical: string) => string;
 
@@ -98,17 +99,22 @@ export function attachmentVersionsSql(
     "uploadedBy",
     "uploadedAt",
     "scannedAt",
-  ];
+  ].filter((logical) => ctx.has("versions", logical));
 
   const fromRow: Readonly<Record<string, string>> = {
     attachment: `v_row.${c("id")}`,
     path: current("v_row"),
+    status: statusFrom(ctx, "versions", "attachments", `v_row.${c("status")}`),
   };
+
+  const fromAttachment = (logical: string): string =>
+    fromRow[logical] ??
+    (ctx.has("attachments", logical) ? `v_row.${c(logical)}` : "null");
 
   // Moves the current version, once uploaded, to the versions table.
   const archive = `if v_row.${c("uploadedAt")} is not null then
     insert into ${versions} (${copied.map(vc).join(", ")})
-    values (${copied.map((logical) => fromRow[logical] ?? `v_row.${c(logical)}`).join(", ")});
+    values (${copied.map(fromAttachment).join(", ")});
   end if;`;
 
   const restored = [
@@ -124,7 +130,23 @@ export function attachmentVersionsSql(
     "uploadedBy",
     "uploadedAt",
     "scannedAt",
-  ];
+  ].filter((logical) => ctx.has("attachments", logical));
+
+  const fromVersion = (logical: string): string => {
+    if (logical === "status") {
+      return statusFrom(
+        ctx,
+        "attachments",
+        "versions",
+        `v_old.${vc("status")}`,
+      );
+    }
+
+    return ctx.has("versions", logical) ? `v_old.${vc(logical)}` : "null";
+  };
+
+  const optional = (logical: string, value: string): string[] =>
+    ctx.has("attachments", logical) ? [`${c(logical)} = ${value}`] : [];
 
   const table = `-- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -139,15 +161,14 @@ create table if not exists ${versions} (
   ${vc("name")} text not null,
   ${vc("mimeType")} text not null,
   ${vc("size")} bigint not null,
-  ${vc("width")} integer,
-  ${vc("height")} integer,
-  ${vc("pages")} integer,
-  ${vc("status")} text not null check (${vc("status")} in ('pending', 'clean', 'infected', 'failed')),
-  ${vc("detail")} text,
+${["width", "height", "pages"]
+  .filter((logical) => ctx.has("versions", logical))
+  .map((logical) => `  ${vc(logical)} integer,\n`)
+  .join(
+    "",
+  )}  ${vc("status")} text not null check (${vc("status")} in ('pending', 'clean', 'infected', 'failed')),${ctx.has("versions", "detail") ? `\n  ${vc("detail")} text,` : ""}
   ${vc("uploadedBy")} uuid references auth.users (id) on delete set null,
-  ${vc("uploadedAt")} timestamptz,
-  ${vc("scannedAt")} timestamptz,
-  ${vc("archivedAt")} timestamptz not null default now(),
+  ${vc("uploadedAt")} timestamptz,${ctx.has("versions", "scannedAt") ? `\n  ${vc("scannedAt")} timestamptz,` : ""}${ctx.has("versions", "archivedAt") ? `\n  ${vc("archivedAt")} timestamptz not null default now(),` : ""}
   unique (${vc("attachment")}, ${vc("version")}),
   unique (${vc("bucket")}, ${vc("path")})
 );
@@ -194,18 +215,20 @@ begin
   into v_next
   from ${versions} v where v.${vc("attachment")} = v_row.${c("id")};
   update ${t} a set
-    ${c("version")} = v_next,
-    ${c("name")} = replace_attachment.name,
-    ${c("mimeType")} = lower(replace_attachment.mime_type),
-    ${c("size")} = replace_attachment.size,
-    ${c("width")} = replace_attachment.width,
-    ${c("height")} = replace_attachment.height,
-    ${c("pages")} = replace_attachment.pages,
-    ${c("status")} = 'pending',
-    ${c("detail")} = null,
-    ${c("uploadedBy")} = coalesce(auth.uid(), a.${c("uploadedBy")}),
-    ${c("uploadedAt")} = null,
-    ${c("scannedAt")} = null
+    ${[
+      `${c("version")} = v_next`,
+      `${c("name")} = replace_attachment.name`,
+      `${c("mimeType")} = lower(replace_attachment.mime_type)`,
+      `${c("size")} = replace_attachment.size`,
+      ...["width", "height", "pages"].flatMap((logical) =>
+        optional(logical, `replace_attachment.${logical}`),
+      ),
+      `${c("status")} = 'pending'`,
+      ...optional("detail", "null"),
+      `${c("uploadedBy")} = coalesce(auth.uid(), a.${c("uploadedBy")})`,
+      `${c("uploadedAt")} = null`,
+      ...optional("scannedAt", "null"),
+    ].join(",\n    ")}
   where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;
   ${record("attachment.replaced")}
@@ -239,7 +262,7 @@ begin
   delete from ${versions} v where v.${vc("id")} = v_old.${vc("id")};
   ${archive}
   update ${t} a set
-    ${restored.map((logical) => `${c(logical)} = v_old.${vc(logical)}`).join(",\n    ")}
+    ${restored.map((logical) => `${c(logical)} = ${fromVersion(logical)}`).join(",\n    ")}
   where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;
   ${record("attachment.restored")}
@@ -255,7 +278,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(v) order by v.${vc("version")} desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(${ctx.owns("versions") ? "to_jsonb(v)" : namedRowJson(ctx, "versions", "v", {})} order by v.${vc("version")} desc), '[]'::jsonb)
   from ${versions} v where v.${vc("attachment")} = list_attachment_versions.id
 $$;
 revoke execute on function ${fn("replace_attachment")}(uuid, text, text, bigint, integer, integer, integer) from public, anon;

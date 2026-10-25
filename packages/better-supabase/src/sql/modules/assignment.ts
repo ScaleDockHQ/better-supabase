@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   activeMembership,
   fail,
@@ -46,6 +47,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     queues: {
       name: "assignment_queues",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -59,9 +61,12 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: ["conditions", "rank"],
+      typed: ["strategy"],
     },
     members: {
       name: "assignment_queue_members",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         queue: "queue_id",
@@ -73,9 +78,11 @@ const NAMES: BlockSqlNames = {
         assignedCount: "assigned_count",
         lastAssignedAt: "last_assigned_at",
       },
+      optional: ["assignedCount"],
     },
     log: {
       name: "assignments",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -96,6 +103,7 @@ interface AssignmentNames {
   readonly q: (column: string) => string;
   readonly u: (column: string) => string;
   readonly g: (column: string) => string;
+  readonly has: (table: string, column: string) => boolean;
   readonly read: string;
   readonly manage: string;
   readonly assign: string;
@@ -110,6 +118,7 @@ function names(ctx: BlockSqlContext): AssignmentNames {
     q: (column) => ctx.col("queues", column),
     u: (column) => ctx.col("members", column),
     g: (column) => ctx.col("log", column),
+    has: (table, column) => ctx.has(table, column),
     read: ctx.permission("read", keys.read),
     manage: ctx.permission("manage", keys.manage),
     assign: ctx.permission("assign", keys.assign),
@@ -117,7 +126,7 @@ function names(ctx: BlockSqlContext): AssignmentNames {
 }
 
 function tables(ctx: BlockSqlContext, n: AssignmentNames): string {
-  const { t, q, u, g } = n;
+  const { t, q, u, g, has } = n;
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
   return `create table if not exists ${t("queues")} (
@@ -126,14 +135,12 @@ function tables(ctx: BlockSqlContext, n: AssignmentNames): string {
   ${q("name")} text not null check (length(${q("name")}) between 1 and 200),
   ${q("subjectType")} text not null check (${q("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${q("strategy")} text not null default 'round_robin' check (${q("strategy")} in ('round_robin', 'weighted')),
-  ${q("conditions")} jsonb check (${q("conditions")} is null or jsonb_typeof(${q("conditions")}) = 'object'),
-  ${q("rank")} integer not null default 0,
-  ${q("enabled")} boolean not null default true,
+${has("queues", "conditions") ? `  ${q("conditions")} jsonb check (${q("conditions")} is null or jsonb_typeof(${q("conditions")}) = 'object'),\n` : ""}${has("queues", "rank") ? `  ${q("rank")} integer not null default 0,\n` : ""}  ${q("enabled")} boolean not null default true,
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   unique (${q("tenant")}, ${q("name")})
 );
-create index if not exists ${ctx.naming.rename("assignment_queues_order_idx")} on ${t("queues")} (${q("tenant")}, ${q("subjectType")}, ${q("rank")}) where ${q("enabled")};
+create index if not exists ${ctx.naming.rename("assignment_queues_order_idx")} on ${t("queues")} (${q("tenant")}, ${q("subjectType")}${has("queues", "rank") ? `, ${q("rank")}` : ""}) where ${q("enabled")};
 ${lockTable(t("queues"), { read: true })}
 create table if not exists ${t("members")} (
   ${u("queue")} uuid not null references ${t("queues")} (${q("id")}) on delete cascade,
@@ -142,10 +149,13 @@ create table if not exists ${t("members")} (
   ${u("weight")} integer not null default 1 check (${u("weight")} between 1 and 100),
   ${u("active")} boolean not null default true,
   ${u("credit")} bigint not null default 0,
-  ${u("assignedCount")} integer not null default 0,
-  ${u("lastAssignedAt")} timestamptz,
+${has("members", "assignedCount") ? `  ${u("assignedCount")} integer not null default 0,\n` : ""}  ${u("lastAssignedAt")} timestamptz,
   primary key (${u("queue")}, ${u("user")})
-);
+);${
+    ctx.owns("members")
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("members").name}_user_key`)} on ${t("members")} (${u("queue")}, ${u("user")});`
+  }
 create index if not exists ${ctx.naming.rename("assignment_queue_members_user_idx")} on ${t("members")} (${u("user")});
 ${lockTable(t("members"), { read: true })}
 create table if not exists ${t("log")} (
@@ -174,7 +184,20 @@ using (${ctx.scope.check(g("tenant"), n.read)});
 }
 
 function functions(ctx: BlockSqlContext, n: AssignmentNames): string {
-  const { fn, t, q, u, g } = n;
+  const { fn, t, q, u, g, has } = n;
+
+  const conditions = (row: string): string =>
+    has("queues", "conditions") ? `${row}.${q("conditions")}` : "null::jsonb";
+
+  const rank = (row: string): string =>
+    has("queues", "rank") ? `${row}.${q("rank")}` : "0";
+
+  const ranked = (row: string): string =>
+    has("queues", "rank") ? `${row}.${q("rank")}, ` : "";
+
+  const strategy = (value: string): string =>
+    ctx.cast("queues", "strategy", value);
+
   const rules = ctx.of("automations");
   const tenant = ctx.of("memberships");
   const ms = (column: string): string => tenant.col("memberships", column);
@@ -183,14 +206,14 @@ function functions(ctx: BlockSqlContext, n: AssignmentNames): string {
     `exists (select 1 from ${tenant.table("memberships")} ${alias} where ${alias}.${ms("tenant")} = ${tenantId} and ${alias}.${ms("user")} = ${user}${activeMembership(ctx, alias)})`;
 
   const queueJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'name', ${row}.${q("name")}, 'subjectType', ${row}.${q("subjectType")}, 'strategy', ${row}.${q("strategy")}, 'conditions', ${row}.${q("conditions")}, 'rank', ${row}.${q("rank")}, 'enabled', ${row}.${q("enabled")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}, 'members', coalesce((
-      select jsonb_agg(jsonb_build_object('userId', z.${u("user")}, 'weight', z.${u("weight")}, 'active', z.${u("active")}, 'assignedCount', z.${u("assignedCount")}, 'lastAssignedAt', z.${u("lastAssignedAt")}) order by z.${u("user")})
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'name', ${row}.${q("name")}, 'subjectType', ${row}.${q("subjectType")}, 'strategy', ${row}.${q("strategy")}::text, 'conditions', ${conditions(row)}, 'rank', ${rank(row)}, 'enabled', ${row}.${q("enabled")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}, 'members', coalesce((
+      select jsonb_agg(jsonb_build_object('userId', z.${u("user")}, 'weight', z.${u("weight")}, 'active', z.${u("active")}, 'assignedCount', ${has("members", "assignedCount") ? `z.${u("assignedCount")}` : "null"}, 'lastAssignedAt', z.${u("lastAssignedAt")}) order by z.${u("user")})
       from ${t("members")} z where z.${u("queue")} = ${row}.${q("id")}
     ), '[]'::jsonb))`;
 
   const assigned = ctx.record({
     type: "subject.assigned",
-    payload: `jsonb_build_object('organizationId', v_queue.${q("tenant")}, 'queueId', v_queue.${q("id")}, 'subjectType', v_queue.${q("subjectType")}, 'subjectId', assign_subject.subject_id, 'userId', v_user, 'strategy', v_queue.${q("strategy")})`,
+    payload: `jsonb_build_object('organizationId', v_queue.${q("tenant")}, 'queueId', v_queue.${q("id")}, 'subjectType', v_queue.${q("subjectType")}, 'subjectId', assign_subject.subject_id, 'userId', v_user, 'strategy', v_queue.${q("strategy")}::text)`,
     subject: `'assignment-queues/' || v_queue.${q("id")}::text`,
     tenant: `v_queue.${q("tenant")}::text`,
     key: `'subject.assigned:' || v_log::text`,
@@ -233,7 +256,14 @@ begin
   if v_type is null or v_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
     ${fail("ASSIGNMENT_INVALID", "A queue needs a subject type", "22023")}
   end if;
-  v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else v_old.${q("conditions")} end;
+  v_conditions := case when queue ? 'conditions' then nullif(queue -> 'conditions', 'null'::jsonb) else ${conditions("v_old")} end;${
+    has("queues", "conditions")
+      ? ""
+      : `
+  if v_conditions is not null then
+    ${fail("ASSIGNMENT_CONDITIONS_UNSUPPORTED", "this queues table has no conditions column", "22023")}
+  end if;`
+  }
   if v_conditions is not null then
     v_fields := ${rules.fn("rule_field_map")}(v_type);
     if v_fields = '{}'::jsonb then
@@ -242,18 +272,16 @@ begin
     perform ${rules.fn("rule_check")}(v_conditions, v_fields, 1);
   end if;
   if v_old.${q("id")} is null then
-    insert into ${t("queues")} (${q("tenant")}, ${q("name")}, ${q("subjectType")}, ${q("strategy")}, ${q("conditions")}, ${q("rank")}, ${q("enabled")})
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
-      v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
+    insert into ${t("queues")} (${q("tenant")}, ${q("name")}, ${q("subjectType")}, ${q("strategy")}, ${has("queues", "conditions") ? `${q("conditions")}, ` : ""}${has("queues", "rank") ? `${q("rank")}, ` : ""}${q("enabled")})
+    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, ${strategy("coalesce(queue ->> 'strategy', 'round_robin')")},
+      ${has("queues", "conditions") ? "v_conditions, " : ""}${has("queues", "rank") ? "coalesce((queue ->> 'rank')::integer, 0), " : ""}coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
     update ${t("queues")} x set
       ${q("name")} = coalesce(trim(queue ->> 'name'), x.${q("name")}),
       ${q("subjectType")} = v_type,
-      ${q("strategy")} = coalesce(queue ->> 'strategy', x.${q("strategy")}),
-      ${q("conditions")} = v_conditions,
-      ${q("rank")} = coalesce((queue ->> 'rank')::integer, x.${q("rank")}),
-      ${q("enabled")} = coalesce((queue ->> 'enabled')::boolean, x.${q("enabled")}),
+      ${q("strategy")} = coalesce(${strategy("queue ->> 'strategy'")}, x.${q("strategy")}),
+${has("queues", "conditions") ? `      ${q("conditions")} = v_conditions,\n` : ""}${has("queues", "rank") ? `      ${q("rank")} = coalesce((queue ->> 'rank')::integer, x.${q("rank")}),\n` : ""}      ${q("enabled")} = coalesce((queue ->> 'enabled')::boolean, x.${q("enabled")}),
       ${q("updatedAt")} = now()
     where x.${q("id")} = v_old.${q("id")}
     returning * into v_row;
@@ -346,7 +374,7 @@ begin
     ${fail("ASSIGNMENT_FORBIDDEN", "You need assignment.read to list assignment queues")}
   end if;
   return coalesce((
-    select jsonb_agg(${queueJson("x")} order by x.${q("subjectType")}, x.${q("rank")}, x.${q("name")})
+    select jsonb_agg(${queueJson("x")} order by x.${q("subjectType")}, ${ranked("x")}x.${q("name")})
     from ${t("queues")} x
     where x.${q("tenant")} = list_assignment_queues.tenant
       and (list_assignment_queues.subject_type is null or x.${q("subjectType")} = list_assignment_queues.subject_type)
@@ -384,14 +412,14 @@ begin
   for v_queue in
     select * from ${t("queues")} x
     where x.${q("tenant")} = assign_subject.tenant and x.${q("subjectType")} = assign_subject.subject_type and x.${q("enabled")}
-    order by x.${q("rank")}, x.${q("name")}
+    order by ${ranked("x")}x.${q("name")}
   loop
-    if v_queue.${q("conditions")} is not null
-      and not ${rules.fn("rule_matches")}(v_queue.${q("conditions")}, coalesce(assign_subject.subject, '{}'::jsonb), v_fields, 'UTC', now()) then
+    if ${conditions("v_queue")} is not null
+      and not ${rules.fn("rule_matches")}(${conditions("v_queue")}, coalesce(assign_subject.subject, '{}'::jsonb), v_fields, 'UTC', now()) then
       continue;
     end if;
     perform 1 from ${t("queues")} x where x.${q("id")} = v_queue.${q("id")} for update;
-    if v_queue.${q("strategy")} = 'weighted' then
+    if v_queue.${q("strategy")}::text = 'weighted' then
       select coalesce(sum(z.${u("weight")}), 0) into v_total from ${t("members")} z
       where z.${u("queue")} = v_queue.${q("id")} and z.${u("active")} and ${isMember(`z.${u("user")}`, `v_queue.${q("tenant")}`, "mw")};
       if v_total = 0 then
@@ -414,13 +442,13 @@ begin
         continue;
       end if;
     end if;
-    update ${t("members")} z set ${u("lastAssignedAt")} = clock_timestamp(), ${u("assignedCount")} = z.${u("assignedCount")} + 1
+    update ${t("members")} z set ${u("lastAssignedAt")} = clock_timestamp()${has("members", "assignedCount") ? `, ${u("assignedCount")} = z.${u("assignedCount")} + 1` : ""}
     where z.${u("queue")} = v_queue.${q("id")} and z.${u("user")} = v_user;
     insert into ${t("log")} (${g("tenant")}, ${g("queue")}, ${g("subjectType")}, ${g("subjectId")}, ${g("user")})
     values (v_queue.${q("tenant")}, v_queue.${q("id")}, v_queue.${q("subjectType")}, assign_subject.subject_id, v_user)
     returning ${g("id")} into v_log;
     ${assigned}
-    return jsonb_build_object('queueId', v_queue.${q("id")}, 'userId', v_user, 'strategy', v_queue.${q("strategy")});
+    return jsonb_build_object('queueId', v_queue.${q("id")}, 'userId', v_user, 'strategy', v_queue.${q("strategy")}::text);
   end loop;
   return null;
 end;

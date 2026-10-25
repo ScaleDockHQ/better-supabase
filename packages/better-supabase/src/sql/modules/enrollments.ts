@@ -64,7 +64,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     programs: {
       name: "enrollment_programs",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      optional: ["description", "createdBy", "createdAt", "updatedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -82,7 +84,10 @@ const NAMES: BlockSqlNames = {
     },
     enrollments: {
       name: "enrollments",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
+      optional: ["programVersion"],
+      typed: ["status"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -103,6 +108,7 @@ const NAMES: BlockSqlNames = {
     },
     steps: {
       name: "enrollment_steps",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         enrollment: "enrollment_id",
@@ -135,31 +141,39 @@ export function enrollmentTables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (ident: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
+  // Over the app's table the render drops the inline keys the upserts rely on.
+  const key = (logical: string, suffix: string, columns: string): string =>
+    ctx.owns(logical)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(logical).name}_${suffix}`)} on ${ctx.table(logical)} ${columns};`;
+
   return `create table if not exists ${programs} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
   ${p("key")} text not null check (${p("key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),
-  ${p("description")} text check (${p("description")} is null or length(${p("description")}) <= 2000),
+  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),${optional("programs", "description", (c) => `${c} text check (${c} is null or length(${c}) <= 2000)`)}
   -- The subject types it enrolls; empty enrolls any.
   ${p("subjectTypes")} text[] not null default '{}',
   -- [{ id, title, description }], in order.
   ${p("steps")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${p("steps")}) = 'array'),
   ${p("enabled")} boolean not null default true,
-  ${p("version")} integer not null default 1,
-  ${p("createdBy")} uuid,
-  ${p("createdAt")} timestamptz not null default now(),
-  ${p("updatedAt")} timestamptz not null default now(),
+  ${p("version")} integer not null default 1,${optional("programs", "createdBy", (c) => `${c} uuid`)}${optional("programs", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("programs", "updatedAt", (c) => `${c} timestamptz not null default now()`)}
   unique (${p("tenant")}, ${p("key")})
-);
+);${key("programs", "key_key", `(${p("tenant")}, ${p("key")})`)}
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
 create table if not exists ${enrollments} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType},
-  ${e("program")} text not null check (length(${e("program")}) between 1 and 200),
-  ${e("programVersion")} integer,
+  ${e("program")} text not null check (length(${e("program")}) between 1 and 200),${optional("enrollments", "programVersion", (c) => `${c} integer`)}
   ${e("subjectType")} text not null check (${e("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${e("subjectId")} text not null check (length(${e("subjectId")}) between 1 and 200),
   ${e("user")} uuid references auth.users (id) on delete cascade,
@@ -175,7 +189,7 @@ create table if not exists ${enrollments} (
   check ((${e("subjectType")} = 'user') = (${e("user")} is not null)),
   check (${e("user")} is null or ${e("subjectId")} = ${e("user")}::text),
   unique nulls not distinct (${e("tenant")}, ${e("program")}, ${e("subjectType")}, ${e("subjectId")})
-);
+);${key("enrollments", "subject_key", `(${e("tenant")}, ${e("program")}, ${e("subjectType")}, ${e("subjectId")}) nulls not distinct`)}
 create index if not exists ${name("enrollments", "program_idx")} on ${enrollments} (${e("tenant")}, ${e("program")}, ${e("status")});
 create index if not exists ${name("enrollments", "subject_idx")} on ${enrollments} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")});
 create index if not exists ${name("enrollments", "user_idx")} on ${enrollments} (${e("user")});
@@ -187,7 +201,7 @@ create table if not exists ${steps} (
   ${s("completedBy")} uuid,
   ${s("completedAt")} timestamptz not null default now(),
   primary key (${s("enrollment")}, ${s("step")})
-);
+);${key("steps", "step_key", `(${s("enrollment")}, ${s("step")})`)}
 
 ${lockTable(programs, { read: true })}
 drop policy if exists ${name("programs", "read")} on ${programs};

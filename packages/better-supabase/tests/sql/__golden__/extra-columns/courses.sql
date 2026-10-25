@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:1017649ff602ef0f9fa51df7a3292020552d455d38eda0862dd7c8d77454a8f3
+-- @bsb-hash sha256:647043f8b523c3a30467cbc4ddd171e50ebdd799589f68a2f41b4091e50c2cfe
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -621,8 +621,7 @@ begin
     returning * into v_row;
   else
     update "better_supabase"."course_lessons" x
-    set "module_id" = v_new.module, "title" = v_new.title, "kind" = v_new.kind, "body" = v_new.body,
-      "media_url" = v_new.media, "form_id" = v_new.form, "required" = v_new.required, "duration_minutes" = v_new.minutes,
+    set "module_id" = v_new.module, "title" = v_new.title, "kind" = v_new.kind, "body" = v_new.body, "media_url" = v_new.media, "form_id" = v_new.form, "required" = v_new.required, "duration_minutes" = v_new.minutes,
       "rank" = v_last, "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;

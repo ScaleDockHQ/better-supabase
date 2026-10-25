@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@1 managed
--- @bsb-hash sha256:cfa79157737183843281520d319ac8e2166e132b69637c100217d888a0662260
+-- @bsb-hash sha256:bf98cada0eca021a6b0a21799dabe03ce5dde8c680820a723d6cf576418d3cbd
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -456,7 +456,7 @@ begin
   end;
     insert into "better_supabase"."subject_collection_entries" ("collection_id", "tenant_id", "subject_type", "subject_id", "rank", "added_by")
     values (v_row."id", v_row."tenant_id", v_row."subject_type", v_id, v_rank, auth.uid())
-    on conflict do nothing;
+    on conflict ("collection_id", "subject_id") do nothing;
     if found then
       v_last := v_rank;
       v_added := v_added || v_id;
@@ -693,7 +693,7 @@ begin
   end;
     insert into "better_supabase"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
-    on conflict do nothing;
+    on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
   return (select jsonb_build_object(
       'subjectType', f."subject_type",

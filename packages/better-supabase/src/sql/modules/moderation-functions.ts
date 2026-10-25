@@ -3,6 +3,7 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER } from "../shared.ts";
 import { moderatedMessageType } from "./messaging-moderation.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.moderation.options";
@@ -80,17 +81,108 @@ export function moderationFunctions(ctx: BlockSqlContext): string {
     "P0002",
   );
 
+  const reported = (column: string): boolean => ctx.has("reports", column);
+  const banned = (column: string): boolean => ctx.has("bans", column);
+
+  const of = (
+    table: string,
+    row: string,
+    column: string,
+    absent = "null",
+  ): string =>
+    ctx.has(table, column) ? `${row}.${ctx.col(table, column)}` : absent;
+
+  const itemStatus = (value: string): string =>
+    ctx.cast("items", "status", value);
+
+  const reportStatus = (value: string): string =>
+    ctx.cast("reports", "status", value);
+
+  const logged = (column: string, value: string): string =>
+    ctx.cast("actions", column, value);
+
+  const statusOf = (row: string): string =>
+    asText(ctx, "items", `${row}.${i("status")}`);
+
+  const columns = (
+    table: string,
+    pairs: readonly (readonly [string, string | undefined])[],
+  ): { names: string; values: string } => {
+    const kept = pairs.filter(
+      ([column, value]) => value !== undefined && ctx.has(table, column),
+    );
+
+    return {
+      names: kept.map(([column]) => ctx.col(table, column)).join(", "),
+      values: kept.map(([, value]) => value).join(", "),
+    };
+  };
+
+  const banInsert = (
+    tenant: string,
+    user: string,
+    reason: string,
+    expiresAt?: string,
+  ): { names: string; values: string } =>
+    columns("bans", [
+      ["tenant", tenant],
+      ["user", user],
+      ["reason", reason],
+      ["bannedBy", "auth.uid()"],
+      ["expiresAt", expiresAt],
+    ]);
+
+  const applyBan = banInsert(
+    `v_row.${i("tenant")}`,
+    `v_row.${i("author")}`,
+    "nullif(trim(moderation_apply.reason), '')",
+  );
+
+  const userBan = banInsert(
+    "ban_user.tenant",
+    "ban_user.user_id",
+    "nullif(trim(ban_user.reason), '')",
+    "ban_user.expires_at",
+  );
+
+  const banUpdates = [
+    banned("reason") ? `${b("reason")} = excluded.${b("reason")}` : "",
+    banned("bannedBy") ? `${b("bannedBy")} = excluded.${b("bannedBy")}` : "",
+    `${b("expiresAt")} = excluded.${b("expiresAt")}`,
+  ]
+    .filter((update) => update !== "")
+    .join(", ");
+
+  const reportInsert = columns("reports", [
+    ["tenant", "report_content.tenant"],
+    ["item", `v_item.${i("id")}`],
+    ["reporter", "v_me"],
+    ["reason", "report_content.reason"],
+    ["note", "nullif(trim(report_content.note), '')"],
+  ]);
+
+  const resolvedSets = [
+    reported("resolvedBy") ? `${r("resolvedBy")} = auth.uid()` : "",
+    reported("resolvedAt") ? `${r("resolvedAt")} = now()` : "",
+  ]
+    .filter((update) => update !== "")
+    .join(", ");
+
+  const resolved = resolvedSets === "" ? "" : `,\n      ${resolvedSets}`;
+
+  const lifted = banned("liftedBy") ? `, ${b("liftedBy")} = auth.uid()` : "";
+
   const itemJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${i("id")}, 'organizationId', ${row}.${i("tenant")}, 'subjectType', ${row}.${i("subjectType")}, 'subjectId', ${row}.${i("subjectId")}, 'authorId', ${row}.${i("author")}, 'status', ${row}.${i("status")}, 'openReports', ${row}.${i("openReports")}, 'reason', ${row}.${i("reason")}, 'decidedBy', ${row}.${i("decidedBy")}, 'decidedAt', ${row}.${i("decidedAt")}, 'createdAt', ${row}.${i("createdAt")}, 'updatedAt', ${row}.${i("updatedAt")})`;
 
   const reportJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'itemId', ${row}.${r("item")}, 'reporterId', ${row}.${r("reporter")}, 'reason', ${row}.${r("reason")}, 'note', ${row}.${r("note")}, 'status', ${row}.${r("status")}, 'resolvedBy', ${row}.${r("resolvedBy")}, 'resolvedAt', ${row}.${r("resolvedAt")}, 'createdAt', ${row}.${r("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'itemId', ${row}.${r("item")}, 'reporterId', ${row}.${r("reporter")}, 'reason', ${row}.${r("reason")}, 'note', ${of("reports", row, "note")}, 'status', ${row}.${r("status")}, 'resolvedBy', ${of("reports", row, "resolvedBy")}, 'resolvedAt', ${of("reports", row, "resolvedAt")}, 'createdAt', ${row}.${r("createdAt")})`;
 
   const actionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${a("id")}, 'action', ${row}.${a("action")}, 'fromStatus', ${row}.${a("fromStatus")}, 'toStatus', ${row}.${a("toStatus")}, 'reason', ${row}.${a("reason")}, 'actorId', ${row}.${a("actor")}, 'createdAt', ${row}.${a("createdAt")})`;
 
   const banJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'userId', ${row}.${b("user")}, 'reason', ${row}.${b("reason")}, 'bannedBy', ${row}.${b("bannedBy")}, 'expiresAt', ${row}.${b("expiresAt")}, 'liftedBy', ${row}.${b("liftedBy")}, 'liftedAt', ${row}.${b("liftedAt")}, 'createdAt', ${row}.${b("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'userId', ${row}.${b("user")}, 'reason', ${of("bans", row, "reason")}, 'bannedBy', ${of("bans", row, "bannedBy")}, 'expiresAt', ${row}.${b("expiresAt")}, 'liftedBy', ${of("bans", row, "liftedBy")}, 'liftedAt', ${row}.${b("liftedAt")}, 'createdAt', ${row}.${b("createdAt")})`;
 
   const banRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -194,18 +286,18 @@ begin
   for update;
   if v_old.${i("id")} is null then
     insert into ${items} (${i("tenant")}, ${i("subjectType")}, ${i("subjectId")}, ${i("author")}, ${i("status")})
-    values (moderation_track.tenant, moderation_track.subject_type, moderation_track.subject_id, moderation_track.author, moderation_track.status)
+    values (moderation_track.tenant, moderation_track.subject_type, moderation_track.subject_id, moderation_track.author, ${itemStatus("moderation_track.status")})
     returning * into v_row;
   else
     update ${items} x
-    set ${i("status")} = moderation_track.status, ${i("author")} = coalesce(moderation_track.author, x.${i("author")}),
+    set ${i("status")} = ${itemStatus("moderation_track.status")}, ${i("author")} = coalesce(moderation_track.author, x.${i("author")}),
       ${i("reason")} = null, ${i("decidedBy")} = null, ${i("decidedAt")} = null, ${i("updatedAt")} = now()
     where x.${i("id")} = v_old.${i("id")}
     returning * into v_row;
   end if;
   if v_old.${i("status")} is distinct from v_row.${i("status")} then
     insert into ${actions} (${a("tenant")}, ${a("item")}, ${a("action")}, ${a("fromStatus")}, ${a("toStatus")}, ${a("actor")})
-    values (v_row.${i("tenant")}, v_row.${i("id")}, 'submit', v_old.${i("status")}, v_row.${i("status")}, moderation_track.author);
+    values (v_row.${i("tenant")}, v_row.${i("id")}, ${logged("action", "'submit'")}, ${logged("fromStatus", statusOf("v_old"))}, ${logged("toStatus", statusOf("v_row"))}, moderation_track.author);
   end if;
   return v_row.${i("id")};
 end;
@@ -254,7 +346,7 @@ begin
     ${invalid("this content has no author to ban")}
   end if;${messageRestore}
   update ${items} x
-  set ${i("status")} = v_status,
+  set ${i("status")} = ${itemStatus("v_status")},
     ${i("reason")} = case when v_status = 'visible' then null else nullif(trim(moderation_apply.reason), '') end,
     ${i("decidedBy")} = case when moderation_apply.automatic then null else auth.uid() end,
     ${i("decidedAt")} = now(),
@@ -264,17 +356,16 @@ begin
   returning * into v_row;
   if moderation_apply.action <> 'auto_hide' then
     update ${reports} x
-    set ${r("status")} = case when v_status = 'visible' then 'dismissed' else 'resolved' end,
-      ${r("resolvedBy")} = auth.uid(), ${r("resolvedAt")} = now()
+    set ${r("status")} = ${reportStatus("case when v_status = 'visible' then 'dismissed' else 'resolved' end")}${resolved}
     where x.${r("item")} = v_row.${i("id")} and x.${r("status")} = 'open';
   end if;
   insert into ${actions} (${a("tenant")}, ${a("item")}, ${a("action")}, ${a("fromStatus")}, ${a("toStatus")}, ${a("reason")}, ${a("actor")})
-  values (v_row.${i("tenant")}, v_row.${i("id")}, moderation_apply.action, v_old.${i("status")}, v_status, nullif(trim(moderation_apply.reason), ''),
+  values (v_row.${i("tenant")}, v_row.${i("id")}, ${logged("action", "moderation_apply.action")}, ${logged("fromStatus", statusOf("v_old"))}, ${logged("toStatus", "v_status")}, nullif(trim(moderation_apply.reason), ''),
     case when moderation_apply.automatic then null else auth.uid() end);${messageRemove}
   if moderation_apply.action = 'ban' and not ${fn("moderation_banned")}(v_row.${i("tenant")}, v_row.${i("author")}) then
     delete from ${bans} x where x.${b("tenant")} = v_row.${i("tenant")} and x.${b("user")} = v_row.${i("author")} and x.${b("liftedAt")} is null;
-    insert into ${bans} (${b("tenant")}, ${b("user")}, ${b("reason")}, ${b("bannedBy")})
-    values (v_row.${i("tenant")}, v_row.${i("author")}, nullif(trim(moderation_apply.reason), ''), auth.uid())
+    insert into ${bans} (${applyBan.names})
+    values (${applyBan.values})
     returning * into v_ban;
     ${banRecord("moderation_ban.created", "v_ban", "banned a user")}
   end if;
@@ -341,8 +432,8 @@ begin
   if v_item.${i("author")} = v_me then
     ${invalid("you can't report your own content")}
   end if;
-  insert into ${reports} (${r("tenant")}, ${r("item")}, ${r("reporter")}, ${r("reason")}, ${r("note")})
-  values (report_content.tenant, v_item.${i("id")}, v_me, report_content.reason, nullif(trim(report_content.note), ''))
+  insert into ${reports} (${reportInsert.names})
+  values (${reportInsert.values})
   on conflict (${r("item")}, ${r("reporter")}) where ${r("status")} = 'open' do nothing
   returning * into v_report;
   if v_report.${r("id")} is null then
@@ -421,7 +512,7 @@ begin
     select ${itemJson("x")} as item, x.${i("updatedAt")} as updated, x.${i("id")} as id
     from ${items} x
     where x.${i("tenant")} = moderation_queue.tenant
-      and (case when moderation_queue.status is null then x.${i("status")} = 'pending' or x.${i("openReports")} > 0 else x.${i("status")} = moderation_queue.status end)
+      and (case when moderation_queue.status is null then x.${i("status")} = 'pending' or x.${i("openReports")} > 0 else ${statusOf("x")} = moderation_queue.status end)
       and (moderation_queue.subject_type is null or x.${i("subjectType")} = moderation_queue.subject_type)
       and (moderation_queue.before is null or x.${i("updatedAt")} < moderation_queue.before)
     order by x.${i("updatedAt")} desc, x.${i("id")} desc
@@ -514,10 +605,10 @@ begin
     ${invalid("reason must be at most 1000 characters")}
   end if;
   delete from ${bans} x where x.${b("tenant")} = ban_user.tenant and x.${b("user")} = ban_user.user_id and x.${b("liftedAt")} is null and x.${b("expiresAt")} <= now();
-  insert into ${bans} (${b("tenant")}, ${b("user")}, ${b("reason")}, ${b("bannedBy")}, ${b("expiresAt")})
-  values (ban_user.tenant, ban_user.user_id, nullif(trim(ban_user.reason), ''), auth.uid(), ban_user.expires_at)
+  insert into ${bans} (${userBan.names})
+  values (${userBan.values})
   on conflict (${b("tenant")}, ${b("user")}) where ${b("liftedAt")} is null do update
-    set ${b("reason")} = excluded.${b("reason")}, ${b("bannedBy")} = excluded.${b("bannedBy")}, ${b("expiresAt")} = excluded.${b("expiresAt")}
+    set ${banUpdates}
   returning * into v_row;
   ${banRecord("moderation_ban.created", "v_row", "banned a user")}
   return ${banJson("v_row")};
@@ -547,7 +638,7 @@ begin
   if v_row.${b("liftedAt")} is not null then
     return false;
   end if;
-  update ${bans} x set ${b("liftedAt")} = now(), ${b("liftedBy")} = auth.uid()
+  update ${bans} x set ${b("liftedAt")} = now()${lifted}
   where x.${b("id")} = v_row.${b("id")}
   returning * into v_row;
   ${banRecord("moderation_ban.lifted", "v_row", "lifted a ban")}

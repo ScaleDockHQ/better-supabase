@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SSF_POLL, SSF_PUSH } from "../../blocks/security-events/methods.ts";
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -39,6 +39,9 @@ const NAMES: BlockSqlNames = {
   tables: {
     streams: {
       name: "ssf_streams",
+      app: {},
+      optional: ["description", "reason", "createdAt", "updatedAt"],
+      typed: ["method", "status"],
       columns: {
         id: "id",
         tenant: "tenant",
@@ -58,6 +61,7 @@ const NAMES: BlockSqlNames = {
     },
     events: {
       name: "ssf_events",
+      app: {},
       columns: {
         stream: "stream_id",
         jti: "jti",
@@ -67,6 +71,7 @@ const NAMES: BlockSqlNames = {
     },
     received: {
       name: "ssf_received",
+      app: {},
       columns: { issuer: "issuer", jti: "jti", receivedAt: "received_at" },
     },
   },
@@ -94,7 +99,7 @@ function streamEvent(
     type === "ssf_stream.created"
       ? `, 'method', ${s("method")}`
       : type === "ssf_stream.status_changed"
-        ? `, 'status', ${s("status")}, 'reason', ${s("reason")}`
+        ? `, 'status', ${s("status")}, 'reason', ${ctx.has("streams", "reason") ? s("reason") : "null::text"}`
         : "";
 
   return ctx.record({
@@ -156,6 +161,44 @@ function build(ctx: BlockSqlContext): string {
   const push = pushNames(ctx);
   const w = push?.col ?? ((logical: string) => logical);
 
+  const has = (logical: string): boolean => ctx.has("streams", logical);
+  const ownsStreams = ctx.owns("streams");
+
+  const of = (alias: string, logical: string, absent = "null"): string =>
+    has(logical) ? `${alias}.${c(logical)}` : absent;
+
+  const statusText = (alias: string): string =>
+    ownsStreams ? `${alias}.${c("status")}` : `${alias}.${c("status")}::text`;
+
+  const oldestFirst = has("createdAt") ? c("createdAt") : c("id");
+
+  const line = (
+    logical: string,
+    definition: (name: string) => string,
+  ): string =>
+    has(logical) ? `\n  ${c(logical)} ${definition(c(logical))},` : "";
+
+  const uniqueOverApp = (table: string, columns: readonly string[]): string =>
+    ctx.owns(table)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_key`)} on ${ctx.table(table)} (${columns.map((logical) => ctx.col(table, logical)).join(", ")});`;
+
+  const streamWritten = (
+    [
+      ["id", "create_ssf_stream.id"],
+      ["tenant", "create_ssf_stream.tenant"],
+      ["receiver", "create_ssf_stream.receiver"],
+      ["audience", "create_ssf_stream.audience"],
+      [
+        "method",
+        ctx.cast("streams", "method", "create_ssf_stream.delivery_method"),
+      ],
+      ["eventsRequested", "coalesce(create_ssf_stream.events_requested, '{}')"],
+      ["eventsDelivered", "coalesce(create_ssf_stream.events_delivered, '{}')"],
+      ["description", "create_ssf_stream.description"],
+    ] as const
+  ).filter(([logical]) => has(logical));
+
   const endpointUrl = (alias: string): string =>
     push
       ? `(select we.${w("url")} from ${push.table} we where we.${w("id")} = ${alias}.${c("endpoint")})`
@@ -166,15 +209,15 @@ function build(ctx: BlockSqlContext): string {
     'tenant', ${alias}.${c("tenant")},
     'receiver', ${alias}.${c("receiver")},
     'audience', to_jsonb(${alias}.${c("audience")}),
-    'description', ${alias}.${c("description")},
+    'description', ${of(alias, "description")},
     'eventsRequested', to_jsonb(${alias}.${c("eventsRequested")}),
     'eventsDelivered', to_jsonb(${alias}.${c("eventsDelivered")}),
     'method', ${alias}.${c("method")},
     'endpointUrl', ${endpointUrl(alias)},
     'status', ${alias}.${c("status")},
-    'reason', ${alias}.${c("reason")},
-    'createdAt', ${alias}.${c("createdAt")},
-    'updatedAt', ${alias}.${c("updatedAt")}
+    'reason', ${of(alias, "reason")},
+    'createdAt', ${of(alias, "createdAt")},
+    'updatedAt', ${of(alias, "updatedAt")}
   )`;
 
   const endpointColumns = push
@@ -248,23 +291,18 @@ create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} text check (length(${c("tenant")}) between 1 and 200),
   ${c("receiver")} text not null check (length(${c("receiver")}) between 1 and 200),
-  ${c("audience")} text[] not null check (cardinality(${c("audience")}) between 1 and 20),
-  ${c("description")} text check (length(${c("description")}) <= 1000),
+  ${c("audience")} text[] not null check (cardinality(${c("audience")}) between 1 and 20),${line("description", (name) => `text check (length(${name}) <= 1000)`)}
   ${c("eventsRequested")} text[] not null default '{}',
   ${c("eventsDelivered")} text[] not null default '{}',
   ${c("method")} text not null check (${c("method")} in ('${SSF_PUSH}', '${SSF_POLL}')),
   ${c("endpoint")} uuid${push ? ` references ${push.table} (${w("id")}) on delete set null` : ""},
-  ${c("status")} text not null default 'enabled' check (${c("status")} in ('enabled', 'paused', 'disabled')),
-  ${c("reason")} text check (length(${c("reason")}) <= 1000),
-  ${c("verifiedAt")} timestamptz,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("updatedAt")} timestamptz not null default now()
+  ${c("status")} text not null default 'enabled' check (${c("status")} in ('enabled', 'paused', 'disabled')),${line("reason", (name) => `text check (length(${name}) <= 1000)`)}
+  ${c("verifiedAt")} timestamptz${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("updatedAt") ? `,\n  ${c("updatedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ssf_streams_receiver_idx on ${t} (${c("receiver")});
 create index if not exists ssf_streams_events_idx on ${t} using gin (${c("eventsDelivered")});
 create index if not exists ssf_streams_endpoint_idx on ${t} (${c("endpoint")}) where ${c("endpoint")} is not null;
-${updatedAt(t, c("updatedAt"))}
-${lockTable(t)}
+${has("updatedAt") ? `${updatedAt(t, c("updatedAt"))}\n` : ""}${lockTable(t)}
 
 create table if not exists ${e} (
   ${ev("stream")} uuid not null references ${t} (${c("id")}) on delete cascade,
@@ -274,7 +312,7 @@ create table if not exists ${e} (
   primary key (${ev("stream")}, ${ev("jti")})
 );
 create index if not exists ssf_events_order_idx on ${e} (${ev("stream")}, ${ev("createdAt")});
-create index if not exists ssf_events_created_idx on ${e} (${ev("createdAt")});
+create index if not exists ssf_events_created_idx on ${e} (${ev("createdAt")});${uniqueOverApp("events", ["stream", "jti"])}
 ${lockTable(e)}
 
 create table if not exists ${r} (
@@ -283,7 +321,7 @@ create table if not exists ${r} (
   ${rc("receivedAt")} timestamptz not null default now(),
   primary key (${rc("issuer")}, ${rc("jti")})
 );
-create index if not exists ssf_received_at_idx on ${r} (${rc("receivedAt")});
+create index if not exists ssf_received_at_idx on ${r} (${rc("receivedAt")});${uniqueOverApp("received", ["issuer", "jti"])}
 ${lockTable(r)}
 
 -- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
@@ -297,10 +335,16 @@ declare
   v_row ${t};
   v_endpoint uuid;
 begin${guard}
-  insert into ${t} (${c("id")}, ${c("tenant")}, ${c("receiver")}, ${c("audience")}, ${c("method")}, ${c("eventsRequested")}, ${c("eventsDelivered")}, ${c("description")})
-  values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
-    create_ssf_stream.delivery_method, coalesce(create_ssf_stream.events_requested, '{}'),
-    coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
+  insert into ${t} (${streamWritten.map(([logical]) => c(logical)).join(", ")})
+  values (${streamWritten
+    .map(([, value], index) => {
+      if (index === 0) {
+        return value;
+      }
+
+      return `${index === 4 || index === 6 ? ",\n    " : ", "}${value}`;
+    })
+    .join("")})
   returning * into v_row;
   if v_row.${c("method")} = '${SSF_PUSH}' then${createPush}
   end if;
@@ -334,7 +378,7 @@ set search_path = ''
 as $$
 begin${guard}
   return coalesce((
-    select jsonb_agg(${streamJson("s")} order by s.${c("createdAt")})
+    select jsonb_agg(${streamJson("s")} order by s.${oldestFirst})
     from ${t} s where s.${c("receiver")} = ssf_streams.receiver
   ), '[]'::jsonb);
 end;
@@ -352,8 +396,7 @@ as $$
 declare
   v_row ${t};
 begin${guard}
-  update ${t} s set
-    ${c("description")} = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s.${c("description")} end,
+  update ${t} s set${has("description") ? `\n    ${c("description")} = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s.${c("description")} end,` : ""}
     ${c("eventsRequested")} = case when update_ssf_stream.patch ? 'eventsRequested'
       then array(select jsonb_array_elements_text(update_ssf_stream.patch -> 'eventsRequested')) else s.${c("eventsRequested")} end,
     ${c("eventsDelivered")} = case when update_ssf_stream.patch ? 'eventsDelivered'
@@ -435,11 +478,11 @@ begin${guard}
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
     ${fail("SSF_STATUS_INVALID", "status is enabled, paused or disabled", "22023")}
   end if;
-  select s.${c("status")} into v_previous from ${t} s where s.${c("id")} = set_ssf_stream_status.id for update;
+  select ${statusText("s")} into v_previous from ${t} s where s.${c("id")} = set_ssf_stream_status.id for update;
   if not found then
     ${fail("SSF_STREAM_NOT_FOUND", "stream not found", "P0002")}
   end if;
-  update ${t} s set ${c("status")} = set_ssf_stream_status.status, ${c("reason")} = set_ssf_stream_status.reason
+  update ${t} s set ${c("status")} = ${ctx.cast("streams", "status", "set_ssf_stream_status.status")}${has("reason") ? `, ${c("reason")} = set_ssf_stream_status.reason` : ""}
   where s.${c("id")} = set_ssf_stream_status.id
   returning s.* into v_row;
   if v_row.${c("status")} = 'disabled' then
@@ -453,7 +496,7 @@ begin${guard}
     end loop;
     delete from ${e} q where q.${ev("stream")} = v_row.${c("id")};
   end if;
-  if v_previous is distinct from v_row.${c("status")} then
+  if v_previous is distinct from ${statusText("v_row")} then
     ${streamEvent(ctx, "ssf_stream.status_changed", "v_row")}
   end if;
   return v_previous;
@@ -472,7 +515,7 @@ set search_path = ''
 as $$
 begin${guard}
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', s.${c("id")}, 'audience', to_jsonb(s.${c("audience")})) order by s.${c("createdAt")})
+    select jsonb_agg(jsonb_build_object('id', s.${c("id")}, 'audience', to_jsonb(s.${c("audience")})) order by s.${oldestFirst})
     from ${t} s
     where s.${c("status")} <> 'disabled'
       and ssf_streams_for_event.event_type = any (s.${c("eventsDelivered")})

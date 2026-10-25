@@ -536,7 +536,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:ea67c6142560a5476624b639c25b661893cb589fca86f6e517f935a22677fd00
+-- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -545,7 +545,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."tenant_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
@@ -1185,7 +1185,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:ea67c6142560a5476624b639c25b661893cb589fca86f6e517f935a22677fd00
+-- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1194,7 +1194,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."tenant_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
@@ -1744,7 +1744,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:a344903ff18fed48f4e759356801a9a4ac9840760a8ab78680ac2c1849b1af37
+-- @bsb-hash sha256:d0de9e6695a3b89f998f6858bd7c9adad38e2e6043374b74a2d3a11c41f643d6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1753,7 +1753,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."tenant_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "app_private"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
@@ -2406,7 +2406,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:ea67c6142560a5476624b639c25b661893cb589fca86f6e517f935a22677fd00
+-- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2415,7 +2415,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."tenant_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
@@ -2995,7 +2995,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:ea67c6142560a5476624b639c25b661893cb589fca86f6e517f935a22677fd00
+-- @bsb-hash sha256:eca482e72d47f7bec9778aee91022da731eeb8923934dd7c289ea657debbff27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3004,7 +3004,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."tenant_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
@@ -3552,7 +3552,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block-data reviews
--- @bsb-hash sha256:3f212168ce985469f338dc7f177a7b915e8333fcc5adf65bbda38ff47a79e7ba
+-- @bsb-hash sha256:ff6e2b5ce12102af9246a3230c49ad16f06490fb089475d95614aa11df3ee486
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3561,7 +3561,7 @@ grant select on better_supabase.blocks to service_role;
 -- Puts the reviews written before the moderation module under it.
 insert into "better_supabase"."moderation_items" ("org_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
   select x."org_id", 'review', x."id"::text, x."author_id",
-    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case x."status"::text when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
     case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
   from "better_supabase"."reviews" x
   on conflict ("org_id", "subject_type", "subject_id") do nothing;

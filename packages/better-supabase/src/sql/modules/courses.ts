@@ -75,7 +75,16 @@ const NAMES: BlockSqlNames = {
   tables: {
     courses: {
       name: "courses",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      optional: [
+        "summary",
+        "certificate",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["status"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -91,7 +100,9 @@ const NAMES: BlockSqlNames = {
     },
     modules: {
       name: "course_modules",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["createdAt", "updatedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -104,7 +115,10 @@ const NAMES: BlockSqlNames = {
     },
     lessons: {
       name: "course_lessons",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["body", "mediaUrl", "minutes", "createdAt", "updatedAt"],
+      typed: ["kind"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -124,7 +138,16 @@ const NAMES: BlockSqlNames = {
     },
     progress: {
       name: "course_lesson_progress",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
+      optional: [
+        "startedAt",
+        "submission",
+        "score",
+        "maxScore",
+        "passed",
+        "updatedAt",
+      ],
       columns: {
         enrollment: "enrollment_id",
         lesson: "lesson_id",
@@ -143,7 +166,9 @@ const NAMES: BlockSqlNames = {
     },
     certificates: {
       name: "course_certificates",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
+      optional: ["issuedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -181,19 +206,36 @@ function courseTables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (ident: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
+  const stamps = (table: string): string =>
+    ["createdAt", "updatedAt"]
+      .filter((column) => ctx.has(table, column))
+      .map(
+        (column) =>
+          `,\n  ${ctx.col(table, column)} timestamptz not null default now()`,
+      )
+      .join("");
+
+  // Over the app's table the render drops the inline keys the upserts rely on.
+  const key = (logical: string, suffix: string, columns: string): string =>
+    ctx.owns(logical)
+      ? ""
+      : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(logical).name}_${suffix}`)} on ${ctx.table(logical)} (${columns});`;
+
   return `create table if not exists ${courses} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${ctx.idType} not null,
   ${c("key")} text not null check (${c("key")} ~ '^[a-z][a-z0-9-]{0,62}$'),
-  ${c("title")} text not null check (length(${c("title")}) between 1 and 200),
-  ${c("summary")} text check (${c("summary")} is null or length(${c("summary")}) <= 2000),
-  ${c("status")} text not null default 'draft' check (${c("status")} in ('draft', 'published', 'archived')),
-  ${c("certificate")} boolean not null default true,
-  ${c("createdBy")} uuid,
-  ${c("createdAt")} timestamptz not null default now(),
-  ${c("updatedAt")} timestamptz not null default now(),
+  ${c("title")} text not null check (length(${c("title")}) between 1 and 200),${optional("courses", "summary", (x) => `${x} text check (${x} is null or length(${x}) <= 2000)`)}
+  ${c("status")} text not null default 'draft' check (${c("status")} in ('draft', 'published', 'archived')),${optional("courses", "certificate", (x) => `${x} boolean not null default true`)}${optional("courses", "createdBy", (x) => `${x} uuid`)}${optional("courses", "createdAt", (x) => `${x} timestamptz not null default now()`)}${optional("courses", "updatedAt", (x) => `${x} timestamptz not null default now()`)}
   unique (${c("tenant")}, ${c("key")})
-);${addExtraColumns(courses, extras)}
+);${key("courses", "key_key", `${c("tenant")}, ${c("key")}`)}${addExtraColumns(courses, extras)}
 
 create table if not exists ${modules} (
   ${m("id")} uuid primary key default gen_random_uuid(),
@@ -201,9 +243,7 @@ create table if not exists ${modules} (
   ${m("course")} uuid not null references ${courses} (${c("id")}) on delete cascade,
   ${m("title")} text not null check (length(${m("title")}) between 1 and 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
-  ${m("rank")} text collate "C" not null,
-  ${m("createdAt")} timestamptz not null default now(),
-  ${m("updatedAt")} timestamptz not null default now()
+  ${m("rank")} text collate "C" not null${stamps("modules")}
 );
 create index if not exists ${name("modules", "parent_idx")} on ${modules} (${m("course")}, ${m("rank")});
 
@@ -213,19 +253,19 @@ create table if not exists ${lessons} (
   ${l("course")} uuid not null references ${courses} (${c("id")}) on delete cascade,
   ${l("module")} uuid not null references ${modules} (${m("id")}) on delete cascade,
   ${l("title")} text not null check (length(${l("title")}) between 1 and 200),
-  ${l("kind")} text not null default 'content' check (${l("kind")} in ('content', 'video', 'quiz')),
+  ${l("kind")} text not null default 'content' check (${l("kind")} in ('content', 'video', 'quiz')),${
+    ctx.has("lessons", "body")
+      ? `
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
-  ${l("body")} jsonb,
-  ${l("mediaUrl")} text check (${l("mediaUrl")} is null or (${l("mediaUrl")} ~ '^https?://' and length(${l("mediaUrl")}) <= 2000)),
+  ${l("body")} jsonb,`
+      : ""
+  }${optional("lessons", "mediaUrl", (x) => `${x} text check (${x} is null or (${x} ~ '^https?://' and length(${x}) <= 2000))`)}
   -- The forms form a quiz lesson grades; a passed submission completes it.
   ${l("form")} uuid,
   -- Required lessons are the steps of the course's enrollment program.
-  ${l("required")} boolean not null default true,
-  ${l("minutes")} integer check (${l("minutes")} is null or ${l("minutes")} between 1 and 10000),
-  ${l("rank")} text collate "C" not null,
-  ${l("createdAt")} timestamptz not null default now(),
-  ${l("updatedAt")} timestamptz not null default now(),
+  ${l("required")} boolean not null default true,${optional("lessons", "minutes", (x) => `${x} integer check (${x} is null or ${x} between 1 and 10000)`)}
+  ${l("rank")} text collate "C" not null${stamps("lessons")},
   check ((${l("kind")} = 'quiz') = (${l("form")} is not null))
 );
 create index if not exists ${name("lessons", "module_idx")} on ${lessons} (${l("module")}, ${l("rank")});
@@ -240,17 +280,11 @@ create table if not exists ${progress} (
   ${p("lesson")} uuid not null references ${lessons} (${l("id")}) on delete cascade,
   ${p("tenant")} ${ctx.idType} not null,
   ${p("course")} uuid not null references ${courses} (${c("id")}) on delete cascade,
-  ${p("user")} uuid not null references auth.users (id) on delete cascade,
-  ${p("startedAt")} timestamptz not null default now(),
+  ${p("user")} uuid not null references auth.users (id) on delete cascade,${optional("progress", "startedAt", (x) => `${x} timestamptz not null default now()`)}
   ${p("completedAt")} timestamptz,
-  ${p("attempts")} integer not null default 0 check (${p("attempts")} >= 0),
-  ${p("submission")} uuid,
-  ${p("score")} numeric,
-  ${p("maxScore")} numeric,
-  ${p("passed")} boolean,
-  ${p("updatedAt")} timestamptz not null default now(),
+  ${p("attempts")} integer not null default 0 check (${p("attempts")} >= 0),${optional("progress", "submission", (x) => `${x} uuid`)}${optional("progress", "score", (x) => `${x} numeric`)}${optional("progress", "maxScore", (x) => `${x} numeric`)}${optional("progress", "passed", (x) => `${x} boolean`)}${optional("progress", "updatedAt", (x) => `${x} timestamptz not null default now()`)}
   constraint ${name("progress", "pkey")} primary key (${p("enrollment")}, ${p("lesson")})
-);
+);${key("progress", "lesson_key", `${p("enrollment")}, ${p("lesson")}`)}
 create index if not exists ${name("progress", "lesson_idx")} on ${progress} (${p("lesson")});
 create index if not exists ${name("progress", "parent_idx")} on ${progress} (${p("course")});
 create index if not exists ${name("progress", "user_idx")} on ${progress} (${p("user")});
@@ -263,11 +297,10 @@ create table if not exists ${certificates} (
   ${k("course")} uuid not null references ${courses} (${c("id")}) on delete cascade,
   ${k("enrollment")} uuid not null references ${enrollments} (${enrollmentId}) on delete cascade,
   ${k("user")} uuid not null references auth.users (id) on delete cascade,
-  ${k("code")} text not null unique check (${k("code")} ~ '^[0-9a-f]{32}$'),
-  ${k("issuedAt")} timestamptz not null default now(),
+  ${k("code")} text not null unique check (${k("code")} ~ '^[0-9a-f]{32}$'),${optional("certificates", "issuedAt", (x) => `${x} timestamptz not null default now()`)}
   ${k("revokedAt")} timestamptz,
   constraint ${name("certificates", "enrollment_key")} unique (${k("enrollment")})
-);
+);${key("certificates", "enrollment_key", k("enrollment"))}
 create index if not exists ${name("certificates", "parent_idx")} on ${certificates} (${k("course")});
 create index if not exists ${name("certificates", "user_idx")} on ${certificates} (${k("user")});
 

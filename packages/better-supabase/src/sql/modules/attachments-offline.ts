@@ -88,7 +88,7 @@ create table if not exists ${cleanup} (
   ${k("queuedAt")} timestamptz not null default now(),
   ${k("attempts")} integer not null default 0,
   primary key (${k("bucket")}, ${k("path")})
-);
+);${ctx.owns("cleanup") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("cleanup").name}_object_key`)} on ${cleanup} (${k("bucket")}, ${k("path")});`}
 ${lockTable(cleanup)}
 
 -- Before delete, since the versions cascade away with the record.

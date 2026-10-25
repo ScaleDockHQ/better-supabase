@@ -70,6 +70,17 @@ export const DISPATCH_NAMES: BlockSqlNames = {
   tables: {
     workOrders: {
       name: "work_orders",
+      app: {},
+      optional: [
+        "description",
+        "booking",
+        "address",
+        "enRouteAt",
+        "arrivedAt",
+        "cancelReason",
+        "completionNote",
+      ],
+      typed: ["status", "priority"],
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -100,6 +111,8 @@ export const DISPATCH_NAMES: BlockSqlNames = {
     },
     routes: {
       name: "dispatch_routes",
+      app: {},
+      optional: ["plannedBy", "createdAt"],
       lifecycle: { tenant: "tenant", user: "technician", export: true },
       columns: {
         id: "id",
@@ -113,6 +126,7 @@ export const DISPATCH_NAMES: BlockSqlNames = {
     },
     stops: {
       name: "dispatch_route_stops",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -124,6 +138,8 @@ export const DISPATCH_NAMES: BlockSqlNames = {
     },
     parts: {
       name: "work_order_parts",
+      app: {},
+      optional: ["unit"],
       lifecycle: { tenant: "tenant", user: "recordedBy", export: true },
       columns: {
         id: "id",

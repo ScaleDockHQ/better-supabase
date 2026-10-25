@@ -8,10 +8,82 @@ import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 
+/** The deal columns, logical name to default name. */
+export const DEAL_COLUMNS: Readonly<Record<string, string>> = {
+  id: "id",
+  tenant: "tenant_id",
+  number: "number",
+  identifier: "identifier",
+  name: "name",
+  companyType: "company_type",
+  companyId: "company_id",
+  motion: "motion",
+  priority: "priority",
+  owner: "owner_user_id",
+  product: "product",
+  seats: "seats",
+  amount: "amount",
+  existingAmount: "existing_amount",
+  currency: "currency",
+  valuePeriod: "value_period",
+  amountSource: "amount_source",
+  pipeline: "pipeline_id",
+  stage: "stage_id",
+  stageEnteredAt: "stage_entered_at",
+  outcome: "outcome",
+  probability: "probability",
+  forecast: "forecast_category",
+  openedOn: "opened_on",
+  closeOn: "expected_close_on",
+  slippedFrom: "slipped_from",
+  pushCount: "push_count",
+  closedAt: "closed_at",
+  nextStep: "next_step",
+  nextAt: "next_at",
+  nextKind: "next_kind",
+  flags: "flags",
+  source: "source",
+  note: "note",
+  lostReason: "lost_reason",
+  locked: "locked",
+  rank: "rank",
+  archivedAt: "archived_at",
+  createdBy: "created_by",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+  ...TOTAL_COLUMNS,
+};
+
+/**
+ * What a read gives for a deal column the app's table lacks; the others read as
+ * null.
+ */
+const DEAL_DEFAULTS: Readonly<Record<string, string>> = {
+  existingAmount: "'0'",
+  pushCount: "0",
+  flags: "'{}'::text[]",
+};
+
+/** The attrs keys `create_deal` writes to an optional column. */
+const DEAL_ATTRS: readonly (readonly [string, string])[] = [
+  ["motion", "motion"],
+  ["priority", "priority"],
+  ["product", "product"],
+  ["seats", "seats"],
+  ["existingAmount", "existingAmount"],
+  ["nextStep", "nextStep"],
+  ["nextAt", "nextAt"],
+  ["nextKind", "nextKind"],
+  ["flags", "flags"],
+  ["source", "source"],
+];
+
 export interface DealNames {
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
+  /** Whether a logical column exists; the app's table may lack optional ones. */
+  readonly has: (table: string, column: string) => boolean;
   readonly read: string;
   readonly write: string;
   readonly manage: string;
@@ -42,50 +114,90 @@ interface Field {
   readonly set: (v: string) => string;
 }
 
-/** Every field `update_deals` writes, keyed by its camelCase name. */
-function fields(d: (column: string) => string): readonly Field[] {
+/**
+ * Every field `update_deals` writes, keyed by its camelCase name, of the
+ * columns the deals table has.
+ */
+function fields(
+  ctx: BlockSqlContext,
+  d: (column: string) => string,
+): readonly Field[] {
   const text = (column: string) => (v: string) =>
     `${d(column)} = nullif(trim(${v} #>> '{}'), '')`;
+
+  const typed = (column: string) => (v: string) =>
+    `${d(column)} = ${ctx.cast("deals", column, `nullif(trim(${v} #>> '{}'), '')`)}`;
 
   const cast = (column: string, type: string) => (v: string) =>
     `${d(column)} = (${v} #>> '{}')::${type}`;
 
-  return [
-    { field: "name", set: (v) => `${d("name")} = trim(${v} #>> '{}')` },
-    { field: "motion", set: text("motion") },
-    { field: "priority", set: text("priority") },
-    { field: "ownerId", set: cast("owner", "uuid") },
-    { field: "product", set: text("product") },
-    { field: "seats", set: cast("seats", "integer") },
-    { field: "amount", set: cast("amount", "bigint") },
-    { field: "existingAmount", set: cast("existingAmount", "bigint") },
+  const all: readonly (Field & { readonly columns: readonly string[] })[] = [
+    {
+      field: "name",
+      columns: ["name"],
+      set: (v) => `${d("name")} = trim(${v} #>> '{}')`,
+    },
+    { field: "motion", columns: ["motion"], set: text("motion") },
+    { field: "priority", columns: ["priority"], set: text("priority") },
+    { field: "ownerId", columns: ["owner"], set: cast("owner", "uuid") },
+    { field: "product", columns: ["product"], set: text("product") },
+    { field: "seats", columns: ["seats"], set: cast("seats", "integer") },
+    { field: "amount", columns: ["amount"], set: cast("amount", "bigint") },
+    {
+      field: "existingAmount",
+      columns: ["existingAmount"],
+      set: cast("existingAmount", "bigint"),
+    },
     {
       field: "currency",
+      columns: ["currency"],
       set: (v) => `${d("currency")} = upper(${v} #>> '{}')`,
     },
-    { field: "valuePeriod", set: text("valuePeriod") },
-    { field: "amountSource", set: text("amountSource") },
-    { field: "stageId", set: cast("stage", "uuid") },
-    { field: "probability", set: cast("probability", "smallint") },
-    { field: "forecast", set: text("forecast") },
-    { field: "closeOn", set: cast("closeOn", "date") },
-    { field: "nextStep", set: text("nextStep") },
-    { field: "nextAt", set: cast("nextAt", "timestamptz") },
-    { field: "nextKind", set: text("nextKind") },
+    {
+      field: "valuePeriod",
+      columns: ["valuePeriod"],
+      set: typed("valuePeriod"),
+    },
+    {
+      field: "amountSource",
+      columns: ["amountSource"],
+      set: typed("amountSource"),
+    },
+    { field: "stageId", columns: ["stage"], set: cast("stage", "uuid") },
+    {
+      field: "probability",
+      columns: ["probability"],
+      set: cast("probability", "smallint"),
+    },
+    { field: "forecast", columns: ["forecast"], set: typed("forecast") },
+    { field: "closeOn", columns: ["closeOn"], set: cast("closeOn", "date") },
+    { field: "nextStep", columns: ["nextStep"], set: text("nextStep") },
+    {
+      field: "nextAt",
+      columns: ["nextAt"],
+      set: cast("nextAt", "timestamptz"),
+    },
+    { field: "nextKind", columns: ["nextKind"], set: text("nextKind") },
     {
       field: "flags",
+      columns: ["flags"],
       set: (v) =>
         `${d("flags")} = coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(${v}) when 'array' then ${v} else '[]' end)), '{}')`,
     },
-    { field: "source", set: text("source") },
-    { field: "note", set: text("note") },
-    { field: "lostReason", set: text("lostReason") },
+    { field: "source", columns: ["source"], set: text("source") },
+    { field: "note", columns: ["note"], set: text("note") },
+    { field: "lostReason", columns: ["lostReason"], set: text("lostReason") },
     {
       field: "company",
+      columns: ["companyType", "companyId"],
       set: (v) =>
         `${d("companyType")} = ${v} ->> 'type', ${d("companyId")} = ${v} ->> 'id'`,
     },
   ];
+
+  return all.filter((field) =>
+    field.columns.every((column) => ctx.has("deals", column)),
+  );
 }
 
 export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
@@ -98,6 +210,10 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
   const stages = pipelines.table("stages");
   const s = (column: string): string => pipelines.col("stages", column);
 
+  const rotting = pipelines.has("stages", "rottingAfterDays")
+    ? `st.${s("rottingAfterDays")} is not null and now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")}) > make_interval(days => st.${s("rottingAfterDays")})`
+    : "false";
+
   const editable = (alias: string): string =>
     `(${n.service} or (${ctx.scope.can(`${alias}.${d("tenant")}`, n.write)} and (${
       n.readAll ? "true" : "false"
@@ -105,17 +221,57 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
       or ${ctx.scope.can(`${alias}.${d("tenant")}`, n.manage)}
       or exists (select 1 from ${t("members")} mm where mm.${m("deal")} = ${alias}.${d("id")} and mm.${m("user")} = auth.uid()))))`;
 
-  const int8 = [
+  const has = (column: string): boolean => n.has("deals", column);
+
+  const int8Columns = [
     "number",
     "amount",
     "existingAmount",
     ...Object.keys(TOTAL_COLUMNS),
-  ].map(d);
+  ];
+
+  const int8 = int8Columns.filter(has).map(d);
+
+  // Over the app's table, the row reads column by column under the default
+  // names, so the app's own names and columns don't reach the API.
+  const fieldsJson = (alias: string): string => {
+    if (ctx.owns("deals")) {
+      return `to_jsonb(${alias}) || ${int8Text(alias, int8)}`;
+    }
+
+    const pairs = [
+      ...Object.entries(DEAL_COLUMNS).map(([logical, name]) => {
+        if (!has(logical)) {
+          return `${sqlString(name)}, ${DEAL_DEFAULTS[logical] ?? "null"}`;
+        }
+
+        const value = `${alias}.${d(logical)}`;
+
+        return `${sqlString(name)}, ${int8Columns.includes(logical) ? `${value}::text` : value}`;
+      }),
+      ...n.extras.map(
+        (extra) => `${sqlString(extra.name)}, ${alias}.${extra.ident}`,
+      ),
+    ];
+
+    const chunks: string[] = [];
+
+    for (let start = 0; start < pairs.length; start += 40) {
+      chunks.push(
+        `jsonb_build_object(${pairs.slice(start, start + 40).join(", ")})`,
+      );
+    }
+
+    return chunks.join(" || ");
+  };
+
+  const role = (table: string, alias: string): string =>
+    n.has(table, "role") ? `${alias}.${c(table, "role")}` : "null::text";
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
-      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck.${k("contactType")}, 'id', ck.${k("contactId")}, 'role', ck.${k("role")}, 'primary', ck.${k("isPrimary")}) order by ck.${k("isPrimary")} desc, ck.${k("contactId")}) from ${t("contacts")} ck where ck.${k("deal")} = ${alias}.${d("id")}), '[]'::jsonb),
-      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm.${m("user")}, 'role', cm.${m("role")}) order by cm.${m("user")}) from ${t("members")} cm where cm.${m("deal")} = ${alias}.${d("id")}), '[]'::jsonb))`;
+    `${fieldsJson(alias)} || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck.${k("contactType")}, 'id', ck.${k("contactId")}, 'role', ${role("contacts", "ck")}, 'primary', ck.${k("isPrimary")}) order by ck.${k("isPrimary")} desc, ck.${k("contactId")}) from ${t("contacts")} ck where ck.${k("deal")} = ${alias}.${d("id")}), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm.${m("user")}, 'role', ${role("members", "cm")}) order by cm.${m("user")}) from ${t("members")} cm where cm.${m("deal")} = ${alias}.${d("id")}), '[]'::jsonb))`;
 
   const payload = (
     id: string,
@@ -145,16 +301,88 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
     ${fail("DEAL_COMPANY_FORBIDDEN", "the company is unknown or not readable in this organization", "42501")}
   end if;`;
 
-  const checkValues = (alias: string): string => `
+  const checkValues = (alias: string): string =>
+    `${
+      has("motion")
+        ? `
   if ${alias}.${d("motion")} is not null and not (${alias}.${d("motion")} = any (${n.motions})) then
     ${fail("DEAL_MOTION_INVALID", "unknown motion", "22023")}
-  end if;
+  end if;`
+        : ""
+    }${
+      has("priority")
+        ? `
   if ${alias}.${d("priority")} is not null and not (${alias}.${d("priority")} = any (${n.priorities})) then
     ${fail("DEAL_PRIORITY_INVALID", "unknown priority", "22023")}
-  end if;`;
+  end if;`
+        : ""
+    }`;
+
+  const refused = DEAL_ATTRS.filter(([column]) => !has(column))
+    .map(
+      ([column, key]) => `
+  if create_deal.attrs ? ${sqlString(key)} and jsonb_typeof(create_deal.attrs -> ${sqlString(key)}) <> 'null' then
+    ${fail(`DEAL_${column.replaceAll(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()}_UNSUPPORTED`, `this deals table has no ${key} column`, "22023")}
+  end if;`,
+    )
+    .join("");
+
+  const inserted = (
+    [
+      ["tenant", "create_deal.tenant"],
+      ["number", "v_seq"],
+      ["identifier", "v_identifier"],
+      ["name", "trim(create_deal.attrs ->> 'name')"],
+      [
+        "companyType",
+        "case when v_company_id is null then null else v_company_type end",
+      ],
+      ["companyId", "v_company_id"],
+      [
+        "owner",
+        "coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid())",
+      ],
+      ["motion", "create_deal.attrs ->> 'motion'"],
+      ["priority", "create_deal.attrs ->> 'priority'"],
+      ["product", "create_deal.attrs ->> 'product'"],
+      ["seats", "(create_deal.attrs ->> 'seats')::integer"],
+      ["amount", "coalesce((create_deal.attrs ->> 'amount')::bigint, 0)"],
+      [
+        "existingAmount",
+        "coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0)",
+      ],
+      ["currency", "upper(coalesce(create_deal.attrs ->> 'currency', 'EUR'))"],
+      [
+        "valuePeriod",
+        ctx.cast(
+          "deals",
+          "valuePeriod",
+          "coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time')",
+        ),
+      ],
+      ["pipeline", "(create_deal.attrs ->> 'pipelineId')::uuid"],
+      ["stage", "(create_deal.attrs ->> 'stageId')::uuid"],
+      ["probability", "(create_deal.attrs ->> 'probability')::smallint"],
+      [
+        "forecast",
+        ctx.cast("deals", "forecast", "create_deal.attrs ->> 'forecast'"),
+      ],
+      ["closeOn", "(create_deal.attrs ->> 'closeOn')::date"],
+      ["nextStep", "create_deal.attrs ->> 'nextStep'"],
+      ["nextAt", "(create_deal.attrs ->> 'nextAt')::timestamptz"],
+      ["nextKind", "create_deal.attrs ->> 'nextKind'"],
+      [
+        "flags",
+        "coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}')",
+      ],
+      ["source", "create_deal.attrs ->> 'source'"],
+      ["note", "create_deal.attrs ->> 'note'"],
+      ["createdBy", "auth.uid()"],
+    ] as const
+  ).filter(([column]) => has(column));
 
   const writes = [
-    ...fields(d).map(
+    ...fields(ctx, d).map(
       (field) => `      when ${sqlString(field.field)} then
         update ${t("deals")} x set ${field.set("v_change -> 'value'")} where x.${d("id")} = v_deal returning * into v_row;`,
     ),
@@ -180,15 +408,21 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
       ? ""
       : `\n  left join lateral (select ${next}('deal', x.${d("id")}::text) as e) ne on true`;
 
+  const nextAt = has("nextAt") ? `x.${d("nextAt")}` : "null::timestamptz";
+
   const noNextStep =
     next === undefined
-      ? `x.${d("nextAt")} is null`
-      : `x.${d("nextAt")} is null and ne.e is null`;
+      ? `${nextAt} is null`
+      : `${nextAt} is null and ne.e is null`;
 
   const overdue =
     next === undefined
-      ? `x.${d("nextAt")} < now()`
-      : `(x.${d("nextAt")} < now() or coalesce((ne.e ->> 'overdue')::boolean, false))`;
+      ? `${nextAt} < now()`
+      : `(${nextAt} < now() or coalesce((ne.e ->> 'overdue')::boolean, false))`;
+
+  const slipped = has("pushCount")
+    ? `x.${d("pushCount")} > 0 or x.${d("closeOn")} < current_date`
+    : `x.${d("closeOn")} < current_date`;
 
   const sum = (filter: string): string =>
     `coalesce(sum(x.${d("amount")}) filter (where ${filter}), 0)::text`;
@@ -230,7 +464,7 @@ begin
   end if;
   if nullif(trim(create_deal.attrs ->> 'name'), '') is null or (create_deal.attrs ->> 'closeOn') is null then
     ${fail("DEAL_ATTRS_INVALID", "a deal needs a name and a close date", "23502")}
-  end if;${checkCompany("v_company_type", "v_company_id", "create_deal.tenant")}
+  end if;${checkCompany("v_company_type", "v_company_id", "create_deal.tenant")}${refused}
   ${ctx.hook("before_deal_create", [
     [ctx.idType, "create_deal.tenant"],
     ["jsonb", "create_deal.attrs"],
@@ -248,21 +482,8 @@ begin
     },
   )}
   begin
-    insert into ${t("deals")} (${d("tenant")}, ${d("number")}, ${d("identifier")}, ${d("name")}, ${d("companyType")}, ${d("companyId")}, ${d("owner")},
-      ${d("motion")}, ${d("priority")}, ${d("product")}, ${d("seats")}, ${d("amount")}, ${d("existingAmount")}, ${d("currency")}, ${d("valuePeriod")},
-      ${d("pipeline")}, ${d("stage")}, ${d("probability")}, ${d("forecast")}, ${d("closeOn")}, ${d("nextStep")}, ${d("nextAt")}, ${d("nextKind")},
-      ${d("flags")}, ${d("source")}, ${d("note")}, ${d("createdBy")})
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
-      coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
-      coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+    insert into ${t("deals")} (${inserted.map(([column]) => d(column)).join(", ")})
+    values (${inserted.map(([, value]) => value).join(",\n      ")})
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("DEAL_ATTRS_INVALID", "a deal field has an invalid value", "22023")}
@@ -373,8 +594,12 @@ begin
   if v_stage is null then
     ${fail("DEAL_STAGE_MISSING", "the pipeline has no stage for that outcome", "P0002")}
   end if;
-  update ${t("deals")} x set ${d("stage")} = v_stage,
-    ${d("lostReason")} = case when close_deal.outcome = 'lost' then nullif(trim(close_deal.reason), '') end,
+  update ${t("deals")} x set ${d("stage")} = v_stage,${
+    has("lostReason")
+      ? `
+    ${d("lostReason")} = case when close_deal.outcome = 'lost' then nullif(trim(close_deal.reason), '') end,`
+      : ""
+  }
     ${d("note")} = case when close_deal.outcome = 'won' then coalesce(nullif(trim(close_deal.reason), ''), x.${d("note")}) else x.${d("note")} end
   where x.${d("id")} = close_deal.deal;
   return (select ${row("x")} from ${t("deals")} x where x.${d("id")} = close_deal.deal);
@@ -437,8 +662,8 @@ begin
     ${fail("DEAL_CONTACTS_INVALID", "a deal has one primary contact", "22023")}
   end if;
   delete from ${t("contacts")} x where x.${k("deal")} = v_deal;
-  insert into ${t("contacts")} (${k("tenant")}, ${k("deal")}, ${k("contactType")}, ${k("contactId")}, ${k("role")}, ${k("isPrimary")})
-  select v_tenant, v_deal, coalesce(x.value ->> 'type', ${sqlString(n.contact)}), x.value ->> 'id', x.value ->> 'role', coalesce((x.value ->> 'primary')::boolean, false)
+  insert into ${t("contacts")} (${k("tenant")}, ${k("deal")}, ${k("contactType")}, ${k("contactId")}, ${n.has("contacts", "role") ? `${k("role")}, ` : ""}${k("isPrimary")})
+  select v_tenant, v_deal, coalesce(x.value ->> 'type', ${sqlString(n.contact)}), x.value ->> 'id', ${n.has("contacts", "role") ? "x.value ->> 'role', " : ""}coalesce((x.value ->> 'primary')::boolean, false)
   from jsonb_array_elements(set_deal_contacts.contacts) x
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -469,8 +694,8 @@ begin
     ${fail("DEAL_MEMBERS_INVALID", "members must be a list of { userId, role }", "22023")}
   end if;
   delete from ${t("members")} x where x.${m("deal")} = v_deal;
-  insert into ${t("members")} (${m("tenant")}, ${m("deal")}, ${m("user")}, ${m("role")})
-  select v_tenant, v_deal, (x.value ->> 'userId')::uuid, x.value ->> 'role'
+  insert into ${t("members")} (${m("tenant")}, ${m("deal")}, ${m("user")}${n.has("members", "role") ? `, ${m("role")}` : ""})
+  select v_tenant, v_deal, (x.value ->> 'userId')::uuid${n.has("members", "role") ? ", x.value ->> 'role'" : ""}
   from jsonb_array_elements(set_deal_members.members) x
   on conflict do nothing;
   get diagnostics v_count = row_count;${
@@ -606,8 +831,8 @@ begin
   return (select coalesce(jsonb_agg(jsonb_build_object(
     ${dealId}, x.${d("id")}, 'identifier', x.${d("identifier")}, 'name', x.${d("name")},
     'daysInStage', (extract(epoch from now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")})) / 86400)::integer,
-    'rotting', st.${s("rottingAfterDays")} is not null and now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")}) > make_interval(days => st.${s("rottingAfterDays")}),
-    'slipped', x.${d("pushCount")} > 0 or x.${d("closeOn")} < current_date,
+    'rotting', ${rotting},
+    'slipped', ${slipped},
     'noNextStep', ${noNextStep},
     'overdue', coalesce(${overdue}, false)
   ) order by x.${d("closeOn")}, x.${d("id")}), '[]'::jsonb)

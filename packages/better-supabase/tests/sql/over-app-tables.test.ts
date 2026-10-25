@@ -224,10 +224,7 @@ describe("blocks over the app's tables", () => {
 // The tables a block can't build over the app's own table yet, by module. The
 // list only shrinks: a table that gains `app` has to leave it.
 const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
-  settings: ["user", "organization", "platform"],
   usage: ["counters", "events", "history", "distinct", "quotas"],
-  attachments: ["attachments", "versions", "scans", "cleanup"],
-  "data-lifecycle": ["exports", "deletions", "policies", "holds"],
   sso: [
     "domains",
     "providers",
@@ -236,7 +233,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "scimMembers",
     "syncLog",
   ],
-  waitlist: ["entries", "codes", "redemptions"],
   workflows: ["schedules", "semaphores", "startRequests"],
   "workflow-editor": [
     "versions",
@@ -294,14 +290,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "versions",
     "suggestions",
   ],
-  knowledge: ["documents", "chunks"],
-  memory: ["memories", "messageEmbeddings", "documents"],
-  agents: ["agents", "installs", "ratings", "skills"],
-  connectors: ["servers", "grants", "sessions", "fingerprints"],
-  "ai-schedules": ["tasks", "runs"],
-  "ai-keys": ["keys", "batches", "items"],
-  reactions: ["reactions", "scores", "emoji"],
-  documents: ["documents", "updates", "snapshots", "suggestions"],
   orders: [
     "fulfillmentLines",
     "returnLines",
@@ -309,16 +297,9 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "kitchenRoutes",
     "preparations",
   ],
-  promotions: ["promotions", "codes", "cartCodes", "redemptions"],
   templates: ["workflows"],
-  pipelines: ["pipelines", "stages", "transitions", "history"],
   contacts: ["personContacts"],
-  activities: ["engagements", "links", "recordings", "segments", "notes"],
-  deals: ["deals", "contacts", "members"],
-  collections: ["collections", "entries", "favorites", "savedItems"],
-  "security-events": ["streams", "events", "received"],
   "oauth-server": ["clients", "grants", "codes", "devices", "revocations"],
-  moderation: ["items", "reports", "actions", "bans"],
   automations: ["rules", "defaults", "versions", "evaluations", "fields"],
   "vercel-marketplace": [
     "installations",
@@ -328,12 +309,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "meterReports",
   ],
   ledger: ["balances", "holds"],
-  scores: ["models", "versions", "scores"],
-  enrollments: ["programs", "enrollments", "steps"],
-  "billable-time": ["rates", "billed"],
-  leases: ["leases", "charges"],
-  donations: ["funds", "pledges", "receipts", "donations"],
-  dispatch: ["workOrders", "routes", "stops", "parts"],
   compliance: [
     "frameworks",
     "controls",
@@ -351,7 +326,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "postmortems",
     "pages",
   ],
-  courses: ["courses", "modules", "lessons", "progress", "certificates"],
   messaging: ["edits", "reads", "recordMentions", "summaries"],
   "mail-sync": [
     "accounts",
@@ -361,10 +335,6 @@ const NOT_ADOPTABLE: Readonly<Record<string, readonly string[]>> = {
     "tracking",
     "links",
   ],
-  segments: ["segments", "members"],
-  assignment: ["queues", "members", "log"],
-  forecasts: ["snapshots", "deals"],
-  sequences: ["sequences", "members"],
 };
 
 // The tables a module creates without a `names.tables` entry, by module.

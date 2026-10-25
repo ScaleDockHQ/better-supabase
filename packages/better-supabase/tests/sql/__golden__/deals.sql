@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:1accad86900c2e8dcc515f443e4c79ba6bfb687e2503c7878f9d51c9705e5fda
+-- @bsb-hash sha256:c674579b6e7e5bae3a9077970f94c82ed987036e1e9d2b099b431a49a7ae7f40
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -280,21 +280,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -995,7 +1008,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:5313c4c0227b0194c653a80d542462031dafa5880b59634aa9802b887ac8184d
+-- @bsb-hash sha256:fb0f5adcfd7a8a1262912d86ff8883f0020011afc6fd6dc3b1836a1a691f5664
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1296,21 +1309,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -2017,7 +2043,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:2832c3cb1d1dcc4a16e27c7b1c7983a03ba76c258e8603ba5406cb5dbf04338f
+-- @bsb-hash sha256:cf3eec085db0296a7057a378167d5da8882f38cbdc9053c009c534925bd3d3f4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2298,21 +2324,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "app_private"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "app_private"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "app_private"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -3013,7 +3052,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:bd343643b02101555ec97728f7a74ce308abf319fa381771e4de43f306bdef55
+-- @bsb-hash sha256:57eef84257a1b0d9304e8a3db168df26ea10a3a2d0dd6f44a202d2d6706dc825
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3292,21 +3331,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -4128,7 +4180,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f20b7863dfc90e1903022409c8d8bda3f9c05837ae5cadd838a914e6eb85c0e9
+-- @bsb-hash sha256:3604a958c87aa4da3f25b9ebb1ffdefe878e2e8fb0fb85c3d01865ec89247b18
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4210,105 +4262,97 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deals on pipelines: an amount in minor units, a company and contacts, a
 -- forecast call, close-date slips, a next step and line items.
 
-create table if not exists "better_supabase"."deals" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "number" bigint not null,
-  "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "company_type" text,
-  "company_id" text,
-  "motion" text,
-  "priority" text,
-  "owner_user_id" uuid,
-  "product" text,
-  "seats" integer check ("seats" >= 0),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "existing_amount" bigint not null default 0 check ("existing_amount" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "value_period" text not null default 'one_time' check ("value_period" in ('one_time', 'monthly', 'annual')),
-  "amount_source" text not null default 'manual' check ("amount_source" in ('manual', 'line_items')),
-  "pipeline_id" uuid,
-  "stage_id" uuid,
-  "stage_entered_at" timestamptz,
-  "outcome" text not null default 'open' check ("outcome" in ('open', 'won', 'lost')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "forecast_category" text check ("forecast_category" in ('commit', 'best_case', 'pipeline', 'omit')),
-  "opened_on" date not null default current_date,
-  "expected_close_on" date not null,
-  "slipped_from" date,
-  "push_count" integer not null default 0,
-  "closed_at" timestamptz,
-  "next_step" text,
-  "next_at" timestamptz,
-  "next_kind" text,
-  "flags" text[] not null default '{}',
-  "source" text,
-  "note" text,
-  "lost_reason" text,
-  "locked" boolean not null default false,
-  "rank" text collate "C" not null default 'V',
-  "archived_at" timestamptz,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  "list_total" bigint not null default 0,
-  "discount_total" bigint not null default 0,
-  "subtotal" bigint not null default 0,
-  "tax_total" bigint not null default 0,
-  "total" bigint not null default 0,
-  unique ("tenant_id", "number"),
-  check (("company_type" is null) = ("company_id" is null))
-);
+-- better_supabase.deals is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."deals" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."deals" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."deals" add column if not exists "number" bigint;
+alter table "better_supabase"."deals" add column if not exists "identifier" text;
+alter table "better_supabase"."deals" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."deals" add column if not exists "company_type" text;
+alter table "better_supabase"."deals" add column if not exists "company_id" text;
+alter table "better_supabase"."deals" add column if not exists "motion" text;
+alter table "better_supabase"."deals" add column if not exists "priority" text;
+alter table "better_supabase"."deals" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."deals" add column if not exists "product" text;
+alter table "better_supabase"."deals" add column if not exists "seats" integer check ("seats" >= 0);
+alter table "better_supabase"."deals" add column if not exists "amount" bigint not null default 0 check ("amount" >= 0);
+alter table "better_supabase"."deals" add column if not exists "existing_amount" bigint not null default 0 check ("existing_amount" >= 0);
+alter table "better_supabase"."deals" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."deals" add column if not exists "value_period" text not null default 'one_time' check ("value_period" in ('one_time', 'monthly', 'annual'));
+alter table "better_supabase"."deals" add column if not exists "amount_source" text not null default 'manual' check ("amount_source" in ('manual', 'line_items'));
+alter table "better_supabase"."deals" add column if not exists "pipeline_id" uuid;
+alter table "better_supabase"."deals" add column if not exists "stage_id" uuid;
+alter table "better_supabase"."deals" add column if not exists "stage_entered_at" timestamptz;
+alter table "better_supabase"."deals" add column if not exists "outcome" text not null default 'open' check ("outcome" in ('open', 'won', 'lost'));
+alter table "better_supabase"."deals" add column if not exists "probability" smallint check ("probability" >= 0 and "probability" <= 100);
+alter table "better_supabase"."deals" add column if not exists "forecast_category" text check ("forecast_category" in ('commit', 'best_case', 'pipeline', 'omit'));
+alter table "better_supabase"."deals" add column if not exists "opened_on" date not null default current_date;
+alter table "better_supabase"."deals" add column if not exists "expected_close_on" date;
+alter table "better_supabase"."deals" add column if not exists "slipped_from" date;
+alter table "better_supabase"."deals" add column if not exists "push_count" integer not null default 0;
+alter table "better_supabase"."deals" add column if not exists "closed_at" timestamptz;
+alter table "better_supabase"."deals" add column if not exists "next_step" text;
+alter table "better_supabase"."deals" add column if not exists "next_at" timestamptz;
+alter table "better_supabase"."deals" add column if not exists "next_kind" text;
+alter table "better_supabase"."deals" add column if not exists "flags" text[] not null default '{}';
+alter table "better_supabase"."deals" add column if not exists "source" text;
+alter table "better_supabase"."deals" add column if not exists "note" text;
+alter table "better_supabase"."deals" add column if not exists "lost_reason" text;
+alter table "better_supabase"."deals" add column if not exists "locked" boolean not null default false;
+alter table "better_supabase"."deals" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."deals" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."deals" add column if not exists "created_by" uuid;
+alter table "better_supabase"."deals" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."deals" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."deals" add column if not exists "list_total" bigint not null default 0;
+alter table "better_supabase"."deals" add column if not exists "discount_total" bigint not null default 0;
+alter table "better_supabase"."deals" add column if not exists "subtotal" bigint not null default 0;
+alter table "better_supabase"."deals" add column if not exists "tax_total" bigint not null default 0;
+alter table "better_supabase"."deals" add column if not exists "total" bigint not null default 0;
 create index if not exists deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
 create index if not exists deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
 create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
-revoke all on "better_supabase"."deals" from anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
-create table if not exists "better_supabase"."deal_contacts" (
-  "tenant_id" uuid not null,
-  "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
-  "contact_type" text not null,
-  "contact_id" text not null,
-  "role" text,
-  "is_primary" boolean not null default false,
-  primary key ("deal_id", "contact_type", "contact_id")
-);
+-- better_supabase.deal_contacts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."deal_contacts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."deal_contacts" add column if not exists "deal_id" uuid references "better_supabase"."deals" ("id") on delete cascade;
+alter table "better_supabase"."deal_contacts" add column if not exists "contact_type" text;
+alter table "better_supabase"."deal_contacts" add column if not exists "contact_id" text;
+alter table "better_supabase"."deal_contacts" add column if not exists "role" text;
+alter table "better_supabase"."deal_contacts" add column if not exists "is_primary" boolean not null default false;
+create unique index if not exists "bsb_deal_contacts_contact_key" on "better_supabase"."deal_contacts" ("deal_id", "contact_type", "contact_id");
 create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
 create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
-revoke all on "better_supabase"."deal_contacts" from anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
-create table if not exists "better_supabase"."deal_members" (
-  "tenant_id" uuid not null,
-  "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
-  "user_id" uuid not null,
-  "role" text,
-  primary key ("deal_id", "user_id")
-);
+-- better_supabase.deal_members is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."deal_members" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."deal_members" add column if not exists "deal_id" uuid references "better_supabase"."deals" ("id") on delete cascade;
+alter table "better_supabase"."deal_members" add column if not exists "user_id" uuid;
+alter table "better_supabase"."deal_members" add column if not exists "role" text;
+create unique index if not exists "bsb_deal_members_user_key" on "better_supabase"."deal_members" ("deal_id", "user_id");
 create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
-revoke all on "better_supabase"."deal_members" from anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
 grant all on "better_supabase"."deal_members" to service_role;
 
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
+drop policy if exists bsb_deals_select on "better_supabase"."deals";
+create policy bsb_deals_select on "better_supabase"."deals" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
-drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
+drop policy if exists bsb_deal_contacts_select on "better_supabase"."deal_contacts";
+create policy bsb_deal_contacts_select on "better_supabase"."deal_contacts" for select to authenticated
 using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
-drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
+drop policy if exists bsb_deal_members_select on "better_supabase"."deal_members";
+create policy bsb_deal_members_select on "better_supabase"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
@@ -4423,21 +4467,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."tenant_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      better_supabase.as_column_type(coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'), (null::"better_supabase"."deals")."value_period"),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      better_supabase.as_column_type(create_deal.attrs ->> 'forecast', (null::"better_supabase"."deals")."forecast_category"),
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';
@@ -4461,7 +4518,7 @@ begin
         using v_deal;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'number', x."number"::text, 'identifier', x."identifier", 'name', x."name", 'company_type', x."company_type", 'company_id', x."company_id", 'motion', x."motion", 'priority', x."priority", 'owner_user_id', x."owner_user_id", 'product', x."product", 'seats', x."seats", 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'currency', x."currency", 'value_period', x."value_period", 'amount_source', x."amount_source", 'pipeline_id', x."pipeline_id", 'stage_id', x."stage_id", 'stage_entered_at', x."stage_entered_at", 'outcome', x."outcome", 'probability', x."probability", 'forecast_category', x."forecast_category", 'opened_on', x."opened_on", 'expected_close_on', x."expected_close_on", 'slipped_from', x."slipped_from", 'push_count', x."push_count", 'closed_at', x."closed_at", 'next_step', x."next_step", 'next_at', x."next_at", 'next_kind', x."next_kind", 'flags', x."flags", 'source', x."source", 'note', x."note", 'lost_reason', x."lost_reason", 'locked', x."locked", 'rank', x."rank", 'archived_at', x."archived_at", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('updated_at', x."updated_at", 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = v_deal);
 end;
@@ -4544,15 +4601,15 @@ begin
       when 'currency' then
         update "better_supabase"."deals" x set "currency" = upper(v_change -> 'value' #>> '{}') where x."id" = v_deal returning * into v_row;
       when 'valuePeriod' then
-        update "better_supabase"."deals" x set "value_period" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
+        update "better_supabase"."deals" x set "value_period" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."deals")."value_period") where x."id" = v_deal returning * into v_row;
       when 'amountSource' then
-        update "better_supabase"."deals" x set "amount_source" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
+        update "better_supabase"."deals" x set "amount_source" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."deals")."amount_source") where x."id" = v_deal returning * into v_row;
       when 'stageId' then
         update "better_supabase"."deals" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_deal returning * into v_row;
       when 'probability' then
         update "better_supabase"."deals" x set "probability" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_deal returning * into v_row;
       when 'forecast' then
-        update "better_supabase"."deals" x set "forecast_category" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
+        update "better_supabase"."deals" x set "forecast_category" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."deals")."forecast_category") where x."id" = v_deal returning * into v_row;
       when 'closeOn' then
         update "better_supabase"."deals" x set "expected_close_on" = (v_change -> 'value' #>> '{}')::date where x."id" = v_deal returning * into v_row;
       when 'nextStep' then
@@ -4639,7 +4696,7 @@ begin
     "lost_reason" = case when close_deal.outcome = 'lost' then nullif(trim(close_deal.reason), '') end,
     "note" = case when close_deal.outcome = 'won' then coalesce(nullif(trim(close_deal.reason), ''), x."note") else x."note" end
   where x."id" = close_deal.deal;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'number', x."number"::text, 'identifier', x."identifier", 'name', x."name", 'company_type', x."company_type", 'company_id', x."company_id", 'motion', x."motion", 'priority', x."priority", 'owner_user_id', x."owner_user_id", 'product', x."product", 'seats', x."seats", 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'currency', x."currency", 'value_period', x."value_period", 'amount_source', x."amount_source", 'pipeline_id', x."pipeline_id", 'stage_id', x."stage_id", 'stage_entered_at', x."stage_entered_at", 'outcome', x."outcome", 'probability', x."probability", 'forecast_category', x."forecast_category", 'opened_on', x."opened_on", 'expected_close_on', x."expected_close_on", 'slipped_from', x."slipped_from", 'push_count', x."push_count", 'closed_at', x."closed_at", 'next_step', x."next_step", 'next_at', x."next_at", 'next_kind', x."next_kind", 'flags', x."flags", 'source', x."source", 'note', x."note", 'lost_reason', x."lost_reason", 'locked', x."locked", 'rank', x."rank", 'archived_at', x."archived_at", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('updated_at', x."updated_at", 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = close_deal.deal);
 end;
@@ -4673,7 +4730,7 @@ begin
     order by st."rank" collate "C" limit 1;
   end if;
   update "better_supabase"."deals" x set "stage_id" = v_stage where x."id" = reopen_deal.deal;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'number', x."number"::text, 'identifier', x."identifier", 'name', x."name", 'company_type', x."company_type", 'company_id', x."company_id", 'motion', x."motion", 'priority', x."priority", 'owner_user_id', x."owner_user_id", 'product', x."product", 'seats', x."seats", 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'currency', x."currency", 'value_period', x."value_period", 'amount_source', x."amount_source", 'pipeline_id', x."pipeline_id", 'stage_id', x."stage_id", 'stage_entered_at', x."stage_entered_at", 'outcome', x."outcome", 'probability', x."probability", 'forecast_category', x."forecast_category", 'opened_on', x."opened_on", 'expected_close_on', x."expected_close_on", 'slipped_from', x."slipped_from", 'push_count', x."push_count", 'closed_at', x."closed_at", 'next_step', x."next_step", 'next_at', x."next_at", 'next_kind', x."next_kind", 'flags', x."flags", 'source', x."source", 'note', x."note", 'lost_reason', x."lost_reason", 'locked', x."locked", 'rank', x."rank", 'archived_at', x."archived_at", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('updated_at', x."updated_at", 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = reopen_deal.deal);
 end;
@@ -5137,7 +5194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:999889530d756cf683a2877ebcc08328407457f11f0562b63733a09ee1f94f98
+-- @bsb-hash sha256:10415080212a5d0cc2c5521c4e2e7c87de5d8ecce2366e1066e1f9c5e3d31c9f
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5416,21 +5473,34 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."deals" x where x."org_id" = create_deal.tenant;
   v_identifier := 'DEAL-' || v_seq::text;
   begin
-    insert into "better_supabase"."deals" ("org_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id",
-      "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period",
-      "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind",
-      "flags", "source", "note", "created_by")
-    values (create_deal.tenant, v_seq, v_identifier, trim(create_deal.attrs ->> 'name'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
+    insert into "better_supabase"."deals" ("org_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    values (create_deal.tenant,
+      v_seq,
+      v_identifier,
+      trim(create_deal.attrs ->> 'name'),
+      case when v_company_id is null then null else v_company_type end,
+      v_company_id,
       coalesce((create_deal.attrs ->> 'ownerId')::uuid, auth.uid()),
-      create_deal.attrs ->> 'motion', create_deal.attrs ->> 'priority', create_deal.attrs ->> 'product', (create_deal.attrs ->> 'seats')::integer,
-      coalesce((create_deal.attrs ->> 'amount')::bigint, 0), coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
-      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')), coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
-      (create_deal.attrs ->> 'pipelineId')::uuid, (create_deal.attrs ->> 'stageId')::uuid, (create_deal.attrs ->> 'probability')::smallint,
-      create_deal.attrs ->> 'forecast', (create_deal.attrs ->> 'closeOn')::date, create_deal.attrs ->> 'nextStep',
-      (create_deal.attrs ->> 'nextAt')::timestamptz, create_deal.attrs ->> 'nextKind',
+      create_deal.attrs ->> 'motion',
+      create_deal.attrs ->> 'priority',
+      create_deal.attrs ->> 'product',
+      (create_deal.attrs ->> 'seats')::integer,
+      coalesce((create_deal.attrs ->> 'amount')::bigint, 0),
+      coalesce((create_deal.attrs ->> 'existingAmount')::bigint, 0),
+      upper(coalesce(create_deal.attrs ->> 'currency', 'EUR')),
+      coalesce(create_deal.attrs ->> 'valuePeriod', 'one_time'),
+      (create_deal.attrs ->> 'pipelineId')::uuid,
+      (create_deal.attrs ->> 'stageId')::uuid,
+      (create_deal.attrs ->> 'probability')::smallint,
+      create_deal.attrs ->> 'forecast',
+      (create_deal.attrs ->> 'closeOn')::date,
+      create_deal.attrs ->> 'nextStep',
+      (create_deal.attrs ->> 'nextAt')::timestamptz,
+      create_deal.attrs ->> 'nextKind',
       coalesce(array(select jsonb_array_elements_text(case jsonb_typeof(create_deal.attrs -> 'flags') when 'array' then create_deal.attrs -> 'flags' else '[]' end)), '{}'),
-      create_deal.attrs ->> 'source', create_deal.attrs ->> 'note', auth.uid())
+      create_deal.attrs ->> 'source',
+      create_deal.attrs ->> 'note',
+      auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a deal field has an invalid value' using errcode = '22023', hint = 'DEAL_ATTRS_INVALID';

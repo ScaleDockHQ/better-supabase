@@ -4,8 +4,9 @@ import type {
   BlockSqlTableSpec,
 } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, lockTable } from "../shared.ts";
+import { asText, lifecycleJson } from "./data-lifecycle-app.ts";
 
 /**
  * The record kinds the modules' purges look up, so a policy or a hold names
@@ -38,6 +39,9 @@ export const RETENTION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
       updatedAt: "updated_at",
     },
     lifecycle: { tenant: "tenant", export: false },
+    app: {},
+    optional: ["plan", "updatedAt"],
+    typed: ["kind"],
   },
   holds: {
     name: "legal_holds",
@@ -51,6 +55,9 @@ export const RETENTION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
       releasedBy: "released_by",
       releasedAt: "released_at",
     },
+    app: {},
+    optional: ["placedBy", "releasedBy"],
+    typed: ["kind"],
   },
 };
 
@@ -96,22 +103,46 @@ export function retentionSql(ctx: BlockSqlContext): string {
   const ch = (logical: string): string => ctx.col("holds", logical);
   const fn = (name: string): string => ctx.fn(name);
 
+  const planned = ctx.has("policies", "plan");
+
+  const pKind = (row: string): string =>
+    asText(ctx, "policies", `${row}.${cp("kind")}`);
+
+  const hKind = (row: string): string =>
+    asText(ctx, "holds", `${row}.${ch("kind")}`);
+
+  const noPlan = (row: string): string =>
+    planned ? ` and ${row}.${cp("plan")} is null` : "";
+
+  const policyKey = [
+    cp("kind"),
+    cp("tenant"),
+    ...(planned ? [cp("plan")] : []),
+  ].join(", ");
+
+  const optional = (
+    table: string,
+    logical: string,
+    sql: () => string,
+  ): string => (ctx.has(table, logical) ? sql() : "");
+
   // A tenant's plans come from the entitlements module; a tenant id that
   // isn't of its id type (an outbox row's text tenant) has no plan.
   const planId = ctx.installed("entitlements")
     ? ctx.of("entitlements").idType
     : undefined;
 
-  const plans = planId
-    ? `if pg_input_is_valid(retention_for.tenant, ${sqlString(planId)}) then
+  const plans =
+    planId && planned
+      ? `if pg_input_is_valid(retention_for.tenant, ${sqlString(planId)}) then
       select min(x.${cp("keep")}) into v_keep from ${p} x
-      where x.${cp("kind")} = retention_for.kind and x.${cp("tenant")} is null
+      where ${pKind("x")} = retention_for.kind and x.${cp("tenant")} is null
         and x.${cp("plan")} = any (better_supabase.tenant_plans(retention_for.tenant::${planId}));
       if v_keep is not null then
         return v_keep;
       end if;
     end if;`
-    : "";
+      : "";
 
   const holdEvent = (type: string): string =>
     ctx.record({
@@ -131,15 +162,12 @@ export function retentionSql(ctx: BlockSqlContext): string {
 -- retention_for says so, whatever its own older_than argument.
 create table if not exists ${p} (
   ${cp("id")} uuid primary key default gen_random_uuid(),
-  ${cp("tenant")} ${id},
-  ${cp("plan")} text,
+  ${cp("tenant")} ${id},${optional("policies", "plan", () => `\n  ${cp("plan")} text,`)}
   ${cp("kind")} text not null check (${cp("kind")} ~ '^[a-z][a-z0-9_]{0,62}$'),
-  ${cp("keep")} interval not null check (${cp("keep")} > interval '0'),
-  ${cp("updatedAt")} timestamptz not null default now(),
-  check (${cp("tenant")} is null or ${cp("plan")} is null),
-  unique nulls not distinct (${cp("kind")}, ${cp("tenant")}, ${cp("plan")})
+  ${cp("keep")} interval not null check (${cp("keep")} > interval '0'),${optional("policies", "updatedAt", () => `\n  ${cp("updatedAt")} timestamptz not null default now(),`)}${optional("policies", "plan", () => `\n  check (${cp("tenant")} is null or ${cp("plan")} is null),`)}
+  unique nulls not distinct (${policyKey})
 );
-create index if not exists ${ctx.naming.rename("retention_policies_tenant_idx")} on ${p} (${cp("tenant")}) where ${cp("tenant")} is not null;
+${ctx.owns("policies") ? "" : `create unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("policies").name}_kind_key`)} on ${p} (${policyKey}) nulls not distinct;\n`}create index if not exists ${ctx.naming.rename("retention_policies_tenant_idx")} on ${p} (${cp("tenant")}) where ${cp("tenant")} is not null;
 ${lockTable(p)}
 
 -- Legal holds: while one is active (released_at null), no purge deletes
@@ -150,15 +178,11 @@ create table if not exists ${h} (
   ${ch("tenant")} ${id},
   ${ch("kind")} text check (${ch("kind")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${ch("reason")} text not null check (length(${ch("reason")}) between 1 and 1000),
-  ${ch("placedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${ch("placedAt")} timestamptz not null default now(),
-  ${ch("releasedBy")} uuid references auth.users (id) on delete set null,
-  ${ch("releasedAt")} timestamptz
+${optional("holds", "placedBy", () => `  ${ch("placedBy")} uuid references auth.users (id) on delete set null default auth.uid(),\n`)}  ${ch("placedAt")} timestamptz not null default now(),
+${optional("holds", "releasedBy", () => `  ${ch("releasedBy")} uuid references auth.users (id) on delete set null,\n`)}  ${ch("releasedAt")} timestamptz
 );
 create index if not exists ${ctx.naming.rename("legal_holds_active_idx")} on ${h} (${ch("tenant")}, ${ch("kind")}) where ${ch("releasedAt")} is null;
-create index if not exists ${ctx.naming.rename("legal_holds_placed_by_idx")} on ${h} (${ch("placedBy")}) where ${ch("placedBy")} is not null;
-create index if not exists ${ctx.naming.rename("legal_holds_released_by_idx")} on ${h} (${ch("releasedBy")}) where ${ch("releasedBy")} is not null;
-${lockTable(h)}
+${optional("holds", "placedBy", () => `create index if not exists ${ctx.naming.rename("legal_holds_placed_by_idx")} on ${h} (${ch("placedBy")}) where ${ch("placedBy")} is not null;\n`)}${optional("holds", "releasedBy", () => `create index if not exists ${ctx.naming.rename("legal_holds_released_by_idx")} on ${h} (${ch("releasedBy")}) where ${ch("releasedBy")} is not null;\n`)}${lockTable(h)}
 
 -- The tenant's policy for a kind, else its plan's (the shortest when it has
 -- several plans), else the policy for every tenant; null without one.
@@ -174,14 +198,14 @@ declare
 begin
   if retention_for.tenant is not null then
     select x.${cp("keep")} into v_keep from ${p} x
-    where x.${cp("kind")} = retention_for.kind and x.${cp("tenant")}::text = retention_for.tenant;
+    where ${pKind("x")} = retention_for.kind and x.${cp("tenant")}::text = retention_for.tenant;
     if v_keep is not null then
       return v_keep;
     end if;
     ${plans}
   end if;
   select x.${cp("keep")} into v_keep from ${p} x
-  where x.${cp("kind")} = retention_for.kind and x.${cp("tenant")} is null and x.${cp("plan")} is null;
+  where ${pKind("x")} = retention_for.kind and x.${cp("tenant")} is null${noPlan("x")};
   return v_keep;
 end;
 $$;
@@ -195,7 +219,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select min(x.${cp("keep")}) from ${p} x where x.${cp("kind")} = retention_floor.kind
+  select min(x.${cp("keep")}) from ${p} x where ${pKind("x")} = retention_floor.kind
 $$;
 
 -- Whether an active hold covers the kind for the tenant. A null tenant (a
@@ -210,7 +234,7 @@ as $$
   select exists (
     select 1 from ${h} x
     where x.${ch("releasedAt")} is null
-      and (x.${ch("kind")} is null or x.${ch("kind")} = is_held.kind)
+      and (x.${ch("kind")} is null or ${hKind("x")} = is_held.kind)
       and (x.${ch("tenant")} is null or x.${ch("tenant")}::text = is_held.tenant)
   )
 $$;
@@ -228,10 +252,10 @@ as $$
   select case when exists (
     select 1 from ${h} x
     where x.${ch("releasedAt")} is null
-      and (x.${ch("kind")} is null or x.${ch("kind")} = retention_cutoff.kind)
+      and (x.${ch("kind")} is null or ${hKind("x")} = retention_cutoff.kind)
   ) then null else now() - greatest(
     fallback,
-    (select max(x.${cp("keep")}) from ${p} x where x.${cp("kind")} = retention_cutoff.kind)
+    (select max(x.${cp("keep")}) from ${p} x where ${pKind("x")} = retention_cutoff.kind)
   ) end
 $$;
 
@@ -248,13 +272,19 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("RETENTION_FORBIDDEN", "Only the service role sets retention policies")}
   end if;
-  insert into ${p} as x (${cp("kind")}, ${cp("keep")}, ${cp("tenant")}, ${cp("plan")})
-  values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
-  on conflict (${cp("kind")}, ${cp("tenant")}, ${cp("plan")}) do update set
-    ${cp("keep")} = excluded.${cp("keep")},
-    ${cp("updatedAt")} = now()
+  ${
+    planned
+      ? ""
+      : `if set_retention_policy.plan is not null then
+    ${fail("RETENTION_PLAN_UNSUPPORTED", "The retention policies table has no plan column", "22023")}
+  end if;
+  `
+  }insert into ${p} as x (${cp("kind")}, ${cp("keep")}, ${cp("tenant")}${planned ? `, ${cp("plan")}` : ""})
+  values (${ctx.cast("policies", "kind", "set_retention_policy.kind")}, set_retention_policy.keep, set_retention_policy.tenant${planned ? ", set_retention_policy.plan" : ""})
+  on conflict (${policyKey}) do update set
+    ${cp("keep")} = excluded.${cp("keep")}${optional("policies", "updatedAt", () => `,\n    ${cp("updatedAt")} = now()`)}
   returning * into v_row;
-  return to_jsonb(v_row);
+  return ${lifecycleJson(ctx, "policies", "v_row")};
 end;
 $$;
 
@@ -269,9 +299,9 @@ begin
     ${fail("RETENTION_FORBIDDEN", "Only the service role removes retention policies")}
   end if;
   delete from ${p} x
-  where x.${cp("kind")} = remove_retention_policy.kind
+  where ${pKind("x")} = remove_retention_policy.kind
     and x.${cp("tenant")} is not distinct from remove_retention_policy.tenant
-    and x.${cp("plan")} is not distinct from remove_retention_policy.plan;
+    and ${planned ? `x.${cp("plan")}` : "null::text"} is not distinct from remove_retention_policy.plan;
   return found;
 end;
 $$;
@@ -283,9 +313,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${cp("kind")}, x.${cp("tenant")} nulls first, x.${cp("plan")} nulls first), '[]'::jsonb)
+  select coalesce(jsonb_agg(${lifecycleJson(ctx, "policies", "x", "x.*")} order by x.${cp("kind")}, x.${cp("tenant")} nulls first${planned ? `, x.${cp("plan")} nulls first` : ""}), '[]'::jsonb)
   from ${p} x
-  where list_retention_policies.kind is null or x.${cp("kind")} = list_retention_policies.kind
+  where list_retention_policies.kind is null or ${pKind("x")} = list_retention_policies.kind
 $$;
 
 create or replace function ${fn("place_legal_hold")}(reason text, tenant ${id} default null, kind text default null)
@@ -300,11 +330,11 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("LEGAL_HOLD_FORBIDDEN", "Only the service role places legal holds")}
   end if;
-  insert into ${h} (${ch("reason")}, ${ch("tenant")}, ${ch("kind")}, ${ch("placedBy")})
-  values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
+  insert into ${h} (${ch("reason")}, ${ch("tenant")}, ${ch("kind")}${optional("holds", "placedBy", () => `, ${ch("placedBy")}`)})
+  values (place_legal_hold.reason, place_legal_hold.tenant, ${ctx.cast("holds", "kind", "place_legal_hold.kind")}${optional("holds", "placedBy", () => ", auth.uid()")})
   returning * into v_row;
   ${holdEvent("legal_hold.placed")}
-  return to_jsonb(v_row);
+  return ${lifecycleJson(ctx, "holds", "v_row")};
 end;
 $$;
 
@@ -321,14 +351,14 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("LEGAL_HOLD_FORBIDDEN", "Only the service role releases legal holds")}
   end if;
-  update ${h} x set ${ch("releasedAt")} = now(), ${ch("releasedBy")} = auth.uid()
+  update ${h} x set ${ch("releasedAt")} = now()${optional("holds", "releasedBy", () => `, ${ch("releasedBy")} = auth.uid()`)}
   where x.${ch("id")} = release_legal_hold.id and x.${ch("releasedAt")} is null
   returning * into v_row;
   if v_row.${ch("id")} is null then
     return null;
   end if;
   ${holdEvent("legal_hold.released")}
-  return to_jsonb(v_row);
+  return ${lifecycleJson(ctx, "holds", "v_row")};
 end;
 $$;
 
@@ -339,7 +369,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x.${ch("placedAt")} desc, x.${ch("id")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${lifecycleJson(ctx, "holds", "x", "x.*")} order by x.${ch("placedAt")} desc, x.${ch("id")}), '[]'::jsonb)
   from ${h} x
   where list_legal_holds.include_released or x.${ch("releasedAt")} is null
 $$;

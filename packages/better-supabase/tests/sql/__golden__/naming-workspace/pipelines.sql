@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:a425385f9ea078cf5f50f169db901fcb67562673fd21fb2337066ce86aea7dcd
+-- @bsb-hash sha256:76f56b14b4dc4aacb68e353477fa413a598574c347821a68850f10d0ff304f3b
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -354,8 +354,7 @@ begin
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome,
-        save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -370,10 +369,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name,
-        "category" = save_pipeline_stage.category, "outcome" = v_outcome,
-        "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days,
-        "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
