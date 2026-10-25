@@ -8,7 +8,7 @@
       "type": "registry:lib",
       "title": "Block clients",
       "description": "lib/blocks.ts: the blocks as typed clients over the Data API, acting as the caller, plus the notification types.",
-      "dependencies": ["better-supabase@^0.18.1", "valibot"],
+      "dependencies": ["better-supabase@^0.18.2", "valibot"],
       "files": [
         {
           "path": "items/lib/blocks.ts",
@@ -35,7 +35,7 @@
       "type": "registry:lib",
       "title": "Server Postgres pool",
       "description": "lib/postgres.ts: one Postgres pool for the server-side blocks (outbox, jobs, webhook inbox, billing).",
-      "dependencies": ["better-supabase@^0.18.1", "pg"],
+      "dependencies": ["better-supabase@^0.18.2", "pg"],
       "files": [
         {
           "path": "items/lib/postgres.ts",
@@ -59,7 +59,7 @@
       "type": "registry:lib",
       "title": "Notification server actions (Next.js)",
       "description": "Server actions that list, count and mark the caller's notifications, for useNotifications on the web.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "registryDependencies": ["@better-supabase/blocks"],
       "files": [
         {
@@ -82,7 +82,7 @@
       "type": "registry:lib",
       "title": "Onboarding checklist",
       "description": "lib/onboarding.ts: a getting-started checklist definition to edit, shared by the config and useOnboarding.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/lib/onboarding.ts",
@@ -104,7 +104,7 @@
       "type": "registry:lib",
       "title": "Outbox client",
       "description": "lib/outbox.ts: the outbox on the server connection, which the relay routes use.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -129,7 +129,7 @@
       "type": "registry:file",
       "title": "Outbox relay route (Next.js)",
       "description": "app/api/outbox/route.ts: a cron route that relays each registered consumer's events.",
-      "dependencies": ["better-supabase@^0.18.1", "server-only"],
+      "dependencies": ["better-supabase@^0.18.2", "server-only"],
       "registryDependencies": ["@better-supabase/outbox"],
       "files": [
         {
@@ -154,7 +154,7 @@
       "type": "registry:file",
       "title": "Outbox relay route (Hono)",
       "description": "routes/outbox.ts: a Hono route that relays each registered consumer's events.",
-      "dependencies": ["better-supabase@^0.18.1", "hono"],
+      "dependencies": ["better-supabase@^0.18.2", "hono"],
       "registryDependencies": ["@better-supabase/outbox"],
       "files": [
         {
@@ -179,7 +179,7 @@
       "type": "registry:file",
       "title": "Stripe webhook routes (Next.js)",
       "description": "A Stripe webhook route that stores verified events, and a cron route that hands them to the billing block.",
-      "dependencies": ["better-supabase@^0.18.1", "server-only", "stripe"],
+      "dependencies": ["better-supabase@^0.18.2", "server-only", "stripe"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -216,7 +216,7 @@
       "type": "registry:file",
       "title": "Jobs drain cron route (Next.js)",
       "description": "lib/jobs.ts and app/api/jobs/drain/route.ts: the queues and the cron route that runs schedules and drains them.",
-      "dependencies": ["better-supabase@^0.18.1", "server-only"],
+      "dependencies": ["better-supabase@^0.18.2", "server-only"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -246,7 +246,7 @@
       "type": "registry:file",
       "title": "AI chat routes (Next.js)",
       "description": "lib/assistant.ts and the app/api/chat routes: the ai-chat block's assistant, the tools it may call, and the routes that send a message, resume its stream and stop it.",
-      "dependencies": ["better-supabase@^0.18.1", "ai", "server-only"],
+      "dependencies": ["better-supabase@^0.18.2", "ai", "server-only"],
       "files": [
         {
           "path": "items/lib/assistant.ts",
@@ -285,7 +285,7 @@
       "type": "registry:hook",
       "title": "useCurrentOrganization",
       "description": "The signed-in user's active organization and a switchTo action, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-current-organization.ts",
@@ -307,7 +307,7 @@
       "type": "registry:hook",
       "title": "useAiChats, useAiChatTree, useAiModels, useAiShare",
       "description": "useAiChats, useAiChatTree, useAiModels and useAiShare: the ai-chat block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-ai-chat.ts",
@@ -329,7 +329,7 @@
       "type": "registry:hook",
       "title": "useAnnouncements",
       "description": "useAnnouncements: the announcements block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-announcements.ts",
@@ -351,7 +351,7 @@
       "type": "registry:hook",
       "title": "useApiKeys",
       "description": "useApiKeys: the api-keys block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-api-keys.ts",
@@ -373,7 +373,7 @@
       "type": "registry:hook",
       "title": "useAttachmentUpload",
       "description": "useAttachmentUpload: the attachments block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-attachments.ts",
@@ -395,7 +395,7 @@
       "type": "registry:hook",
       "title": "useAuditLog",
       "description": "useAuditLog: the audit block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-audit.ts",
@@ -417,7 +417,7 @@
       "type": "registry:hook",
       "title": "useRuleBuilder",
       "description": "useRuleBuilder: the automations block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-automations.ts",
@@ -439,7 +439,7 @@
       "type": "registry:hook",
       "title": "usePlanPicker",
       "description": "usePlanPicker: the billing block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-billing.ts",
@@ -461,7 +461,7 @@
       "type": "registry:hook",
       "title": "useAvailableSlots",
       "description": "useAvailableSlots: the bookings block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-bookings.ts",
@@ -483,7 +483,7 @@
       "type": "registry:hook",
       "title": "useCalendar",
       "description": "useCalendar: the calendar block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-calendar.ts",
@@ -505,7 +505,7 @@
       "type": "registry:hook",
       "title": "useComments",
       "description": "useComments: the comments block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-comments.ts",
@@ -527,7 +527,7 @@
       "type": "registry:hook",
       "title": "useFeatureGate",
       "description": "useFeatureGate: the entitlements block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-entitlements.ts",
@@ -549,7 +549,7 @@
       "type": "registry:hook",
       "title": "useQuestionnaire",
       "description": "useQuestionnaire: the forms block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-forms.ts",
@@ -571,7 +571,7 @@
       "type": "registry:hook",
       "title": "useInbox, useConversation, useInboxWidget",
       "description": "useInbox, useConversation and useInboxWidget: the inbox block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-inbox.ts",
@@ -593,7 +593,7 @@
       "type": "registry:hook",
       "title": "useMessages, useConversations",
       "description": "useMessages and useConversations: the messaging block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-messaging.ts",
@@ -615,7 +615,7 @@
       "type": "registry:hook",
       "title": "useMfa, useStepUp",
       "description": "useMfa and useStepUp: the mfa block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-mfa.ts",
@@ -637,7 +637,7 @@
       "type": "registry:hook",
       "title": "useNotifications",
       "description": "useNotifications: the notifications block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-notifications.ts",
@@ -659,7 +659,7 @@
       "type": "registry:hook",
       "title": "useOnboarding",
       "description": "useOnboarding: the onboarding block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-onboarding.ts",
@@ -681,7 +681,7 @@
       "type": "registry:hook",
       "title": "useOrganizations, useMembers, useInvitations",
       "description": "useOrganizations, useMembers and useInvitations: the organizations block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-organizations.ts",
@@ -703,7 +703,7 @@
       "type": "registry:hook",
       "title": "usePermissions, usePermission",
       "description": "usePermissions and usePermission: the permissions block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-permissions.ts",
@@ -725,7 +725,7 @@
       "type": "registry:hook",
       "title": "useReactions",
       "description": "useReactions: the reactions block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-reactions.ts",
@@ -747,7 +747,7 @@
       "type": "registry:hook",
       "title": "useSavedViews",
       "description": "useSavedViews: the saved-views block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-saved-views.ts",
@@ -769,7 +769,7 @@
       "type": "registry:hook",
       "title": "useCommandSearch",
       "description": "useCommandSearch: the search block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-search.ts",
@@ -791,7 +791,7 @@
       "type": "registry:hook",
       "title": "useOAuthConsent, useOAuthGrants",
       "description": "useOAuthConsent and useOAuthGrants: the sessions block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-sessions.ts",
@@ -813,7 +813,7 @@
       "type": "registry:hook",
       "title": "useSettings",
       "description": "useSettings: the settings block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-settings.ts",
@@ -835,7 +835,7 @@
       "type": "registry:hook",
       "title": "useSubjects, useSubject",
       "description": "useSubjects and useSubject: the subjects block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-subjects.ts",
@@ -857,7 +857,7 @@
       "type": "registry:hook",
       "title": "useTagInput",
       "description": "useTagInput: the tags block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-tags.ts",
@@ -879,7 +879,7 @@
       "type": "registry:hook",
       "title": "useUndoStack",
       "description": "useUndoStack: the undo block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-undo.ts",
@@ -901,7 +901,7 @@
       "type": "registry:hook",
       "title": "useUsageMeter",
       "description": "useUsageMeter: the usage block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-usage.ts",
@@ -923,7 +923,7 @@
       "type": "registry:hook",
       "title": "useWorkflowEditor, useWorkflowCanvasRun",
       "description": "useWorkflowEditor and useWorkflowCanvasRun: the workflow-editor block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-workflow-editor.ts",
@@ -945,7 +945,7 @@
       "type": "registry:hook",
       "title": "useWorkflowRuns, useWorkflowRun",
       "description": "useWorkflowRuns and useWorkflowRun: the workflows block's controllers as React hooks, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-workflows.ts",
@@ -967,7 +967,7 @@
       "type": "registry:hook",
       "title": "useRuleEditor",
       "description": "The editor state of one rule in the active organization: its condition tree, validation, dirty state and save, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "files": [
         {
           "path": "items/hooks/use-rule-editor.ts",
@@ -990,7 +990,7 @@
       "type": "registry:hook",
       "title": "usePushRegistration (Expo)",
       "description": "Registers the device's Expo push token for the signed-in user with the push block.",
-      "dependencies": ["better-supabase@^0.18.1", "expo-notifications"],
+      "dependencies": ["better-supabase@^0.18.2", "expo-notifications"],
       "registryDependencies": ["@better-supabase/expo-config-native"],
       "files": [
         {
@@ -1016,7 +1016,7 @@
       "title": "Expo config",
       "description": "app.config.ts: the URL scheme for auth deep links, secure session storage and push, on top of app.json.",
       "dependencies": [
-        "better-supabase@^0.18.1",
+        "better-supabase@^0.18.2",
         "expo-secure-store",
         "expo-notifications"
       ],
@@ -1043,7 +1043,7 @@
       "type": "registry:item",
       "title": "SaaS glue (Next.js)",
       "description": "The glue for the saas preset on Next.js: block clients, notification actions, onboarding, the organization hook and the outbox, jobs and Stripe routes.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "registryDependencies": [
         "@better-supabase/blocks",
         "@better-supabase/notifications-actions-next",
@@ -1078,7 +1078,7 @@
       "type": "registry:item",
       "title": "SaaS glue (Expo)",
       "description": "The glue for the saas preset on Expo: block clients, onboarding, the organization hook, push registration and the Expo config.",
-      "dependencies": ["better-supabase@^0.18.1"],
+      "dependencies": ["better-supabase@^0.18.2"],
       "registryDependencies": [
         "@better-supabase/blocks",
         "@better-supabase/onboarding-checklist",
