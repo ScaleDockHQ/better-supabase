@@ -4,7 +4,7 @@
   "title": "Stripe webhook routes (Next.js)",
   "description": "A Stripe webhook route that stores verified events, and a cron route that hands them to the billing block.",
   "dependencies": [
-    "better-supabase@^0.18.3",
+    "better-supabase@^0.19.0",
     "server-only",
     "stripe"
   ],
