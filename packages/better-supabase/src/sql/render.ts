@@ -239,7 +239,15 @@ export function renderBlocks(
     ),
   ]);
 
-  return [...files, ...appTablesFiles(layout, installed)].map((file) => ({
+  // App table policies take the read-only check like every block policy, so a
+  // read-only support or agent session can't write through them either.
+  const appFiles = appTablesFiles(layout, installed).map((file) =>
+    file.kind === "schema"
+      ? { ...file, contents: applyActorWriteGuards(file.contents, layout) }
+      : file,
+  );
+
+  return [...files, ...appFiles].map((file) => ({
     ...file,
     contents: withBlockHash(
       file.kind === "schema"
