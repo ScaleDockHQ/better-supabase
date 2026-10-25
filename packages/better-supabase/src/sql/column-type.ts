@@ -40,6 +40,24 @@ revoke execute on function better_supabase.try_column_type(text, anyelement) fro
 grant execute on function better_supabase.try_column_type(text, anyelement) to anon, authenticated, service_role;`;
 }
 
+function valueUnsupportedFunction(): string {
+  return `${SCHEMA}
+create or replace function better_supabase.value_unsupported(label text)
+returns text
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+begin
+  raise exception 'the app does not support the value %', label
+    using errcode = '22023', hint = 'VALUE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function better_supabase.value_unsupported(text) from public;
+grant execute on function better_supabase.value_unsupported(text) to anon, authenticated, service_role;`;
+}
+
 /** `value` (text) cast to the type of `column` on the quoted `table`. */
 export function asColumnType(
   table: string,
@@ -60,6 +78,7 @@ export function tryColumnType(
 const FUNCTIONS: readonly (readonly [string, () => string])[] = [
   ["as_column_type", columnTypeFunction],
   ["try_column_type", tryColumnTypeFunction],
+  ["value_unsupported", valueUnsupportedFunction],
 ];
 
 /**

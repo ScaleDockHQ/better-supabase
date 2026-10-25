@@ -22,6 +22,7 @@ import {
 } from "../config/index.ts";
 import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
+import { valueMapsSchema } from "./block-config-schema.ts";
 import { movedKeyIssues } from "./config-moved.ts";
 import { GEN_TASKS, HOOK_FRAMEWORKS, INTEGRATIONS } from "./names.ts";
 import { powersyncGenSchema } from "./powersync/config-schema.ts";
@@ -106,6 +107,7 @@ const blockEntries = {
   columns: v.optional(
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
+  values: valueMapsSchema,
   idType: v.optional(v.string()),
   owner: v.optional(v.picklist(["tenant", "user", "none"])),
   ownTablePolicies: v.optional(v.picklist(["block", "app"])),

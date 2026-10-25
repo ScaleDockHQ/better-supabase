@@ -16,6 +16,7 @@ import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
+import type { BlockSqlValueMethods } from "./value-maps.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
@@ -30,6 +31,7 @@ import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { blockColumnName } from "./tenant-column.ts";
+import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
 export { NOTHING };
 
@@ -84,6 +86,13 @@ export interface BlockSqlTableSpec {
    * enum: the module writes and compares them through `ctx.cast`.
    */
   readonly typed?: readonly string[];
+  /**
+   * Text columns that take `blocks.<name>.values` like `typed` ones, but are
+   * written through `ctx.cast` only when the app gives them a values entry (an
+   * empty one casts without renaming labels), so a config without one renders
+   * as before.
+   */
+  readonly mappable?: readonly string[];
   readonly yieldsToExtra?: readonly string[];
 }
 
@@ -336,7 +345,7 @@ export interface BlockSqlContractFunction {
 }
 
 /** What a module's `build` reads: resolved names for one layout. */
-export interface BlockSqlContext {
+export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly module: string;
   /**
    * The instance being rendered: the module's name, or the `blocks` key of an
@@ -416,21 +425,6 @@ export interface BlockSqlContext {
   colName(table: string, column: string): string;
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
-  /**
-   * `value`, a text expression, as the type of a logical column the table spec
-   * lists in `typed`. On a table the app has, the column may be an enum or
-   * another type with a text input, so the value goes through
-   * `better_supabase.as_column_type`; on the module's own table it stays as it
-   * is. With `invalid: "null"`, a value the type rejects, such as a label the
-   * enum lacks, becomes null through `better_supabase.try_column_type` instead
-   * of raising.
-   */
-  cast(
-    table: string,
-    column: string,
-    value: string,
-    invalid?: "raise" | "null",
-  ): string;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
   /** Whether the module renders its managed SQL (not adopt or custom mode). */
@@ -1272,6 +1266,12 @@ export function createModuleContext(
     modules,
     manages: config.mode === "managed",
     ...owned,
+    ...valueMethods({
+      tables: names.tables,
+      maps: checkedValueMaps(where, config.values, names.tables),
+      cast: owned.cast,
+      column: requiredColumn,
+    }),
     names,
     installedModules: [...installed],
     fn: (name) =>

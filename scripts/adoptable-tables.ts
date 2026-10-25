@@ -45,8 +45,17 @@ function line(
     return column === undefined ? [] : [column];
   });
 
+  const mappable = (spec.mappable ?? []).flatMap((key) => {
+    const column = spec.columns[key];
+
+    return column === undefined ? [] : [column];
+  });
+
   const mapped = spec.app.onlyWhenMapped === true ? ", once mapped" : "";
-  const types = typed.length === 0 ? "" : `; typed: ${code(typed)}`;
+
+  const types = `${typed.length === 0 ? "" : `; typed: ${code(typed)}`}${
+    mappable.length === 0 ? "" : `; typed with values: ${code(mappable)}`
+  }`;
 
   const columns =
     required.length === 0 ? "no required columns" : code(required);

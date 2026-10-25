@@ -125,6 +125,7 @@ const NAMES: BlockSqlNames = {
         "createdBy",
       ],
       typed: ["state", "closeReason"],
+      mappable: ["priority"],
     },
     checklist: {
       name: "work_item_checklist_items",
@@ -317,12 +318,18 @@ function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
 
   const subject = `'work-items/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
-  const closed = `new.${w("state")} in ('completed', 'canceled')`;
+
+  const state = (value: string, labels: readonly string[], negate = false) =>
+    ctx.is("items", "state", value, labels, negate);
+
+  const closed = state(`new.${w("state")}`, ["completed", "canceled"]);
 
   const reason = ctx.cast(
     "items",
     "closeReason",
-    `case new.${w("state")} when 'completed' then 'completed' else 'not_planned' end`,
+    ctx.mapsValues("items", "state")
+      ? `case when ${state(`new.${w("state")}`, ["completed"])} then 'completed' else 'not_planned' end`
+      : `case new.${w("state")} when 'completed' then 'completed' else 'not_planned' end`,
   );
 
   const dates = ["startAt", "endAt", "dueAt"]
@@ -366,18 +373,18 @@ begin
     return new;
   end if;
   if new.${w("state")} is distinct from old.${w("state")} then
-    if ${closed} and old.${w("state")} not in ('completed', 'canceled') then
+    if ${closed} and ${state(`old.${w("state")}`, ["completed", "canceled"], true)} then
       new.${w("closedAt")} := now();
       new.${w("closeReason")} := coalesce(new.${w("closeReason")}, ${reason});
 ${
   ctx.has("items", "progress")
-    ? `      if new.${w("state")} = 'completed' and new.${w("progress")} is not null then
+    ? `      if ${state(`new.${w("state")}`, ["completed"])} and new.${w("progress")} is not null then
         new.${w("progress")} := 100;
       end if;
 `
     : ""
 }      ${ctx.record({ type: "work_item.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
-    elsif not (${closed}) and old.${w("state")} in ('completed', 'canceled') then
+    elsif not (${closed}) and ${state(`old.${w("state")}`, ["completed", "canceled"])} then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
       ${ctx.record({ type: "work_item.reopened", payload: payload(""), subject, tenant, audit: false })}
@@ -476,6 +483,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 /** How work items run on pipelines, with the items table's column names. */
+const WORK_ITEM_STATES = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+  "completed",
+  "canceled",
+] as const;
+
 const workItemPipeline = (
   own: BlockSqlContext,
 ): Readonly<Record<string, unknown>> => ({
@@ -493,14 +509,13 @@ const workItemPipeline = (
   },
   status: {
     column: own.colName("items", "state"),
-    values: {
-      triage: "triage",
-      backlog: "backlog",
-      unstarted: "unstarted",
-      started: "started",
-      completed: "completed",
-      canceled: "canceled",
-    },
+    values: Object.fromEntries(
+      WORK_ITEM_STATES.flatMap((label) => {
+        const [value] = own.appValues("items", "state", label);
+
+        return value === undefined ? [] : [[label, value]];
+      }),
+    ),
   },
   stages: [
     { key: "triage", name: "Triage", category: "triage" },
@@ -536,7 +551,7 @@ const CONTRIBUTES: BlockContributes = {
     from ${own.table("assignees")} a
     join ${own.table("items")} i on ${w("id")} = a.${own.col("assignees", "item")}
     where a.${own.col("assignees", "user")} = v_me
-      and ${w("state")} not in ('completed', 'canceled')
+      and ${own.is("items", "state", w("state"), ["completed", "canceled"], true)}
       and ${w("archivedAt")} is null
       and ${myWorkTenant(w("tenant"))}`,
       },
