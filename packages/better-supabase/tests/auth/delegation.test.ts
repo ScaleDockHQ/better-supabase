@@ -4,6 +4,7 @@ import {
   contextClaims,
   delegatedClaims,
   narrowCap,
+  permissionCapOf,
   permissionMatches,
 } from "../../src/auth/delegation.ts";
 
@@ -224,6 +225,28 @@ describe("contextClaims", () => {
       ok: false,
       message: "forContext got an invalid permission cap",
     });
+  });
+
+  it("carries a cap under its 0.14 name forward as bsb_permission_cap", () => {
+    expect(
+      contextClaims(
+        { actor: user, claims: { bs_permission_cap: ["posts.*"] } },
+        { permissions: ["posts.write", "billing.manage"] },
+      ),
+    ).toEqual({
+      ok: true,
+      claims: {
+        role: "authenticated",
+        sub: "user-1",
+        bsb_permission_cap: ["posts.write"],
+      },
+    });
+    expect(
+      permissionCapOf({ bsb_permission_cap: ["a"], bs_permission_cap: ["b"] }),
+    ).toEqual(["a"]);
+    expect(
+      contextClaims({ actor: user }, { extra: { bs_permission_cap: ["*"] } }),
+    ).toEqual({ ok: true, claims: { role: "authenticated", sub: "user-1" } });
   });
 });
 

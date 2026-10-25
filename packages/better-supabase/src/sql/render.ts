@@ -26,12 +26,13 @@ import {
 } from "./instance-names.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { entitiesMarker, withBlockHash } from "./markers.ts";
-import { moduleContext } from "./module-context.ts";
+import { moduleContext, viewColumnsOf } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
 import {
   overAppTables,
+  overAppViews,
   withoutAppTableEdits,
   withoutUnmappedColumns,
   withoutUnmappedTables,
@@ -47,6 +48,7 @@ import {
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
+import { assertViewColumns } from "./view-columns.ts";
 
 /**
  * `sql` with the parameter qualifiers of renamed functions renamed too:
@@ -89,6 +91,7 @@ export function moduleBody(
 ): string | undefined {
   checkModules(layout.modules);
   checkMigrationOptions(layout.modules, layout.ownTables);
+  assertViewColumns(viewColumnsOf(layout).missing);
   const modules = resolveBlocks([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
 
@@ -120,12 +123,17 @@ function overApp(
   layout: BlockSqlLayout,
 ): string {
   const appTables = appTableSet(ctx);
+  const appViews = appTableSet(ctx, ctx.appViews);
 
   return withoutUnmappedColumns(
     withoutUnmappedTables(
       blockNamesOnAppTables(
         withoutAppTableEdits(
-          overAppTables(sql, appTables, layout.ownColumns),
+          overAppTables(
+            overAppViews(sql, appViews),
+            appTables,
+            layout.ownColumns,
+          ),
           appTables,
         ),
         appTables,
@@ -138,10 +146,13 @@ function overApp(
 }
 
 /** The app's tables a module runs over, as `schema.table`. */
-function appTableSet(ctx: BlockSqlContext): Set<string> {
+function appTableSet(
+  ctx: BlockSqlContext,
+  tables: readonly string[] = ctx.appOwned,
+): Set<string> {
   return new Set(
     ctx.manages
-      ? ctx.appOwned.map((table) => {
+      ? tables.map((table) => {
           const parts = ctx.tableName(table);
 
           return `${parts.schema}.${parts.name}`;
@@ -203,6 +214,7 @@ export function renderBlocks(
 ): BlockSqlFile[] {
   checkModules(layout.modules);
   checkMigrationOptions(layout.modules, layout.ownTables);
+  assertViewColumns(viewColumnsOf(layout).missing);
   const modules = resolveBlocks(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);

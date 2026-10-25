@@ -110,6 +110,202 @@ export function declaredTables(
   return [...found];
 }
 
+/** A view the app's files create. */
+export interface DeclaredView {
+  /** Its columns, or `undefined` when they can't be read (`select *`). */
+  readonly columns: readonly string[] | undefined;
+  /** Whether `insert`, `update` and `delete` reach the table under it. */
+  readonly updatable: boolean;
+}
+
+const VIEW = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:(?:temp|temporary|recursive)\s+)?(materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(${TABLE_NAME})\s*(\()?`,
+  "gi",
+);
+
+const DROP_VIEW = /* @__PURE__ */ new RegExp(
+  String.raw`\bdrop\s+(?:materialized\s+)?view\s+(?:if\s+exists\s+)?(${TABLE_NAME}(?:\s*,\s*${TABLE_NAME})*)`,
+  "gi",
+);
+
+const INSTEAD_OF_TRIGGER = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?trigger\s+${NAME}\s+instead\s+of\b[^;]*?\bon\s+(${TABLE_NAME})`,
+  "gi",
+);
+
+/**
+ * What keeps Postgres from writing through a view to its table: a view that has
+ * one of these is not auto-updatable.
+ */
+const NOT_UPDATABLE =
+  /\b(?:(?:distinct|group\s+by|having|limit|offset|fetch\s+first|union|intersect|except|join|window)\b|over\s*\(|(?:count|sum|avg|min|max|array_agg|string_agg|jsonb_agg|json_agg|bool_and|bool_or)\s*\()/i;
+
+/** The word that ends a view's select list, at the top level. */
+const SELECT_END = /\bfrom\b/i;
+
+const ALIAS = /* @__PURE__ */ new RegExp(String.raw`\bas\s+(${NAME})\s*$`, "i");
+
+const BARE_COLUMN = /* @__PURE__ */ new RegExp(
+  String.raw`^(?:${NAME}\s*\.\s*)*(${NAME})$`,
+);
+
+/**
+ * The view's columns from its select list: each item's alias, or the column it
+ * names. `undefined` when an item is `*` or has no name to read.
+ */
+function selectColumns(body: string): string[] | undefined {
+  const select = /^\s*(?:\(\s*)?select\s+/i.exec(body);
+
+  if (select === null) {
+    return undefined;
+  }
+
+  let rest = body.slice(select[0].length);
+  const distinct = /^distinct\s+on\s*\(/i.exec(rest);
+
+  if (distinct === null) {
+    rest = rest.replace(/^(?:distinct|all)\b/i, "");
+  } else {
+    const close = closingParen(rest, distinct[0].length - 1);
+
+    if (close === -1) {
+      return undefined;
+    }
+
+    rest = rest.slice(close + 1);
+  }
+
+  const end = topLevelIndex(rest, SELECT_END);
+  const items = splitTopLevel(end === -1 ? rest : rest.slice(0, end));
+  const columns: string[] = [];
+
+  for (const item of items) {
+    const alias = ALIAS.exec(item)?.[1] ?? BARE_COLUMN.exec(item.trim())?.[1];
+
+    if (alias === undefined || item.trim().endsWith("*")) {
+      return undefined;
+    }
+
+    columns.push(unquote(alias));
+  }
+
+  return columns;
+}
+
+/** The first match of `pattern` outside parentheses and quotes, or -1. */
+function topLevelIndex(text: string, pattern: RegExp): number {
+  let depth = 0;
+  let quote: string | undefined;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]!;
+
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (
+      depth === 0 &&
+      /\w/.test(char) &&
+      !/\w/.test(text[i - 1] ?? "") &&
+      pattern.exec(text.slice(i))?.index === 0
+    ) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * The views and materialized views `files` create, as `schema.view`, with their
+ * columns and whether they are auto-updatable. A later `drop view` removes one.
+ * Only views in `schemas` are kept.
+ */
+export function declaredViews(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, DeclaredView> {
+  const found = new Map<string, DeclaredView>();
+  const insteadOf = new Set<string>();
+
+  for (const file of files) {
+    const text = withoutComments(file.text);
+
+    for (const match of text.matchAll(INSTEAD_OF_TRIGGER)) {
+      insteadOf.add(qualified(match[1]!));
+    }
+
+    inOrder([
+      [...text.matchAll(VIEW)].map((match) => ({
+        index: match.index,
+        apply: () => {
+          const view = qualified(match[2]!);
+
+          if (!schemas.includes(view.slice(0, view.indexOf(".")))) {
+            return;
+          }
+
+          let at = match.index + match[0].length;
+          let listed: string[] | undefined;
+
+          if (match[3] !== undefined) {
+            const close = closingParen(text, at - 1);
+
+            if (close === -1) {
+              return;
+            }
+
+            listed = splitTopLevel(text.slice(at, close)).map((column) =>
+              unquote(column.trim()),
+            );
+            at = close + 1;
+          }
+
+          const as = /\bas\b/i.exec(text.slice(at));
+
+          if (as === null) {
+            return;
+          }
+
+          const start = at + as.index + as[0].length;
+          const end = text.indexOf(";", start);
+          const body = text.slice(start, end === -1 ? text.length : end);
+
+          found.set(view, {
+            columns: listed ?? selectColumns(body),
+            updatable: match[1] === undefined && !NOT_UPDATABLE.test(body),
+          });
+        },
+      })),
+      [...text.matchAll(DROP_VIEW)].map((match) => ({
+        index: match.index,
+        apply: () => {
+          for (const view of droppedTables(match[1]!)) {
+            found.delete(view);
+          }
+        },
+      })),
+    ]);
+  }
+
+  for (const view of insteadOf) {
+    const entry = found.get(view);
+
+    if (entry !== undefined) {
+      found.set(view, { ...entry, updatable: true });
+    }
+  }
+
+  return found;
+}
+
 const RLS_TOGGLE = /* @__PURE__ */ new RegExp(
   String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s+(enable|disable)\s+row\s+level\s+security\b`,
   "gi",

@@ -22,6 +22,10 @@ export function lockModuleTable(
     return lockTable(table, options);
   }
 
+  if (ctx.appViews.includes(logical)) {
+    return "";
+  }
+
   return `alter table ${table} enable row level security;
 ${options.read ? `grant select on ${table} to authenticated;\n` : ""}grant all on ${table} to service_role;`;
 }
@@ -51,7 +55,7 @@ export function appUniqueIndex(
   columns: readonly string[],
   where?: string,
 ): string {
-  if (!ctx.appOwned.includes(logical)) {
+  if (!ctx.appOwned.includes(logical) || ctx.appViews.includes(logical)) {
     return "";
   }
 

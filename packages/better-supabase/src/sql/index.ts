@@ -69,6 +69,7 @@ export type {
   BlockSqlTestFile,
   BlockSqlUpgrade,
   BlockSql,
+  OwnView,
 } from "./module-types.ts";
 
 export type { BlockSqlExtension, BlockSqlPermissionKey } from "./introspect.ts";
@@ -81,6 +82,8 @@ export {
   adoptedColumnProblems,
   type AdoptedTable,
   adoptedTables,
+  type AdoptedView,
+  adoptedViews,
 } from "./adopted-columns.ts";
 
 export { auditRegistrations } from "./audit-registrations.ts";
@@ -109,6 +112,8 @@ export {
   declaredTableColumns,
   declaredTables,
   declaredUpdatedAtTriggers,
+  declaredViews,
+  type DeclaredView,
   rlsTables,
   extensionSchema,
   policyGrants,

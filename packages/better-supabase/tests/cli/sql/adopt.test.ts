@@ -190,7 +190,7 @@ describe("proposeAdoption", () => {
   it("reports tables it can't find or match", () => {
     expect(
       proposeAdoption("teams", [MEMBERS], { from: ["public.nope"] }).errors,
-    ).toEqual(["public.nope is not a table in the database."]);
+    ).toEqual(["public.nope is not a table or view in the database."]);
     expect(proposeAdoption("teams", []).errors).toEqual([
       "None of the teams tables (teams, team_members) is in the database. Pass yours with --tables.",
     ]);
@@ -245,7 +245,7 @@ describe("hasDefaultTable", () => {
 });
 
 describe("existingTables", () => {
-  it("keeps tables and leaves out views", () => {
+  it("keeps tables and views", () => {
     const base = { schema: "public", columns: [] };
 
     // SAFETY: only the fields existingTables reads are set.
@@ -254,7 +254,57 @@ describe("existingTables", () => {
       { ...base, name: "b", kind: "view" },
     ] as unknown as CatalogTable[];
 
-    expect(existingTables(tables).map((t) => t.name)).toEqual(["a"]);
+    expect(existingTables(tables).map((t) => t.name)).toEqual(["a", "b"]);
+  });
+});
+
+describe("proposeAdoption over a view", () => {
+  const view = (columns: Record<string, string>): ExistingTable => ({
+    ...table("organization_memberships", columns),
+    kind: "view",
+    updatable: false,
+  });
+
+  const MEMBERSHIPS_VIEW = view({
+    organization_id: "uuid",
+    user_id: "uuid",
+    role: "text",
+    created_at: "timestamptz",
+  });
+
+  it("maps a block table to a view at its name", () => {
+    const proposal = proposeAdoption("memberships", [MEMBERSHIPS_VIEW], {
+      from: ["public.organization_memberships"],
+    });
+
+    expect(proposal.errors).toEqual([]);
+    expect(proposal.entry.tables).toEqual({
+      memberships: "public.organization_memberships",
+    });
+    expect(proposal.entry.columns?.["memberships"]).toMatchObject({
+      updatedAt: null,
+      lastUsedAt: null,
+    });
+  });
+
+  it("refuses a view without a required column", () => {
+    const proposal = proposeAdoption(
+      "memberships",
+      [
+        view({
+          organization_id: "uuid",
+          user_id: "uuid",
+          created_at: "timestamptz",
+        }),
+      ],
+      { from: ["public.organization_memberships"] },
+    );
+
+    expect(proposal.errors).toEqual([
+      expect.stringContaining(
+        "public.organization_memberships is a view with no column for memberships.role",
+      ),
+    ]);
   });
 });
 

@@ -1154,6 +1154,7 @@
       "parseDbStats",
       "passwordGrant",
       "periodSeconds",
+      "PERMISSION_CAP_CLAIM",
       "PRIMARY_COOKIE",
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
@@ -7465,6 +7466,7 @@
     "values": [
       "adoptedColumnProblems",
       "adoptedTables",
+      "adoptedViews",
       "APP_TABLES_MARKER",
       "APP_TABLES_MODULE",
       "appTableEventTypes",
@@ -7485,6 +7487,7 @@
       "declaredTableColumns",
       "declaredTables",
       "declaredUpdatedAtTriggers",
+      "declaredViews",
       "DEFAULT_ROLES",
       "entityRenamePlan",
       "excludedColumns",
@@ -7537,6 +7540,7 @@
     ],
     "types": [
       "AdoptedTable",
+      "AdoptedView",
       "AuditCategory",
       "AuditedTable",
       "BlockOptionsRegistry",
@@ -7563,10 +7567,12 @@
       "CompiledReadSet",
       "DataExportPlan",
       "DeclaredForeignKey",
+      "DeclaredView",
       "EntityRenamePlan",
       "EntityRenameStep",
       "InstalledBlock",
       "MigrationOptionUse",
+      "OwnView",
       "PolicyGrant",
       "TenantQuery"
     ]

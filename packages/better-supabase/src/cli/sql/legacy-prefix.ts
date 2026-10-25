@@ -2,18 +2,28 @@
  * Prefixes of the names the library builds outside the module files (realtime
  * broadcast triggers, tenant checks, state transitions, JSON Schema checks).
  */
-const LEGACY_PREFIXES = [
+export const LEGACY_PREFIXES: readonly string[] = [
   "bs_broadcast_",
   "bs_same_tenant_",
   "bs_transition_",
   "bs_json_",
-] as const;
+];
 
 const LEGACY_NAME = /\bbs_[a-z0-9_]+/g;
 
+/**
+ * JWT claims under their 0.14 name, which 0.15 module SQL still reads; they
+ * name no database object.
+ */
+export const LEGACY_CLAIMS: ReadonlySet<string> = new Set([
+  "bs_permission_cap",
+]);
+
 /** The `bs_` object names in installed module SQL, before 0.15 renamed them. */
 export function legacyPrefixNames(text: string): readonly string[] {
-  return [...new Set(text.match(LEGACY_NAME))].toSorted();
+  return [...new Set(text.match(LEGACY_NAME))]
+    .filter((name) => !LEGACY_CLAIMS.has(name))
+    .toSorted();
 }
 
 const array = (values: readonly string[]): string =>

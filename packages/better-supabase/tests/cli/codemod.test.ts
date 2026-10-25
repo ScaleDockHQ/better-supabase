@@ -449,6 +449,52 @@ describe("sql add hint", () => {
 describe("codemod 0.15", () => {
   const v015 = CODEMODS["0.15"]!;
 
+  it("runs a script once when sql sync and sql upgrade both become upgrade", () => {
+    const scripts = (entries: Record<string, string>) =>
+      JSON.stringify({ scripts: entries }, null, 2);
+
+    expect(
+      applyCodemod(
+        v015,
+        scripts({
+          "gen:check":
+            "better-supabase gen --check && better-supabase sql sync --check && better-supabase sql upgrade --check && tsc --noEmit",
+          "sql:regenerate":
+            "better-supabase sql sync && better-supabase sql upgrade",
+        }),
+        "/app/package.json",
+      ).text,
+    ).toBe(
+      scripts({
+        "gen:check":
+          "better-supabase gen --check && better-supabase upgrade --check && tsc --noEmit",
+        "sql:regenerate": "better-supabase upgrade",
+      }),
+    );
+  });
+
+  it("runs a workflow step once and keeps different calls", () => {
+    const workflow = (run: string) =>
+      `jobs:\n  check:\n    steps:\n      - run: ${run}\n`;
+
+    expect(
+      applyCodemod(
+        v015,
+        workflow(
+          "pnpm better-supabase sql sync --check && pnpm better-supabase sql upgrade --check",
+        ),
+        "/app/.github/workflows/ci.yml",
+      ).text,
+    ).toBe(workflow("pnpm better-supabase upgrade --check"));
+    expect(
+      applyCodemod(
+        v015,
+        workflow("pnpm bsb sql sync && pnpm bsb sql upgrade --check"),
+        "/app/.github/workflows/ci.yml",
+      ).text,
+    ).toBe(workflow("pnpm bsb upgrade && pnpm bsb upgrade --check"));
+  });
+
   it("renames the module, subject, carrier and backend exports", () => {
     const source = `import type { SqlModule, ModuleContext, SubjectRef } from "better-supabase/sql";
 import type { ShipmentCarrier } from "better-supabase/blocks/shipments";

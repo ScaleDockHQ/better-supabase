@@ -6,6 +6,8 @@ import {
   TABLE,
 } from "./schema-scan.ts";
 
+const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
+
 /** Comments replaced by spaces, so offsets into `text` stay the same. */
 export function maskComments(text: string): string {
   return text
@@ -161,8 +163,6 @@ export function withoutUnmappedTables(sql: string, instance: string): string {
   return out;
 }
 
-const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
-
 const ALTER_CONSTRAINT = /* @__PURE__ */ new RegExp(
   String.raw`^[ \t]*alter\s+table\s+(?:only\s+)?(${TABLE_NAME})\s+(?:add\s+constraint|drop\s+constraint|validate\s+constraint|alter\s+column)\b[^;]*;[ \t]*\n?`,
   "gim",
@@ -196,6 +196,87 @@ export function withoutAppTableEdits(
     .replaceAll(ALTER_CONSTRAINT, drop)
     .replaceAll(REVOKE, drop)
     .replaceAll(ENSURE_CHECK, drop);
+}
+
+/**
+ * The relation a DDL statement builds or changes: its table, index, grant,
+ * policy, trigger or comment target.
+ */
+const DDL_TARGETS: readonly RegExp[] = [
+  new RegExp(
+    String.raw`^\s*create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:${NAME}\s+)?on\s+(?:only\s+)?(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*(?:grant|revoke)\s[^;]*?\bon\s+(?:table\s+)?(${TABLE_NAME})\s+(?:to|from)\b`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*(?:create|alter|drop)\s+policy\s+(?:if\s+exists\s+)?${NAME}\s+on\s+(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+${NAME}\s[^;]*?\bon\s+(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(
+    String.raw`^\s*drop\s+trigger\s+(?:if\s+exists\s+)?${NAME}\s+on\s+(${TABLE_NAME})`,
+    "i",
+  ),
+  new RegExp(String.raw`^\s*comment\s+on\s+table\s+(${TABLE_NAME})`, "i"),
+  new RegExp(
+    String.raw`^\s*comment\s+on\s+column\s+(${TABLE_NAME})\s*\.\s*${NAME}`,
+    "i",
+  ),
+];
+
+/**
+ * `sql` without the statements that build or change the app's views in `views`
+ * (as `schema.view`): their `create table`, columns, constraints, indexes, row
+ * level security, grants, revokes, policies, triggers and comments. The
+ * functions that read the views stay.
+ */
+export function overAppViews(sql: string, views: ReadonlySet<string>): string {
+  if (views.size === 0) {
+    return sql;
+  }
+
+  const said = new Set<string>();
+
+  return statementSpans(sql)
+    .map(([from, to]) => {
+      const statement = sql.slice(from, to);
+      const masked = maskComments(statement);
+
+      const target = DDL_TARGETS.map(
+        (pattern) => pattern.exec(masked)?.[1],
+      ).find((match) => match !== undefined);
+
+      const view = target === undefined ? undefined : qualified(target);
+
+      if (view === undefined || !views.has(view)) {
+        return statement;
+      }
+
+      const lead = /^\s*/.exec(statement)![0];
+
+      if (said.has(view)) {
+        return "";
+      }
+
+      said.add(view);
+
+      return `${lead}-- ${view} is the app's view: this block writes only the functions that read it.`;
+    })
+    .join("");
 }
 
 const COLUMN_NAME = /^("(?:[^"]|"")+"|[a-z_][\w$]*)/i;

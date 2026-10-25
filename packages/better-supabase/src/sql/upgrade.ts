@@ -103,6 +103,7 @@ export function upgradePlan(
       ...(entry.module === block ? {} : { instance: entry.module }),
       installed: names,
       ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+      ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
     });

@@ -75,6 +75,36 @@ templates and the request contexts: `ctx.bsb`, `c.var.bsb`, `locals.bsb` and
 destructures it. Database objects better-supabase installs use the `bsb_`
 prefix; `upgrade` renames the old `bs_` ones.
 
+The upgrade migration renames the objects in the database, but SQL you wrote
+still names them the old way. The codemod lists each line that names a
+renamed `bs_` object in your pgTAP tests (`supabase/tests`), in the schema
+files no block wrote, and in your newest migration, under "Check these by
+hand" with its file and line. It never rewrites SQL: change the tests and the
+schema files, and put the new names in a migration that runs after the
+upgrade one, since a migration you already pushed must not change.
+
+The permission cap claim is `bsb_permission_cap`, not `bs_permission_cap`.
+`forContext({ permissions })`, the queue and the workflow editor set it for
+you. An `authorization.automation.runAs` hook that builds claims itself should
+put the cap under `PERMISSION_CAP_CLAIM` from `better-supabase/server`:
+
+```ts title="src/lib/authorization.ts"
+import type { AutomationRef } from "better-supabase/server";
+
+import { PERMISSION_CAP_CLAIM } from "better-supabase/server";
+
+const runAs = async (automation: AutomationRef) => ({
+  role: "authenticated",
+  sub: automation.publisher,
+  [PERMISSION_CAP_CLAIM]: automation.permissions,
+});
+```
+
+Through 0.15, `cap_allows` reads `bs_permission_cap` when the new claim is
+missing, so a hook that still returns the old name keeps narrowing what the
+step may do, and `runAs` warns once. A later minor release reads only the new
+name.
+
 ## The SQL engine says block
 
 `SqlModule` is `BlockSql`, `ModuleDefinition` is `BlockSqlDefinition`, and
@@ -345,6 +375,15 @@ doctor still reports them as [BS314](/docs/cli/doctor#bs314). `custom`
 ownership is unchanged. See
 [Over your own tables](/docs/blocks/sql#over-your-own-tables) and
 [Your own schemas](/docs/blocks/own-schemas).
+
+A block that 0.14 adopted over a view keeps working from 0.15.1. A view of
+yours at a block table's name counts as yours, and the block writes only the
+functions that read it: no columns, constraints, indexes, row level security,
+grants or policies on the view. The optional columns the view lacks count as
+mapped to `null`, and a required one it lacks stops `upgrade` with an error
+that names the view and the column. Doctor reports a view Postgres can't
+write through as [BS349](/docs/cli/doctor#bs349), because the block's API
+writes its rows. See [Views](/docs/blocks/own-schemas#views).
 
 ## Blocks contribute to approvals, pipelines and the other generic blocks
 

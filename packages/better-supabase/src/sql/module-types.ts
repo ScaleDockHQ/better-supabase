@@ -213,6 +213,18 @@ export interface BlockSqlAppTable {
    * when secrets live in Vault. They are neither required nor checked.
    */
   readonly unused?: (ctx: BlockSqlContext) => readonly string[];
+  /**
+   * Whether the block's TypeScript API inserts, updates or deletes rows of the
+   * table. Defaults to `true`. Doctor (BS349) reports such a table mapped to a
+   * view Postgres can't write through.
+   */
+  readonly writes?: boolean;
+}
+
+/** A view of the app's at a block table's name. */
+export interface OwnView {
+  /** Whether `insert`, `update` and `delete` reach the table under the view. */
+  readonly updatable: boolean;
 }
 
 /**
@@ -316,6 +328,12 @@ export interface BlockSqlLayout {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The entries of `ownTables` that are views or materialized views, by
+   * `schema.view`, and whether Postgres can write through each one. A block
+   * writes no DDL over a view, only the functions that read it.
+   */
+  readonly ownViews?: Readonly<Record<string, OwnView>>;
   /**
    * The trigger that already keeps `updated_at` current on a table in
    * `ownTables`, by `schema.table`. A block adds no `updated_at` trigger

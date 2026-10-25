@@ -82,3 +82,6 @@ With `--json`, the envelope's `data` is `{ codemod, dryRun, changed, review }`.
 
 SQL module renames are not source rewrites: `better-supabase upgrade`
 handles them, and doctor reports SQL that still uses an old name (BS309).
+`codemod 0.15` also lists the lines of your own SQL that name a `bs_` object
+the upgrade renames to `bsb_`: your pgTAP tests, the schema files no block
+wrote and your newest migration. It reads them and never rewrites them.

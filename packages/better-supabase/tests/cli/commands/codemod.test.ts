@@ -103,3 +103,88 @@ describe("runCodemod", () => {
     });
   });
 });
+
+describe("codemod 0.15 in the app's SQL", () => {
+  let root: string;
+
+  const files: Record<string, string> = {
+    "supabase/schemas/50_bsb_memberships.sql":
+      "-- @bs-module memberships@3\ncreate function public.bs_member_role() returns text language sql as $$ select 'x' $$;\n",
+    "supabase/schemas/10_app.sql":
+      "create table public.docs (id uuid primary key);\ncreate trigger bs_broadcast_docs after insert on public.docs for each row execute function public.notify();\n",
+    "supabase/tests/members.test.sql":
+      "select is(public.bs_member_role(), 'x');\nselect bs_own_helper();\n",
+    "supabase/tests/rls/roles.test.sql": "select bs_member_role();\n",
+    "supabase/tests/README.md": "Run with supabase test db: bs_member_role\n",
+    "supabase/tests/50_bsb_memberships.test.sql":
+      "-- @bsb-block-test memberships\nselect public.bs_member_role();\n",
+    "supabase/migrations/20240101000000_old.sql":
+      "select public.bs_member_role();\n",
+    "supabase/migrations/20240201000000_new.sql":
+      "create view public.roles as\n  select public.bs_member_role() as role;\n",
+    "supabase/migrations/20240301000000_better_supabase_modules.sql":
+      "-- @bs-module memberships@3\nselect public.bs_member_role();\n",
+  };
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-codemod-sql-"));
+
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), text);
+    }
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("lists the renamed names in tests, app schemas and the newest migration, and writes no SQL", async () => {
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("0.15"), ["0.15"]),
+    );
+
+    expect(
+      // SAFETY: runCodemod returns its review lines in `data.review`.
+      (result.data as { review: { file: string; line: number }[] }).review.map(
+        (hint) => `${hint.file}:${String(hint.line)}`,
+      ),
+    ).toEqual([
+      "supabase/tests/members.test.sql:1",
+      "supabase/tests/rls/roles.test.sql:1",
+      "supabase/schemas/10_app.sql:2",
+      "supabase/migrations/20240201000000_new.sql:2",
+    ]);
+    expect(result.output).toContain("Check these by hand:");
+    expect(result.output).toContain(
+      "supabase/tests/members.test.sql:1: bs_member_role is bsb_member_role since 0.15",
+    );
+
+    for (const [path, text] of Object.entries(files)) {
+      expect(await readFile(join(root, path), "utf-8")).toBe(text);
+    }
+  });
+
+  it("finds the names after upgrade rewrote the block files to bsb_", async () => {
+    await writeFile(
+      join(root, "supabase/schemas/50_bsb_memberships.sql"),
+      "-- @bsb-block memberships@4 own\ncreate function public.bsb_member_role() returns text language sql as $$ select 'x' $$;\n",
+    );
+    await rm(
+      join(
+        root,
+        "supabase/migrations/20240301000000_better_supabase_modules.sql",
+      ),
+    );
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("0.15"), ["0.15"]),
+    );
+
+    expect(result.output).toContain(
+      "supabase/tests/members.test.sql:1: bs_member_role is bsb_member_role",
+    );
+    expect(result.output).not.toContain("bs_own_helper");
+  });
+});

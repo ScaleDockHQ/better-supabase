@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:14d54f378fc8006d7c112d5a8d550a8b944d1d8567f1e9332626f8fcd2476cef
+-- @bsb-hash sha256:ef6f59ebd752c65ef7bd369d01822c937ecd458e8a6c59a89346ad7199009365
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,6 +63,8 @@ $$;
 -- False when the token is narrower than the permission: a permission cap
 -- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
+-- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
+-- claim is missing, so a cap from an older runAs keeps narrowing.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
 language sql
@@ -72,9 +74,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
+    when jsonb_typeof(cap) = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -94,6 +96,9 @@ as $$
     )
   end
   from (select auth.jwt() as jwt) as token
+  cross join lateral (
+    select coalesce(jwt -> 'bsb_permission_cap', jwt -> 'bs_permission_cap') as cap
+  ) as capped
 $$;
 
 -- The permission key an operation (<module>.<action>, or a name in

@@ -140,6 +140,14 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
 
       expect(capped.claims).toEqual({ bsb_permission_cap: ["audit.read"] });
       expect(await updateAs(session, table, capped)).toBe(0);
+
+      const legacy = await roundTrip(session, {
+        actor,
+        claims: { bs_permission_cap: ["audit.read"] },
+      });
+
+      expect(legacy.claims).toEqual({ bsb_permission_cap: ["audit.read"] });
+      expect(await updateAs(session, table, legacy)).toBe(0);
     } finally {
       await session.close();
     }

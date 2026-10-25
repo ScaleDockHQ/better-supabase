@@ -307,6 +307,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 
     if (
       tenant === undefined ||
+      ctx.appViews.includes(logical) ||
       !ctx.hasTable(logical) ||
       !ctx.has(logical, tenant)
     ) {

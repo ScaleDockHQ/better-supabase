@@ -4,6 +4,7 @@ import type { FindingInput, Rule } from "./rules.ts";
 
 import {
   adoptedTables,
+  adoptedViews,
   dataExportPlan,
   excludedColumns,
   moduleLayout,
@@ -13,7 +14,7 @@ import {
 } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
-import { appTablesOf } from "./app-tables.ts";
+import { appTablesOf, appViewsOf } from "./app-tables.ts";
 import { catalogOf, qualified } from "./shared.ts";
 
 const tagText = (notNull: true | readonly string[]): string =>
@@ -262,6 +263,27 @@ export const ADOPTION_RULES: readonly Rule[] = [
           target: "blocks.webhooks-out.options.defaultFormat",
         },
       ];
+    },
+  },
+  {
+    code: "BS349",
+    severity: "warning",
+    title: "Block writes through a view Postgres can't update",
+    description:
+      "A block table is mapped to a view of the app's (`blocks.<name>.tables`), and the block's TypeScript API inserts, updates or deletes its rows, but the view is not auto-updatable and has no `instead of` trigger: it has `distinct`, `group by`, a join, an aggregate or a set operation, or it is a materialized view. The block's functions that read the view work; the API calls that write it fail. Write those rows to the table under the view, add `instead of` triggers to the view, or map the block's table to a table.",
+    check: (context) => {
+      const views = appViewsOf(context);
+
+      if (Object.keys(views.ownViews).length === 0) {
+        return [];
+      }
+
+      return adoptedViews(context.config.blocks, appTablesOf(context), views)
+        .filter((view) => view.writes && !view.updatable)
+        .map((view) => ({
+          message: `blocks.${view.module}.tables.${view.logical} is the view ${view.view}, which Postgres can't write through, and the block's TypeScript API writes ${view.logical} rows. Those calls fail; write the rows to the table under the view, add instead of triggers, or map ${view.logical} to a table.`,
+          target: view.view,
+        }));
     },
   },
   {

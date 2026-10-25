@@ -409,10 +409,11 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     select ${ctx.fn("member_organization_ids")}(has_organization_role.roles)
   )`;
 
-  const memberRoleFilter =
+  const memberRoleFilter = `${active}${
     members.idsFor === undefined
       ? ""
-      : ` and m.${tenant} in (select p.id from ${members.idsFor("organization_member_role.member")} as p(id))`;
+      : ` and m.${tenant} in (select p.id from ${members.idsFor("organization_member_role.member")} as p(id))`
+  }`;
 
   const claimJson =
     ctx.text("claimFormat", "array") === "map"

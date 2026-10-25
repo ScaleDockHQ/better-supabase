@@ -23,7 +23,7 @@ import {
   keptUpdatedAtTriggers,
   widenedAppTablePolicies,
 } from "./app-table-policies.ts";
-import { appTablesOf } from "./app-tables.ts";
+import { appTablesOf, appViewsOf } from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
@@ -204,7 +204,11 @@ async function missingAdoptedColumns(
     return [];
   }
 
-  const tables = adoptedTables(context.config.blocks, appTablesOf(context));
+  const tables = adoptedTables(
+    context.config.blocks,
+    appTablesOf(context),
+    appViewsOf(context),
+  );
 
   if (tables.length === 0) {
     return [];
