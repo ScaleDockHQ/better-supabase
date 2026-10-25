@@ -16,7 +16,11 @@ import { apiWrappers } from "./api-schema.ts";
 import { canBeAppTable } from "./app-owned.ts";
 import { blockNamesOnAppTables } from "./app-table-names.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
-import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
+import {
+  entityTableClash,
+  sharedTableClash,
+  tenantNameClashes,
+} from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import {
   instanceRenames,
@@ -485,24 +489,15 @@ function ownTablesCreatedBy(
 }
 
 /**
- * Throws when `blocks.<name>.entities` gives a managed table a name another
- * installed block's table already has.
+ * Throws when two installed blocks would create the same table: a
+ * `blocks.<name>.tables` entry or a `blocks.<name>.entities` rename that gives
+ * a block's table the name another block's table already has.
  */
 function checkEntityTables(
   modules: readonly BlockSql[],
   layout: BlockSqlLayout,
   installed: readonly string[],
 ): void {
-  if (
-    !modules.some(
-      (module) =>
-        layout.modules?.[module.name]?.entities !== undefined ||
-        renamedInstances(module.name, layout).length > 0,
-    )
-  ) {
-    return;
-  }
-
   const tables = modules.flatMap((module): EntityTable[] =>
     [
       ...(rendersOwnInstance(module.name, layout) ? [module.name] : []),
@@ -522,7 +517,7 @@ function checkEntityTables(
       return Object.entries(module.names?.tables ?? {})
         .filter(
           ([logical]) =>
-            ctx.config.tables[logical] === undefined && ctx.owns(logical),
+            ctx.config.tables[logical] !== null && ctx.owns(logical),
         )
         .map(([logical, spec]) => {
           const { schema, name } = ctx.tableName(logical);
@@ -533,12 +528,13 @@ function checkEntityTables(
             schema,
             name,
             renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
+            mapped: ctx.config.tables[logical] !== undefined,
           };
         });
     }),
   );
 
-  const clash = entityTableClash(tables);
+  const clash = entityTableClash(tables) ?? sharedTableClash(tables);
 
   if (clash !== undefined) {
     throw new TypeError(clash);
