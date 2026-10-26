@@ -58,8 +58,8 @@ export type Models = {
       createdAt: string;
       updatedAt: string;
       clientName: string;
-      diagnosis: string | null;
-      birthDate: string | null;
+      diagnosis?: string | null;
+      birthDate?: string | null;
     };
     Insert: {
       id?: string;
@@ -476,7 +476,7 @@ export type Models = {
       leadId: string | null;
       labelId: string | null;
       deletedAt: string | null;
-      internalNotes: string | null;
+      internalNotes?: string | null;
     };
     Insert: {
       id?: string;
@@ -515,6 +515,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: {
+      softDelete: "deletedAt";
       timestamps: true;
       tenant: "organizationId";
     };
@@ -869,4 +870,10 @@ export const topics = {
 type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof createdByExtension>, ReturnType<typeof trashExtension>, ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [updatedAtExtension(), createdByExtension(), trashExtension(), membershipsExtension()];
 
-export const schema: Schema<Models, Database, Functions, string, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);
+/** The app's subject types, from `config.records`. */
+export const subjectTypes = ["project", "task"] as const;
+export type SubjectType = (typeof subjectTypes)[number];
+/** One subject: its type and its id as text. */
+export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+
+export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);

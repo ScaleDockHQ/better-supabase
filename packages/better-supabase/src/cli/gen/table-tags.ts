@@ -75,6 +75,7 @@ export function withTableTags(
   const json: Record<string, JsonTypeConfig> = { ...config.json };
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
   const fromTags = new Set<string>();
+  const eventTables = new Set<string>();
   let changed = false;
 
   for (const table of tables) {
@@ -202,6 +203,7 @@ export function withTableTags(
               };
 
         appTables[table.name] = { ...appTables[table.name], events };
+        eventTables.add(table.name);
         changed = true;
       } else if (
         tag.name === "vector-search" &&
@@ -215,6 +217,18 @@ export function withTableTags(
           changed = true;
         }
       }
+    }
+  }
+
+  // The events are named after the subject type, as the table's trigger does.
+  for (const name of eventTables) {
+    const type = Object.entries(subjects).find(
+      ([, subject]) =>
+        subject.table === name || subject.table === `public.${name}`,
+    )?.[0];
+
+    if (type !== undefined) {
+      appTables[name] = { ...appTables[name], subject: { type } };
     }
   }
 
