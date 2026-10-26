@@ -92,7 +92,7 @@ describe("resolveNames", () => {
   it("rejects unknown entities, bad names, placeholders and nested nouns", () => {
     expect(() =>
       resolve("tasks", { tasks: { entities: { work: "task" } } }),
-    ).toThrow('blocks.tasks.entities: unknown entity "work"');
+    ).toThrow('blocks.tasks.names: unknown entity "work"');
     expect(() =>
       resolve("tasks", { tasks: { entities: { work_item: "Task" } } }),
     ).toThrow("is not a lowercase identifier");

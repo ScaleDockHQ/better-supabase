@@ -128,9 +128,9 @@ function targetOf(
 }
 
 /**
- * The tags `config` implies for `table`: `subject`, `realtime` and
- * `vector-search`. The other per-table keys (`audit`, `events`, `encrypted`)
- * live on blocks or app columns and stay in the config until their tags land.
+ * The tags `config` implies for `table`: `subject`, `realtime`,
+ * `vector-search`, `json`, `encrypted` and `events`. `audit`, `audit-reads` and
+ * `expose` change the table's SQL only, which the split keeps as written.
  */
 function tagsFor(
   config: ResolvedConfig,
@@ -185,6 +185,54 @@ function tagsFor(
       tag: {
         name: "vector-search",
         args: { column: vector.column, distance: vector.distance },
+      },
+    });
+  }
+
+  const jsonArgs: Record<string, string> = {};
+
+  for (const [key, entry] of Object.entries(config.json)) {
+    const column = [`${table}.`, `public.${table}.`]
+      .map((prefix) => (key.startsWith(prefix) ? key.slice(prefix.length) : ""))
+      .find((name) => name !== "" && !name.includes("."));
+
+    if (column !== undefined) {
+      jsonArgs[column] =
+        "import" in entry ? `import:${entry.import}` : entry.type;
+    }
+  }
+
+  if (Object.keys(jsonArgs).length > 0) {
+    tags.push({ feature: "json", tag: { name: "json", args: jsonArgs } });
+  }
+
+  const app = config.appTables[table];
+
+  const sealed = Object.entries(app?.columns ?? {}).flatMap(([name, column]) =>
+    column.encrypted === true ? [[name, column.type] as const] : [],
+  );
+
+  if (sealed.length > 0) {
+    tags.push({
+      feature: "encrypted",
+      tag: { name: "encrypted", args: Object.fromEntries(sealed) },
+    });
+  }
+
+  const events = app?.events;
+
+  if (events !== undefined) {
+    const on = events === true ? undefined : events.on;
+    const include = events === true ? undefined : events.include;
+
+    tags.push({
+      feature: "events",
+      tag: {
+        name: "events",
+        args: {
+          ...(on === undefined ? {} : { on: on.join(", ") }),
+          ...(include === undefined ? {} : { include: include.join(", ") }),
+        },
       },
     });
   }

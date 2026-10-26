@@ -3,6 +3,7 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
+import { hasValueEntry } from "../value-maps.ts";
 import { splitName } from "./employees-options.ts";
 import { hiringCandidate } from "./hiring-adoption.ts";
 import { asText } from "./over-app.ts";
@@ -16,6 +17,10 @@ export interface EmployeeNames {
   readonly write: string;
   /** The employees.view_sensitive key, as a SQL literal. */
   readonly sensitive: string;
+  readonly create: string;
+  readonly contractsRead: string;
+  readonly contractsWrite: string | undefined;
+  readonly privateDetailsWrite: string | undefined;
   /** `text[]` SQL of the allowed employment types; the first is the default. */
   readonly types: string;
   /** SQL that is true for the service role. */
@@ -38,8 +43,10 @@ interface Field {
  * Every field `create_employee` and `update_employees` write, by its camelCase
  * name.
  */
+const typeText = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
+
 function fields(ctx: BlockSqlContext): readonly Field[] {
-  const text = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
+  const text = typeText;
   const split = splitName(ctx);
 
   const cast =
@@ -69,7 +76,11 @@ function fields(ctx: BlockSqlContext): readonly Field[] {
     { field: "jobTitle", column: "jobTitle", value: text },
     { field: "teamId", column: "team", value: cast("uuid") },
     { field: "managerId", column: "manager", value: cast("uuid") },
-    { field: "employmentType", column: "employmentType", value: text },
+    {
+      field: "employmentType",
+      column: "employmentType",
+      value: (v: string) => ctx.cast("employees", "employmentType", text(v)),
+    },
     { field: "startDate", column: "startDate", value: cast("date") },
     { field: "endDate", column: "endDate", value: cast("date") },
   ];
@@ -129,10 +140,26 @@ export function employeeFunctions(
     ${fail("EMPLOYEE_USER_NOT_MEMBER", "the user is not a member of this organization", "22023")}
   end if;`;
 
+  const settableStatuses = [
+    ...new Set(
+      ["preboarding", "active", "on_leave"].flatMap((label) => [
+        label,
+        ...ctx.appValues("employees", "status", label),
+      ]),
+    ),
+  ]
+    .map(sqlString)
+    .join(", ");
+
+  const typeLabel = (alias: string): string =>
+    hasValueEntry(ctx.config.values, "employees", "employmentType")
+      ? `(${ctx.label("employees", "employmentType", `${alias}.${e("employmentType")}`)})::text`
+      : `${alias}.${e("employmentType")}`;
+
   const typeCheck = (alias: string): string =>
     has("employmentType")
       ? `
-  if not (${alias}.${e("employmentType")} = any (${n.types})) then
+  if not (${typeLabel(alias)} = any (${n.types})) then
     ${fail("EMPLOYEE_TYPE_INVALID", "unknown employment type", "22023")}
   end if;`
       : "";
@@ -192,7 +219,11 @@ export function employeeFunctions(
     "create_employee.tenant",
     ...list.map((field) =>
       field.column === "employmentType"
-        ? `coalesce(${attr(field)}, (${n.types})[1])`
+        ? ctx.cast(
+            "employees",
+            "employmentType",
+            `coalesce(${typeText(`create_employee.attrs -> 'employmentType'`)}, (${n.types})[1])`,
+          )
         : attr(field),
     ),
     ctx.cast("employees", "status", "v_status"),
@@ -277,7 +308,7 @@ declare
   v_row ${table};
   v_status text;
 begin
-  if not (${n.service} or ${ctx.scope.can("create_employee.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_employee.tenant", n.create)}) then
     ${fail("EMPLOYEE_FORBIDDEN", "not allowed to change employees")}
   end if;${existing}
   if ${split ? "coalesce(nullif(trim(create_employee.attrs ->> 'firstName'), ''), nullif(trim(create_employee.attrs ->> 'name'), ''))" : "nullif(trim(create_employee.attrs ->> 'name'), '')"} is null then
@@ -357,7 +388,7 @@ ${
 `
     : ""
 }      when 'status' then
-        if (v_change ->> 'value') not in ('preboarding', 'active', 'on_leave') then
+        if (v_change ->> 'value') not in (${settableStatuses}) then
           ${fail("EMPLOYEE_STATUS_INVALID", "status is preboarding, active or on_leave; offboard to end employment", "22023")}
         end if;
         update ${table} x set ${e("status")} = ${ctx.cast("employees", "status", "v_change ->> 'value'")}${touched} where x.${e("id")} = v_id returning * into v_row;

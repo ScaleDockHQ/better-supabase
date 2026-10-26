@@ -203,7 +203,7 @@ export function resolveNames(
   names: BlockSqlNames,
   blocks: AnyBlocksConfig = {},
 ): ResolvedNames {
-  const where = `blocks.${module}.entities`;
+  const where = `blocks.${module}.names`;
   const specs = names.entities ?? {};
   const config = configured(where, specs, blocks[module]?.entities);
   const tenantName = tenantNameOf(blocks);

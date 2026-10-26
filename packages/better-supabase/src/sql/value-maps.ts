@@ -360,3 +360,14 @@ export function valueMethods(input: {
     mapsValues: changes,
   };
 }
+
+/** Whether raw `blocks.<name>.values` has an entry, even `{}`, for a column. */
+export function hasValueEntry(
+  values: unknown,
+  table: string,
+  column: string,
+): boolean {
+  const columns = isObject(values) ? values[table] : undefined;
+
+  return isObject(columns) && columns[column] !== undefined;
+}

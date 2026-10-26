@@ -97,6 +97,8 @@ const NAMES: BlockSqlNames = {
     "name",
     "privateDetails",
     "contracts",
+    "salaryUnits",
+    "contractOverlap",
   ],
   tables: {
     employees: {
@@ -145,6 +147,7 @@ const NAMES: BlockSqlNames = {
         lastName: "last_name",
       },
       typed: ["status"],
+      mappable: ["employmentType"],
     },
     privateDetails: {
       name: "employee_private_details",
@@ -197,7 +200,14 @@ const NAMES: BlockSqlNames = {
       app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
-      optional: ["salaryPeriod", "note", "createdBy", "createdAt"],
+      optional: [
+        "salary",
+        "currency",
+        "salaryPeriod",
+        "note",
+        "createdBy",
+        "createdAt",
+      ],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -354,7 +364,7 @@ ${renderPolicy(
     name: ctx.naming.rename("employee_contracts_read"),
     command: "select",
     roles: ["authenticated"],
-    using: `${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
+    using: `${ctx.scope.check(k("tenant"), n.contractsRead)} or exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid()))`,
   }),
   { drop: true, target: t("contracts") },
@@ -432,6 +442,12 @@ for each row execute function better_supabase.${guardName}();
 ${mirror}`;
 }
 
+function optionalKey(ctx: BlockSqlContext, action: string): string | undefined {
+  const key = ctx.config.permissions[action];
+
+  return key === undefined ? undefined : sqlString(key);
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -471,6 +487,16 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
     sensitive: ctx.permission("viewSensitive", keys.viewSensitive),
+    create: sqlString(
+      ctx.config.permissions["create"] ??
+        ctx.permissionKey("write", keys.write),
+    ),
+    contractsRead: sqlString(
+      ctx.config.permissions["contractsRead"] ??
+        ctx.permissionKey("viewSensitive", keys.viewSensitive),
+    ),
+    contractsWrite: optionalKey(ctx, "contractsWrite"),
+    privateDetailsWrite: optionalKey(ctx, "privateDetailsWrite"),
     types: `array[${ctx.list("employmentTypes", EMPLOYMENT_TYPES).map(sqlString).join(", ")}]::text[]`,
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("employees", RESERVED),

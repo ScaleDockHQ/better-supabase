@@ -12,6 +12,7 @@ import {
   qualified,
 } from "./schema-scan.ts";
 import { computedWrites } from "./text-writes.ts";
+import { hasValueEntry } from "./value-maps.ts";
 
 /**
  * A table of the app's that a module reads and writes (one `ownTables` lists,
@@ -239,6 +240,10 @@ export function adoptedTables(
           .filter(
             ([column, byDefault]) =>
               column in columns &&
+              !(
+                table.mappable?.includes(column) === true &&
+                hasValueEntry(ctx.config.values, logical, column)
+              ) &&
               (byDefault ||
                 written.get(`${schema}.${tableName}`)?.has(columns[column]!) ===
                   true),

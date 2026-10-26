@@ -30,6 +30,39 @@ describe("hiring module", () => {
     expect(pipelines).toContain('new."job_id"::text');
   });
 
+  it("checks the per-action keys and inserts required extra columns", () => {
+    const sql = body("hiring", {
+      modules: {
+        hiring: {
+          permissions: {
+            create: "hiring.apply",
+            score: "hiring.score",
+            jobsCreate: "jobs.create",
+            jobsUpdate: "jobs.update",
+          },
+          options: { extraColumns: { slug: "text not null" } },
+        },
+      },
+    });
+
+    expect(sql).toContain("'hiring.apply'");
+    expect(sql).toContain("'hiring.score'");
+    expect(sql).toContain("(save_job.job is null and");
+    expect(sql).toContain("'jobs.create'");
+    expect(sql).toContain("'jobs.update'");
+    expect(sql).toMatch(/"status", "slug"\)\n\s+values \(/u);
+    expect(sql).toContain(
+      `(jsonb_populate_record(null::"better_supabase"."job_openings", coalesce(save_job.attrs -> 'fields', '{}'::jsonb)))."slug"`,
+    );
+
+    const update = body("hiring", {
+      modules: { hiring: { permissions: { jobsUpdate: "jobs.update" } } },
+    });
+
+    expect(update).toContain("'jobs.update'");
+    expect(update).toContain("'hiring.manage'");
+  });
+
   it("takes another candidate type and renders nothing in custom mode", () => {
     expect(
       body("hiring", {

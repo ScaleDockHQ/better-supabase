@@ -7,6 +7,15 @@ description: Issues and tasks on pipelines, with identifiers, parents without cy
 
 Reading needs `work_items.read`, creating, editing and assigning needs `work_items.write`, and projects, iterations and deleting someone else's item need `work_items.manage`. Admins get every permission, and members get `work_items.read` and `work_items.write`.
 
+Two actions take their own key when you set one. `permissions.create` gates creating an item and falls back to the `write` key, and `permissions.delete` gates deleting one and falls back to the `manage` key. The author of an item can always delete it; set `options.authorCanDelete: false` to make the author need the delete key too:
+
+```ts title="better-supabase.config.ts"
+tasks: {
+  permissions: { create: "task.create", delete: "task.delete" },
+  options: { authorCanDelete: false },
+},
+```
+
 ```bash
 better-supabase add tasks
 ```
@@ -31,6 +40,8 @@ export default defineConfig({
   blocks: { tasks: { names: { work_item: { url: "/tasks/{id}" } } } },
 });
 ```
+
+The block registers the subject under the entity's final name, so after `names: { work_item: "task" }` it registers `task`. A `config.records.task` entry then clashes with it and the config is refused. Keep one of the two: remove the `records` entry, or set `names: { work_item: { name: "task", subject: false } }` and register the type yourself in `config.records`.
 
 ## Create, edit and assign
 
@@ -114,7 +125,7 @@ const serviceItems = createTasks({ transport: serviceTransport });
 outbox.relay("tasks", workItemRecurrenceSink(serviceItems));
 ```
 
-The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `entities: { work_item: "task" }`, pass `{ type: "task.closed" }`.
+The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `names: { work_item: "task" }`, pass `{ type: "task.closed" }`.
 
 With the [notifications](/docs/blocks/notifications) block installed, `watch(id, "all")` follows an item, `watch(id, "ignore")` mutes it, `watch(id, null)` goes back to the default, and `watchers(id)` lists who follows it. Assignees already watch their items.
 

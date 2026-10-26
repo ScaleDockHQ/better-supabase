@@ -23,6 +23,24 @@ describe("tasks module", () => {
     expect(pipelines).toContain("when 'canceled' then 'canceled'");
   });
 
+  it("checks the create and delete keys and the author's delete", () => {
+    const all = body("tasks");
+    expect(all).toContain('x."created_by" = auth.uid() or');
+
+    const keyed = body("tasks", {
+      modules: {
+        tasks: {
+          permissions: { create: "task.create", delete: "task.delete" },
+          options: { authorCanDelete: false },
+        },
+      },
+    });
+
+    expect(keyed).toContain("'task.create'");
+    expect(keyed).toContain("'task.delete'");
+    expect(keyed).not.toContain('x."created_by" = auth.uid() or');
+  });
+
   it("renders projects and iterations unless turned off", () => {
     const all = body("tasks");
     expect(all).toContain('references "better_supabase"."projects"');

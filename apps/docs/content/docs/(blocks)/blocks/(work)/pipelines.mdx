@@ -154,7 +154,7 @@ pipelines: {
 },
 ```
 
-The stage change the follow writes sets the status it already has, so the two never loop.
+The stage change the follow writes sets the status it already has, so the two never loop. An insert that sets the status and no stage lands on the first active stage whose category maps to that status, so the inserted status stays; without a match it starts on the first open stage as before.
 
 ## Board, stats and health
 

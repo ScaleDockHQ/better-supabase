@@ -7,6 +7,8 @@ description: Jobs and applications on a pipeline per job, candidates from config
 
 Reading needs `hiring.read`, moving applications, scheduling and scoring needs `hiring.write`, and jobs need `hiring.manage`. Admins get every permission and members none: give recruiters a role with `hiring.read` and `hiring.write`. An interviewer on an interview reads it and scores the application without those permissions.
 
+Some actions take their own key when you set one, and fall back otherwise: `permissions.create` gates `apply` (the `write` key without it), `permissions.score` gates submitting a scorecard (the `write` key), and `permissions.jobsCreate` and `permissions.jobsUpdate` gate creating and changing a job in `saveJob` (the `manage` key).
+
 ```bash
 better-supabase add hiring
 ```
@@ -64,8 +66,8 @@ const rows = useHiring({ limit: 50 });
 
 ## Your own fields
 
-`blocks.hiring.options.extraColumns` adds columns to the `queue` table,
-keyed by column name with their SQL type. `saveJob` writes them from `fields` and returns them under `fields`. Pass a
+`blocks.hiring.options.extraColumns` adds columns to the jobs table,
+keyed by column name with their SQL type. `saveJob` writes them from `fields` and returns them under `fields`; a `not null` column without a default goes into the insert that creates the job. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
 `validation` error before anything reaches the database (see
@@ -117,7 +119,7 @@ stages: {
 }
 ```
 
-`id` defaults to `id`, and `archivedAt` names a column whose non-null value hides a stage. `hired`, `rejected` and `withdrawn` each name a boolean column, or a column and the value that marks the stage. A new application starts on its job's first stage that marks none of them, a move to another job's stage fails with `HIRING_STAGE_INVALID`, and a move onto a marked stage sets the state (back on an unmarked stage it is `active` again), so `application.hired` follows a plain stage update too. `hire`, `reject` and `withdraw` move the application to the job's first marked stage when there is one and set the state either way. In this mode the block binds nothing in the pipelines module, `columns.applications.pipeline` can be `null`, and the board index is on job, stage and rank. Mapping `pipeline` to `null` without `options.stages` keeps applications off any pipeline: closing sets the state only.
+`id` defaults to `id`, and `archivedAt` names a column whose non-null value hides a stage. `hired`, `rejected` and `withdrawn` each name a boolean column, or a column and the value that marks the stage. A new application starts on its job's first stage that marks none of them, a move to another job's stage fails with `HIRING_STAGE_INVALID`, and a move onto a marked stage sets the state (back on an unmarked stage it is `active` again, unless the state is one no stage marks, which stays), so `application.hired` follows a plain stage update too. `hire`, `reject` and `withdraw` move the application to the job's first marked stage when there is one and set the state either way. In this mode the block binds nothing in the pipelines module, `columns.applications.pipeline` can be `null`, and the board index is on job, stage and rank. Mapping `pipeline` to `null` without `options.stages` keeps applications off any pipeline: closing sets the state only.
 
 The block keeps the pipelines module for the default mode rather than making its pipelines table optional with the job as the pipeline row: stage tables that apps already have mark outcomes with flags or keys, not with the pipelines module's categories and outcomes, and every pipelines function (boards, stats, history, transitions) assumes a pipeline row.
 
