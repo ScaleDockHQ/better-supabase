@@ -15,6 +15,19 @@ const body = (
     .join("\n");
 
 describe("employees module", () => {
+  it("needs the private details write key with view_sensitive when set", () => {
+    const sql = body(["employees"], {
+      modules: {
+        employees: { permissions: { privateDetailsWrite: "people.write" } },
+      },
+    });
+
+    expect(sql).toMatch(
+      /save_employee_private_details[\s\S]*'employees\.view_sensitive'[\s\S]*'people\.write'/u,
+    );
+    expect(body(["employees"])).not.toContain("people.write");
+  });
+
   it("guards the manager chain and keeps private details behind view_sensitive", () => {
     const sql = body(["employees"]);
     expect(sql).toContain("EMPLOYEE_MANAGER_CYCLE");

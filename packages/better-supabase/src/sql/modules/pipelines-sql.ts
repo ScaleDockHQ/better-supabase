@@ -250,6 +250,24 @@ export function stageTrigger(
   const ownerColumns =
     binding.owner === undefined ? "" : `, ${col(binding.owner)}`;
 
+  const followStatus =
+    binding.status?.follow === true ? binding.status : undefined;
+
+  const followInsert =
+    followStatus === undefined
+      ? ""
+      : `
+    if new.${col(followStatus.column)} is not null then
+      select s.${c("stages", "id")} into new.${stage} from ${t("stages")} s
+      where s.${c("stages", "pipeline")} = new.${pipeline} and s.${c("stages", "archivedAt")} is null
+        and (case s.${c("stages", "category")} ${statusMapping(followStatus.values)} end) = new.${col(followStatus.column)}::text
+      order by s.${c("stages", "rank")} collate "C", s.${c("stages", "id")}
+      limit 1;
+    end if;
+    if new.${stage} is null then`;
+
+  const followInsertEnd = followStatus === undefined ? "" : "\n    end if;";
+
   return `
 create or replace function better_supabase.${name}()
 returns trigger
@@ -273,11 +291,11 @@ begin
       new.${pipeline} := ${fn("default_pipeline")}(${tenant}, ${sqlString(binding.type)}, ${scope});
     end if;
   end if;
-  if new.${stage} is null then
+  if new.${stage} is null then${followInsert}
     select s.${c("stages", "id")} into new.${stage} from ${t("stages")} s
     where s.${c("stages", "pipeline")} = new.${pipeline} and s.${c("stages", "outcome")} = 'open' and s.${c("stages", "archivedAt")} is null
     order by s.${c("stages", "rank")} collate "C"
-    limit 1;
+    limit 1;${followInsertEnd}
   end if;
   select s.${c("stages", "category")}, s.${c("stages", "outcome")}, s.${c("stages", "name")}
     into v_category, v_outcome, v_stage_name
@@ -328,6 +346,15 @@ for each row execute function better_supabase.${name}();
 ${statusTrigger(names, binding)}`;
 }
 
+function statusMapping(values: Readonly<Record<string, string>>): string {
+  return Object.entries(values)
+    .map(
+      ([category, value]) =>
+        `when ${sqlString(category)} then ${sqlString(value)}`,
+    )
+    .join(" ");
+}
+
 /**
  * The after trigger that writes the status a stage category maps to, as a
  * separate update so a state-machine trigger on the status column runs.
@@ -345,12 +372,7 @@ drop function if exists better_supabase.${name}();`;
   const status = sqlIdent(binding.status.column);
   const stage = sqlIdent(binding.stage);
 
-  const mapping = Object.entries(binding.status.values)
-    .map(
-      ([category, value]) =>
-        `when ${sqlString(category)} then ${sqlString(value)}`,
-    )
-    .join(" ");
+  const mapping = statusMapping(binding.status.values);
 
   return `
 create or replace function better_supabase.${name}()

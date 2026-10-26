@@ -64,8 +64,8 @@ describe("BlocksConfig", () => {
 
     const permissions: BlocksConfig = {
       tasks: {
-        // @ts-expect-error: no action `delete`
-        permissions: { delete: "x" },
+        // @ts-expect-error: no action `archive`
+        permissions: { archive: "x" },
       },
     };
 

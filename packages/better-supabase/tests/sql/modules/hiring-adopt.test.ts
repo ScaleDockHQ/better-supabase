@@ -311,6 +311,10 @@ begin
   if (select phase from public.applicants where id = v_second) <> 'withdrawn' then
     raise exception 'withdrawn %', (select to_jsonb(x) from public.applicants x where id = v_second);
   end if;
+  update public.applicants set stage_id = (select id from public.job_stages where job_id = v_job and name = 'Applied') where id = v_second;
+  if (select phase from public.applicants where id = v_second) <> 'withdrawn' then
+    raise exception 'an unmarked stage reopened a withdrawal %', (select to_jsonb(x) from public.applicants x where id = v_second);
+  end if;
 end;
 $$;`),
       ).resolves.toBeUndefined();

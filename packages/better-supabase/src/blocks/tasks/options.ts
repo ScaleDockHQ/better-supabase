@@ -7,6 +7,8 @@ export type TasksSqlOptions = {
   readonly prefix?: string;
   readonly maxAssignees?: number;
   readonly extraColumns?: ExtraColumns;
+  /** Whether an item's author can delete it without the delete key. */
+  readonly authorCanDelete?: boolean;
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
@@ -14,4 +16,5 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
     prefix: option.string({ default: "TASK-" }),
     maxAssignees: option.number({ default: 0 }),
     extraColumns: option.extraColumns(),
+    authorCanDelete: option.boolean({ default: true }),
   });

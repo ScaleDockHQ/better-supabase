@@ -241,6 +241,30 @@ create table public.app_events (
     expect(table?.textColumns).toEqual(["period"]);
   });
 
+  it("leaves out a mappable column the app gives a values entry", () => {
+    const employees = (
+      values?: Record<string, Record<string, Record<string, string>>>,
+    ) =>
+      adoptedTables(
+        {
+          memberships: {},
+          employees: {
+            tables: { employees: "public.staff" },
+            ...(values ? { values } : {}),
+          },
+        },
+        { "public.staff": "supabase/schemas/staff.sql" },
+      ).find((table) => table.logical === "employees")?.textColumns;
+
+    expect(employees()).toContain("employmentType");
+    expect(employees({ employees: { employmentType: {} } })).not.toContain(
+      "employmentType",
+    );
+    expect(
+      employees({ employees: { employmentType: { intern: "trainee" } } }),
+    ).not.toContain("employmentType");
+  });
+
   it("reads the writes the module's options add", () => {
     const tables = { history: "public.status_history" };
 
