@@ -501,7 +501,8 @@ Turns the declarative schema into a migration, diffing inside the running stack 
 
 Options
   -f, --file <name>  Save the diff as supabase/migrations/<timestamp>_<name>.sql instead of printing it
-  --in-stack         Diff inside the running stack with pg-delta, without the Supabase CLI's shadow database
+  --in-stack         Diff inside the running stack with pg-delta's library plan, without the Supabase CLI's shadow database
+  --allow-data-loss  Write the migration even when it drops tables or columns, or changes a column type
   --stack <name>     Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
 
 Global options
@@ -896,6 +897,7 @@ Options
   --integration <integration,...>           Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
   --package <dir>                           Workspace package to write to, relative to --cwd
   --workflow <pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations
+  --from <url|name|code|file>               Where the project starts: a postgres:// URL (reads its schema into supabase/snapshot.json), or a preset, design code, URL or file like --preset
   --preset <name|code|url|file>             A named preset, a design code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts
   --lite                                    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
   --content-mapper                          Serve the schema types through the TypeScript 7.1 content mapper: sets gen.contentMapper and adds it to tsconfig.json

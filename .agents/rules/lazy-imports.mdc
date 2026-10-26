@@ -13,7 +13,8 @@ Imports stay at the top of the module. The exceptions are optional
     `@supabase/config/io` through a variable specifier in
     `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
     without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
-    in `src/cli/introspect/typegen.ts` (an install message when they are
+    in `src/cli/introspect/typegen.ts`, `@supabase/pg-delta` in
+    `src/cli/in-stack-diff.ts` (an install message when they are
     missing), `oxfmt` in the same file (unformatted output with a
     notice), `stripe` through a variable specifier in
     `src/blocks/stripe.ts` (an install message, or pass a client) and by
