@@ -1,5 +1,17 @@
 # better-supabase
 
+## 0.29.0
+
+### Minor Changes
+
+- [#451](https://github.com/ScaleDockHQ/better-supabase/pull/451) [`24e05d8`](https://github.com/ScaleDockHQ/better-supabase/commit/24e05d88706877fe127c907471d6463c35252780) Thanks [@martijn00](https://github.com/martijn00)! - `migrate schema-first`, `init --preset` and `add --preset` type a format column (`email`, `url`, `rating`, `percent`) as a domain in the `bsb` schema, such as `bsb.email`, and write the domains as files under `supabase/schemas/bsb`. A column with its own `min`, `max` or `options` keeps its inline check. Rollups and lookups are written as `security_invoker` views in `public/views`. `gen` types a domain column as its base type.
+
+- [#450](https://github.com/ScaleDockHQ/better-supabase/pull/450) [`114b719`](https://github.com/ScaleDockHQ/better-supabase/commit/114b719eae189253e1aa9cd6cddf49ce3bae1da6) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the config has no `tables` key, and `records` is now `subjects`. Tables are SQL files you own under `supabase/schemas`, with features as `@bsb` tags in the table comment. Run `better-supabase migrate schema-first` once to write the files from your old `tables`, then delete `tables` and rename `records` to `subjects`; every other command refuses the old keys and says so. `init --preset` and `add --preset` write a design's tables as SQL files and keep a file that exists, so the breaking-change report, rename statements and `--allow-breaking` flag (and the `allow_breaking` MCP argument) of `add --preset` are gone (`db diff` plans them). `AppTableNames`, `TypedReference` and `hasFlatTables` are removed from `better-supabase/config`, and `presetConfigSource` returns a config without the design's tables. Create's design format and `better-supabase/create/lite` keep `appTables`. See the 0.27 to 0.28 migration guide.
+
+### Patch Changes
+
+- [#447](https://github.com/ScaleDockHQ/better-supabase/pull/447) [`c937494`](https://github.com/ScaleDockHQ/better-supabase/commit/c937494e7c3b8efcd7a5b32510a0e5c37bc45bc8) Thanks [@martijn00](https://github.com/martijn00)! - The App tables docs page describes tables as SQL in `supabase/schemas` with `@bsb` tags, and the Record grid recipe sets a field through the typed repository instead of the `appTables.set` bulk action. The CentraKit validation project declares its record types as `subject` tags.
+
 ## 0.28.0
 
 ### Minor Changes

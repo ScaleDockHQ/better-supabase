@@ -4,7 +4,7 @@
   "title": "usePushRegistration (Expo)",
   "description": "Registers the device's Expo push token for the signed-in user with the push block.",
   "dependencies": [
-    "better-supabase@^0.28.0",
+    "better-supabase@^0.29.0",
     "expo-notifications"
   ],
   "registryDependencies": [
