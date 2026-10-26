@@ -1,0 +1,71 @@
+---
+title: From 0.28 to 0.29
+description: What to check when upgrading to better-supabase 0.29, where your tables are SQL files, the config has no tables key and records is renamed back to subjects.
+---
+
+0.29 removes two config keys. `tables` (the app's own tables, `appTables` in
+the flat config) is gone, because tables are SQL you own under
+`supabase/schemas` (ADR 0102). `records` is renamed back to
+`subjects`, the name it had before 0.15. Every other command refuses a config that still has either key and
+says where it went.
+
+## Move the tables
+
+Run the migration once, while the config still has `tables`:
+
+```sh
+npx better-supabase migrate schema-first --dry-run
+npx better-supabase migrate schema-first
+```
+
+It writes one file per table under `supabase/schemas/public/tables`, with the
+config's per-table features (`subjects`, `database.realtime`,
+`database.vectorSearch`, `json`, encrypted and server columns, `events`) as
+`@bsb` tags in the table comment. This is the only command that still reads the
+`tables` and `records` keys.
+
+Then edit the config:
+
+1. Delete `tables`.
+2. Rename `records` to `subjects`. `npx better-supabase codemod 0.29` does it
+   for you. It also renames a `@bsb record` tag in `supabase/schemas`, which no
+   release reads, to `@bsb subject`.
+3. Run `npx better-supabase upgrade`, which removes the old
+   `900_better_supabase_app_tables.sql` file.
+4. Run `npx better-supabase db diff` and check that the schema did not change.
+
+```ts
+// 0.28
+export default defineConfig({
+  records: { task: { table: "tasks", title: "title" } },
+  tables: { tasks: { owner: "user", columns: { title: { type: "text" } } } },
+});
+
+// 0.29
+export default defineConfig({
+  subjects: { task: { table: "tasks", title: "title" } },
+});
+```
+
+A table that is also a subject can move its `subjects` entry into the table
+comment with `@bsb subject type=task title=title`. A key in the config still
+wins over a tag.
+
+## What changes for presets and designs
+
+`init --preset` and `add --preset` write a design's tables as SQL files, not as a
+`tables` key, and `add --preset` leaves a file that exists as it is. It no longer
+compares the design with the config's tables, so the breaking-change report and
+the rename statements are gone from it: edit the table's SQL and run `db diff`,
+which plans renames and reports data loss. `presetConfigSource` returns a config
+without the design's tables.
+
+## API changes
+
+- The grouped `BetterSupabaseConfig` has `subjects`, not `records`, and no
+  `tables`. `defineConfig` no longer checks `{ block, table }` references of app
+  table columns; `AppTableNames` and `TypedReference` are removed from
+  `better-supabase/config`.
+- `RENAMED_CONFIG_KEYS` lists only `adapters`, and `hasFlatTables` is removed.
+- `better-supabase/create/lite` and the Create design format (`appTables`) are
+  unchanged.

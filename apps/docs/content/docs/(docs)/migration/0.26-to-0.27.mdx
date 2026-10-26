@@ -1,0 +1,49 @@
+---
+title: From 0.26 to 0.27
+description: What to check when upgrading to better-supabase 0.27, where a tokenizer checks authorization templates and gen reads more @bsb table tags.
+---
+
+0.27 checks authorization templates with a tokenizer instead of regular
+expressions (#430). Most templates pass unchanged. Run `gen` once after the
+upgrade: it refuses an unsafe template before it fills the placeholders, and
+names the template and the problem.
+
+```sh
+npx better-supabase gen
+```
+
+## What the tokenizer refuses
+
+A template is the SQL an authorization setting holds, such as
+`"authz.can({user}, {permission}, {tenant})"`. The tokenizer reads strings,
+quoted identifiers and comments whole, so what is inside them no longer
+counts. A `;` or `--` inside `'a;b'` is fine now. It refuses:
+
+| Problem                                       | Example                        | Fix                                           |
+| --------------------------------------------- | ------------------------------ | --------------------------------------------- |
+| A dollar quote, plain or tagged               | `$$ ... $$`, `$tag$ ... $tag$` | Use a single-quoted string                    |
+| A `;`, `--` or block comment outside a string | `authz.can({user}) -- note`    | Remove it; put the note in the config comment |
+| An unterminated string, identifier or comment | `authz.can('read)`             | Close the quote                               |
+| A `{` that is not a `{name}` placeholder      | `authz.can({ user })`          | Write the placeholder as `{user}`             |
+| A function call without a schema              | `can({user})`                  | Qualify it: `authz.can({user})`               |
+
+Before 0.27, a template with a tagged dollar quote or a block comment could
+pass the check. If `gen` refuses one of yours, rewrite it as in the table, then
+run `gen` again.
+
+## More `@bsb` tags
+
+`gen` and every other command now read the `@bsb` comments on tables in
+`supabase/schemas` (#432, #435):
+
+- `json meta=Type` types a jsonb column, and `meta=import:module#Name` imports
+  the type.
+- `encrypted ssn=bigint` marks a sealed column.
+- `events on="created, updated"` lists the outbox events.
+- `server notes` lists the columns signed-in users can't read, so `gen` types
+  them as not selectable.
+- The `subject` tag takes the keys a subject entry has (`tenant`, `scope`,
+  `search`, `rank`, `versions`, `can-<action>` and the rest).
+
+`migrate schema-first` writes these tags from the config. A config key still
+wins over a tag, so nothing changes until you move a setting into a tag.

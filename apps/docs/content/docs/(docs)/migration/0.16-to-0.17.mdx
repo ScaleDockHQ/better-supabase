@@ -1,0 +1,73 @@
+---
+title: From 0.16 to 0.17
+description: What to check when upgrading to better-supabase 0.17, where the organizations block may drop its stripe_customer_id column and blocks can leave your own tables' policies to you.
+---
+
+Read this page before you run `upgrade`. One change can drop a column with its
+data: the `organizations` block now adds `stripe_customer_id` only when the
+entitlements block reads the Stripe customer from it.
+
+## Keep `stripe_customer_id`
+
+The block keeps the column when the entitlements block reads the Stripe
+customer from it. It no longer adds it in these cases:
+
+- the entitlements source is `plans` or `custom`,
+- `auth.entitlements.customer` names another column,
+- the managed `billing` block keeps the customers.
+
+In those cases the column leaves the block's file on `upgrade`. On a managed
+organizations table, the next declarative schema diff then drops the column
+and its data, and `stripeCustomerId` leaves the generated models.
+
+If your app reads or writes the column, keep it before you upgrade, in one of
+two ways:
+
+1. Declare it in your own schema file, such as
+   `supabase/schemas/public/organizations-extras.sql`:
+
+   ```sql
+   alter table better_supabase.organizations
+     add column if not exists stripe_customer_id text unique;
+   ```
+
+2. Or point `auth.entitlements.customer` at it, which keeps the block adding
+   it:
+
+   ```ts
+   auth: {
+     entitlements: {
+       customer: "better_supabase.organizations.stripe_customer_id",
+     },
+   },
+   ```
+
+Then run the upgrade and read the diff before you apply it:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase db diff
+```
+
+The diff must not contain `drop column stripe_customer_id`. If it does, stop
+and add the column as above.
+
+## Your own policies on your own tables
+
+`database.sql.ownTablePolicies: "app"` (or `blocks.<name>.ownTablePolicies`
+for one block) keeps a block's policies off the tables your schema creates, so
+your policies alone decide who reaches the rows. The block still writes its
+functions, triggers, indexes and grants. The default, `block`, keeps the
+behaviour since 0.15. `add --adopt` suggests `app` when an adopted table
+already has permissive policies of its own, and doctor's BS350 reports a
+command your policies leave closed.
+
+## Other changes
+
+- With tenant and platform invitations in one table, a person can hold open
+  invitations to several organizations: the block replaces
+  `platform_invitations_open_email_idx` with
+  `invitations_platform_open_email_idx`.
+- `updated-at` and `created-by` take `options.stamp: "trigger"`, which leaves
+  the stamps to the database triggers. Use it on tables whose column grants
+  leave those columns out.

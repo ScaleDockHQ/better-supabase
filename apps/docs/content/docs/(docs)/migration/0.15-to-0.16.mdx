@@ -1,0 +1,54 @@
+---
+title: From 0.15 to 0.16
+description: What to check when upgrading to better-supabase 0.16, which adds a Realtime relay, session watching, resumable uploads and multi-limit rate limiting.
+---
+
+0.16 adds features and breaks nothing. One step needs the database: the
+`rate-limit` module gains a function. Run the upgrade, then generate a
+migration:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase db diff
+```
+
+## Rate limits in one round trip
+
+`createRateLimit().checkAll([...])` counts one hit against several limits
+through the new `check_rate_limits(hits)` function. The hit counts only when
+every limit allows it, and the decision names the limit that blocked and the
+longest `retryAfter`:
+
+```ts
+const decision = await rateLimit.checkAll([
+  { scope: "user", key: userId, rule: "api" },
+  { scope: "tenant", key: tenantId, rule: "api-tenant" },
+]);
+```
+
+`checkAll` fails until the migration with the function is applied. Single
+`check` calls keep working without it.
+
+## Realtime without a browser token
+
+`realtimeRelay(server, { topics, postgres })` from `better-supabase/server`
+serves Realtime to callers that hold no browser token of their own, such as a
+support session or an app with httpOnly session cookies. On the client,
+`relayRealtimeClient(url)` and `relayTopicPort(url)` from
+`better-supabase/realtime` replace the Supabase Realtime client, and
+`<BetterSupabaseProvider realtime={...}>` makes the Realtime hooks join through
+the relay. The hooks' `client` options now take any `RealtimeClient`, so code
+that passed a Supabase client keeps compiling.
+
+## Watching a session
+
+`sessionStatusRoute(server)` and `useSessionWatch()` (or `watchSession()`
+without React) report an ended, banned or signed-out session on an open page
+without a browser Supabase client. Mount the route and call the hook in the
+layout to sign the page out when the session ends.
+
+## Resumable uploads
+
+`bucket.reserveResumable(target, { upsert, direct })` signs a resumable (TUS)
+upload and returns the endpoint, headers and metadata a TUS client needs. Use
+it for files that are too large for one request; `reserve` is unchanged.

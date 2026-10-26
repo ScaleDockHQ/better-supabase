@@ -1,0 +1,64 @@
+---
+title: From 0.25 to 0.26
+description: What to check when upgrading to better-supabase 0.26, where the tenant scope becomes one policy per command to public and the none scope refuses anonymous sign-ins.
+---
+
+0.26 tightens row level security on tenant tables. Run the upgrade and
+generate a migration, then check the policies your app wrote for `anon` or
+`public`:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase db diff
+```
+
+## One tenant scope per command, to public
+
+The restrictive tenant scope was one `for all` policy `to authenticated`. It is
+now four policies, `bsb_tenant_scope_select`, `_insert`, `_update` and
+`_delete`, each `to public` (ADR 0104). The upgrade drops the old policy and
+writes the four new ones.
+
+Two things change:
+
+- A permissive policy that reaches `anon` or `public` can no longer read across
+  organizations, because the restrictive scope now applies to those roles too.
+- A branch that one command's scope allows no longer satisfies another
+  command.
+
+Policies that grant `anon` or `public` on a tenant table keep working when
+their condition is one the block knows, such as a published flag. A policy like
+`create policy "anyone reads" on tasks for select to anon using (true)` on a
+tenant table stops returning rows. Move such public reads to a table without a
+tenant, or to a security definer function that returns only the public
+columns.
+
+The memberships module now lets `anon` execute `member_organization_ids` and
+`has_organization_role` (#427), which return no organizations and false for
+`anon`. An anonymous reader of a public table therefore reaches the block's
+public policy instead of failing with "permission denied for function".
+
+## The `none` scope refuses anonymous sign-ins
+
+The `none` scope's read checks and `can` conditions now require a user whose
+`is_anonymous` claim is not true. An app that let anonymous users read through
+a `none` scope loses that access. Give those reads their own policy for the
+anonymous case, or sign the user in.
+
+## Check the result
+
+`accessMatrix` from `better-supabase/create/lite`, new in 0.26, reports how
+far `anon` and `authenticated` reach per table and command, and
+`accessMatrixTests` turns that into pgTAP files for `supabase test db`. Run it
+against the migrated schema to see which tables an anonymous caller can still
+read.
+
+## Other changes
+
+- Every table and sequence a block creates revokes its privileges from
+  `PUBLIC` too, and a block instance schema revokes default privileges for
+  later objects. No migration is needed where `PUBLIC` holds no grant.
+- `gen` reads `@bsb` table comment tags (`subject`, `realtime`,
+  `vector-search`), and `migrate schema-first` writes your tables as SQL files.
+  The config keys keep working in this release.
+- `better-supabase table <table> enable|disable <feature>` edits those tags.

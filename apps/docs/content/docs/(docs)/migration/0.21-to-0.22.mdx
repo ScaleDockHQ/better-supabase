@@ -1,0 +1,41 @@
+---
+title: From 0.21 to 0.22
+description: What to check when upgrading to better-supabase 0.22, where app table write policies refuse read-only support and agent sessions, and Create issues share one Issue type.
+---
+
+0.22 closes a gap in the app tables: their insert, update and delete policies
+now carry the `actor_may_write()` check that every block policy already had.
+A read-only support or agent session could write to an app table before; it
+can't after the migration.
+
+## Regenerate the app table policies
+
+Run the upgrade, then generate and apply a migration:
+
+```sh
+npx better-supabase upgrade
+npx better-supabase db diff
+```
+
+The diff replaces each app table's write policies with ones that add
+`and better_supabase.actor_may_write()`, and defines the function when the
+file needs it. Reads are unchanged.
+
+If a job or test writes to an app table inside a read-only support session, it
+now fails with a row level security error. Run such writes as the service role
+or in a writable session.
+
+Doctor's BS345 now treats the guard as tenant membership, so app tables that
+carry it no longer raise a false warning for attachment subjects.
+
+## Create and preset API
+
+This affects code that imports `better-supabase/create` or
+`better-supabase/create/lite`:
+
+- `checkDesign`, `designIssues` and `validateDesign` report one `Issue` type
+  with a `severity` and a `source`. Rename `DesignIssue` to `Issue`, and read
+  `issue.file` and `issue.table` where a lite issue had `path` and `module`.
+- `importProject`, `openSandbox` and `designDataApi` are new.
+- `better-supabase/preset` exports the instance rules (`canAddInstance`,
+  `blockRequires`, `withInstance` and the rest).
