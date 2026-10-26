@@ -6,6 +6,7 @@
     "test": {
       "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
       "dependsOn": ["transit", "build"],
+      "outputs": [".vitest/blob/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/registry/registry.json",

@@ -50,6 +50,8 @@ jobs:
           filter: blob:none
 
       - uses: $/.github/actions/setup
+        with:
+          save-cache: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
       - parallel:
           - name: Workspace tasks
@@ -69,7 +71,7 @@ jobs:
       - name: Doctor SARIF
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
+          pnpm better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
 
       - name: Upload doctor findings
         if: always() && hashFiles('doctor.sarif') != ''
@@ -100,8 +102,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The library's unit tests run in the `unit` shards below.
           - task: test
-            run: pnpm exec turbo run test $AFFECTED --log-file
+            run: pnpm exec turbo run test --filter=!better-supabase $AFFECTED --log-file
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
             run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED --log-file
@@ -130,3 +133,93 @@ jobs:
           path: .turbo/logs/
           if-no-files-found: ignore
           retention-days: 7
+
+  # The library's unit tests with coverage took over 11 minutes on one runner. Each shard writes
+  # a blob report (Turbo restores it on a cache hit), and `coverage` merges them and checks the
+  # thresholds; a shard checks none.
+  unit:
+    name: unit (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: $/.github/actions/setup
+
+      - name: Unit tests
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          read -ra affected <<< "$AFFECTED"
+          pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --log-file -- \
+            --shard="$SHARD/3" --reporter=blob
+
+      - name: Upload the blob report
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-blob-${{ matrix.shard }}
+          path: packages/better-supabase/.vitest/blob/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload the Turbo logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-logs-unit-${{ matrix.shard }}
+          path: .turbo/logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  coverage:
+    name: coverage
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: $/.github/actions/setup
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: unit-blob-*
+          path: packages/better-supabase/.vitest/blob
+          merge-multiple: true
+
+      # With --affected, the shards skip the library when nothing it depends on changed. Ask Turbo
+      # the same question, so a missing upload fails instead of passing as "not affected".
+      - name: Merge the shards and check the thresholds
+        run: |
+          read -ra affected <<< "$AFFECTED"
+          selected=$(pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --dry=json \
+            | jq '[.tasks[] | select(.taskId == "better-supabase#test")] | length')
+          blobs=$(find packages/better-supabase/.vitest/blob -name 'blob-*.json' 2>/dev/null | wc -l)
+          if [ "$selected" -eq 0 ]; then
+            echo "The library is not affected; nothing to merge."
+            exit 0
+          fi
+          if [ "$blobs" -ne 3 ]; then
+            echo "Expected 3 blob reports, found $blobs."
+            exit 1
+          fi
+          pnpm --filter better-supabase exec vitest --merge-reports --coverage

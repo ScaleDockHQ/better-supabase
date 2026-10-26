@@ -7,11 +7,10 @@
     "analyze": "next experimental-analyze",
     "build": "node scripts/page-slugs.ts && next build",
     "dev": "node scripts/page-slugs.ts && next dev -p 3001",
-    "dev:portless": "node scripts/page-slugs.ts && portless run --force --name docs --app-port 3001 next dev",
+    "dev:portless": "node scripts/page-slugs.ts && portless run --name docs --app-port 3001 next dev",
     "lint": "oxlint",
     "start": "next start",
     "test": "vitest run",
-    "transit": "true",
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {

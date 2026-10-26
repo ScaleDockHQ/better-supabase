@@ -7,7 +7,6 @@
     "lint": "oxlint",
     "sql:check": "better-supabase upgrade --check",
     "test": "vitest run",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

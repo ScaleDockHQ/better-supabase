@@ -202,6 +202,26 @@ describe("adopt", () => {
   });
 });
 
+describe("add --over", () => {
+  it("adopts a block over the named table through the CLI", async () => {
+    await writeFile(join(dir, "better-supabase.config.json"), json({}));
+
+    const result = await run([
+      "add",
+      "teams",
+      "--over",
+      "public.teams",
+      "--snapshot",
+      "missing.json",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("Snapshot not found: missing.json");
+  });
+});
+
 describe("apply --adopt", () => {
   let preset: string;
 

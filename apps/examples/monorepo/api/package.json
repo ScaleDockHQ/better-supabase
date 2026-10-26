@@ -9,7 +9,6 @@
   },
   "scripts": {
     "lint": "oxlint",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

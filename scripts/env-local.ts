@@ -1,8 +1,9 @@
 /**
  * Writes `.env.development.local` from the running local stack and the Portless
  * URLs, so `pnpm dev:portless` and `pnpm test:integration` need no hosted keys.
- * The CLI picks the stack's ports for each checkout or worktree, so run it
- * again in every worktree.
+ * The CLI picks the stack's ports for each checkout or worktree, and Portless
+ * prefixes the hosts with a linked worktree's branch, so run it again in every
+ * worktree.
  */
 import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -28,6 +29,21 @@ const supabase = (...args: string[]): string | undefined => {
   }
 };
 
+/**
+ * The app's Portless URL in this checkout, such as
+ * `https://fix-ui.www.localhost`.
+ */
+const portlessUrl = (name: string): string => {
+  try {
+    return execFileSync("pnpm", ["exec", "portless", "get", name], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return `https://${name}.localhost`;
+  }
+};
+
 const parse = <S extends v.GenericSchema>(
   schema: S,
   stdout: string,
@@ -49,8 +65,8 @@ const runtime = details ? parse(Runtime, details).runtime : "legacy";
 
 const lines = [
   "# Written by pnpm env:local from supabase status. Do not commit.",
-  "NEXT_PUBLIC_SITE_URL=https://www.localhost",
-  "DOCS_ORIGIN=https://docs.localhost",
+  `NEXT_PUBLIC_SITE_URL=${portlessUrl("www")}`,
+  `DOCS_ORIGIN=${portlessUrl("docs")}`,
   `SUPABASE_URL=${stack.API_URL}`,
   `SUPABASE_DB_URL=${stack.DB_URL}`,
   `SUPABASE_PUBLISHABLE_KEY=${stack.PUBLISHABLE_KEY}`,
