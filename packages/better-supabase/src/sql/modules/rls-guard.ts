@@ -35,8 +35,9 @@ export const ENSURE_RLS: BlockSqlDefinition = {
   target: "schema",
   build: () => `${SCHEMA}
 
--- Runs after CREATE TABLE, CREATE TABLE AS and SELECT INTO. A table without
--- policies then denies every API role until you add one.
+-- Runs after CREATE TABLE, CREATE TABLE AS and SELECT INTO, and after an
+-- ALTER TABLE that turned row level security off. A table without policies
+-- then denies every API role until you add one.
 create or replace function better_supabase.enable_rls_on_new_table()
 returns event_trigger
 language plpgsql
@@ -49,10 +50,14 @@ begin
     select objid, schema_name
     from pg_event_trigger_ddl_commands()
     where object_type = 'table'
-      and command_tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      and command_tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
   loop
     continue when command.schema_name in (${ENSURE_RLS_SKIPPED_SCHEMAS.map((name) => `'${name}'`).join(", ")})
       or command.schema_name like 'pg\\_%';
+    continue when exists (
+      select 1 from pg_catalog.pg_class
+      where oid = command.objid and relrowsecurity
+    );
     execute format('alter table %s enable row level security', command.objid::regclass);
   end loop;
 end;
@@ -62,6 +67,6 @@ revoke execute on function better_supabase.enable_rls_on_new_table() from public
 
 drop event trigger if exists bsb_ensure_rls;
 create event trigger bsb_ensure_rls on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
   execute function better_supabase.enable_rls_on_new_table();`,
 };

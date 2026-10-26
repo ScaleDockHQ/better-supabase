@@ -372,7 +372,7 @@ describe("rls-guard", () => {
       "create event trigger bsb_ensure_rls on ddl_command_end",
     );
     expect(file!.contents).toContain(
-      "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')",
+      "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')",
     );
 
     for (const schema of ["auth", "storage", "realtime", "extensions"]) {
