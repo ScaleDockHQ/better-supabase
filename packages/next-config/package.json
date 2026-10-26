@@ -6,12 +6,15 @@
   "license": "MIT",
   "type": "module",
   "exports": {
+    "./build-scope": "./src/build-scope.ts",
     "./next-config": "./src/next-config.ts"
   },
   "scripts": {
     "lint": "oxlint",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@next/env": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",

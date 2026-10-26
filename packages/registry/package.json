@@ -9,7 +9,6 @@
     "lint": "oxlint",
     "registry:build": "shadcn build ./registry.json --output ../../apps/marketing/public/r",
     "test": "vitest run",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

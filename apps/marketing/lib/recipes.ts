@@ -1,5 +1,7 @@
 import * as v from "valibot";
 
+import { scopeStaticParams } from "@better-supabase/next-config/build-scope";
+
 import type { RecipeSummary } from "./recipe-filter";
 import type { RecipePlatform } from "./recipe-platform";
 
@@ -68,10 +70,12 @@ export function getRecipe(slug: string): AvailableRecipe | undefined {
 
 /**
  * The `generateStaticParams` of `app/(recipes)/recipes/[slug]`: one page per
- * available recipe.
+ * available recipe, or the first few in a `minimal` build scope.
  */
 export function recipeStaticParams(): { slug: string }[] {
-  return availableRecipes.map((recipe) => ({ slug: recipe.slug }));
+  return scopeStaticParams(
+    availableRecipes.map((recipe) => ({ slug: recipe.slug })),
+  );
 }
 
 /**

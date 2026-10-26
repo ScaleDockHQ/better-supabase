@@ -10,9 +10,10 @@ alwaysApply: true
 - Commit messages follow Conventional Commits (`commitlint.config.ts`) with
   body lines of at most 100; the header has no length limit. Group
   commits by track (`ci:`, `build:`, `docs:`), not by file.
-- Lefthook runs `ultracite fix` and the affected lint on commit, commitlint
-  on the message, and the affected lint, typecheck and tests on push. Fix
-  what a hook reports instead of skipping it.
+- Lefthook runs `ultracite fix` and `pnpm gate` (the affected lint and
+  typecheck) on commit, commitlint on the message, and `pnpm gate` on push.
+  Tests run in CI, so run the affected workspace's tests before you push a
+  code change. Fix what a hook reports instead of skipping it.
 - A user-visible change needs a changeset (`pnpm changeset`). Private
   workspaces and repo tooling don't; say so in the commit body.
 - Never commit `.cursor/hooks/state/*`; it is local hook state.

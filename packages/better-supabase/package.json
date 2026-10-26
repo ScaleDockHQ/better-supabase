@@ -1907,7 +1907,6 @@
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
     "test": "vitest run --project unit --coverage",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

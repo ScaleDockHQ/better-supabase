@@ -19,7 +19,16 @@
         "NEXT_RUNTIME",
         "WORKFLOW_*"
       ],
-      "inputs": ["$TURBO_DEFAULT$", ".env.production"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env.production",
+        "!**/*.md",
+        "!tests/**",
+        "!e2e/**",
+        "!**/*.test.{ts,tsx}",
+        "!vitest.config.ts",
+        "!playwright.config.ts"
+      ]
     },
     "lint": {
       "dependsOn": ["transit", "^build"]
