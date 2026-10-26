@@ -13,7 +13,7 @@ describe("the existing-app example", () => {
   it("is a plain Supabase app that init detects", async () => {
     const found = await detectExisting(resolveConfig({}, root), {}, root);
 
-    expect(found?.schemaFiles).toHaveLength(1);
-    expect(found?.migrations).toEqual([]);
+    expect(found?.schemaFiles).toBe(1);
+    expect(found?.migrations).toBe(0);
   });
 });
