@@ -30,3 +30,12 @@ policies are kept verbatim and pass the same verifier.
 
 A module author writes `policy({...})`, not `create policy` text. A lint rule rejects raw
 `create policy` in block modules.
+
+## Status note
+
+The policy reader and renderer (`src/sql/policy.ts`) serve the covered-policy
+filter, the tenant scope and the actor guard. The goldens did not change.
+The block modules still write 279 `create policy` statements by hand, in 118
+files. `tests/sql/raw-policies.test.ts` ratchets that count against
+`raw-policies.baseline.json`: it refuses new raw policies and asks for the
+baseline to drop as a module moves to `renderPolicy`.

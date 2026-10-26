@@ -1,7 +1,5 @@
 import type { CatalogPolicy } from "../config/snapshot.ts";
 
-import { closingParen } from "./actor-guard.ts";
-
 /** A command a policy applies to. */
 export type PolicyCommand = "all" | "select" | "insert" | "update" | "delete";
 
@@ -452,4 +450,34 @@ export function readGrants(sql: string): Grant[] {
   }
 
   return grants;
+}
+
+/** The index of the `)` that closes the `(` at `open`, or -1. */
+export function closingParen(text: string, open: number): number {
+  let depth = 0;
+  let quote: string | undefined;
+
+  for (let i = open; i < text.length; i += 1) {
+    const char = text[i]!;
+
+    if (quote) {
+      if (char === quote && text[i + 1] === quote) {
+        i += 1;
+      } else if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'") {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
 }

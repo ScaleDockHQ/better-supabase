@@ -1,6 +1,7 @@
 import type { BlockSqlLayout } from "./module-types.ts";
 
 import { fillTemplate, templatePlaceholders } from "../core/access-sql.ts";
+import { closingParen, readPolicies } from "./policy.ts";
 import { SERVICE_CALLER } from "./shared.ts";
 
 /**
@@ -221,25 +222,26 @@ function grantedFunctionNames(sql: string): Set<string> {
 }
 
 function guardPolicies(sql: string, expression: string): string {
-  return sql.replaceAll(/create\s+policy\b[\s\S]*?;/gi, (statement) => {
-    if (!/\bfor\s+(insert|update|delete)\b/i.test(statement)) {
-      return statement;
-    }
+  let out = sql;
 
-    if (/\bfor\s+(all|select)\b/i.test(statement)) {
-      return statement;
-    }
+  for (const read of readPolicies(sql).toReversed()) {
+    const { command, roles } = read.policy;
 
-    if (!/\bto\s+[^;]*\bauthenticated\b/i.test(statement)) {
-      return statement;
-    }
+    if (
+      (command === "insert" || command === "update" || command === "delete") &&
+      roles.includes("authenticated")
+    ) {
+      const guarded = wrapClause(
+        wrapClause(read.statement, "with check", expression),
+        "using",
+        expression,
+      );
 
-    return wrapClause(
-      wrapClause(statement, "with check", expression),
-      "using",
-      expression,
-    );
-  });
+      out = `${out.slice(0, read.span[0])}${guarded}${out.slice(read.span[1])}`;
+    }
+  }
+
+  return out;
 }
 
 function wrapClause(
@@ -268,36 +270,6 @@ function wrapClause(
   }
 
   return `${statement.slice(0, open + 1)}(${inner}) and (select ${expression})${statement.slice(close)}`;
-}
-
-/** The index of the `)` that closes the `(` at `open`, or -1. */
-export function closingParen(text: string, open: number): number {
-  let depth = 0;
-  let quote: string | undefined;
-
-  for (let i = open; i < text.length; i += 1) {
-    const char = text[i]!;
-
-    if (quote) {
-      if (char === quote && text[i + 1] === quote) {
-        i += 1;
-      } else if (char === quote) {
-        quote = undefined;
-      }
-    } else if (char === "'") {
-      quote = char;
-    } else if (char === "(") {
-      depth += 1;
-    } else if (char === ")") {
-      depth -= 1;
-
-      if (depth === 0) {
-        return i;
-      }
-    }
-  }
-
-  return -1;
 }
 
 /**
