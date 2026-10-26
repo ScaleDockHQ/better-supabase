@@ -1,6 +1,6 @@
 # 0059: Diff inside the running stack when the shadow database can't start
 
-- Status: accepted
+- Status: superseded by 0108
 - Date: 2026-10-21
 
 ## Context

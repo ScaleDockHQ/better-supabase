@@ -222,15 +222,18 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0105: The catalog is verified offline and by a generated role by command by table access matrix.
 - 0106: The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss.
 - 0107: `designDataApi` stays in `create/lite`.
+- 0108: `db diff` plans with pg-delta's library on the stack's postgres role; renames and data loss are gated.
 
 ## Pre-release pins
 
-| Package                           | Version       | Why                                                                           |
-| --------------------------------- | ------------- | ----------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.43 | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.43 | move with `@orpc/server`                                                      |
-| `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                   |
-| `typescript` (`ts71` catalog)     | 7.1.0-beta    | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |
+| Package                           | Version        | Why                                                                           |
+| --------------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.43  | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.43  | move with `@orpc/server`                                                      |
+| `c12`                             | 4.0.0-rc.2     | loads a `.ts` config through Node type stripping (ADR 0003)                   |
+| `@supabase/pg-delta`              | 1.0.0-alpha.60 | `db diff` plans with its library; an optional peer (ADR 0108)                 |
+| `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer                                                               |
+| `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |
 
 Move each to its stable release when it ships, and update this list.
 
