@@ -18,6 +18,13 @@ import {
   schemaPreamble,
   userGrant,
 } from "../shared.ts";
+import { subjectActionCheck } from "../subjects.ts";
+import {
+  checkSubjectColumns,
+  fieldSubjects,
+  keyedContract,
+  keyedFields,
+} from "./custom-fields-keyed.ts";
 import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -34,6 +41,10 @@ const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
     payload: ["organizationId", "id"],
   },
   "field_value.set": {
+    subject: "field-values",
+    payload: ["organizationId", "id", "subjectType", "subjectId"],
+  },
+  "field_value.deleted": {
     subject: "field-values",
     payload: ["organizationId", "id", "subjectType", "subjectId"],
   },
@@ -99,8 +110,31 @@ const NAMES: BlockSqlNames = {
         valueBool: "value_bool",
         optionId: "option_id",
         valueJson: "value_json",
+        valueUrl: "value_url",
+        valueEmail: "value_email",
+        key: "key",
+        label: "label",
+        type: "type",
+        rank: "rank",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
       },
-      optional: ["definition", "valueJson"],
+      optional: [
+        "definition",
+        "valueJson",
+        "subjectType",
+        "subjectId",
+        "optionId",
+        "valueUrl",
+        "valueEmail",
+        "key",
+        "label",
+        "type",
+        "rank",
+        "createdAt",
+        "updatedAt",
+      ],
+      typed: ["type", "subjectType"],
     },
   },
 };
@@ -110,22 +144,42 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const inline = ctx.text("layout", "normalized") === "inline";
+  const layout = ctx.text("layout", "normalized");
+  const inline = layout === "inline";
 
-  if (
-    ctx.text("layout", "normalized") !== "inline" &&
-    ctx.text("layout", "normalized") !== "normalized"
-  ) {
+  if (layout !== "inline" && layout !== "normalized" && layout !== "keyed") {
     throw new TypeError(
-      'blocks.custom-fields.options.layout must be "normalized" or "inline"',
+      'blocks.custom-fields.options.layout must be "normalized", "inline" or "keyed"',
     );
   }
+
+  const manageKey = ctx.permission(
+    "manage",
+    OPERATIONS["custom-fields.manage"],
+  );
+
+  if (layout === "keyed") {
+    return `${schemaPreamble(ctx)}
+${keyedFields(ctx, {
+  manage: manageKey,
+  read: ctx.permission("read", OPERATIONS["custom-fields.read"]),
+})}`;
+  }
+
+  checkSubjectColumns(ctx, false);
+
+  const subjectWrite = subjectActionCheck(
+    ctx,
+    fieldSubjects(ctx),
+    { type: "set_field_value.subject_type", id: "set_field_value.subject_id" },
+    ["fields"],
+  );
 
   const definitions = ctx.table("definitions");
   const ranked = !inline && ctx.has("definitions", "rank");
   const rank = ranked ? ctx.col("definitions", "rank") : "";
   const values = ctx.table("values");
-  const manage = ctx.permission("manage", OPERATIONS["custom-fields.manage"]);
+  const manage = manageKey;
   const read = ctx.permission("read", OPERATIONS["custom-fields.read"]);
 
   const sensitive = ctx.permission(
@@ -299,7 +353,14 @@ declare
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("set_field_value.tenant", manage)}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
-  end if;
+  end if;${
+    subjectWrite === undefined
+      ? ""
+      : `
+  if not ${subjectWrite} then
+    ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to set fields on this record")}
+  end if;`
+  }
   insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")})
   values (set_field_value.tenant, ${ctx.has("values", "definition") && !inline ? "set_field_value.definition, " : ""}set_field_value.subject_type, set_field_value.subject_id, ${
     encrypted === ""
@@ -510,6 +571,10 @@ ${userGrant(`${ctx.fn("rank_field_definition")}(uuid, text)`)}
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  if (ctx.text("layout", "normalized") === "keyed") {
+    return keyedContract();
+  }
+
   return [
     {
       name: "save_field_definition",
@@ -565,7 +630,7 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "field-encryption", "audit"],
+  integrates: ["outbox", "field-encryption", "audit", "subjects"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

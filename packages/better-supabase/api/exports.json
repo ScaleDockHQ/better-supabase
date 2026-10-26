@@ -381,7 +381,9 @@
       "SqlWorkflow",
       "StandardSchemaGeneratorOptions",
       "SubjectConfig",
+      "SubjectPermission",
       "SubjectsConfig",
+      "SubjectSearch",
       "TableConfig",
       "ToolingConfig",
       "TopicTriggerConfig",
@@ -5182,10 +5184,12 @@
       "teamsEvents"
     ],
     "types": [
+      "CreateTeamOptions",
       "Team",
       "Teams",
       "TeamsEvents",
-      "TeamsOptions"
+      "TeamsOptions",
+      "UpdateTeamOptions"
     ]
   },
   "./blocks/undo": {
@@ -5269,7 +5273,9 @@
       "CustomFieldsOptions",
       "CustomFieldType",
       "FieldDefinition",
-      "FieldDefinitionDetail"
+      "FieldDefinitionDetail",
+      "FieldValue",
+      "SetFieldInput"
     ]
   },
   "./blocks/share-links": {
@@ -5283,6 +5289,7 @@
     "types": [
       "CreatedShareLink",
       "CreateShareLinkOptions",
+      "FoundShareLink",
       "ResolvedShareLink",
       "ShareLink",
       "ShareLinkInput",

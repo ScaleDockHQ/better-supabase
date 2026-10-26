@@ -70,4 +70,38 @@ describe("createTags", () => {
       { tenant: "org-2", kind: "deal" },
     ]);
   });
+
+  it("sends a caller's slug and a patch only when they are given", async () => {
+    const fake = fakeTransport({
+      create_tag: { id: "g1", slug: "hot-leads" },
+      update_tag: true,
+    });
+
+    const tags = createTags({ transport: fake.transport, tenant: "org-1" });
+
+    await tags
+      .create({ kind: "deal", name: "Hot", slug: "hot-leads" })
+      .orThrow();
+    await tags.update("g1", { name: "Warm" }).orThrow();
+    await tags.update("g1", { color: null, slug: "warm" }).orThrow();
+
+    expect(fake.calls.map(([, args]) => args)).toEqual([
+      {
+        tenant: "org-1",
+        kind: "deal",
+        name: "Hot",
+        color: null,
+        description: null,
+        slug: "hot-leads",
+        fields: undefined,
+      },
+      { tag_id: "g1", name: "Warm", fields: undefined },
+      {
+        tag_id: "g1",
+        name: null,
+        patch: { slug: "warm", color: null },
+        fields: undefined,
+      },
+    ]);
+  });
 });

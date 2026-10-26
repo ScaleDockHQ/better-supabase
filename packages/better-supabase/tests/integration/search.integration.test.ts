@@ -279,4 +279,91 @@ describe.skipIf(!live)("search", () => {
       await s.close();
     }
   });
+
+  it("indexes through a source view, describes hits, excludes archived rows and follows watched tables", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`create schema search_src_it;
+create table search_src_it.customers (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  name text not null,
+  vat text,
+  archived_at timestamptz
+);
+create table search_src_it.contacts (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references search_src_it.customers (id) on delete cascade,
+  full_name text not null
+);
+create view search_src_it.customer_sources as
+  select c.id as customer_id, c.name, c.vat, c.archived_at,
+    (select string_agg(k.full_name, ' ') from search_src_it.contacts k where k.customer_id = c.id) as people
+  from search_src_it.customers c;
+grant usage on schema search_src_it to authenticated;
+grant select on search_src_it.customers to authenticated;`);
+      await s.install(["organizations", "share-links", "search"], {
+        subjects: {
+          customer: {
+            table: "search_src_it.customers",
+            idType: "uuid",
+            title: "name",
+            search: {
+              title: "name",
+              body: ["people"],
+              description: "vat",
+              exclude: "archived_at",
+              from: {
+                view: "search_src_it.customer_sources",
+                key: "customer_id",
+              },
+              watch: [{ table: "search_src_it.contacts", key: "customer_id" }],
+            },
+          },
+        },
+        modules: { search: { options: { config: "simple" } } },
+      });
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      await s.service();
+
+      const [acme, gone] = await s.rows<{ id: string }>(
+        `insert into search_src_it.customers (organization_id, name, vat, archived_at)
+         values ($1, 'Acme', 'NL123', null), ($1, 'Gone Ltd', 'NL999', now())
+         returning id`,
+        [tenant],
+      );
+
+      await s.client.query(
+        "insert into search_src_it.contacts (customer_id, full_name) values ($1, 'Ada Lovelace')",
+        [acme!.id],
+      );
+      await s.client.query(
+        "update search_src_it.contacts set full_name = 'Grace Hopper' where customer_id = $1",
+        [acme!.id],
+      );
+
+      await s.asRole(owner);
+      const search = createSearch({ transport: sqlTransport(s.sql) });
+
+      const [hit] = await search
+        .search("grace", { organizationId: tenant })
+        .orThrow();
+
+      expect(hit).toMatchObject({ subjectId: acme!.id, description: "NL123" });
+      expect(
+        await search.search("gone", { organizationId: tenant }).orThrow(),
+      ).toEqual([]);
+      await s.service();
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.search_documents where subject_id = $1)",
+          [gone!.id],
+        ),
+      ).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
 });

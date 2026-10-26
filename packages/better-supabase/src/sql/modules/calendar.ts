@@ -12,8 +12,10 @@ import { sqlIdent } from "../../core/template.ts";
 import {
   addCheck,
   addExtraColumns,
+  extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -65,7 +67,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
-  options: ["extraColumns"],
+  options: ["extraColumns", "calendarExtraColumns"],
   tables: {
     calendars: {
       name: "calendars",
@@ -131,6 +133,7 @@ const NAMES: BlockSqlNames = {
         "createdBy",
       ],
       typed: ["status"],
+      mappable: ["kind", "transparency"],
     },
     attendees: {
       name: "calendar_attendees",
@@ -147,6 +150,7 @@ const NAMES: BlockSqlNames = {
         role: "role",
         response: "response",
       },
+      mappable: ["role", "response"],
     },
     workingHours: WORKING_HOURS_TABLE,
   },
@@ -190,13 +194,20 @@ function eventFields(
   }
 
   if (ctx.has("events", "kind")) {
-    fields.push([e("kind"), "coalesce(v_item ->> 'kind', 'event')"]);
+    fields.push([
+      e("kind"),
+      ctx.cast("events", "kind", "coalesce(v_item ->> 'kind', 'event')"),
+    ]);
   }
 
   if (ctx.has("events", "transparency")) {
     fields.push([
       e("transparency"),
-      "coalesce(v_item ->> 'transparency', 'opaque')",
+      ctx.cast(
+        "events",
+        "transparency",
+        "coalesce(v_item ->> 'transparency', 'opaque')",
+      ),
     ]);
   }
 
@@ -295,15 +306,17 @@ function eventJson(ctx: BlockSqlContext, attendees: string): string {
   const e = (column: string) => `e.${ctx.col("events", column)}`;
 
   const optional = (key: string, column: string) =>
-    ctx.has("events", column) ? `, '${key}', ${e(column)}` : "";
+    ctx.has("events", column)
+      ? `, '${key}', ${column === "kind" || column === "transparency" ? ctx.label("events", column, e(column)) : e(column)}`
+      : "";
 
   const a = (column: string) => `a.${ctx.col("attendees", column)}`;
 
   const list = ctx.hasTable("attendees")
-    ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${a("role")}, 'response', ${a("response")}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
+    ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${ctx.label("attendees", "role", a("role"))}, 'response', ${ctx.label("attendees", "response", a("response"))}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
     : "";
 
-  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${optional("kind", "kind")}${optional("transparency", "transparency")}${optional("autoDecline", "autoDecline")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
+  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${ctx.label("events", "status", e("status"))}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${optional("kind", "kind")}${optional("transparency", "transparency")}${optional("autoDecline", "autoDecline")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
 }
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
@@ -414,6 +427,20 @@ function build(ctx: BlockSqlContext): string {
 
   const fields = eventFields(ctx);
 
+  const calendarExtras = ctx.extraColumns(
+    "calendars",
+    ["fields"],
+    "calendarExtraColumns",
+  );
+
+  const calendarExtra = extraFieldsArg(calendarExtras);
+
+  const calendarRequired = insertExtraColumns(
+    calendars,
+    calendarExtras,
+    "create_calendar.fields",
+  );
+
   const record = (type: string, id: string, calendar: string, tenant: string) =>
     ctx.record({
       type,
@@ -433,7 +460,7 @@ function build(ctx: BlockSqlContext): string {
   ${k("ownerType")} text,
   ${k("ownerId")} text,
   ${k("createdAt")} timestamptz not null default now()
-);
+);${addExtraColumns(calendars, calendarExtras)}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
 drop policy if exists ${ctx.tableName("calendars").name}_read on ${calendars};
@@ -534,7 +561,7 @@ begin
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
   end if;
   insert into ${attendees} (${a("tenant")}, ${a("event")}, ${a("email")}, ${a("name")}, ${a("user")}, ${a("role")})
-  values (v_tenant, set_calendar_attendee.event_id, lower(set_calendar_attendee.email), set_calendar_attendee.name, set_calendar_attendee.user_id, coalesce(set_calendar_attendee.role, 'required'))
+  values (v_tenant, set_calendar_attendee.event_id, lower(set_calendar_attendee.email), set_calendar_attendee.name, set_calendar_attendee.user_id, ${ctx.cast("attendees", "role", "coalesce(set_calendar_attendee.role, 'required')")})
   on conflict (${a("event")}, ${a("email")}) do update
     set ${a("name")} = excluded.${a("name")}, ${a("user")} = excluded.${a("user")}, ${a("role")} = excluded.${a("role")};
   return true;
@@ -578,7 +605,7 @@ begin
   if respond_calendar_event.response not in ${RESPONSES} then
     ${fail("CALENDAR_RESPONSE_INVALID", "response must be needs-action, accepted, declined or tentative", "22023")}
   end if;
-  update ${attendees} set ${a("response")} = respond_calendar_event.response,
+  update ${attendees} set ${a("response")} = ${ctx.cast("attendees", "response", "respond_calendar_event.response")},
     ${a("user")} = coalesce(${a("user")}, auth.uid())
   where ${a("event")} = respond_calendar_event.event_id
     and (${a("user")} = auth.uid() or (${a("user")} is null and ${a("email")} = lower(auth.email())));
@@ -594,7 +621,7 @@ ${userGrant(`${fn("respond_calendar_event")}(uuid, text)`)}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-create or replace function ${fn("create_calendar")}(tenant ${ctx.idType}, name text, tz text, owner_type text, owner_id text)
+${calendarExtras.length === 0 ? "" : `${calendarExtra.drop(fn("create_calendar"), `${ctx.idType}, text, text, text, text`)}\n`}create or replace function ${fn("create_calendar")}(tenant ${ctx.idType}, name text, tz text, owner_type text, owner_id text${calendarExtra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -610,9 +637,9 @@ begin
   if not exists (select 1 from pg_catalog.pg_timezone_names where name = coalesce(create_calendar.tz, 'UTC')) then
     ${fail("CALENDAR_TZ_INVALID", "tz must be an IANA time zone", "22023")}
   end if;
-  insert into ${calendars} (${k("tenant")}, ${k("name")}, ${k("tz")}${ctx.has("calendars", "ownerType") ? `, ${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, ${k("ownerId")}` : ""})
-  values (create_calendar.tenant, create_calendar.name, coalesce(create_calendar.tz, 'UTC')${ctx.has("calendars", "ownerType") ? ", create_calendar.owner_type" : ""}${ctx.has("calendars", "ownerId") ? ", create_calendar.owner_id" : ""})
-  returning ${k("id")} into v_id;
+  insert into ${calendars} (${k("tenant")}, ${k("name")}, ${k("tz")}${ctx.has("calendars", "ownerType") ? `, ${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, ${k("ownerId")}` : ""}${calendarRequired.columns})
+  values (create_calendar.tenant, create_calendar.name, coalesce(create_calendar.tz, 'UTC')${ctx.has("calendars", "ownerType") ? ", create_calendar.owner_type" : ""}${ctx.has("calendars", "ownerId") ? ", create_calendar.owner_id" : ""}${calendarRequired.values})
+  returning ${k("id")} into v_id;${writeExtraColumns(calendars, calendarExtras, "create_calendar.fields", `x.${k("id")} = v_id`)}
   ${ctx.record({
     type: "calendar.created",
     payload: `jsonb_build_object('organizationId', create_calendar.tenant, 'id', v_id, 'name', create_calendar.name)`,
@@ -623,7 +650,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("create_calendar")}(${ctx.idType}, text, text, text, text)`)}
+${userGrant(`${fn("create_calendar")}(${ctx.idType}, text, text, text, text${calendarExtra.type})`)}
 
 create or replace function ${fn("delete_calendar")}(calendar_id uuid)
 returns boolean
@@ -925,7 +952,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', k.${k("id")}, 'name', k.${k("name")}, 'tz', k.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', k.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', k.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', k.${k("ownerId")}` : ""}) order by k.${k("name")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', k.${k("id")}, 'name', k.${k("name")}, 'tz', k.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', k.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', k.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', k.${k("ownerId")}` : ""}${extraFieldsJson("k", calendarExtras)}) order by k.${k("name")}), '[]'::jsonb)
   from ${calendars} k
   where k.${k("tenant")} = list_calendars.tenant
 $$;
@@ -937,7 +964,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_calendar",
-      args: ["{id}", "text", "text", "text", "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...extraFieldsArg(
+          ctx.extraColumns("calendars", ["fields"], "calendarExtraColumns"),
+        ).contract,
+      ],
       returns: "jsonb",
     },
     { name: "delete_calendar", args: ["uuid"], returns: "boolean" },

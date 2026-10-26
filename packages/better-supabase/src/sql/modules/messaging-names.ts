@@ -262,6 +262,23 @@ export interface MessagingSql {
     id: string,
     action: Action,
   ) => string | undefined;
+  /**
+   * Whether a record conversation's type follows the record's own checks: its
+   * `config.records` entry declares `comment`, so `can_subject` decides read,
+   * send (`comment`) and moderate (`moderate`, when declared, besides the
+   * tenant key). `undefined` when no type declares `comment`.
+   */
+  readonly followsRecord: (type: string) => string | undefined;
+  /**
+   * `can_subject(type, id, action)` for the types that declare `action` among
+   * those that follow their record, `false` for the others; `undefined` when
+   * none declares it.
+   */
+  readonly recordCan: (
+    type: string,
+    id: string,
+    action: "comment" | "moderate",
+  ) => string | undefined;
   /** An entity name, event type or payload key after the entity renames. */
   readonly e: (name: string) => string;
   readonly service: string;
@@ -350,9 +367,36 @@ export function messagingSql(
           )
           .join(" ")} else false end, false)`;
 
+  const declaring = (action: string): readonly string[] =>
+    Object.entries(ctx.subjects).flatMap(([type, entry]) =>
+      Object.hasOwn(entry.permissions ?? {}, action) ? [type] : [],
+    );
+
+  const commented = declaring("comment");
+
+  const listed = (types: readonly string[]): string =>
+    types.map((type) => sqlString(type)).join(", ");
+
+  const followsRecord = (type: string): string | undefined =>
+    commented.length === 0 ? undefined : `${type} in (${listed(commented)})`;
+
+  const recordCan = (
+    type: string,
+    id: string,
+    action: "comment" | "moderate",
+  ): string | undefined => {
+    const types = declaring(action).filter((name) => commented.includes(name));
+
+    return types.length === 0
+      ? undefined
+      : `(${type} in (${listed(types)}) and coalesce(${ctx.of("subjects").fn("can_subject")}(${type}, ${id}, ${sqlString(action)}), false))`;
+  };
+
   return {
     ctx,
     id: ctx.idType,
+    followsRecord,
+    recordCan,
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     cols: (table) => (column) => ctx.col(table, column),

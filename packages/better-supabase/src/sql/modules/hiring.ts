@@ -398,13 +398,13 @@ begin
     new.${a("updatedAt")} := now();
     return new;
   end if;
-${ctx.has("applications", "hiredAt") ? `  new.${a("hiredAt")} := case when new.${a("state")} = 'hired' then now() end;\n` : ""}${
+${ctx.has("applications", "hiredAt") ? `  new.${a("hiredAt")} := case when ${ctx.is("applications", "state", `new.${a("state")}`, ["hired"])} then now() end;\n` : ""}${
     ctx.has("applications", "rejectionReason")
-      ? `  if new.${a("state")} <> 'rejected' then
+      ? `  if ${ctx.is("applications", "state", `new.${a("state")}`, ["rejected"], true)} then
     new.${a("rejectionReason")} := null;
   end if;\n`
       : ""
-  }  case new.${a("state")}
+  }  case ${ctx.label("applications", "state", `new.${a("state")}`)}
     when 'hired' then ${record("application.hired", "new")}
     when 'rejected' then ${record("application.rejected", "new", `, 'reason', ${or("applications", "new", "rejectionReason")}`)}
     when 'withdrawn' then ${record("application.retracted", "new")}
@@ -487,16 +487,18 @@ begin
     ${fail("HIRING_JOB_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
   end;${writeExtraColumns(t("jobs"), extras, "save_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
   if ${asText(ctx, "jobs", `v_job.${j("status")}`)} is distinct from v_was then
-    if v_job.${j("status")} = 'open' then${stamp([
-      ctx.has("jobs", "openedAt")
-        ? `${j("openedAt")} = coalesce(x.${j("openedAt")}, now())`
-        : undefined,
-      ctx.has("jobs", "closedAt") ? `${j("closedAt")} = null` : undefined,
-    ])}
+    if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"])} then${stamp(
+      [
+        ctx.has("jobs", "openedAt")
+          ? `${j("openedAt")} = coalesce(x.${j("openedAt")}, now())`
+          : undefined,
+        ctx.has("jobs", "closedAt") ? `${j("closedAt")} = null` : undefined,
+      ],
+    )}
       ${jobRecord("job.opened")}
-    elsif v_job.${j("status")} = 'closed' then${stamp([
-      ctx.has("jobs", "closedAt") ? `${j("closedAt")} = now()` : undefined,
-    ])}
+    elsif ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["closed"])} then${stamp(
+      [ctx.has("jobs", "closedAt") ? `${j("closedAt")} = now()` : undefined],
+    )}
       ${jobRecord("job.closed")}
     end if;
   end if;
@@ -523,7 +525,7 @@ begin
   if v_job.${j("id")} is null or not ${editable(`v_job.${j("tenant")}`)} then
     ${fail("HIRING_JOB_NOT_FOUND", "no such job you can add applications to", "P0002")}
   end if;
-  if v_job.${j("status")} <> 'open' then
+  if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"], true)} then
     ${fail("HIRING_JOB_NOT_OPEN", "the job isn't open", "55000")}
   end if;
   if v_id is null or not ${subjectInTenant(ctx, "v_type", "v_id", `v_job.${j("tenant")}`)} then
@@ -769,7 +771,16 @@ function applicationPipeline(
     owner: column("owner"),
     scope: column("job"),
     ...APPLICATION_PIPELINE,
-    status: { column: column("state"), values: APPLICATION_STATES },
+    status: {
+      column: column("state"),
+      values: Object.fromEntries(
+        Object.entries(APPLICATION_STATES).flatMap(([category, label]) => {
+          const [value] = own.appValues("applications", "state", label);
+
+          return value === undefined ? [] : [[category, value]];
+        }),
+      ),
+    },
   };
 }
 

@@ -376,6 +376,10 @@ function messageFunctions(q: MessagingSql): string {
     )}`
     : "";
 
+  const editFollows = q.followsRecord(
+    `c.${q.cols("conversations")("subjectType")}`,
+  );
+
   const editable = (alias: string): string =>
     q.editWindow === 0
       ? "true"
@@ -679,7 +683,18 @@ begin
     and ${fn("can_conversation")}(m.${ms("conversation")}, 'read');
   if not found then
     ${fail("MESSAGING_NOT_FOUND", "no message of yours has this id", "P0002")}
-  end if;
+  end if;${
+    editFollows === undefined
+      ? ""
+      : `
+  if exists (
+    select 1 from ${t("conversations")} c
+    where c.${q.cols("conversations")("id")} = v_msg.${ms("conversation")}
+      and c.${q.cols("conversations")("access")} = 'subject' and ${editFollows}
+  ) and not ${fn("can_conversation")}(v_msg.${ms("conversation")}, 'send') then
+    ${fail("MESSAGING_FORBIDDEN", "not allowed to comment on this record")}
+  end if;`
+  }
   if v_msg.${ms("sentAt")} is not null and not (${editable("v_msg")}) then
     ${fail("MESSAGING_EDIT_CLOSED", "this message can no longer be edited", "55000")}
   end if;

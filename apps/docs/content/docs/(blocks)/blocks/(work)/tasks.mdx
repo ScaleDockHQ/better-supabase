@@ -95,7 +95,7 @@ await items.saveChecklistItem(task.id, { done: true }, draft.id).orThrow();
 const steps = await items.checklist(task.id).orThrow();
 ```
 
-`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. A checklist change records `work_item.updated` with `fields: ["checklist"]`.
+`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. An app that keeps its own subtasks maps `tables.checklist` to `null`: the module then creates no checklist table or functions, reads return `checklist: null`, and `repeat` copies no steps. A checklist change records `work_item.updated` with `fields: ["checklist"]`.
 
 On the work item's own page, the block's record binding (`workItemChecklistBinding`) loads the steps for the item as the subject (`{ type: "work_item", id }`, or the renamed type) and reads again on `work_item.updated`. `workItemChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
 

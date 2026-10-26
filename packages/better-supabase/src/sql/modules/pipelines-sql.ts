@@ -373,6 +373,77 @@ end;
 $$;
 drop trigger if exists ${name} on ${subject.qualified};
 create trigger ${name} after insert or update of ${stage} on ${subject.qualified}
+for each row execute function better_supabase.${name}();${followTrigger(names, binding, mapping)}`;
+}
+
+/**
+ * With `status.follow`, the after trigger that moves a record to a stage when
+ * its status column is written directly: the first active stage, in rank order,
+ * whose category maps to the new status. A status no category maps to leaves
+ * the stage alone. The stage trigger's own status write finds the stage already
+ * matching, so the two never loop.
+ */
+function followTrigger(
+  names: Names,
+  binding: PipelineBinding,
+  mapping: string,
+): string {
+  const name = `bsb_pipeline_follow_${subjectTypeIdent(binding.type)}`;
+  const subject = binding.subject;
+
+  if (binding.status?.follow !== true) {
+    return "";
+  }
+
+  const { t, c } = names;
+  const status = sqlIdent(binding.status.column);
+  const stage = sqlIdent(binding.stage);
+  const pipeline = sqlIdent(binding.pipeline);
+
+  const mapped = [...new Set(Object.values(binding.status.values))]
+    .map((value) => sqlString(value))
+    .join(", ");
+
+  return `
+
+create or replace function better_supabase.${name}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_current text;
+  v_stage ${t("stages")}.${c("stages", "id")}%type;
+begin
+  if new.${status} is not distinct from old.${status} or new.${pipeline} is null then
+    return null;
+  end if;
+  select case s.${c("stages", "category")} ${mapping} end into v_current
+  from ${t("stages")} s where s.${c("stages", "id")} = new.${stage};
+  if v_current is not distinct from new.${status}::text then
+    return null;
+  end if;
+  select s.${c("stages", "id")} into v_stage
+  from ${t("stages")} s
+  where s.${c("stages", "pipeline")} = new.${pipeline}
+    and s.${c("stages", "archivedAt")} is null
+    and (case s.${c("stages", "category")} ${mapping} end) = new.${status}::text
+  order by s.${c("stages", "rank")} collate "C", s.${c("stages", "id")}
+  limit 1;
+  if v_stage is null then
+    if new.${status}::text in (${mapped}) then
+      raise exception 'no active stage of this pipeline matches the new status' using errcode = '22023', hint = 'PIPELINE_STAGE_INVALID';
+    end if;
+    return null;
+  end if;
+  update ${subject.qualified} r set ${stage} = v_stage
+  where r.${subject.id} = new.${subject.id};
+  return null;
+end;
+$$;
+drop trigger if exists ${name} on ${subject.qualified};
+create trigger ${name} after update of ${status} on ${subject.qualified}
 for each row execute function better_supabase.${name}();`;
 }
 

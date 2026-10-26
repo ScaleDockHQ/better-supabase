@@ -123,4 +123,66 @@ describe("createCustomFields", () => {
       ),
     ).toEqual([true, false]);
   });
+
+  it("sets, reads and deletes keyed values as typed rows", async () => {
+    const row = {
+      id: "v1",
+      subjectType: "employees",
+      subjectId: "e1",
+      key: "badge",
+      label: "Badge",
+      type: "number",
+      value: 7,
+      rank: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: null,
+    };
+
+    const fake = fakeTransport({
+      set_field_value: row,
+      read_field_values: [row],
+      delete_field_value: true,
+    });
+
+    const fields = createCustomFields({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const saved = await fields
+      .setField(EMPLOYEE, {
+        key: "badge",
+        label: "Badge",
+        type: "number",
+        value: 7,
+      })
+      .orThrow();
+
+    expect(saved).toEqual({
+      id: "v1",
+      subject: EMPLOYEE,
+      key: "badge",
+      label: "Badge",
+      type: "number",
+      value: 7,
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    expect(await fields.readFields(EMPLOYEE).orThrow()).toEqual([saved]);
+    expect(await fields.deleteValue("v1").orThrow()).toBe(true);
+    expect(fake.calls[0]).toEqual([
+      "set_field_value",
+      {
+        tenant: "org-1",
+        subject_type: "employees",
+        subject_id: "e1",
+        key: "badge",
+        label: "Badge",
+        type: "number",
+        value: 7,
+        rank: null,
+        if_absent: false,
+      },
+    ]);
+    expect(fake.calls[2]).toEqual(["delete_field_value", { value_id: "v1" }]);
+  });
 });

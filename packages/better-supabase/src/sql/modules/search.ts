@@ -7,12 +7,14 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
+import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { renamedInstances, rendersOwnInstance } from "../instance-names.ts";
 import { moduleContext } from "../module-context.ts";
 import {
   fail,
   lockTable,
+  quotedTable,
   schemaPreamble,
   serviceGrant,
   userGrant,
@@ -45,8 +47,9 @@ const NAMES: BlockSqlNames = {
         contentHash: "content_hash",
         embedding: "embedding",
         updatedAt: "updated_at",
+        description: "description",
       },
-      optional: ["embedding"],
+      optional: ["embedding", "description"],
     },
   },
 };
@@ -89,15 +92,22 @@ function searchedSubjects(ctx: BlockSqlContext): readonly RegisteredSubject[] {
   );
 }
 
+/** Whether any searched subject returns a description with its hits. */
+const describes = (subjects: readonly RegisteredSubject[]): boolean =>
+  subjects.some((subject) => subject.config.search?.description !== undefined);
+
 /** The columns whose change re-indexes a row. */
 function watchedColumns(subject: RegisteredSubject): readonly string[] {
   const { config } = subject;
+  const own = config.search?.from === undefined;
 
   const names = [
     config.id ?? "id",
     config.tenant === false ? undefined : (config.tenant ?? "organization_id"),
-    config.search?.title ?? config.title,
-    ...(config.search?.body ?? []),
+    own ? (config.search?.title ?? config.title) : undefined,
+    ...(own ? (config.search?.body ?? []) : []),
+    own ? config.search?.description : undefined,
+    own ? config.search?.exclude : undefined,
     config.deletedAt,
     ...[...(config.url ?? "").matchAll(/\{([^}]*)\}/g)].map((m) => m[1]),
   ];
@@ -107,15 +117,17 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
   ];
 }
 
-function refreshBranch(subject: RegisteredSubject): string {
+function refreshBranch(subject: RegisteredSubject, described: boolean): string {
   const { config } = subject;
   const title = config.search?.title ?? config.title ?? "";
   const body = config.search?.body ?? [];
+  const from = config.search?.from;
+  const source = from === undefined ? "s" : "f";
 
   const bodySql =
     body.length === 0
       ? "null"
-      : `nullif(concat_ws(E'\\n', ${body.map((name) => `s.${sqlIdent(name)}::text`).join(", ")}), '')`;
+      : `nullif(concat_ws(E'\\n', ${body.map((name) => `${source}.${sqlIdent(name)}::text`).join(", ")}), '')`;
 
   const url =
     config.url === undefined ? "null" : urlExpression(config.url, "s");
@@ -125,12 +137,93 @@ function refreshBranch(subject: RegisteredSubject): string {
       ? ""
       : `\n        and s.${sqlIdent(config.deletedAt)} is null`;
 
+  const exclude = config.search?.exclude;
+
+  const excluded =
+    exclude === undefined
+      ? ""
+      : `\n        and (${source}.${sqlIdent(exclude)} is null or ${source}.${sqlIdent(exclude)}::text = 'false')`;
+
+  const description = config.search?.description;
+
+  const join =
+    from === undefined
+      ? ""
+      : `\n        join ${quotedTable(from.view)} f on f.${sqlIdent(from.key)}::text = s.${subject.id}::text`;
+
   return `    when ${sqlString(subject.type)} then
-      select s.${subject.tenant ?? sqlIdent("organization_id")}, s.${sqlIdent(title)}::text, ${bodySql}, ${url}
-        into v_tenant, v_title, v_body, v_url
-        from ${subject.qualified} s
-        where ${registeredIdMatches(subject, "search_refresh.subject_id")}${deleted};
+      select s.${subject.tenant ?? sqlIdent("organization_id")}, ${source}.${sqlIdent(title)}::text, ${bodySql}, ${url}${described ? `, ${description === undefined ? "null" : `${source}.${sqlIdent(description)}::text`}` : ""}
+        into v_tenant, v_title, v_body, v_url${described ? ", v_description" : ""}
+        from ${subject.qualified} s${join}
+        where ${registeredIdMatches(subject, "search_refresh.subject_id")}${deleted}${excluded};
       v_found := found;`;
+}
+
+/**
+ * Triggers on the tables a subject's `search.watch` names: a change there
+ * re-indexes the record its row points at. Each runs once the table exists.
+ */
+function watchTriggers(
+  ctx: BlockSqlContext,
+  subjects: readonly RegisteredSubject[],
+): string {
+  return subjects
+    .flatMap((subject) =>
+      (subject.config.search?.watch ?? []).map((watched, index) => {
+        const fn = ctx.fn(
+          `search_watch_${subjectTypeIdent(subject.type)}_${String(index)}`,
+        );
+
+        const trigger = sqlIdent(
+          `bsb_search_${subjectTypeIdent(subject.type)}_watch_${String(index)}`.slice(
+            0,
+            63,
+          ),
+        );
+
+        const key = sqlIdent(watched.key);
+        const table = quotedTable(watched.table);
+
+        const refresh = (row: "old" | "new"): string =>
+          watched.via === undefined
+            ? `perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, ${row}.${key}::text);`
+            : `for v_id in select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text loop
+      perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, v_id);
+    end loop;`;
+
+        return `
+-- A change in ${watched.table} re-indexes the ${subject.type} it points at.
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id text;
+begin
+  if tg_op in ('UPDATE', 'DELETE') and old.${key} is not null then
+    ${refresh("old")}
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') and new.${key} is not null then
+    ${refresh("new")}
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+do $watch$
+begin
+  if to_regclass(${sqlString(watched.table.includes(".") ? watched.table : `public.${watched.table}`)}) is not null then
+    drop trigger if exists ${trigger} on ${table};
+    create trigger ${trigger} after insert or update or delete on ${table}
+      for each row execute function ${fn}();
+  end if;
+end;
+$watch$;`;
+      }),
+    )
+    .join("\n");
 }
 
 /**
@@ -268,7 +361,11 @@ interface SearchNames {
 }
 
 /** The `search(...)` function, as the caller. */
-function searchFunction(ctx: BlockSqlContext, names: SearchNames): string {
+function searchFunction(
+  ctx: BlockSqlContext,
+  names: SearchNames,
+  described: boolean,
+): string {
   const { docs, c, config, vector } = names;
   const subjects = ctx.of("subjects");
   const canSubject = subjects.fn("can_subject");
@@ -360,7 +457,7 @@ begin
     ${fused},
     visible as (
       select d.${c("tenant")} as tenant, d.${c("subjectType")} as subject_type, d.${c("subjectId")} as subject_id,
-        d.${c("title")} as title, d.${c("url")} as url, d.${c("body")} as body, f.score
+        d.${c("title")} as title, d.${c("url")} as url, d.${c("body")} as body,${described ? ` d.${c("description")} as description,` : ""} f.score
       from fused f
       join ${docs} d on d.${c("subjectType")} = f.subject_type and d.${c("subjectId")} = f.subject_id
       where ${canSubject}(f.subject_type, f.subject_id, 'read')
@@ -372,7 +469,7 @@ begin
       'subjectType', v.subject_type,
       'subjectId', v.subject_id,
       'title', v.title,
-      'url', v.url,
+      'url', v.url,${described ? "\n      'description', v.description," : ""}
       'snippet', case when v.body is null then null
         else ts_headline('${config}', v.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
       end,
@@ -617,6 +714,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const read = ctx.permission("read", OPERATIONS["search.read"]);
   const subjects = searchedSubjects(ctx);
   const names: SearchNames = { docs, c, config, vector };
+  const described = describes(subjects) && ctx.has("documents", "description");
   const fn = (name: string): string => ctx.fn(name);
 
   const shareLinks = ctx.installed("share-links")
@@ -644,7 +742,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ${c("contentHash")} text not null,
   ${c("updatedAt")} timestamptz not null default now(),
   primary key (${c("subjectType")}, ${c("subjectId")})
-);${vector ? `\n-- Also for an index created before embeddings were turned on.\nalter table ${docs} add column if not exists ${c("embedding")} ${vector}.vector(${String(dimensions)});` : ""}
+);${described ? `\nalter table ${docs} add column if not exists ${c("description")} text;` : ""}${vector ? `\n-- Also for an index created before embeddings were turned on.\nalter table ${docs} add column if not exists ${c("embedding")} ${vector}.vector(${String(dimensions)});` : ""}
 ${lockTable(docs, { read: true })}
 create index if not exists search_documents_tsv_idx on ${docs} using gin (${c("tsv")});
 create index if not exists search_documents_title_trgm_idx on ${docs} using gin (${c("titleSearch")} extensions.gin_trgm_ops);
@@ -659,7 +757,7 @@ create policy "search_documents_read" on ${docs} for select to authenticated
   const cases =
     subjects.length === 0
       ? "    when '' then null;"
-      : subjects.map(refreshBranch).join("\n");
+      : subjects.map((subject) => refreshBranch(subject, described)).join("\n");
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pg_trgm with schema extensions;
@@ -691,7 +789,7 @@ declare
   v_tenant ${ctx.idType};
   v_title text;
   v_body text;
-  v_url text;
+  v_url text;${described ? "\n  v_description text;" : ""}
   v_found boolean := false;
   v_hash text;
 begin
@@ -710,19 +808,19 @@ ${cases}
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));
-  insert into ${docs} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("title")}, ${c("titleSearch")}, ${c("body")}, ${c("url")}, ${c("tsv")}, ${c("contentHash")}, ${c("updatedAt")})
+  insert into ${docs} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("title")}, ${c("titleSearch")}, ${c("body")}, ${c("url")}, ${c("tsv")}, ${c("contentHash")}, ${c("updatedAt")}${described ? `, ${c("description")}` : ""})
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, ${fn("search_normalize")}(v_title), v_body, v_url,
     setweight(to_tsvector('${config}', ${fn("search_normalize")}(v_title)), 'A')
       || setweight(to_tsvector('${config}', ${fn("search_normalize")}(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now()${described ? ", v_description" : ""}
   )
   on conflict (${c("subjectType")}, ${c("subjectId")}) do update set
     ${c("tenant")} = excluded.${c("tenant")},
     ${c("title")} = excluded.${c("title")},
     ${c("titleSearch")} = excluded.${c("titleSearch")},
     ${c("body")} = excluded.${c("body")},
-    ${c("url")} = excluded.${c("url")},
+    ${c("url")} = excluded.${c("url")},${described ? `\n    ${c("description")} = excluded.${c("description")},` : ""}
     ${c("tsv")} = excluded.${c("tsv")},${vector ? `\n    ${c("embedding")} = case when ${docs}.${c("contentHash")} = excluded.${c("contentHash")} then ${docs}.${c("embedding")} end,` : ""}
     ${c("contentHash")} = excluded.${c("contentHash")},
     ${c("updatedAt")} = now();
@@ -804,8 +902,8 @@ end;
 $$;
 revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;
 
-${triggers(ctx, layout, subjects)}
-${searchFunction(ctx, names)}
+${triggers(ctx, layout, subjects)}${watchTriggers(ctx, subjects)}
+${searchFunction(ctx, names, described)}
 ${userStateFunctions(ctx, state)}
 ${vector ? embeddingFunctions(ctx, names, vector) : ""}
 `;

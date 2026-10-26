@@ -90,7 +90,78 @@ blocks: {
 },
 ```
 
-`options.layout` is `normalized` (the default) or `inline`. Inline layout stores the definition columns on the value row and skips the definitions table, which is how `asset_custom_attributes` is adopted.
+`options.layout` is `normalized` (the default), `inline` or `keyed` ([below](#keyed-layout)). Inline layout stores the definition columns on the value row and skips the definitions table, which is how `asset_custom_attributes` is adopted.
+
+## Keyed layout
+
+`options.layout: "keyed"` keeps each field on its value row, the way a table of
+attributes per record does: every row carries its `key`, `label` and `type`,
+and its value sits in the column of that type (`valueNumber` for `number`,
+`rating` and `currency`, `valueDate`, `valueBool`, `valueJson` for `json` and
+`multi_option`, `valueUrl` and `valueEmail` when you map them, `valueText`
+for the rest). There are no definition or option tables, and the module writes
+three functions instead of the definition ones:
+
+| Function                                                                                            | What it does                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `set_field_value(tenant, subject_type, subject_id, key, label, type, value jsonb, rank, if_absent)` | Sets the field `key` of the record: a new row, or the existing one with its label, type and value replaced. Every other value column is set to null. `if_absent` fails with `FIELD_EXISTS` instead of updating |
+| `read_field_values(tenant, subject_type, subject_id)`                                               | The record's fields as `{ id, subjectType, subjectId, key, label, type, rank, value, createdAt, updatedAt }`, ordered by `rank` and then `key`                                                                 |
+| `delete_field_value(value_id)`                                                                      | Removes one value and records `field_value.deleted`                                                                                                                                                            |
+
+The client calls them as `setField(record, { key, label, type, value, rank?,
+ifAbsent? })`, `readFields(record)` and `deleteValue(id)`. Writing needs
+`custom_fields.manage`, a record that exists in the tenant, and the record's
+`fields` action when [`config.records`](/docs/blocks/sql#actions-granted-per-row)
+declares one (such as `fields: "product.update"`); a value that doesn't fit its type fails with
+`FIELD_VALUE_INVALID`.
+
+A record type can keep its id in its own column of the values table instead
+of `subject_type` and `subject_id`, so the table keeps a real foreign key per
+record type. Name it in `on.<type>.column`; when every type in `on` names one,
+map `subjectType` and `subjectId` to `null`. A type column that stores other
+labels than the block's, such as `boolean` for `bool`, maps them through
+[`values`](/docs/blocks/own-schemas#your-columns-values):
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    "custom-fields": {
+      tables: { definitions: null, options: null, values: "public.attributes" },
+      columns: {
+        values: {
+          tenant: "organization_id",
+          definition: null,
+          optionId: null,
+          valueJson: null,
+          valueEmail: null,
+          rank: null,
+          subjectType: null,
+          subjectId: null,
+          type: "value_type",
+          valueText: "text_value",
+          valueNumber: "number_value",
+          valueDate: "date_value",
+          valueBool: "boolean_value",
+          valueUrl: "url_value",
+        },
+      },
+      values: { values: { type: { bool: "boolean" } } },
+      on: {
+        product: {
+          table: "public.products",
+          idType: "uuid",
+          column: "product_id",
+        },
+        asset: { table: "public.assets", idType: "uuid", column: "asset_id" },
+      },
+      options: { layout: "keyed" },
+    },
+  },
+});
+```
+
+The normalized and inline layouts keep their functions. In them too,
+`set_field_value` asks the record's `fields` action when its type declares one.
 
 ## Over your own tables
 

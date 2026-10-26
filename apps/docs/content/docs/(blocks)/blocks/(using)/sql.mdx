@@ -1389,20 +1389,20 @@ export default defineConfig({
 });
 ```
 
-| Key           | Default           | What it sets                                                                            |
-| ------------- | ----------------- | --------------------------------------------------------------------------------------- |
-| `table`       | required          | The table, as `table` or `schema.table`                                                 |
-| `id`          | `id`              | The id column                                                                           |
-| `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                       |
-| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                 |
-| `title`       | none              | The column `subject_title` returns                                                      |
-| `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row          |
-| `permissions` | none              | Action to permission key; `read` is the key modules check before they attach to the row |
-| `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                      |
-| `cascade`     | none              | Delete a module's rows when the subject row is deleted                                  |
-| `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                |
-| `search`      | none              | `title` and `body` columns for search                                                   |
-| `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses        |
+| Key           | Default           | What it sets                                                                                                                                                   |
+| ------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table`       | required          | The table, as `table` or `schema.table`                                                                                                                        |
+| `id`          | `id`              | The id column                                                                                                                                                  |
+| `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                                                                                              |
+| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                                                        |
+| `title`       | none              | The column `subject_title` returns                                                                                                                             |
+| `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                                                 |
+| `permissions` | none              | Action to permission key, or to `{ key, rows, owner }` (see below); `read` is the key modules check before they attach to the row                              |
+| `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                                                                                             |
+| `cascade`     | none              | Delete a module's rows when the subject row is deleted                                                                                                         |
+| `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                                                                                       |
+| `search`      | none              | `title` and `body` columns for search, plus `description`, `exclude`, `from` and `watch` ([Search](/docs/blocks/search#labels-descriptions-and-archived-rows)) |
+| `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses                                                                               |
 
 A block's `on` works three ways:
 
@@ -1435,6 +1435,51 @@ what is visible:
 
 An action without a key in `permissions` checks only that the caller can see
 the row. The service role passes every key check.
+
+#### Actions granted per row
+
+An action can be granted in more ways than a tenant key. Give it an object
+instead of a key:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: {
+    file: {
+      table: "public.files",
+      idType: "uuid",
+      permissions: {
+        read: { key: "file.read", rows: "file" },
+        share: { key: "file.update", rows: "file" },
+      },
+    },
+    thread: {
+      table: "public.threads",
+      permissions: { share: { owner: "owner_user_id" } },
+    },
+  },
+});
+```
+
+| Key     | Grants the action when                                                                                           |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| `key`   | the caller holds the key in the row's tenant, or on the record through `scope`, as a plain key does              |
+| `rows`  | the authorization provider lists the row among the rows of that resource the caller holds `key` on (needs `key`) |
+| `owner` | the uuid column it names holds the caller's id                                                                   |
+
+Any one of them grants the action. `rows` is the resource as the provider
+names it in SQL (`file_node`); it needs `blocks.permissions.model: "provider"`
+and a provider with the `rowsWith` template (see
+[Authorization providers](/docs/extending/authorization-providers)). For
+`can_subject_for`, row grants count only when the provider also has
+`rowsWithFor`, and `owner` compares the column with the given user.
+
+Blocks that act on a record ask `can_subject` for the action when the record
+type declares it, on top of their own key: `tags` checks `tag` before it
+puts a tag on a record or takes it off, `custom-fields` checks `fields` before
+it sets or deletes a value, `share-links` checks `share` before it creates,
+lists or revokes a link, and `comments` follows `read`, `comment` and
+`moderate`. A record type that declares none of them keeps the block's own
+checks.
 
 With a registry, `gen` also emits the types in `database.types.ts`:
 

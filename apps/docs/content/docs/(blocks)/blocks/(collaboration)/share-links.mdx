@@ -44,6 +44,46 @@ and the hint `TENANT_REQUIRED`.
 
 The service role may make every call.
 
+### Sharing one record
+
+A record type that declares a `share` action in
+[`config.records`](/docs/blocks/sql#actions-granted-per-row) is checked per
+record as well: `create` needs that action on the record, and `revoke` and
+`list` need it on top of the organization key, so only the creator or someone
+who may share the record sees and revokes its links. The action can be a key,
+a per-row grant from the authorization provider or an owner column:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: {
+    file: {
+      table: "public.files",
+      idType: "uuid",
+      permissions: { share: { key: "file.update", rows: "file" } },
+    },
+    thread: {
+      table: "public.threads",
+      idType: "uuid",
+      permissions: { share: { owner: "owner_id" } },
+    },
+  },
+});
+```
+
+Without a `share` action, the record only has to exist in the link's
+organization, as before.
+
+### Tokens you make and full rows
+
+Two options fit an app that already has links:
+
+| Option            | What it adds                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokenHash: true` | `create_share_link(..., token_hash)` stores the SHA-256 hex of a token the app made (64 lowercase hex characters, `SHARE_TOKEN_HASH_INVALID` otherwise) and returns no token; `find_share_link(token_hash)` returns the live link a hash names without counting a use, for the service role. The client calls them as `createHashed(subject, tokenHash, options)` and `find(tokenHash)` |
+| `fullRows: true`  | `list_share_links` returns each link's `organizationId`, `subjectType`, `subjectId`, `createdBy` and `createdAt` (a `createdAt` column the block adds to its own table), newest first, and takes `include_revoked` (the client's `list(subject, { includeRevoked: false })`)                                                                                                            |
+
+Without them the functions keep the signatures of earlier releases.
+
 ## Events
 
 | Event                | When                        |

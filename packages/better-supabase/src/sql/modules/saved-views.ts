@@ -13,6 +13,7 @@ import {
   addExtraColumns,
   columnsObject,
   extraFieldsArg,
+  insertExtraColumns,
   extraFieldsJson,
   fail,
   lockTable,
@@ -109,6 +110,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const extras = extrasOf(ctx);
   const views = ctx.table("views");
+  const required = insertExtraColumns(views, extras, "save_view.fields");
   const c = (column: string): string => ctx.col("views", column);
 
   const [id, tenant, list, scope, owner, team, name, kind, state, rank] = [
@@ -263,10 +265,10 @@ begin
     select max(v.${rank} collate "C") into v_last from ${views} v
       where v.${tenant} = save_view.tenant and v.${list} = save_view.list;
     v_rank := ${rankAfter("v_last")};
-    insert into ${views} (${tenant}, ${list}, ${scope}, ${owner}, ${team}, ${name}, ${kind}, ${state}, ${rank})
+    insert into ${views} (${tenant}, ${list}, ${scope}, ${owner}, ${team}, ${name}, ${kind}, ${state}, ${rank}${required.columns})
     values (save_view.tenant, save_view.list, save_view.scope, auth.uid(),
       case when save_view.scope = 'team' then save_view.team end,
-      save_view.name, save_view.kind, save_view.state, v_rank)
+      save_view.name, save_view.kind, save_view.state, v_rank${required.values})
     returning ${id} into v_id;
   else
     update ${views} set

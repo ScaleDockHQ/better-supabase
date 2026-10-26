@@ -3,7 +3,7 @@ title: Teams
 description: Tenant teams and their members, shared with the inbox.
 ---
 
-`teams` stores a tenant's teams and who is on them. Creating, changing, archiving and deleting a team needs `teams.manage`. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
+`teams` stores a tenant's teams and who is on them. Creating, changing, archiving, restoring and deleting a team, and changing its members, needs `teams.manage`. `blocks.teams.permissions` can split it: `create` checks `create_team`, `update` checks `update_team`, `archive_team` and `restore_team`, `delete` checks `delete_team`, and `members` checks `add_team_member` and `remove_team_member`. An action you leave unset checks `manage`, so a config without them behaves as before. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
 
 ```bash
 better-supabase add teams
@@ -20,6 +20,17 @@ import { createTeams } from "better-supabase/blocks/teams";
 
 `options.teamIdType` is `uuid` (the default) or `bigint`. The inbox needs `uuid`.
 
+With `blocks.teams.options.patch: true`, `create(organizationId, name,
+description?, fields?, { slug? })` takes the slug the app chose (lowercase
+letters and digits joined by single hyphens; `TEAM_SLUG_INVALID` otherwise)
+or derives it from the name, and `update(id, name, description?, fields?, {
+slug?, description? })` changes the slug or description it names;
+`description: null` clears it, which the plain `description` argument can't.
+In SQL they are the `slug` argument of `create_team` and the `patch jsonb`
+argument of `update_team`. `archive(id)` sets a team's status to `archived`;
+with `options.restore: true`, `restore(id)` sets it back to `active` through
+`restore_team` and records `team.restored`.
+
 ## Inbox
 
 The inbox assigns a conversation to a `teams` row. Installing both drops `inbox_teams` and `inbox_team_members` after copying their rows. `create_inbox_team` and `set_inbox_team_member` call the teams functions.
@@ -33,7 +44,9 @@ Map `tables.teams` and `tables.members` onto the app's tables. CentraKit's team 
 Add columns to the team table with `blocks.teams.options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create` and `update` (the last argument) validates and writes them, and `create`, `update` and `list` return them parsed under
-`fields`. The block also takes `hooks` around its methods; see
+`fields`. A column whose type is `not null` without a `default` is written in
+the `insert` itself, so a required column of your own teams table can be set
+on create. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 
 Server code calls the `teams` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:

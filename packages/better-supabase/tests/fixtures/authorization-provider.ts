@@ -14,6 +14,8 @@ type StubProvider = AuthorizationProvider & {
       | "teamIdsOf"
       | "portalSubjects"
       | "portalParties"
+      | "rowsWith"
+      | "rowsWithFor"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

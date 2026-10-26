@@ -2,6 +2,7 @@ export {
   createShareLinks,
   type CreatedShareLink,
   type CreateShareLinkOptions,
+  type FoundShareLink,
   type ResolvedShareLink,
   type ShareLink,
   type ShareLinks,

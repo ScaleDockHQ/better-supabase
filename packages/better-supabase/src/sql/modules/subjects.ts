@@ -1,12 +1,18 @@
+import type { SubjectPermission } from "../../config/types/subjects.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
   BlockSqlNames,
 } from "../context.ts";
 import type { SummarySection } from "../contributions.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type {
+  BlockSqlAccessProvider,
+  BlockSqlDefinition,
+  BlockSqlLayout,
+} from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import {
@@ -20,14 +26,93 @@ import {
   registeredSubjects,
   urlExpression,
 } from "../subject-registry.ts";
+import { accessModel } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = { tables: {} };
+
+/**
+ * The provider's per-row grant for `entry.rows` on row `s`, through its
+ * `rowsWith` template (`rowsWithFor` with `user`), or `undefined` without
+ * `rows`. `false` for another user when the provider can't answer for them.
+ */
+function rowGrant(
+  where: string,
+  subject: RegisteredSubject,
+  entry: SubjectPermission,
+  provider: BlockSqlAccessProvider | undefined,
+  user?: string,
+): string | undefined {
+  if (entry.rows === undefined || entry.key === undefined) {
+    return undefined;
+  }
+
+  const template =
+    user === undefined
+      ? provider?.functions.rowsWith
+      : provider?.functions.rowsWithFor;
+
+  if (provider?.functions.rowsWith === undefined) {
+    throw new TypeError(
+      `${where}.rows needs blocks.permissions.model "provider" and an authorization provider with functions.rowsWith`,
+    );
+  }
+
+  if (template === undefined) {
+    return "false";
+  }
+
+  const id = `s.${subject.id}::text`;
+
+  return `${id} in (select r.id::text from ${fillTemplate(
+    `authorization.functions.${user === undefined ? "rowsWith" : "rowsWithFor"}`,
+    template,
+    {
+      resource: entry.rows,
+      permission: sqlString(entry.key),
+      ids: `array[${id}]`,
+      ...(user === undefined ? {} : { user }),
+    },
+  )} as r(id))`;
+}
+
+/**
+ * The ways one `permissions.<action>` entry grants the action on row `s`:
+ * `held` for its key, the provider's row grants and the owner column, or-ed.
+ */
+function entryCheck(
+  where: string,
+  subject: RegisteredSubject,
+  value: string | SubjectPermission,
+  provider: BlockSqlAccessProvider | undefined,
+  held: (key: string) => string,
+  user: string | undefined,
+): string {
+  if (typeof value === "string") {
+    return held(value);
+  }
+
+  const rows = rowGrant(where, subject, value, provider, user);
+
+  const parts = [
+    ...(value.key === undefined ? [] : [held(value.key)]),
+    ...(rows === undefined ? [] : [rows]),
+    ...(value.owner === undefined
+      ? []
+      : [`s.${sqlIdent(value.owner)} = ${user ?? "auth.uid()"}`]),
+  ];
+
+  return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+}
 
 /**
  * The permission check for `action` on row `s`, `true` when the action has no
  * key.
  */
-function actionCheck(ctx: BlockSqlContext, subject: RegisteredSubject): string {
+function actionCheck(
+  ctx: BlockSqlContext,
+  subject: RegisteredSubject,
+  provider: BlockSqlAccessProvider | undefined,
+): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
 
   if (permissions.length === 0) {
@@ -51,8 +136,8 @@ function actionCheck(ctx: BlockSqlContext, subject: RegisteredSubject): string {
 
   return `(${SERVICE_CALLER} or case can_subject.action\n${permissions
     .map(
-      ([action, key]) =>
-        `          when ${sqlString(action)} then ${held(key)}`,
+      ([action, value]) =>
+        `          when ${sqlString(action)} then ${entryCheck(`records.${subject.type}.permissions.${action}`, subject, value, provider, held, undefined)}`,
     )
     .join("\n")}\n          else true\n        end)`;
 }
@@ -62,7 +147,11 @@ function actionCheck(ctx: BlockSqlContext, subject: RegisteredSubject): string {
  * without a key is false: nothing but the row's policies would decide it, and
  * they answer for the caller only.
  */
-function actionCheckFor(subject: RegisteredSubject, user: string): string {
+function actionCheckFor(
+  subject: RegisteredSubject,
+  user: string,
+  provider: BlockSqlAccessProvider | undefined,
+): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
 
   if (permissions.length === 0) {
@@ -87,8 +176,8 @@ function actionCheckFor(subject: RegisteredSubject, user: string): string {
 
   return `case can_subject_for.action\n${permissions
     .map(
-      ([action, key]) =>
-        `          when ${sqlString(action)} then ${held(key)}`,
+      ([action, value]) =>
+        `          when ${sqlString(action)} then ${entryCheck(`records.${subject.type}.permissions.${action}`, subject, value, provider, held, user)}`,
     )
     .join("\n")}\n          else false\n        end`;
 }
@@ -260,12 +349,16 @@ ${userGrant(`${fn("my_work")}(${ctx.idType}, integer)`)}
 `;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
   const subjects = registeredSubjects(ctx.subjects, ctx.naming);
+
+  const provider =
+    accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
+
   const fn = (name: string): string => ctx.fn(name);
 
   return `${schemaPreamble(ctx)}
@@ -374,7 +467,7 @@ ${cases(
     `return exists (
         select 1 from ${subject.qualified} s
         where ${rowMatches(subject, "can_subject.subject_id")}
-          and ${actionCheck(ctx, subject)}
+          and ${actionCheck(ctx, subject, provider)}
       );`,
 )}
     else
@@ -444,7 +537,7 @@ ${cases(
     `return exists (
         select 1 from ${subject.qualified} s
         where ${rowMatches(subject, "can_subject_for.subject_id")}
-          and ${actionCheckFor(subject, "can_subject_for.member")}
+          and ${actionCheckFor(subject, "can_subject_for.member", provider)}
       );`,
 )}
     else

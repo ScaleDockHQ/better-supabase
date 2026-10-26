@@ -157,8 +157,16 @@ puts the result into a policy or a module function:
 | `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                       | a set of user ids that hold `{permission}` on `{tenant}`                                   |
 | `actorMayWrite`  | none                                                        | `boolean`: the caller's session may write                                                  |
 | `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}` | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
+| `rowsWith`       | `{permission}`, `{resource}`, `{ids}`                       | a set of the ids (text) of `{resource}` rows the caller holds `{permission}` on            |
+| `rowsWithFor`    | `{user}`, `{permission}`, `{resource}`, `{ids}`             | as `rowsWith`, for another user                                                            |
 | `portalSubjects` | `{action}`                                                  | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
 | `portalParties`  | none                                                        | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
+
+`rowsWith` answers a `config.records.<type>.permissions.<action>` entry with
+`rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
+`{resource}` is that entry's `rows`, unquoted, so it can be part of a
+function name (`app.rows_{resource}({permission})`), and `{ids}` is a `text[]`
+of the ids being checked, which a provider may use to limit its work.
 
 `{roles}` is the same role as a `text[]` (`array[role]::text[]`), for a
 function that checks a set of roles at once. A `memberships` entry's

@@ -60,6 +60,59 @@ describe("saas block clients", () => {
     ]);
   });
 
+  it("passes a team's slug, patch and restore to SQL", async () => {
+    const calls: [string, unknown][] = [];
+
+    const teams = createTeams({
+      schema: "app",
+      transport: {
+        call(_schema: string, fn: string, args: unknown) {
+          calls.push([fn, args]);
+
+          return Promise.resolve(
+            fn === "restore_team" ? true : { id: "t1", slug: "ops-desk" },
+          );
+        },
+      },
+    });
+
+    await teams
+      .create("org", "Ops", undefined, undefined, { slug: "ops-desk" })
+      .orThrow();
+    await teams
+      .update("t1", "Ops", undefined, undefined, { description: null })
+      .orThrow();
+    await teams.update("t1", "Ops").orThrow();
+    expect(await teams.restore("t1").orThrow()).toBe(true);
+    expect(calls).toEqual([
+      [
+        "create_team",
+        {
+          tenant: "org",
+          name: "Ops",
+          description: null,
+          slug: "ops-desk",
+          fields: undefined,
+        },
+      ],
+      [
+        "update_team",
+        {
+          team: "t1",
+          name: "Ops",
+          description: null,
+          patch: { description: null },
+          fields: undefined,
+        },
+      ],
+      [
+        "update_team",
+        { team: "t1", name: "Ops", description: null, fields: undefined },
+      ],
+      ["restore_team", { team: "t1" }],
+    ]);
+  });
+
   it("allocates a number from a bigint, a string, or rejects anything else", async () => {
     const numbers = createNumbering(options({ next_number: 7n }));
     expect(await numbers.next("org", "invoice").orThrow()).toBe("7");

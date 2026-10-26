@@ -135,6 +135,21 @@ export interface BlockConfig<
       readonly [C in Names["tables"][T]]?: string | null;
     };
   };
+  /**
+   * Logical table to logical column to the values the app's column stores for
+   * each label the block writes or compares, e.g. `{ events: { status: {
+   * cancelled: 'canceled' } } }`. A list maps one label to several app values
+   * (the first is written, each reads as the label); `null` marks a label the
+   * app does not support, so a write of it fails with `VALUE_UNSUPPORTED`. Only
+   * columns a block lists as typed take values; its docs page names them.
+   */
+  readonly values?: {
+    readonly [T in keyof Names["tables"]]?: {
+      readonly [C in Names["tables"][T]]?: Readonly<
+        Record<string, string | readonly string[] | null>
+      >;
+    };
+  };
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
   /** Who the block's rows belong to. Defaults to `sql.scope`, then `tenant`. */
@@ -415,6 +430,8 @@ export interface ResolvedBlock {
   readonly columns: Readonly<
     Record<string, Readonly<Record<string, string | null>>>
   >;
+  /** `values`, unchecked; the module context checks it against its tables. */
+  readonly values?: Readonly<Record<string, unknown>>;
   readonly idType?: string;
   readonly scope?: BlockScope;
   /** `ownTablePolicies`, with its default. */
@@ -458,6 +475,7 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
         defined(columns),
       ]),
     ),
+    ...(config.values === undefined ? {} : { values: config.values }),
     ...(config.idType === undefined ? {} : { idType: config.idType }),
     ...(config.scope === undefined ? {} : { scope: config.scope }),
     ownTablePolicies: config.ownTablePolicies ?? "block",

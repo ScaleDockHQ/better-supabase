@@ -3,7 +3,7 @@ title: Tags
 description: Tag definitions per kind, applied to subjects through one table or a link table per subject.
 ---
 
-`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows.
+`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows. When the record type declares a `tag` action in [`config.records`](/docs/blocks/sql#actions-granted-per-row) (such as `tag: "task.update"`), applying or removing a tag also needs that action on the record, so a key, a per-row grant or the record's owner decides who may tag it.
 
 With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node` subjects follow the node's grants: reading a node's tags needs read access, and tagging or untagging needs write access, which is how the drive's labels work.
 
@@ -12,6 +12,26 @@ With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node
 | `tags.read`   | `list`                                                         | owner, admin, member |
 | `tags.apply`  | `attach`, `detach`                                             | owner, admin, member |
 | `tags.manage` | `create`, `update`, `reorder`, `delete`, and every check above | owner, admin         |
+
+`blocks.tags.permissions` can split `manage` by action: `create` checks
+`create`, `update` and `reorder` check `update`, and `delete` checks `delete`.
+An action you leave unset checks the `manage` key, so a config without them
+behaves as before:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    tags: {
+      permissions: {
+        read: "tag.read",
+        create: "tag.create",
+        update: "tag.update",
+        delete: "tag.delete",
+      },
+    },
+  },
+});
+```
 
 ```bash
 better-supabase add tags
@@ -52,7 +72,7 @@ import { useTags } from "@/lib/supabase/hooks";
 const rows = useTags({ limit: 50 });
 ```
 
-`create({ kind, name, color?, description?, fields? })` creates a tag of a kind, and `update(id, { name?, fields? })` renames it or sets its extra columns. `attach(record, tagId)` and `detach(record, tagId)` put a tag on a record and take it off. `list({ kind? })` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `list({ on: record })` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
+`create({ kind, name, color?, description?, fields? })` creates a tag of a kind, and `update(id, { name?, fields? })` renames it or sets its extra columns. With `blocks.tags.options.patch: true`, `create` also takes `slug` (lowercase letters and digits joined by single hyphens, `TAG_SLUG_INVALID` otherwise; derived from the name when left out), and `update` takes `slug`, `kind`, `color` and `description`: it changes the keys you pass and keeps the others, and `null` clears `color` or `description`. In SQL they are the `slug` argument of `create_tag` and the `patch jsonb` argument of `update_tag`; without the option neither exists. `attach(record, tagId)` and `detach(record, tagId)` put a tag on a record and take it off. `list({ kind? })` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `list({ on: record })` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
 
 ## In the browser
 
@@ -188,7 +208,8 @@ Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/
 Add columns to the tag table with `blocks.tags.options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create` and `update` (the last argument) validates and writes them, and `create` return them parsed under
-`fields`. The block also takes `hooks` around its methods; see
+`fields`. A column whose type is `not null` without a `default` is written in
+the `insert` itself, so `create` can set a required column. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 
 ```ts

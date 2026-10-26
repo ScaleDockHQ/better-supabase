@@ -101,7 +101,12 @@ export function tableOwnership(
           : requiredColumn(table, logical),
       ),
     cast: (table, logical, value, invalid = "raise") => {
-      if (input.tables[table]?.typed?.includes(logical) !== true) {
+      const spec = input.tables[table];
+
+      if (
+        spec?.typed?.includes(logical) !== true &&
+        spec?.mappable?.includes(logical) !== true
+      ) {
         throw new TypeError(
           `Module "${input.module}" casts ${table}.${logical}, which its names.tables.${table}.typed doesn't list`,
         );

@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "./context.ts";
 import type { Subject } from "./subjects.ts";
 
+import { subjectPermissionKey } from "../core/subject-permission.ts";
 import { sqlString } from "../core/template.ts";
 
 /**
@@ -14,7 +15,9 @@ export function subjectWritable(
   args: { readonly type: string; readonly tenant: string },
 ): string {
   const whens = subjects.flatMap(([type]) => {
-    const key = ctx.subjects[type]?.permissions?.["write"];
+    const key = subjectPermissionKey(
+      ctx.subjects[type]?.permissions?.["write"],
+    );
 
     return key === undefined
       ? []

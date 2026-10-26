@@ -6,6 +6,10 @@ import type { EntityNames } from "../core/entity-naming.ts";
 
 import { tenantNames } from "../core/entity-naming.ts";
 import {
+  subjectPermissionKey,
+  subjectPermissionOf,
+} from "../core/subject-permission.ts";
+import {
   SUBJECT_TYPE_PATTERN,
   subjectTypeIdent,
 } from "../core/subject-type.ts";
@@ -38,6 +42,101 @@ function column(where: string, value: unknown): string {
   }
 
   return value;
+}
+
+const RESOURCE = /^[a-z][a-z0-9_]{0,62}$/;
+
+/** `search.from` and `search.watch`: tables and columns. */
+function checkSearchSources(where: string, entry: SubjectConfig): void {
+  const table = (at: string, value: unknown): void => {
+    if (typeof value !== "string") {
+      throw new TypeError(`${at} must be "table" or "schema.table"`);
+    }
+
+    try {
+      const [schema, name] = splitTable(value);
+      column(at, schema);
+      column(at, name);
+    } catch {
+      throw new TypeError(`${at} must be "table" or "schema.table"`);
+    }
+  };
+
+  const from = entry.search?.from;
+
+  if (from !== undefined) {
+    table(`${where}.from.view`, from.view);
+    column(`${where}.from.key`, from.key);
+  }
+
+  for (const [index, watched] of (entry.search?.watch ?? []).entries()) {
+    const at = `${where}.watch[${String(index)}]`;
+    table(`${at}.table`, watched.table);
+    column(`${at}.key`, watched.key);
+
+    if (watched.via !== undefined) {
+      column(`${at}.via`, watched.via);
+    }
+  }
+}
+
+/** One `permissions.<action>` entry: a key, or `{ key?, rows?, owner? }`. */
+function checkPermission(where: string, action: string, value: unknown): void {
+  if (!ACTION.test(action)) {
+    throw new TypeError(`${where}: use an action name with a permission key`);
+  }
+
+  if (typeof value === "string") {
+    if (value === "") {
+      throw new TypeError(`${where}: use an action name with a permission key`);
+    }
+
+    return;
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(
+      `${where}: use a permission key or { key, rows, owner }`,
+    );
+  }
+
+  const entry: Readonly<Record<string, unknown>> = { ...value };
+
+  for (const name of Object.keys(entry)) {
+    if (name !== "key" && name !== "rows" && name !== "owner") {
+      throw new TypeError(
+        `${where}.${name} is not an option. Options: key, rows, owner`,
+      );
+    }
+  }
+
+  const { key, rows, owner } = entry;
+
+  if (key !== undefined && (typeof key !== "string" || key === "")) {
+    throw new TypeError(`${where}.key must be a permission key`);
+  }
+
+  if (rows !== undefined) {
+    if (typeof rows !== "string" || !RESOURCE.test(rows)) {
+      throw new TypeError(
+        `${where}.rows must be the provider's SQL name of a resource, such as file_node`,
+      );
+    }
+
+    if (key === undefined) {
+      throw new TypeError(
+        `${where}.rows needs the key the rows are granted for`,
+      );
+    }
+  }
+
+  if (owner !== undefined) {
+    column(`${where}.owner`, owner);
+  }
+
+  if (key === undefined && owner === undefined) {
+    throw new TypeError(`${where} needs a key or an owner column`);
+  }
 }
 
 /**
@@ -114,18 +213,16 @@ export function registeredSubjects(
       }
     }
 
-    for (const [action, key] of Object.entries(entry.permissions ?? {})) {
-      if (!ACTION.test(action) || typeof key !== "string" || key === "") {
-        throw new TypeError(
-          `${where}.permissions.${action}: use an action name with a permission key`,
-        );
-      }
+    for (const [action, value] of Object.entries(entry.permissions ?? {})) {
+      checkPermission(`${where}.permissions.${action}`, action, value);
     }
 
     if (
       tenant === undefined &&
       entry.scope === undefined &&
-      Object.keys(entry.permissions ?? {}).length > 0
+      Object.values(entry.permissions ?? {}).some(
+        (value) => subjectPermissionKey(value) !== undefined,
+      )
     ) {
       throw new TypeError(
         `${where}.permissions need a tenant column or a scope to check them in`,
@@ -140,11 +237,18 @@ export function registeredSubjects(
       }
     }
 
-    for (const name of [entry.search?.title, ...(entry.search?.body ?? [])]) {
+    for (const name of [
+      entry.search?.title,
+      ...(entry.search?.body ?? []),
+      entry.search?.description,
+      entry.search?.exclude,
+    ]) {
       if (name !== undefined) {
         column(`${where}.search`, name);
       }
     }
+
+    checkSearchSources(`${where}.search`, entry);
 
     return {
       type,
@@ -222,12 +326,36 @@ export function subjectColumns(
     }
   }
 
-  if (entry.search?.title !== undefined) {
-    columns.push(["search.title", entry.search.title]);
+  if (entry.search?.from === undefined) {
+    if (entry.search?.title !== undefined) {
+      columns.push(["search.title", entry.search.title]);
+    }
+
+    for (const name of entry.search?.body ?? []) {
+      columns.push(["search.body", name]);
+    }
+
+    for (const key of ["description", "exclude"] as const) {
+      const name = entry.search?.[key];
+
+      if (name !== undefined) {
+        columns.push([`search.${key}`, name]);
+      }
+    }
   }
 
-  for (const name of entry.search?.body ?? []) {
-    columns.push(["search.body", name]);
+  for (const watched of entry.search?.watch ?? []) {
+    if (watched.via !== undefined) {
+      columns.push(["search.watch.via", watched.via]);
+    }
+  }
+
+  for (const [action, value] of Object.entries(entry.permissions ?? {})) {
+    const owner = subjectPermissionOf(value)?.owner;
+
+    if (owner !== undefined) {
+      columns.push([`permissions.${action}.owner`, owner]);
+    }
   }
 
   return columns;

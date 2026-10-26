@@ -61,16 +61,30 @@ export interface CreateTagInput<F extends object = Record<never, never>> {
   readonly name: string;
   readonly color?: string;
   readonly description?: string;
+  /**
+   * The slug, lowercase letters and digits joined by single hyphens. Derived
+   * from `name` when left out.
+   */
+  readonly slug?: string;
   /** The extra columns, validated by the `fields` schema. */
   readonly fields?: Partial<F>;
 }
 
-/** The patch `tags.update` takes. */
+/**
+ * The patch `tags.update` takes. A key that is left out keeps its value; `null`
+ * clears `color` or `description`.
+ */
 export interface UpdateTagInput<F extends object = Record<never, never>> {
   readonly name?: string;
+  readonly slug?: string;
+  readonly kind?: string;
+  readonly color?: string | null;
+  readonly description?: string | null;
   /** The extra columns to set; the others keep their values. */
   readonly fields?: Partial<F>;
 }
+
+const PATCH_KEYS = ["slug", "kind", "color", "description"] as const;
 
 /** The filter `tags.list` takes. */
 export interface ListTagsParams {
@@ -87,7 +101,10 @@ export interface ListTagsParams {
 export interface Tags<F extends object = Record<never, never>> {
   /** Creates a tag in the tenant. */
   create(input: CreateTagInput<F>): AsyncResult<Tag<F>>;
-  /** Renames a tag and sets the extra columns `fields` names. */
+  /**
+   * Renames a tag, sets its slug, kind, color or description, and sets the
+   * extra columns `fields` names.
+   */
   update(id: string, patch: UpdateTagInput<F>): AsyncResult<boolean>;
   /**
    * Moves a tag between the tags with rank keys `previous` and `next`. Resolves
@@ -127,6 +144,15 @@ function tagOf(value: unknown): Tag {
   };
 }
 
+/** `{ patch }` with the keys of `input` the SQL patch takes, or nothing. */
+function patchOf(input: UpdateTagInput<object>): { patch?: object } {
+  const entries = PATCH_KEYS.flatMap((key) =>
+    input[key] === undefined ? [] : [[key, input[key]] as const],
+  );
+
+  return entries.length === 0 ? {} : { patch: Object.fromEntries(entries) };
+}
+
 const tagsOf = (value: unknown): Tag[] =>
   (Array.isArray(value) ? value : []).map(tagOf);
 
@@ -143,7 +169,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
   const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: Tags<F> = {
-    create: ({ kind, name, color, description, fields: extra }) =>
+    create: ({ kind, name, color, description, slug, fields: extra }) =>
       tenant().andThen((organizationId) =>
         fields
           .args(extra)
@@ -156,6 +182,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
                 name,
                 color: color ?? null,
                 description: description ?? null,
+                ...(slug === undefined ? {} : { slug }),
                 fields: checked,
               },
               (value) => ({ ...tagOf(value), name }),
@@ -168,7 +195,12 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
         .andThen((checked) =>
           call(
             "update_tag",
-            { tag_id: id, name: patch.name ?? null, fields: checked },
+            {
+              tag_id: id,
+              name: patch.name ?? null,
+              ...patchOf(patch),
+              fields: checked,
+            },
             (value) => value === true,
           ),
         ),

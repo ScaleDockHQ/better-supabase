@@ -73,7 +73,10 @@ function fields(
     {
       field: "priority",
       column: "priority",
-      set: cast("priority", "smallint"),
+      set: ctx.mapsValues("items", "priority")
+        ? (v) =>
+            `${w("priority")} = ${ctx.cast("items", "priority", `(${v} #>> '{}')`)}`
+        : cast("priority", "smallint"),
     },
     { field: "estimate", column: "estimate", set: cast("estimate", "numeric") },
     {
@@ -108,6 +111,9 @@ export function workItemFunctions(
   const item = sqlString(e("work_item"));
   const itemId = sqlString(e("workItemId"));
   const has = (logical: string): boolean => ctx.has("items", logical);
+
+  const state = (value: string, labels: readonly string[], negate = false) =>
+    ctx.is("items", "state", value, labels, negate);
 
   // A column of row, or null when the app maps it to null.
   const or = (row: string, logical: string): string =>
@@ -158,7 +164,7 @@ export function workItemFunctions(
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
+    `to_jsonb(${alias})${ctx.labelsJson("items", alias)} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -307,7 +313,7 @@ ${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) 
   return (select to_jsonb(x) || jsonb_build_object('progress', ${
     has("project")
       ? `(
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y.${w("state")} = 'completed') / count(*) filter (where y.${w("state")} <> 'canceled')) end
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end
       from ${t("items")} y where y.${w("project")} = x.${p("id")} and y.${w("archivedAt")} is null
     )`
       : "null"
@@ -456,7 +462,13 @@ begin
           "iteration",
           `(create_work_item.attrs ->> ${sqlString(e("iterationId"))})::uuid`,
         ),
-        "coalesce((create_work_item.attrs ->> 'priority')::smallint, 0)",
+        ctx.mapsValues("items", "priority")
+          ? ctx.cast(
+              "items",
+              "priority",
+              "coalesce(create_work_item.attrs ->> 'priority', '0')",
+            )
+          : "coalesce((create_work_item.attrs ->> 'priority')::smallint, 0)",
       ],
       [
         present(
@@ -667,12 +679,12 @@ as $$
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', tree.${w("id")}, 'parentId', tree.${w("parent")}, 'identifier', tree.${w("identifier")}, 'title', tree.${w("title")},
-    'state', tree.${w("state")}, 'startAt', ${or("tree", "startAt")}, 'endAt', ${or("tree", "endAt")}, 'dueAt', tree.${w("dueAt")},
+    'state', ${ctx.label("items", "state", `tree.${w("state")}`)}, 'startAt', ${or("tree", "startAt")}, 'endAt', ${or("tree", "endAt")}, 'dueAt', tree.${w("dueAt")},
     'locked', tree.${w("locked")}, 'depth', tree.depth,
     'progress', coalesce(${or("tree", "progress")}, (
-      select case when count(*) filter (where ch.${w("state")} <> 'canceled') = 0 then
-          case tree.${w("state")} when 'completed' then 100 else 0 end
-        else round(100.0 * count(*) filter (where ch.${w("state")} = 'completed') / count(*) filter (where ch.${w("state")} <> 'canceled'))::integer end
+      select case when count(*) filter (where ${state(`ch.${w("state")}`, ["canceled"], true)}) = 0 then
+          ${ctx.mapsValues("items", "state") ? `case when ${state(`tree.${w("state")}`, ["completed"])} then 100 else 0 end` : `case tree.${w("state")} when 'completed' then 100 else 0 end`}
+        else round(100.0 * count(*) filter (where ${state(`ch.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`ch.${w("state")}`, ["canceled"], true)}))::integer end
       from ${t("items")} ch where ch.${w("parent")} = tree.${w("id")} and ch.${w("archivedAt")} is null))
   ) order by tree.depth, tree.${w("rank")} collate "C", tree.${w("id")}), '[]'::jsonb)
   from tree
@@ -700,7 +712,7 @@ as $$
       and (list_work_items.filter ->> ${sqlString(e("iterationId"))} is null or ${has("iteration") ? `x.${w("iteration")} = (list_work_items.filter ->> ${sqlString(e("iterationId"))})::uuid` : "false"})
       and (list_work_items.filter ->> 'parentId' is null or x.${w("parent")} = (list_work_items.filter ->> 'parentId')::uuid)
       and (list_work_items.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_work_items.filter ->> 'assigneeId')::uuid))
-      and (list_work_items.filter -> 'states' is null or ${asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
+      and (list_work_items.filter -> 'states' is null or ${ctx.mapsValues("items", "state") ? ctx.label("items", "state", `x.${w("state")}`) : asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
       and (coalesce((list_work_items.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)
       and (list_work_items.search is null or x.${w("title")} ilike '%' || list_work_items.search || '%' or x.${w("identifier")} ilike list_work_items.search || '%')
       and (list_work_items.after is null or x.${w("number")} < (select z.${w("number")} from ${t("items")} z where z.${w("id")} = list_work_items.after))

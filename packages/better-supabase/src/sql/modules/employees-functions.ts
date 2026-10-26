@@ -208,7 +208,7 @@ export function employeeFunctions(
   ];
 
   const offboardSet = [
-    `${e("status")} = 'offboarded'`,
+    `${e("status")} = ${ctx.value("employees", "status", "offboarded")}`,
     ...(has("endDate")
       ? [`${e("endDate")} = coalesce(offboard_employee.end_date, current_date)`]
       : []),
@@ -218,7 +218,7 @@ export function employeeFunctions(
   ].join(", ");
 
   const rowWith = (alias: string, depth: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and r.${e("status")} <> 'offboarded'))`;
+    `to_jsonb(${alias}) || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and ${ctx.is("employees", "status", `r.${e("status")}`, ["offboarded"], true)}))`;
 
   return `
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
@@ -314,7 +314,7 @@ ${writes}
           ${fail("EMPLOYEE_STATUS_INVALID", "status is preboarding, active or on_leave; offboard to end employment", "22023")}
         end if;
         update ${table} x set ${e("status")} = ${ctx.cast("employees", "status", "v_change ->> 'value'")}${touched} where x.${e("id")} = v_id returning * into v_row;
-        if v_was.${e("status")} = 'offboarded' then${
+        if ${ctx.is("employees", "status", `v_was.${e("status")}`, ["offboarded"])} then${
           rehire.length === 0
             ? ""
             : `
@@ -375,7 +375,7 @@ begin
   if v_row.${e("id")} is null or not ${editable("v_row")} then
     ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can offboard", "P0002")}
   end if;
-  if v_row.${e("status")} = 'offboarded' then
+  if ${ctx.is("employees", "status", `v_row.${e("status")}`, ["offboarded"])} then
     return to_jsonb(v_row);
   end if;
   ${ctx.hook("before_employee_offboard", [["uuid", `v_row.${e("id")}`]])}
@@ -418,12 +418,12 @@ begin
     with recursive tree (id, depth, path) as (
       select x.${e("id")}, 0, array[lower(x.${e("name")}), x.${e("id")}::text]
       from ${table} x
-      where x.${e("tenant")} = org_chart.tenant and x.${e("status")} <> 'offboarded'
+      where x.${e("tenant")} = org_chart.tenant and ${ctx.is("employees", "status", `x.${e("status")}`, ["offboarded"], true)}
         and case when org_chart.root is null then x.${e("manager")} is null else x.${e("id")} = org_chart.root end
       union all
       select c.${e("id")}, tree.depth + 1, tree.path || array[lower(c.${e("name")}), c.${e("id")}::text]
       from ${table} c join tree on c.${e("manager")} = tree.id
-      where c.${e("status")} <> 'offboarded' and tree.depth < 100
+      where ${ctx.is("employees", "status", `c.${e("status")}`, ["offboarded"], true)} and tree.depth < 100
     )
     select coalesce(jsonb_agg(${rowWith("x", "tree.depth")} order by tree.path), '[]'::jsonb)
     from tree join ${table} x on x.${e("id")} = tree.id
@@ -453,11 +453,11 @@ begin
     with recursive tree (id, depth, path) as (
       select x.${e("id")}, 1, array[lower(x.${e("name")}), x.${e("id")}::text]
       from ${table} x
-      where x.${e("manager")} = reports_of.manager and x.${e("status")} <> 'offboarded'
+      where x.${e("manager")} = reports_of.manager and ${ctx.is("employees", "status", `x.${e("status")}`, ["offboarded"], true)}
       union all
       select c.${e("id")}, tree.depth + 1, tree.path || array[lower(c.${e("name")}), c.${e("id")}::text]
       from ${table} c join tree on c.${e("manager")} = tree.id
-      where coalesce(reports_of.indirect, false) and c.${e("status")} <> 'offboarded' and tree.depth < 100
+      where coalesce(reports_of.indirect, false) and ${ctx.is("employees", "status", `c.${e("status")}`, ["offboarded"], true)} and tree.depth < 100
     )
     select coalesce(jsonb_agg(${rowWith("x", "tree.depth")} order by tree.path), '[]'::jsonb)
     from tree join ${table} x on x.${e("id")} = tree.id

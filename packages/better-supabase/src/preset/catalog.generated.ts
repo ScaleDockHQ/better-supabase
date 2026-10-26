@@ -1428,6 +1428,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "drive",
+        "subjects",
         "bulk"
       ],
       "manifest": "tags",
@@ -1499,7 +1500,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "field-encryption",
-        "audit"
+        "audit",
+        "subjects"
       ],
       "manifest": "custom-fields",
       "scopes": [
@@ -1548,7 +1550,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "versions"
+        "versions",
+        "subjects"
       ],
       "manifest": "share-links",
       "scopes": [
@@ -1580,7 +1583,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "useCount": "use_count",
               "createdBy": "created_by",
               "leaf": "leaf_id",
-              "versionId": "version_id"
+              "versionId": "version_id",
+              "createdAt": "created_at"
             }
           }
         },
@@ -2907,7 +2911,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
-              "seconds": "seconds"
+              "seconds": "seconds",
+              "runningSince": "running_since"
             }
           },
           "timesheets": {
@@ -2921,7 +2926,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "submittedAt": "submitted_at",
               "approvedAt": "approved_at",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "status": "status",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "decisionNote": "decision_note"
             }
           }
         },
@@ -8362,6 +8371,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "FieldDefinitionDetail"
+        },
+        {
+          "name": "FieldValue"
+        },
+        {
+          "name": "SetFieldInput"
         }
       ],
       "events": {
@@ -8370,6 +8385,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "custom_field.saved",
           "custom_field.deleted",
           "field_value.set",
+          "field_value.deleted",
           "field_value.viewed"
         ]
       }
@@ -17155,6 +17171,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "FoundShareLink"
+        },
+        {
           "name": "ResolvedShareLink"
         },
         {
@@ -17482,6 +17501,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "CreateTeamOptions"
+        },
+        {
           "name": "Team",
           "fields": true
         },
@@ -17494,6 +17516,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TeamsOptions"
+        },
+        {
+          "name": "UpdateTeamOptions"
         }
       ],
       "events": {
@@ -17502,6 +17527,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team.created",
           "team.updated",
           "team.archived",
+          "team.restored",
           "team.deleted",
           "team_member.added",
           "team_member.removed"
@@ -17662,7 +17688,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "time_entry.deleted",
           "timesheet.submitted",
           "timesheet.approved",
-          "timesheet.reopened"
+          "timesheet.reopened",
+          "timesheet.rejected"
         ]
       }
     },

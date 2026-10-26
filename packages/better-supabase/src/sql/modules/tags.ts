@@ -17,6 +17,7 @@ import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -24,6 +25,8 @@ import {
 } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
+  andSubjectAction,
+  subjectActionCheck,
   subjectReadable,
   subjectTableBindings,
   subjectsOption,
@@ -52,7 +55,7 @@ const NAMES: BlockSqlNames = {
   entities: { tag: { table: "tags", singular: "tag", primary: true } },
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
-  options: ["extraColumns"],
+  options: ["extraColumns", "patch"],
   tables: {
     tags: {
       name: "tags",
@@ -91,6 +94,8 @@ const NAMES: BlockSqlNames = {
 };
 
 const LINK_COLUMNS = ["subject", "tag"] as const;
+
+const SLUG = "'^[a-z0-9]+(-[a-z0-9]+)*$'";
 
 /** The keys the tag reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
@@ -188,6 +193,10 @@ function build(ctx: BlockSqlContext): string {
   const createdAt = ctx.col("tags", "createdAt");
   const updatedAt = ctx.col("tags", "updatedAt");
   const manage = ctx.permission("manage", OPERATIONS["tags.manage"]);
+  const manageKey = ctx.permissionKey("manage", OPERATIONS["tags.manage"]);
+  const create = sqlString(ctx.config.permissions["create"] ?? manageKey);
+  const update = sqlString(ctx.config.permissions["update"] ?? manageKey);
+  const remove = sqlString(ctx.config.permissions["delete"] ?? manageKey);
   const read = ctx.permission("read", OPERATIONS["tags.read"]);
   const applyKey = ctx.permission("apply", OPERATIONS["tags.apply"]);
 
@@ -206,7 +215,12 @@ function build(ctx: BlockSqlContext): string {
     },
     access: "read" | "write",
   ): string => {
-    const declared = subjectReadable(ctx, list, args);
+    const declared = andSubjectAction(
+      subjectReadable(ctx, list, args),
+      access === "write"
+        ? subjectActionCheck(ctx, list, args, ["tag"])
+        : undefined,
+    );
 
     return drive === undefined
       ? declared
@@ -218,6 +232,11 @@ function build(ctx: BlockSqlContext): string {
   const shared = ctx.scope.kind !== "tenant";
   const extras = ctx.extraColumns("tags", RESERVED);
   const extra = extraFieldsArg(extras);
+  const required = insertExtraColumns(tags, extras, "create_tag.fields");
+  const patching = ctx.flag("patch", false);
+
+  const derivedSlug =
+    "trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'))";
 
   const tables = ctx.manages
     ? `create table if not exists ${tags} (
@@ -281,8 +300,17 @@ ${lockTable(taggings, { read: true })}
   return `${schemaPreamble(ctx)}
 ${tables}
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-${extra.drop(fn("create_tag"), `${ctx.idType}, text, text, text, text`)}
-create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text${extra.param})
+${
+  patching
+    ? ["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"]
+        .map(
+          (tail) =>
+            `drop function if exists ${fn("create_tag")}(${ctx.idType}, text, text, text, text${tail});`,
+        )
+        .join("\n")
+    : extra.drop(fn("create_tag"), `${ctx.idType}, text, text, text, text`)
+}
+create or replace function ${fn("create_tag")}(tenant ${ctx.idType}, kind text, name text, color text, description text${patching ? ", slug text default null" : ""}${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -290,22 +318,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_slug text := trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'));
+  v_slug text := ${patching ? `coalesce(create_tag.slug, ${derivedSlug})` : derivedSlug};
   v_last text;
   v_rank text;
 begin
-  ${ctx.scope.bind("create_tag.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", manage)}) then
+  ${ctx.scope.bind("create_tag.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("create_tag.tenant", create)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
-  end if;
+  end if;${
+    patching
+      ? `
+  if create_tag.slug is not null and create_tag.slug !~ ${SLUG} then
+    ${fail("TAG_SLUG_INVALID", "a slug is lowercase letters and digits joined by single hyphens", "22023")}
+  end if;`
+      : ""
+  }
 ${
   ranked
     ? `  select max(t.${rank} collate "C") into v_last from ${tags} t
     where ${ctx.scope.eq(`t.${tenant}`, "create_tag.tenant")} and t.${kind} = ${ctx.cast("tags", "kind", "create_tag.kind")};
   v_rank := ${rankAfter("v_last")};
-  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${rank}, ${createdAt})
-  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())`
-    : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
-  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
+  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${rank}, ${createdAt}${required.columns})
+  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now()${required.values})`
+    : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt}${required.columns})
+  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, now()${required.values})`
 }
   returning ${id} into v_id;${writeExtraColumns(tags, extras, "create_tag.fields", `x.${id} = v_id`)}
   ${ctx.record({
@@ -318,7 +353,7 @@ ${
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)" : `(select jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank${extraFieldsJson("x", extras)}) from ${tags} x where x.${id} = v_id)`};
 end;
 $$;
-${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text${extra.type})`)}
+${userGrant(`${fn("create_tag")}(${ctx.idType}, text, text, text, text${patching ? ", text" : ""}${extra.type})`)}
 
 create or replace function ${fn("tag")}(tenant ${ctx.idType}, subject_type text, subject_id text, tag_id uuid)
 returns boolean
@@ -383,8 +418,19 @@ end;
 $$;
 ${userGrant(`${fn("tag")}(${ctx.idType}, text, text, uuid)`)}
 
-${extra.drop(fn("update_tag"), "uuid, text")}
-create or replace function ${fn("update_tag")}(tag_id uuid, name text${extra.param})
+${
+  patching
+    ? `${["", ", jsonb", ...(extras.length === 0 ? [", jsonb, jsonb"] : [])]
+        .map(
+          (tail) =>
+            `drop function if exists ${fn("update_tag")}(uuid, text${tail});`,
+        )
+        .join("\n")}
+-- patch: name, slug, color, description and kind to set; a key that is
+-- present sets its column, so null clears color or description.`
+    : extra.drop(fn("update_tag"), "uuid, text")
+}
+create or replace function ${fn("update_tag")}(tag_id uuid, name text${patching ? ", patch jsonb default null" : ""}${extra.param})
 returns boolean
 language plpgsql
 security definer
@@ -397,13 +443,28 @@ begin
   if not found then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", update)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
-  update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
+  ${
+    patching
+      ? `if update_tag.patch is not null and (jsonb_typeof(update_tag.patch) <> 'object'
+    or update_tag.patch ? 'slug' and coalesce(update_tag.patch ->> 'slug', '') !~ ${SLUG}
+    or update_tag.patch ? 'name' and nullif(trim(update_tag.patch ->> 'name'), '') is null
+    or update_tag.patch ? 'kind' and update_tag.patch ->> 'kind' is null) then
+    ${fail("TAG_INVALID", "patch sets name, slug, color, description or kind; name, slug and kind can't be empty", "22023")}
+  end if;
+  update ${tags} t set ${name} = coalesce(update_tag.patch ->> 'name', update_tag.name, t.${name}),
+    ${slug} = case when update_tag.patch ? 'slug' then update_tag.patch ->> 'slug' else t.${slug} end,
+    ${color} = case when update_tag.patch ? 'color' then update_tag.patch ->> 'color' else t.${color} end,
+    ${description} = case when update_tag.patch ? 'description' then update_tag.patch ->> 'description' else t.${description} end,
+    ${kind} = case when update_tag.patch ? 'kind' then ${ctx.cast("tags", "kind", "update_tag.patch ->> 'kind'")} else t.${kind} end,
+    ${updatedAt} = now() where t.${id} = update_tag.tag_id;`
+      : `update ${tags} t set ${name} = coalesce(update_tag.name, t.${name}), ${updatedAt} = now() where t.${id} = update_tag.tag_id;`
+  }${writeExtraColumns(tags, extras, "update_tag.fields", `x.${id} = update_tag.tag_id`)}
   ${ctx.record({
     type: "tag.updated",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name)`,
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', ${patching ? "coalesce(update_tag.patch ->> 'name', update_tag.name)" : "update_tag.name"})`,
     subject: `'tags/' || update_tag.tag_id::text`,
     tenant: "v_tenant",
     audit: false,
@@ -411,8 +472,8 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("update_tag")}(uuid, text${extra.type})`)}
-${ranked ? rankTag(ctx, { tags, id, tenant, rank, updatedAt, manage }) : ""}
+${userGrant(`${fn("update_tag")}(uuid, text${patching ? ", jsonb" : ""}${extra.type})`)}
+${ranked ? rankTag(ctx, { tags, id, tenant, rank, updatedAt, manage: update }) : ""}
 create or replace function ${fn("delete_tag")}(tag_id uuid)
 returns boolean
 language plpgsql
@@ -426,7 +487,7 @@ begin
   if not found then
     ${fail("TAG_NOT_FOUND", "tag not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", remove)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to manage tags")}
   end if;
   delete from ${tags} where ${id} = delete_tag.tag_id;
@@ -592,7 +653,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_tag",
-      args: ["{id}", "text", "text", "text", "text", ...extra],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...(ctx.flag("patch", false) ? ["text"] : []),
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
@@ -668,7 +737,7 @@ export const TAGS: BlockSqlDefinition = {
   description:
     "Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "drive"],
+  integrates: ["outbox", "drive", "subjects"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

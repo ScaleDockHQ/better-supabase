@@ -59,6 +59,55 @@ nothing. Subjects with `tenant: false` are skipped, because every document
 belongs to a tenant. Installing the module indexes the rows that already
 exist, and `search.reindex()` does it again after a config change.
 
+### Labels, descriptions and archived rows
+
+A `search` entry takes four more keys for records whose label or matches live
+outside their own row:
+
+| Key           | What it does                                                                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | A column whose value each hit returns as `description` (`SearchHit.description`), such as a SKU or the customer a record belongs to. The index adds a `description` column only once a subject sets it                                   |
+| `exclude`     | A column that keeps a row out of search while it is set (not null and not `false`), such as `archived_at`. Unlike `deletedAt`, the other blocks still see the row                                                                        |
+| `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record |
+| `watch`       | `[{ table, key, via? }]`: tables whose insert, update or delete re-index the record. `key` holds the record's id, or, with `via`, the value the record's `via` column holds                                                              |
+
+```ts title="better-supabase.config.ts"
+records: {
+  customer: {
+    table: "public.customers",
+    idType: "uuid",
+    title: "name",
+    url: "/customers/{id}",
+    search: {
+      title: "label",
+      body: ["contact_names", "contact_emails", "city"],
+      description: "vat_number",
+      exclude: "archived_at",
+      from: { view: "public.customer_search_sources", key: "customer_id" },
+      watch: [
+        { table: "public.customer_contacts", key: "customer_id" },
+        { table: "public.customer_locations", key: "customer_id" },
+      ],
+    },
+  },
+  asset: {
+    table: "public.assets",
+    idType: "uuid",
+    search: {
+      title: "label",
+      description: "customer_name",
+      from: { view: "public.asset_search_sources", key: "asset_id" },
+      watch: [{ table: "public.products", key: "id", via: "product_id" }],
+    },
+  },
+},
+```
+
+A source view is ordinary schema of the app: it expresses how a record is
+labelled (a number and a title joined, a related name) without the block
+knowing the shape. Changes to the record's own columns still re-index it;
+`watch` covers the tables behind the view.
+
 ## Search
 
 `search` runs as the caller. The table's policy keeps the caller's tenants

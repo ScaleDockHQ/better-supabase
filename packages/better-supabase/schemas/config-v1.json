@@ -846,6 +846,12 @@
                 "permitted": {
                   "type": "string"
                 },
+                "rowsWith": {
+                  "type": "string"
+                },
+                "rowsWithFor": {
+                  "type": "string"
+                },
                 "portalSubjects": {
                   "type": "string"
                 },
@@ -1377,7 +1383,26 @@
           "permissions": {
             "type": "object",
             "additionalProperties": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
             },
             "description": "A permission key per action that `can_subject` checks in the subject's tenant."
           },
@@ -1403,6 +1428,44 @@
                 "type": "array",
                 "items": {
                   "type": "string"
+                }
+              },
+              "description": {
+                "type": "string"
+              },
+              "exclude": {
+                "type": "string"
+              },
+              "from": {
+                "type": "object",
+                "properties": {
+                  "view": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": ["view", "key"],
+                "additionalProperties": false
+              },
+              "watch": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "via": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["table", "key"],
+                  "additionalProperties": false
                 }
               }
             },
@@ -3095,6 +3158,35 @@
             }
           }
         },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "idType": {
           "type": "string"
         },
@@ -3278,6 +3370,35 @@
                   "type": "null"
                 }
               ]
+            }
+          }
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             }
           }
         },
@@ -4169,6 +4290,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "calendarExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4686,6 +4813,18 @@
                 }
               },
               "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "privateDetailsExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "contractExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
@@ -6246,6 +6385,14 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "tokenHash": {
+                "type": "boolean",
+                "default": false
+              },
+              "fullRows": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6406,6 +6553,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "patch": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6454,6 +6605,14 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "patch": {
+                "type": "boolean",
+                "default": false
+              },
+              "restore": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6495,7 +6654,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
-              }
+              },
+              "approvals": {
+                "type": "boolean",
+                "default": true
+              },
+              "userTimeZone": {}
             }
           }
         }

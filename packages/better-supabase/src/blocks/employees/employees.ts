@@ -174,6 +174,8 @@ export interface PrivateDetails {
 
 /** The details to save. Left out keeps the stored value; `null` clears it. */
 export interface PrivateDetailsInput {
+  /** With `options.privateDetailsExtraColumns`: values for those columns. */
+  readonly fields?: Readonly<Record<string, unknown>>;
   readonly nationalId?: string | null;
   readonly iban?: string | null;
   readonly birthDate?: Temporal.PlainDate | null;
@@ -196,6 +198,8 @@ export interface Contract {
 }
 
 export interface ContractInput {
+  /** With `options.contractExtraColumns`: values for those columns. */
+  readonly fields?: Readonly<Record<string, unknown>>;
   readonly startsOn: Temporal.PlainDate;
   readonly endsOn?: Temporal.PlainDate;
   readonly hoursPerWeek?: number;

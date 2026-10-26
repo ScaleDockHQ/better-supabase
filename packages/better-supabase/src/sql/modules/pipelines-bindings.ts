@@ -43,6 +43,11 @@ export interface PipelineBinding {
   readonly status?: {
     readonly column: string;
     readonly values: Readonly<Record<string, string>>;
+    /**
+     * A write to the status column moves the record to the first active stage
+     * whose category maps to the new status.
+     */
+    readonly follow?: boolean;
   };
   readonly stages: readonly StageTemplate[];
 }
@@ -198,7 +203,13 @@ function statusOf(
     values[category] = status;
   }
 
-  return { column, values };
+  const follow = value["follow"];
+
+  if (follow !== undefined && typeof follow !== "boolean") {
+    throw new TypeError(`${where}.status.follow must be true or false`);
+  }
+
+  return { column, values, ...(follow === true && { follow }) };
 }
 
 /**

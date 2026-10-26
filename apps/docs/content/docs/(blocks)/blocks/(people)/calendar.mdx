@@ -414,6 +414,11 @@ validate them (a bad value is a `validation` error), and `events` return them
 parsed. A column the module already uses is refused. See
 [your own fields](/docs/extending/blocks#your-own-fields).
 
+`blocks.calendar.options.calendarExtraColumns` does the same for the
+calendars table: `createCalendar(organizationId, name, { fields })` writes
+them (one that is `not null` without a `default` inside the insert), and
+`listCalendars` returns them under `fields`.
+
 ```ts
 const client = createCalendar({
   transport,

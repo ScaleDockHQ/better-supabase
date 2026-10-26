@@ -82,6 +82,34 @@ export const writeExtraColumns = (
   where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
 
 /**
+ * The extra columns an insert sets itself: those whose type is `not null`
+ * without a `default`, which the update `writeExtraColumns` runs after the
+ * insert would set too late. `columns` and `values` are `, a, b` lists for the
+ * insert, reading `source` (a `jsonb` object keyed by column name); both are
+ * empty when no extra column needs it, so the insert is unchanged.
+ */
+export const insertExtraColumns = (
+  table: string,
+  extras: readonly ExtraColumn[],
+  source: string,
+): { readonly columns: string; readonly values: string } => {
+  const required = extras.filter(
+    (extra) =>
+      /\bnot\s+null\b/iu.test(extra.type) && !/\bdefault\b/iu.test(extra.type),
+  );
+
+  return {
+    columns: required.map((extra) => `, ${extra.ident}`).join(""),
+    values: required
+      .map(
+        (extra) =>
+          `, (jsonb_populate_record(null::${table}, coalesce(${source}, '{}'::jsonb))).${extra.ident}`,
+      )
+      .join(""),
+  };
+};
+
+/**
  * `json` (a `jsonb` expression of row `alias`) with the extra columns under
  * `fields`, or `json` itself without any.
  */

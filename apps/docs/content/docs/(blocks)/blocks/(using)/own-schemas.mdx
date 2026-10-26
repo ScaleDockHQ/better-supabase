@@ -141,8 +141,8 @@ may be your own enum or domain.
   - `better_supabase.bulk_runs`: `id`, `tenant_id`, `subject_type`, `action`, `args`, `ids`, `position`, `succeeded`, `failed`, `results`, `status`, `created_by`, `created_at`, `finished_at`; typed: `status`
 - `calendar`
   - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`
-  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `rrule`, `exdates`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`
-  - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `email`, `name`, `user_id`, `role`, `response`
+  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `rrule`, `exdates`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`; typed with values: `kind`, `transparency`
+  - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `email`, `name`, `user_id`, `role`, `response`; typed with values: `role`, `response`
   - `better_supabase.calendar_working_hours`: `id`, `tenant_id`, `user_id`, `weekday`, `starts_at`, `ends_at`, `tz`
 - `catalog`
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`
@@ -211,7 +211,7 @@ may be your own enum or domain.
 - `custom-fields`
   - `better_supabase.field_definitions`: `id`, `tenant_id`, `entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`
   - `better_supabase.field_options`: `id`, `definition_id`, `value`, `label`
-  - `better_supabase.field_values`: `id`, `tenant_id`, `subject_type`, `subject_id`, `value_text`, `value_number`, `value_date`, `value_bool`, `option_id`
+  - `better_supabase.field_values`: `id`, `tenant_id`, `value_text`, `value_number`, `value_date`, `value_bool`; typed: `type`, `subject_type`
 - `data-lifecycle`
   - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `organization_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
   - `better_supabase.organization_deletions`: `organization_id`, `purge_after`, `cancelled_at`, `purged_at`, `previously_disabled`
@@ -518,7 +518,7 @@ may be your own enum or domain.
   - `better_supabase.tags`: `id`, `tenant_id`, `kind`, `name`, `slug`, `color`, `description`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`
 - `tasks`
-  - `better_supabase.work_items`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`
+  - `better_supabase.work_items`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`; typed with values: `priority`
   - `better_supabase.work_item_checklist_items`: `id`, `tenant_id`, `work_item_id`, `title`, `done`, `rank`, `created_at`
   - `better_supabase.work_item_assignees`: `tenant_id`, `work_item_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
@@ -532,8 +532,8 @@ may be your own enum or domain.
   - `better_supabase.template_applications`: `id`, `template_id`, `version_id`, `tenant_id`, `subject_type`, `subject_id`, `applied_at`
   - `better_supabase.template_workflows`: `id`, `template_id`, `definition_id`, `inputs`
 - `time-tracking`
-  - `better_supabase.time_entries`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `started_at`, `ended_at`, `billable`, `rate`, `rate_currency`, `note`, `created_at`, `updated_at`, `seconds`
-  - `better_supabase.timesheets`: `id`, `tenant_id`, `user_id`, `week`, `approval_id`, `note`, `submitted_at`, `approved_at`, `created_at`
+  - `better_supabase.time_entries`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `started_at`, `billable`, `rate`, `rate_currency`, `note`, `created_at`, `updated_at`, `seconds`
+  - `better_supabase.timesheets`: `id`, `tenant_id`, `user_id`, `week`, `note`, `submitted_at`, `approved_at`, `created_at`; typed: `status`
 - `timeline`
   - `better_supabase.activity_entries`: `id`, `organization_id`, `event_id`, `type`, `subject_type`, `subject_id`, `data`, `occurred_at`
 - `trash`
@@ -617,6 +617,50 @@ export default defineConfig({
   },
 });
 ```
+
+### Your column's values
+
+A typed column of yours may store other values than the labels a block
+writes, such as `canceled` where the calendar writes `cancelled`, or one
+`started` state the app keeps as `in_progress` and `on_hold`. Map them with
+`blocks.<name>.values.<table>.<column>`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    tasks: {
+      tables: { items: "public.tasks" },
+      values: {
+        items: {
+          state: {
+            backlog: "todo",
+            unstarted: "todo",
+            started: ["in_progress", "on_hold"],
+            completed: "done",
+            triage: null,
+            canceled: null,
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+Each label maps to the value your column stores. A list maps one label to
+several values: the block writes the first, and every one of them reads as the
+label. `null` marks a label your app does not support: a call that would write
+it fails with the hint `VALUE_UNSUPPORTED`, and a comparison with it matches
+nothing. A label you leave out stays as it is. The block applies the map to
+every value it writes, every comparison in its functions, triggers and
+pipeline bindings, and to the typed fields its read functions return, which
+come back as labels.
+
+The list under [Tables a block runs over](#tables-a-block-runs-over) names
+the columns that take values: `typed` columns, and `typed with values`
+columns, which the block casts to your column's type only once they have an
+entry. An empty entry (`transparency: {}`) casts without renaming any label,
+for an enum whose labels match the block's.
 
 ### One tenant column name
 

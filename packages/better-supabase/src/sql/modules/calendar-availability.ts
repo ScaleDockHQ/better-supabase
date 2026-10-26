@@ -299,11 +299,11 @@ function busyBlocks(ctx: BlockSqlContext): string {
   const kind = ctx.has("events", "kind") ? e("kind") : "'event'::text";
 
   const opaque = ctx.has("events", "transparency")
-    ? `${e("transparency")} <> 'transparent'`
+    ? ctx.is("events", "transparency", e("transparency"), ["transparent"], true)
     : "true";
 
   const declines = ctx.has("events", "autoDecline")
-    ? `(${kind} <> 'event' and ${e("autoDecline")})`
+    ? `(${ctx.has("events", "kind") ? ctx.is("events", "kind", kind, ["event"], true) : `${kind} <> 'event'`} and ${e("autoDecline")})`
     : "false";
 
   const sources: string[] = [];
@@ -324,10 +324,10 @@ function busyBlocks(ctx: BlockSqlContext): string {
     join ${events} e on (${e("id")} = ${a("event")} or ${e("recurrence")} = ${a("event")})
     where ${a("tenant")} = calendar_busy_blocks.tenant
       and ${a("user")} = any (calendar_busy_blocks.user_ids)
-      and ${a("response")} <> 'declined'
+      and ${ctx.is("attendees", "response", a("response"), ["declined"], true)}
       and not exists (
         select 1 from ${ctx.table("attendees")} d
-        where ${d("event")} = ${e("id")} and ${d("user")} = ${a("user")} and ${d("response")} = 'declined'
+        where ${d("event")} = ${e("id")} and ${d("user")} = ${a("user")} and ${ctx.is("attendees", "response", d("response"), ["declined"])}
       )`);
   }
 
@@ -366,7 +366,7 @@ function busyBlocks(ctx: BlockSqlContext): string {
     from sources s
     join ${events} e on ${e("id")} = s.event_id
     where ${e("tenant")} = calendar_busy_blocks.tenant
-      and ${e("status")} <> 'cancelled'
+      and ${ctx.is("events", "status", e("status"), ["cancelled"], true)}
       and ${opaque}
       and ${e("startsAt")} < calendar_busy_blocks.range_end
   )
@@ -614,16 +614,16 @@ begin
   if v_owner is null then
     return null;
   end if;
-  update ${attendees} a set ${a("response")} = 'declined'
+  update ${attendees} a set ${a("response")} = ${ctx.value("attendees", "response", "declined")}
   from ${events} x
   where a.${a("event")} = x.${e("id")}
     and a.${a("user")} = v_owner
-    and a.${a("response")} = 'needs-action'
+    and ${ctx.is("attendees", "response", `a.${a("response")}`, ["needs-action"])}
     and x.${e("tenant")} = new.${e("tenant")}
     and x.${e("id")} <> new.${e("id")}
     and x.${e("rrule")} is null
-    and x.${e("kind")} = 'event'
-    and x.${e("status")} <> 'cancelled'
+    and ${ctx.is("events", "kind", `x.${e("kind")}`, ["event"])}
+    and ${ctx.is("events", "status", `x.${e("status")}`, ["cancelled"], true)}
     and x.${e("startsAt")} < new.${e("endsAt")}
     and x.${e("endsAt")} > new.${e("startsAt")};
   return null;
@@ -634,7 +634,7 @@ drop trigger if exists ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`
 create trigger ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`)}
 after insert or update of ${e("startsAt")}, ${e("endsAt")}, ${e("kind")}, ${e("autoDecline")}, ${e("status")} on ${events}
 for each row
-when (new.${e("kind")} <> 'event' and new.${e("autoDecline")} and new.${e("status")} <> 'cancelled' and new.${e("rrule")} is null)
+when (${ctx.is("events", "kind", `new.${e("kind")}`, ["event"], true)} and new.${e("autoDecline")} and ${ctx.is("events", "status", `new.${e("status")}`, ["cancelled"], true)} and new.${e("rrule")} is null)
 execute function ${block}();
 `
     : "";
@@ -652,12 +652,12 @@ begin
   select x.${e("tenant")} as tenant, x.${e("startsAt")} as starts_at, x.${e("endsAt")} as ends_at
     into v_event
   from ${events} x
-  where x.${e("id")} = new.${a("event")} and x.${e("rrule")} is null and x.${e("kind")} = 'event' and x.${e("status")} <> 'cancelled';
+  where x.${e("id")} = new.${a("event")} and x.${e("rrule")} is null and ${ctx.is("events", "kind", `x.${e("kind")}`, ["event"])} and ${ctx.is("events", "status", `x.${e("status")}`, ["cancelled"], true)};
   if found and exists (
     select 1 from ${busy}(v_event.tenant, array[new.${a("user")}], v_event.starts_at, v_event.ends_at) b
     where b.declines and b.event_id is distinct from new.${a("event")}
   ) then
-    new.${a("response")} := 'declined';
+    new.${a("response")} := ${ctx.value("attendees", "response", "declined")};
   end if;
   return new;
 end;
@@ -667,7 +667,7 @@ drop trigger if exists ${inviteTrigger} on ${attendees};
 create trigger ${inviteTrigger}
 before insert or update of ${a("user")} on ${attendees}
 for each row
-when (new.${a("user")} is not null and new.${a("response")} = 'needs-action')
+when (new.${a("user")} is not null and ${ctx.is("attendees", "response", `new.${a("response")}`, ["needs-action"])})
 execute function ${invite}();
 ${blockSql}`;
 }
