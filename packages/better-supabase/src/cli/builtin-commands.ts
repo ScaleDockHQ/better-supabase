@@ -16,6 +16,11 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/upgrade.ts").then((m) => m.upgradeCommand),
   ],
   ["table", () => import("./commands/table.ts").then((m) => m.tableCommand)],
+  [
+    "migrate schema-first",
+    () =>
+      import("./commands/migrate.ts").then((m) => m.migrateSchemaFirstCommand),
+  ],
   ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
   ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],

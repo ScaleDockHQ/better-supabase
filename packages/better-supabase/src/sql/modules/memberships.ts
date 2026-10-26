@@ -530,11 +530,11 @@ as $$
   select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member${memberRoleFilter}
 $$;
 ${memberRolesFunction(ctx, role, memberRoleFilter.replaceAll("organization_member_role.member", "organization_member_roles.member"))}${policy}${membershipRolesPolicy(ctx)}
-revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public, anon;
-revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public, anon;
+revoke execute on function ${ctx.fn("member_organization_ids")}(text[]) from public;
+revoke execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) from public;
 revoke execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) from public, anon, authenticated;
-grant execute on function ${ctx.fn("member_organization_ids")}(text[]) to authenticated, service_role;
-grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to authenticated, service_role;
+grant execute on function ${ctx.fn("member_organization_ids")}(text[]) to anon, authenticated, service_role;
+grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to anon, authenticated, service_role;
 grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to service_role;
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is

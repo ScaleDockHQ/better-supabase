@@ -6,9 +6,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select extensions.plan(13);
 
-select extensions.policies_are('public', 'invoices', array['members read invoices', 'bsb_tenant_scope'], 'public.invoices keeps the app''s policy, which covers the block''s read, next to the scope');
-select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'invoices' and policyname = 'bsb_tenant_scope'), 'the scope on public.invoices is restrictive');
-select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'notes' and policyname = 'bsb_tenant_scope'), 'the scope on the enriched public.notes is restrictive');
+select extensions.policies_are('public', 'invoices', array['members read invoices', 'bsb_tenant_scope_select', 'bsb_tenant_scope_insert', 'bsb_tenant_scope_update', 'bsb_tenant_scope_delete'], 'public.invoices keeps the app''s policy, which covers the block''s read, next to the scope');
+select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'invoices' and policyname = 'bsb_tenant_scope_select'), 'the scope on public.invoices is restrictive');
+select extensions.ok((select permissive = 'RESTRICTIVE' from pg_catalog.pg_policies where schemaname = 'public' and tablename = 'notes' and policyname = 'bsb_tenant_scope_select'), 'the scope on the enriched public.notes is restrictive');
 
 select set_config('request.jwt.claims', json_build_object('sub', '1a000000-0000-4000-8000-00000000000a', 'role', 'authenticated')::text, true);
 set local role authenticated;

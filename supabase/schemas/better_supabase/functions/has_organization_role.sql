@@ -9,6 +9,6 @@ as $$
   from (select better_supabase.organization_member_role(organization, auth.uid()) as role) r
 $$;
 
-revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public, anon;
+revoke execute on function better_supabase.has_organization_role(uuid, text[]) from public;
 
-grant execute on function better_supabase.has_organization_role(uuid, text[]) to authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(uuid, text[]) to anon, authenticated, service_role;
