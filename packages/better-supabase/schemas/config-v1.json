@@ -6636,7 +6636,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
-              }
+              },
+              "approvals": {
+                "type": "boolean",
+                "default": true
+              },
+              "userTimeZone": {}
             }
           }
         }

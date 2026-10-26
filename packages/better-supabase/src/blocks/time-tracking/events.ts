@@ -15,6 +15,8 @@ export type TimeTrackingEvents = {
   readonly "timesheet.submitted": TimesheetEventData;
   readonly "timesheet.approved": TimesheetEventData;
   readonly "timesheet.reopened": TimesheetEventData;
+  /** With `options.approvals: false`: an approver rejected the week. */
+  readonly "timesheet.rejected": TimesheetEventData;
 };
 
 /** The `time-tracking` block's event types, for its manifest and `onBlockEvent`. */
@@ -26,4 +28,5 @@ export const timeTrackingEvents: Events<TimeTrackingEvents> = defineEvents({
   "timesheet.submitted": event<TimesheetEventData>(),
   "timesheet.approved": event<TimesheetEventData>(),
   "timesheet.reopened": event<TimesheetEventData>(),
+  "timesheet.rejected": event<TimesheetEventData>(),
 });

@@ -419,4 +419,96 @@ describe.skipIf(!live)("time-tracking", () => {
       await s.close();
     }
   });
+
+  it("decides timesheets without approvals and starts weeks in each member's time zone", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`create schema tt_status_it;
+create table tt_status_it.zones (id uuid primary key, timezone text);`);
+      const owner = await s.user("owner");
+      const ada = await s.user("ada");
+      const grace = await s.user("grace");
+      await s.install(["organizations", "outbox", "time-tracking"], {
+        modules: {
+          "time-tracking": {
+            schema: "tt_status_it",
+            options: {
+              approvals: false,
+              userTimeZone: { column: "tt_status_it.zones.timezone" },
+            },
+          },
+        },
+      });
+      const tenant = await s.organization(owner, { member: ada, admin: grace });
+      await s.service();
+      await s.client.query(
+        "insert into tt_status_it.zones (id, timezone) values ($1, 'Pacific/Auckland')",
+        [ada.id],
+      );
+
+      await s.as(ada);
+      await s.value(
+        "tt_status_it.log_time($1, '2026-03-01T11:30:00Z', '2026-03-01T12:30:00Z')",
+        [tenant],
+      );
+      expect(
+        await s.value<string>(
+          "to_char(tt_status_it.time_week('2026-03-01T11:30:00Z', $1::uuid), 'YYYY-MM-DD')",
+          [ada.id],
+        ),
+      ).toBe("2026-03-02");
+
+      const submitted = await s.value<{ id: string; status: string }>(
+        "tt_status_it.submit_timesheet($1, '2026-03-02')",
+        [tenant],
+      );
+
+      expect(submitted.status).toBe("submitted");
+      expect(
+        await s.hint(
+          "select tt_status_it.log_time($1, '2026-03-03T09:00:00Z', '2026-03-03T10:00:00Z')",
+          [tenant],
+        ),
+      ).toBe("TIME_PERIOD_LOCKED");
+      expect(
+        await s.hint("select tt_status_it.approve_timesheet($1)", [
+          submitted.id,
+        ]),
+      ).toBe("TIME_FORBIDDEN");
+
+      await s.as(grace);
+
+      const rejected = await s.value<{ status: string; decisionNote: string }>(
+        "tt_status_it.reject_timesheet($1, 'missing Friday')",
+        [submitted.id],
+      );
+
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        decisionNote: "missing Friday",
+      });
+
+      await s.as(ada);
+      await s.value(
+        "tt_status_it.log_time($1, '2026-03-06T09:00:00Z', '2026-03-06T10:00:00Z')",
+        [tenant],
+      );
+      await s.value("tt_status_it.submit_timesheet($1, '2026-03-02')", [
+        tenant,
+      ]);
+
+      await s.as(grace);
+
+      const approved = await s.value<{
+        status: string;
+        approvedAt: string | null;
+      }>("tt_status_it.approve_timesheet($1)", [submitted.id]);
+
+      expect(approved.status).toBe("approved");
+      expect(approved.approvedAt).not.toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
 });

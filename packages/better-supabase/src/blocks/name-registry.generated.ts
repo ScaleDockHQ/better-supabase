@@ -1706,15 +1706,15 @@ export interface BlockNameRegistry {
   };
   readonly "time-tracking": {
     readonly tables: {
-      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds";
-      readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt";
+      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince";
+      readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote";
     };
     readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reopen_timesheet" | "running_timer" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {
-      readonly "entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "seconds";
-      readonly "timesheet": "id" | "tenant_id" | "user_id" | "week" | "approval_id" | "note" | "submitted_at" | "approved_at" | "created_at";
+      readonly "entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "seconds" | "running_since";
+      readonly "timesheet": "id" | "tenant_id" | "user_id" | "week" | "approval_id" | "note" | "submitted_at" | "approved_at" | "created_at" | "status" | "decided_by" | "decided_at" | "decision_note";
     };
     readonly primary: "entry";
   };

@@ -147,6 +147,12 @@ export interface Timesheet {
   readonly note?: string;
   readonly submittedAt?: Temporal.Instant;
   readonly approvedAt?: Temporal.Instant;
+  /** With `options.approvals: false`: who decided the week. */
+  readonly decidedBy?: string;
+  /** With `options.approvals: false`: when the week was decided. */
+  readonly decidedAt?: Temporal.Instant;
+  /** With `options.approvals: false`: the note of a rejection. */
+  readonly decisionNote?: string;
 }
 
 export interface TimesheetTotals {
@@ -205,6 +211,16 @@ export interface TimeTracking<F extends object = Record<never, never>> {
   submit(week: Temporal.PlainDate, note?: string): AsyncResult<Timesheet>;
   /** Unlocks an approved week; needs `time_tracking.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
+  /**
+   * With `options.approvals: false`: approves a submitted week; needs
+   * `time_tracking.approve`, and nobody approves their own.
+   */
+  approve(timesheetId: string): AsyncResult<Timesheet>;
+  /**
+   * With `options.approvals: false`: sends a submitted week back with a note,
+   * which unlocks it.
+   */
+  reject(timesheetId: string, note?: string): AsyncResult<Timesheet>;
   /** Newest week first. */
   timesheets(options?: TimesheetListOptions): AsyncResult<readonly Timesheet[]>;
 }
@@ -265,6 +281,9 @@ function timesheetOf(value: unknown, fn: string): Timesheet {
     ...optional("note", optionalText(row["note"])),
     ...optional("submittedAt", optionalInstant(row["submittedAt"])),
     ...optional("approvedAt", optionalInstant(row["approvedAt"])),
+    ...optional("decidedBy", optionalText(row["decidedBy"])),
+    ...optional("decidedAt", optionalInstant(row["decidedAt"])),
+    ...optional("decisionNote", optionalText(row["decisionNote"])),
   };
 }
 
@@ -494,6 +513,16 @@ export function createTimeTracking<
           { tenant: organizationId, week: week.toString(), note: note ?? null },
           (value) => timesheetOf(value, "submit_timesheet"),
         ),
+      ),
+    approve: (timesheetId) =>
+      call("approve_timesheet", { timesheet_id: timesheetId }, (value) =>
+        timesheetOf(value, "approve_timesheet"),
+      ),
+    reject: (timesheetId, note) =>
+      call(
+        "reject_timesheet",
+        { timesheet_id: timesheetId, note: note ?? null },
+        (value) => timesheetOf(value, "reject_timesheet"),
       ),
     reopen: (timesheetId) =>
       call("reopen_timesheet", { timesheet_id: timesheetId }, (value) =>

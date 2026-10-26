@@ -2911,7 +2911,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
-              "seconds": "seconds"
+              "seconds": "seconds",
+              "runningSince": "running_since"
             }
           },
           "timesheets": {
@@ -2925,7 +2926,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "submittedAt": "submitted_at",
               "approvedAt": "approved_at",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "status": "status",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "decisionNote": "decision_note"
             }
           }
         },
@@ -17683,7 +17688,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "time_entry.deleted",
           "timesheet.submitted",
           "timesheet.approved",
-          "timesheet.reopened"
+          "timesheet.reopened",
+          "timesheet.rejected"
         ]
       }
     },

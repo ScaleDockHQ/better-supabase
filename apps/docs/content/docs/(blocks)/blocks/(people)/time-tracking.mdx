@@ -104,16 +104,57 @@ blocks: {
 },
 ```
 
-| Option     | Default                                      | What it does                                                                                                                      |
-| ---------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `timeZone` | `UTC`                                        | The IANA time zone weeks and days start in                                                                                        |
-| `policy`   | one step: holders of `time_tracking.approve` | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`, because the final approval is what locks the week |
+| Option         | Default                                      | What it does                                                                                                                                                                                                     |
+| -------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeZone`     | `UTC`                                        | The IANA time zone weeks and days start in                                                                                                                                                                       |
+| `policy`       | one step: holders of `time_tracking.approve` | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`, because the final approval is what locks the week                                                                                |
+| `approvals`    | `true`                                       | `false` keeps timesheets without the approvals block ([below](#timesheets-without-approvals))                                                                                                                    |
+| `userTimeZone` | none                                         | `{ column: "schema.table.column", key? }`: the column holding each member's IANA zone (`key`, default `id`, holds the user id). Weeks start in the member's own zone, and in `timeZone` for a member without one |
 
-Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED` and `TIMESHEET_NOT_APPROVED`.
+### Timesheets without approvals
+
+With `options.approvals: false` the module doesn't need the approvals block.
+A timesheet keeps its state in a `status` column (`open`, `submitted`,
+`approved`, `rejected`; map other labels with
+[`values`](/docs/blocks/own-schemas#your-columns-values)), and optional
+`decidedBy`, `decidedAt` and `decisionNote` columns record the decision.
+`submit(week, note)` sets `submitted` and locks the week; a member with
+`time_tracking.approve` calls `approve(id)` or `reject(id, note)`
+(`approve_timesheet` and `reject_timesheet` in SQL), never on their own week,
+and a rejection unlocks it again and records `timesheet.rejected`.
+`reopen(id)` turns an approved or rejected week back to `open`. Over your own
+timesheets table, map `approval` to `null`.
+
+### Entries as a start and a duration
+
+Over your own entries table, an entry can be a start time and a length instead
+of a start and an end. Map `endedAt` to `null`, `seconds` to the writable
+duration column and `runningSince` to the column that marks a running timer:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "time-tracking": {
+    tables: { entries: "public.work_logs" },
+    columns: {
+      entries: {
+        endedAt: null,
+        seconds: "duration_seconds",
+        runningSince: "timer_started_at",
+      },
+    },
+  },
+},
+```
+
+Stopping a timer writes the duration and clears the running mark, logging
+finished time writes the duration, and every read, total, overlap check and
+week lock computes the end as the start plus the duration.
+
+Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED` and, without approvals, `TIMESHEET_NOT_SUBMITTED`.
 
 ## Events and hooks
 
-The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable`, `rate` as text and `rateCurrency`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
+The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable`, `rate` as text and `rateCurrency`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved`, `timesheet.reopened` and, without approvals, `timesheet.rejected` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
 
 ## Metrics
 
