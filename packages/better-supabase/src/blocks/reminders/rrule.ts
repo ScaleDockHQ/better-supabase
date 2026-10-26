@@ -42,7 +42,7 @@ export interface ExpandInput {
   readonly dtstart: Temporal.ZonedDateTime;
   /** An `RRULE` value, with or without the `RRULE:` prefix. */
   readonly rrule?: string;
-  /** CentraKit's column shape, used when `ruleFormat` is `columns`. */
+  /** The column shape used when `ruleFormat` is `columns`. */
   readonly columns?: {
     readonly frequency: "daily" | "weekly" | "monthly" | "yearly";
     readonly interval?: number;
