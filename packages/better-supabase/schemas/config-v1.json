@@ -4296,6 +4296,31 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "access": {
+                "type": "boolean",
+                "default": false
+              },
+              "accessFunctions": {},
+              "userFeed": {
+                "type": "boolean",
+                "default": false
+              },
+              "recurrence": {
+                "type": "string",
+                "default": "inline"
+              },
+              "rdates": {
+                "type": "boolean",
+                "default": false
+              },
+              "attendeeKey": {
+                "type": "string",
+                "default": "email"
+              },
+              "calendarDetails": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4829,6 +4854,18 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "name": {
+                "type": "string",
+                "default": "single"
+              },
+              "privateDetails": {
+                "type": "string",
+                "default": "json"
+              },
+              "contracts": {
+                "type": "string",
+                "default": "append"
               }
             }
           }
@@ -5021,6 +5058,17 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "stages": {
+                "default": "pipelines"
+              },
+              "scorecardKey": {
+                "type": "string",
+                "default": "stage"
+              },
+              "hiringManager": {
+                "type": "string",
+                "default": "user"
               }
             }
           }
@@ -6659,7 +6707,11 @@
                 "type": "boolean",
                 "default": true
               },
-              "userTimeZone": {}
+              "userTimeZone": {},
+              "owner": {
+                "type": "string",
+                "default": "user"
+              }
             }
           }
         }

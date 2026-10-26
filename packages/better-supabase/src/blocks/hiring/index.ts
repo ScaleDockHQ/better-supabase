@@ -12,6 +12,7 @@ export {
   type JobStatus,
   type Recommendation,
   type Scorecard,
+  type ScorecardScore,
 } from "./hiring.ts";
 
 export {

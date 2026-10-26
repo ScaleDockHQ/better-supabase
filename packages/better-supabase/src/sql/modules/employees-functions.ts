@@ -3,6 +3,8 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
+import { splitName } from "./employees-options.ts";
+import { hiringCandidate } from "./hiring-adoption.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
 export interface EmployeeNames {
@@ -18,6 +20,8 @@ export interface EmployeeNames {
   /** SQL that is true for the service role. */
   readonly service: string;
   readonly extras: readonly ExtraColumn[];
+  readonly name: (alias: string) => string;
+  readonly json: (alias: string) => string;
 }
 
 interface Field {
@@ -35,6 +39,7 @@ interface Field {
  */
 function fields(ctx: BlockSqlContext): readonly Field[] {
   const text = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
+  const split = splitName(ctx);
 
   const cast =
     (type: string) =>
@@ -42,7 +47,22 @@ function fields(ctx: BlockSqlContext): readonly Field[] {
       `(${v} #>> '{}')::${type}`;
 
   const all: readonly Field[] = [
-    { field: "name", column: "name", value: (v) => `trim(${v} #>> '{}')` },
+    ...(split
+      ? [
+          {
+            field: "firstName",
+            column: "firstName",
+            value: (v: string) => `trim(${v} #>> '{}')`,
+          },
+          { field: "lastName", column: "lastName", value: text },
+        ]
+      : [
+          {
+            field: "name",
+            column: "name",
+            value: (v: string) => `trim(${v} #>> '{}')`,
+          },
+        ]),
     { field: "email", column: "email", value: text },
     { field: "userId", column: "user", value: cast("uuid") },
     { field: "jobTitle", column: "jobTitle", value: text },
@@ -80,7 +100,7 @@ export function employeeFunctions(
     select 1 from up join ${table} me on me.${e("id")} = up.id where me.${e("user")} = auth.uid())`;
 
   const payload = (alias: string, extra: string): string =>
-    `jsonb_build_object('organizationId', ${alias}.${e("tenant")}, 'employeeId', ${alias}.${e("id")}, 'subjectType', 'employee', 'subjectId', ${alias}.${e("id")}::text, 'name', ${alias}.${e("name")}${extra})`;
+    `jsonb_build_object('organizationId', ${alias}.${e("tenant")}, 'employeeId', ${alias}.${e("id")}, 'subjectType', 'employee', 'subjectId', ${alias}.${e("id")}::text, 'name', ${n.name(alias)}${extra})`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -132,8 +152,28 @@ export function employeeFunctions(
 
   const list = fields(ctx);
 
-  const attr = (field: Field): string =>
-    field.value(`create_employee.attrs -> ${sqlString(field.field)}`);
+  const split = splitName(ctx);
+
+  const given = (key: string): string =>
+    `create_employee.attrs ->> ${sqlString(key)}`;
+
+  const firstWord = `split_part(trim(${given("name")}), ' ', 1)`;
+
+  const attr = (field: Field): string => {
+    const value = field.value(
+      `create_employee.attrs -> ${sqlString(field.field)}`,
+    );
+
+    if (split && field.field === "firstName") {
+      return `coalesce(nullif(${value}, ''), nullif(${firstWord}, ''))`;
+    }
+
+    if (split && field.field === "lastName") {
+      return `case when create_employee.attrs ? 'lastName' then ${value} else nullif(trim(substr(trim(${given("name")}), length(${firstWord}) + 1)), '') end`;
+    }
+
+    return value;
+  };
 
   const extraValue = (attrs: string, ident: string): string =>
     `(jsonb_populate_record(null::${table}, ${attrs})).${ident}`;
@@ -175,7 +215,7 @@ export function employeeFunctions(
       and x.${e("originType")} = create_employee.attrs -> 'origin' ->> 'type'
       and x.${e("originId")} = create_employee.attrs -> 'origin' ->> 'id';
     if v_row.${e("id")} is not null then
-      return to_jsonb(v_row);
+      return ${n.json("v_row")};
     end if;
   end if;`
     : "";
@@ -218,7 +258,7 @@ export function employeeFunctions(
   ].join(", ");
 
   const rowWith = (alias: string, depth: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and ${ctx.is("employees", "status", `r.${e("status")}`, ["offboarded"], true)}))`;
+    `${n.json(alias)} || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and ${ctx.is("employees", "status", `r.${e("status")}`, ["offboarded"], true)}))`;
 
   return `
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
@@ -239,7 +279,7 @@ begin
   if not (${n.service} or ${ctx.scope.can("create_employee.tenant", n.write)}) then
     ${fail("EMPLOYEE_FORBIDDEN", "not allowed to change employees")}
   end if;${existing}
-  if nullif(trim(create_employee.attrs ->> 'name'), '') is null then
+  if ${split ? "coalesce(nullif(trim(create_employee.attrs ->> 'firstName'), ''), nullif(trim(create_employee.attrs ->> 'name'), ''))" : "nullif(trim(create_employee.attrs ->> 'name'), '')"} is null then
     ${fail("EMPLOYEE_ATTRS_INVALID", "an employee needs a name", "23502")}
   end if;
   ${ctx.hook("before_employee_create", [
@@ -262,7 +302,7 @@ begin
   end;${typeCheck("v_row")}${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}${link}
   ${record("employee.created", "v_row", `, 'userId', v_row.${e("user")}, 'managerId', v_row.${e("manager")}, 'status', v_row.${e("status")}`)}
   ${ctx.hook("after_employee_create", [["uuid", `v_row.${e("id")}`]])}
-  return to_jsonb(v_row);
+  return ${n.json("v_row")};
 end;
 $$;
 ${userGrant(`${fn("create_employee")}(${ctx.idType}, jsonb)`)}
@@ -309,7 +349,13 @@ begin
       ])}
       case v_field
 ${writes}
-      when 'status' then
+${
+  split
+    ? `      when 'name' then
+        update ${table} x set ${e("firstName")} = split_part(trim(v_change ->> 'value'), ' ', 1)${has("lastName") ? `, ${e("lastName")} = nullif(trim(substr(trim(v_change ->> 'value'), length(split_part(trim(v_change ->> 'value'), ' ', 1)) + 1)), '')` : ""}${touched} where x.${e("id")} = v_id returning * into v_row;
+`
+    : ""
+}      when 'status' then
         if (v_change ->> 'value') not in ('preboarding', 'active', 'on_leave') then
           ${fail("EMPLOYEE_STATUS_INVALID", "status is preboarding, active or on_leave; offboard to end employment", "22023")}
         end if;
@@ -325,7 +371,7 @@ ${writes}
       else
         ${fail("EMPLOYEE_FIELD_UNKNOWN", "that field can't be written", "22023")}
       end case;
-      if v_field = 'name' and nullif(v_row.${e("name")}, '') is null then
+      if ${split ? `v_field in ('name', 'firstName') and nullif(v_row.${e("firstName")}, '')` : `v_field = 'name' and nullif(v_row.${e("name")}, '')`} is null then
         ${fail("EMPLOYEE_ATTRS_INVALID", "an employee needs a name", "23502")}
       end if;${typeCheck("v_row")}
       if v_field = 'userId' then${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}
@@ -376,7 +422,7 @@ begin
     ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can offboard", "P0002")}
   end if;
   if ${ctx.is("employees", "status", `v_row.${e("status")}`, ["offboarded"])} then
-    return to_jsonb(v_row);
+    return ${n.json("v_row")};
   end if;
   ${ctx.hook("before_employee_offboard", [["uuid", `v_row.${e("id")}`]])}
   begin
@@ -394,7 +440,7 @@ begin
   end loop;${offboardedAt("now()", `v_row.${e("id")}`)}
   ${record("employee.offboarded", "v_row", `, 'endDate', ${has("endDate") ? `v_row.${e("endDate")}` : "current_date"}, 'reason', ${has("offboardReason") ? `v_row.${e("offboardReason")}` : "nullif(trim(offboard_employee.reason), '')"}`)}
   ${ctx.hook("after_employee_offboard", [["uuid", `v_row.${e("id")}`]])}
-  return to_jsonb(v_row);
+  return ${n.json("v_row")};
 end;
 $$;
 ${userGrant(`${fn("offboard_employee")}(uuid, date, text)`)}
@@ -416,12 +462,12 @@ begin
   end if;
   return (
     with recursive tree (id, depth, path) as (
-      select x.${e("id")}, 0, array[lower(x.${e("name")}), x.${e("id")}::text]
+      select x.${e("id")}, 0, array[lower(${n.name("x")}), x.${e("id")}::text]
       from ${table} x
       where x.${e("tenant")} = org_chart.tenant and ${ctx.is("employees", "status", `x.${e("status")}`, ["offboarded"], true)}
         and case when org_chart.root is null then x.${e("manager")} is null else x.${e("id")} = org_chart.root end
       union all
-      select c.${e("id")}, tree.depth + 1, tree.path || array[lower(c.${e("name")}), c.${e("id")}::text]
+      select c.${e("id")}, tree.depth + 1, tree.path || array[lower(${n.name("c")}), c.${e("id")}::text]
       from ${table} c join tree on c.${e("manager")} = tree.id
       where ${ctx.is("employees", "status", `c.${e("status")}`, ["offboarded"], true)} and tree.depth < 100
     )
@@ -451,11 +497,11 @@ begin
   end if;
   return (
     with recursive tree (id, depth, path) as (
-      select x.${e("id")}, 1, array[lower(x.${e("name")}), x.${e("id")}::text]
+      select x.${e("id")}, 1, array[lower(${n.name("x")}), x.${e("id")}::text]
       from ${table} x
       where x.${e("manager")} = reports_of.manager and ${ctx.is("employees", "status", `x.${e("status")}`, ["offboarded"], true)}
       union all
-      select c.${e("id")}, tree.depth + 1, tree.path || array[lower(c.${e("name")}), c.${e("id")}::text]
+      select c.${e("id")}, tree.depth + 1, tree.path || array[lower(${n.name("c")}), c.${e("id")}::text]
       from ${table} c join tree on c.${e("manager")} = tree.id
       where coalesce(reports_of.indirect, false) and ${ctx.is("employees", "status", `c.${e("status")}`, ["offboarded"], true)} and tree.depth < 100
     )
@@ -485,6 +531,7 @@ function fromApplication(ctx: BlockSqlContext, n: EmployeeNames): string {
   const a = (column: string): string => hiring.col("applications", column);
   const j = (column: string): string => hiring.col("jobs", column);
   const e = (column: string): string => n.c("employees", column);
+  const candidate = hiringCandidate(hiring, "v_application");
 
   return `
 -- The employee for a hired application, in preboarding: the name comes from
@@ -510,14 +557,14 @@ begin
   select * into v_existing from ${n.t("employees")} x
   where x.${e("tenant")} = v_application.${a("tenant")} and x.${e("originType")} = 'application' and x.${e("originId")} = v_application.${a("id")}::text;
   if v_existing.${e("id")} is not null then
-    return to_jsonb(v_existing);
+    return ${n.json("v_existing")};
   end if;
   if v_application.${a("state")} <> 'hired' then
     ${fail("EMPLOYEE_APPLICATION_NOT_HIRED", "only a hired application becomes an employee", "55000")}
   end if;
   select * into v_job from ${hiring.table("jobs")} x where x.${j("id")} = v_application.${a("job")};
   return ${n.fn("create_employee")}(v_application.${a("tenant")}, jsonb_strip_nulls(jsonb_build_object(
-      'name', ${subjectTitle(ctx, `v_application.${a("candidateType")}`, `v_application.${a("candidateId")}`)},
+      'name', ${subjectTitle(ctx, candidate.type, candidate.id)},
       'jobTitle', v_job.${j("title")},
       'teamId', v_job.${j("team")},
       'employmentType', case when v_job.${j("employmentType")} = any (${n.types}) then v_job.${j("employmentType")} end,

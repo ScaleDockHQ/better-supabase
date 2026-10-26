@@ -140,10 +140,13 @@ may be your own enum or domain.
 - `bulk`
   - `better_supabase.bulk_runs`: `id`, `tenant_id`, `subject_type`, `action`, `args`, `ids`, `position`, `succeeded`, `failed`, `results`, `status`, `created_by`, `created_at`, `finished_at`; typed: `status`
 - `calendar`
-  - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`
-  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `rrule`, `exdates`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`; typed with values: `kind`, `transparency`
-  - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `email`, `name`, `user_id`, `role`, `response`; typed with values: `role`, `response`
+  - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`; typed: `visibility`, `rank`; typed with values: `owner_id`
+  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`, `visibility`; typed with values: `kind`, `transparency`
+  - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `user_id`, `response`; typed with values: `role`, `response`
   - `better_supabase.calendar_working_hours`: `id`, `tenant_id`, `user_id`, `weekday`, `starts_at`, `ends_at`, `tz`
+  - `better_supabase.calendar_grants`, once mapped: `id`, `tenant_id`, `calendar_id`, `user_id`, `role`; typed: `role`
+  - `better_supabase.calendar_event_rules`, once mapped: `id`, `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`
+  - `better_supabase.calendar_event_dates`, once mapped: `id`, `event_id`, `kind`, `starts_at`; typed: `kind`
 - `catalog`
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.product_options`: `id`, `tenant_id`, `product_id`, `name`, `rank`
@@ -243,9 +246,9 @@ may be your own enum or domain.
   - `better_supabase.drive_nodes`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `created_at`
   - `better_supabase.drive_grants`: `id`, `tenant_id`, `node_id`, `role`, `created_at`
 - `employees`
-  - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `name`, `manager_id`, `status`; typed: `status`
-  - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`, `iban`
-  - `better_supabase.employee_contracts`: `id`, `tenant_id`, `employee_id`, `starts_on`, `ends_on`, `hours_per_week`, `salary`, `currency`
+  - `better_supabase.employees`: `id`, `tenant_id`, `user_id`, `manager_id`, `status`; typed: `status`
+  - `better_supabase.employee_private_details`: `employee_id`, `tenant_id`
+  - `better_supabase.employee_contracts`: `id`, `tenant_id`, `employee_id`, `starts_on`, `ends_on`, `hours_per_week`, `salary`, `currency`; typed with values: `salary_period`
 - `enrichment`
   - `better_supabase.enrichments`: `id`, `tenant_id`, `company_id`, `person_id`, `provider`, `status`, `data`, `filled`, `fetched_at`; typed: `status`
 - `enrollments`
@@ -275,10 +278,12 @@ may be your own enum or domain.
   - `better_supabase.guests`: `id`, `tenant_id`, `email`, `user_id`, `status`, `token_hash`, `created_at`; typed: `status`
   - `better_supabase.guest_grants`: `id`, `tenant_id`, `guest_id`, `subject_type`, `subject_id`, `actions`, `created_at`
 - `hiring`
-  - `better_supabase.job_openings`: `id`, `tenant_id`, `title`, `status`, `created_at`, `updated_at`; typed: `status`
-  - `better_supabase.applications`: `id`, `tenant_id`, `job_id`, `candidate_type`, `candidate_id`, `pipeline_id`, `stage_id`, `state`, `rank`, `created_at`, `updated_at`; typed: `state`
-  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `stage_id`, `reviewer_user_id`, `rating`, `recommendation`, `submitted_at`; typed: `recommendation`
-  - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `interviewer_user_ids`, `created_at`
+  - `better_supabase.job_openings`: `id`, `tenant_id`, `title`, `status`, `created_at`, `updated_at`; typed: `status`; typed with values: `employment_type`
+  - `better_supabase.applications`: `id`, `tenant_id`, `job_id`, `candidate_id`, `stage_id`, `state`, `rank`, `created_at`, `updated_at`; typed: `state`; typed with values: `source`
+  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `reviewer_user_id`, `rating`, `submitted_at`; typed: `recommendation`
+  - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `created_at`; typed with values: `kind`
+  - `better_supabase.interview_interviewers`, once mapped: `interview_id`, `user_id`
+  - `better_supabase.application_scorecard_scores`, once mapped: `scorecard_id`, `criterion_key`, `score`
 - `idempotency`
   - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `locked_until`, `expires_at`, `holder`; typed: `status`
   - `better_supabase.leases`: `scope`, `key`, `holder`, `expires_at`
@@ -532,8 +537,8 @@ may be your own enum or domain.
   - `better_supabase.template_applications`: `id`, `template_id`, `version_id`, `tenant_id`, `subject_type`, `subject_id`, `applied_at`
   - `better_supabase.template_workflows`: `id`, `template_id`, `definition_id`, `inputs`
 - `time-tracking`
-  - `better_supabase.time_entries`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `started_at`, `billable`, `rate`, `rate_currency`, `note`, `created_at`, `updated_at`, `seconds`
-  - `better_supabase.timesheets`: `id`, `tenant_id`, `user_id`, `week`, `note`, `submitted_at`, `approved_at`, `created_at`; typed: `status`
+  - `better_supabase.time_entries`: `id`, `tenant_id`, `user_id`, `started_at`, `billable`, `rate`, `rate_currency`, `note`, `created_at`, `updated_at`, `seconds`
+  - `better_supabase.timesheets`: `id`, `tenant_id`, `week`, `note`, `submitted_at`, `approved_at`, `created_at`; typed: `status`
 - `timeline`
   - `better_supabase.activity_entries`: `id`, `organization_id`, `event_id`, `type`, `subject_type`, `subject_id`, `data`, `occurred_at`
 - `trash`

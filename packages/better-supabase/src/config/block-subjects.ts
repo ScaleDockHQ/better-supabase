@@ -171,6 +171,12 @@ function subjectsOf(
         config.columns[logical]?.[name] ??
         resolved.naming.rename(table.columns[name] ?? name);
 
+      const titled = (key: string): string =>
+        config.columns[logical]?.[key] === null &&
+        subject.fallbackTitle !== undefined
+          ? column(subject.fallbackTitle)
+          : column(key);
+
       const name = mapped ?? resolved.naming.rename(table.name);
       const url = entity.url ?? subject.url;
 
@@ -178,7 +184,7 @@ function subjectsOf(
         table: name.includes(".") ? name : `${config.schema}.${name}`,
         idType: "uuid",
         tenant: column("tenant"),
-        title: column(subject.title),
+        title: titled(subject.title),
         permissions: {
           read: key(subject.permissions.read),
           write: key(subject.permissions.write),
@@ -201,7 +207,7 @@ function subjectsOf(
           ? {}
           : {
               search: {
-                title: column(subject.search.title),
+                title: titled(subject.search.title),
                 body: subject.search.body
                   .filter((name) => config.columns[logical]?.[name] !== null)
                   .map(column),

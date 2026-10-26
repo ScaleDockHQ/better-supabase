@@ -110,6 +110,7 @@ blocks: {
 | `policy`       | one step: holders of `time_tracking.approve` | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`, because the final approval is what locks the week                                                                                |
 | `approvals`    | `true`                                       | `false` keeps timesheets without the approvals block ([below](#timesheets-without-approvals))                                                                                                                    |
 | `userTimeZone` | none                                         | `{ column: "schema.table.column", key? }`: the column holding each member's IANA zone (`key`, default `id`, holds the user id). Weeks start in the member's own zone, and in `timeZone` for a member without one |
+| `owner`        | `user`                                       | `employee` keeps entries and timesheets per employee, also for employees without an account ([below](#time-per-employee))                                                                                        |
 
 ### Timesheets without approvals
 
@@ -150,7 +151,63 @@ Stopping a timer writes the duration and clears the running mark, logging
 finished time writes the duration, and every read, total, overlap check and
 week lock computes the end as the start plus the duration.
 
-Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED` and, without approvals, `TIMESHEET_NOT_SUBMITTED`.
+### Records in their own columns
+
+Over your own entries table, a record type can keep its id in a foreign key
+column instead of `subject_type` and `subject_id`. Name the column in
+`on.<type>.column`, with the record table's `idType`. Once every type has a
+column, map `subjectType` and `subjectId` to `null`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "time-tracking": {
+    tables: { entries: "public.work_logs" },
+    columns: { entries: { subjectType: null, subjectId: null } },
+    on: {
+      task: { table: "public.tasks", idType: "uuid", column: "task_id" },
+      customer: { table: "public.customers", idType: "uuid", column: "customer_id" },
+    },
+  },
+},
+```
+
+The client still passes `subject: { type, id }`. A write sets the column of
+that type, cast to its type, and clears the others; reads, events and the
+`subject` filter of `list` read the type and id back from the columns. With
+`subject_type` and `subject_id` kept, types without a column use them.
+
+### Time per employee
+
+With `options.owner: "employee"` and the [employees](/docs/blocks/employees)
+block installed, every entry and timesheet belongs to an employee
+(`columns.entries.employee` and `columns.timesheets.employee`, default
+`employee_id`), so an employee without an account has timesheets too. It
+needs `options.approvals: false`. The timesheet key is the tenant, the
+employee and the week, and the timesheets table needs no user column (map
+`columns.timesheets.user` to `null`).
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "time-tracking": {
+    tables: { entries: "public.work_logs", timesheets: "public.week_sheets" },
+    columns: { timesheets: { approval: null, user: null } },
+    options: { approvals: false, owner: "employee" },
+  },
+},
+```
+
+A timer runs for the caller's own employee record (`TIME_EMPLOYEE_MISSING`
+when there is none). `log({ employeeId })`, `timesheet(week, undefined,
+employeeId)`, `submit(week, note, employeeId)` and the `employeeId` filters of
+`list` and `timesheets` act for another employee, which needs
+`time_tracking.manage` (or `time_tracking.read` to read). The caller's own
+entries and weeks are those of the employee linked to their account. Entries
+and timesheets return `employeeId`, and `userId` is empty for an employee
+without an account. In SQL, `log_time`, `list_time_entries`, `get_timesheet`,
+`submit_timesheet` and `list_timesheets` take a trailing `employee_id`, and
+`userTimeZone.key` holds the employee id.
+
+Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED`, without approvals `TIMESHEET_NOT_SUBMITTED`, and per employee `TIME_EMPLOYEE_MISSING` and `TIME_EMPLOYEE_INVALID`.
 
 ## Events and hooks
 

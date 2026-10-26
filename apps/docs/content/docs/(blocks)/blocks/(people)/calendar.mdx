@@ -236,6 +236,163 @@ export async function GET(
 }
 ```
 
+## Per-calendar access
+
+By default every member with `calendar.read` reads every calendar of the
+organization, and `calendar.write` changes any of them. `options.access` makes
+access per calendar:
+
+- Calendars get a `visibility` (`shared` or `private`) and use `owner_type` and
+  `owner_id` as their owner. A calendar without `owner_type` belongs to the user
+  in `owner_id`.
+- Events get a `visibility` (`public` or `private`) and an `owner_id`, set to
+  the caller on insert.
+- The owner of a calendar reads, writes and manages it. An `editor` grant writes
+  it and sees its private events, a `viewer` grant reads it. On a shared
+  calendar `calendar.read`, `calendar.write` and `calendar.manage` decide as
+  before; on a private one they don't.
+- A private event shows only to its owner, the calendar's owner and its editors.
+  Free/busy still counts it as busy, without a title.
+
+Every write function checks the calendar or event it changes, the read
+policies of the calendars, events and attendees tables call
+`calendar_access(calendar_id, user_id, action)` and
+`calendar_event_access(event_id, user_id, action)`, and a feed link serves a
+private calendar only while the member who made it can still read it. Members
+create calendars they own with `calendar.write`; other calendars need
+`calendar.manage`.
+
+```ts
+const { id } = await calendar
+  .createCalendar(organizationId, "Personal", {
+    ownerType: "user",
+    ownerId: userId,
+    visibility: "private",
+  })
+  .orThrow();
+
+await calendar.setGrant(id, assistantId, "editor").orThrow();
+await calendar.upsert(id, {
+  title: "Dentist",
+  visibility: "private",
+  startsAt,
+  endsAt,
+});
+```
+
+Grants live in `tables.grants` (`calendar_grants`, or your table once mapped)
+with `columns.grants.role` holding `viewer` or `editor`. When your app already
+decides calendar access, name your functions in `options.accessFunctions`:
+each takes `(calendar_id uuid, user_id uuid)`, returns a boolean, and replaces
+the built-in rule for reading (`read`) or for writing, managing and seeing
+private events (`write`). The caller still needs `calendar.read`.
+
+## Feed per member
+
+With `share-links` and `options.userFeed`, a share link whose subject is a user
+(`subjectType: "calendar_user"`) serves every calendar that user can read as
+one feed. Only the user can make the link. `calendar_user_feed(token)` is open
+to `anon` like `calendar_feed`, and `userFeed(token)` returns the iCalendar
+text.
+
+```ts
+const link = await shareLinks
+  .create(organizationId, "calendar_user", userId, "view")
+  .orThrow();
+const ics = await calendar.userFeed(link.token).orThrow();
+```
+
+## Recurrence storage
+
+`options.rdates` adds an `rdates timestamptz[]` column: extra occurrence starts
+next to the `RRULE`, which `occurrences()`, free/busy, `exportIcs` (`RDATE`) and
+`importIcs` honour. An `EXDATE` removes an `RDATE` as it removes a rule's
+occurrence.
+
+`options.recurrence: "table"` keeps rules and dates out of the event row, for
+an app that stores them in their own tables:
+
+- `tables.rules` holds one row per series: `columns.rules.event` and either
+  `columns.rules.rrule` (the `RRULE` text) or structured columns
+  `columns.rules.freq`, `interval`, `count`, `until`, `byDay`, `byMonthDay`,
+  `byMonth` and `bySetPos`, each mapped or set to `null`. The list columns are
+  arrays (`text[]` for `byDay`, `integer[]` for the others).
+- `tables.recurrenceDates` holds one row per date: `columns.recurrenceDates.event`,
+  `columns.recurrenceDates.kind` (`rdate` or `exdate`) and `columns.recurrenceDates.at`.
+
+`columns.events.rrule` and `columns.events.exdates` can then be `null`. Saving,
+cancelling an occurrence, splitting a series, importing and every read go
+through those tables. `values.rules.freq` and `values.recurrenceDates.kind`
+map the labels to your enums.
+
+## Attendees without an email
+
+`options.attendeeKey: "any"` finds an attendee by user, email or subject record:
+`columns.attendees.email` and `columns.attendees.role` may be `null`, and
+`columns.attendees.subjectType`, `subjectId`, `organizer` and `optional` add a
+record attendee and its flags. `set_calendar_attendee(event_id, attendee)`
+updates the matching row or inserts one, so your table needs no unique
+constraint, and returns its `id`; `remove_calendar_attendee(attendee_id)`
+removes one. The old signatures keep working.
+
+```ts
+await calendar
+  .setAttendee(eventId, { subjectType: "contact", subjectId, optional: true })
+  .orThrow();
+await calendar.removeAttendeeById(attendeeId).orThrow();
+```
+
+## Calendar details
+
+`options.calendarDetails` adds `description`, `rank` and `is_default` to the
+calendars table. `createCalendar` takes them, `listCalendars` returns them
+ordered by `rank`, and `updateCalendar(id, attributes)` changes the name, time
+zone, color, details and, with `options.access`, the visibility. Setting
+`isDefault` clears it on the owner's other calendars. `calendar.updated` is
+recorded.
+
+An owner column of another type, such as a `uuid`, takes
+`values.calendars.ownerId: {}`, which casts the owner to its type.
+
+## Over your own tables
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  calendar: {
+    tables: {
+      calendars: "public.calendars",
+      events: "public.events",
+      attendees: "public.attendees",
+      grants: "public.calendar_shares",
+      rules: "public.event_rules",
+      recurrenceDates: "public.event_dates",
+      workingHours: null,
+    },
+    columns: {
+      calendars: { tenant: "organization_id", ownerType: null, ownerId: "owner_user_id", rank: "position" },
+      events: { tenant: "organization_id", rrule: null, exdates: null, rdates: null, owner: "owner_user_id" },
+      attendees: { tenant: "organization_id", role: null, subjectType: "record_type", subjectId: "record_id" },
+      grants: { tenant: "organization_id", role: "access" },
+      rules: { rrule: null, freq: "frequency", interval: "every", count: "occurrences", until: "ends_at", byDay: "weekdays", byMonthDay: "month_days", byMonth: null, bySetPos: null },
+      recurrenceDates: { at: "occurs_at" },
+    },
+    values: {
+      calendars: { visibility: { shared: "team", private: "personal" }, ownerId: {} },
+      events: { visibility: { public: "normal", private: "secret" } },
+      rules: { freq: { DAILY: "daily", WEEKLY: "weekly", MONTHLY: "monthly", YEARLY: "yearly" } },
+      recurrenceDates: { kind: { rdate: "extra", exdate: "skip" } },
+    },
+    options: {
+      access: true,
+      userFeed: true,
+      recurrence: "table",
+      attendeeKey: "any",
+      calendarDetails: true,
+    },
+  },
+},
+```
+
 ## React
 
 `useCalendar` loads the occurrences of a visible range and returns them in the
@@ -391,8 +548,11 @@ after it. See [block hooks](/docs/extending/blocks#hooks).
 | `CALENDAR_HOURS_INVALID`      | Working hours that aren't `{ weekday 1-7, start HH:MM, end HH:MM }` with the end after the start |
 | `CALENDAR_RANGE_INVALID`      | A free/busy range longer than 62 days, or no members or more than 100                            |
 | `CALENDAR_SPLIT_INVALID`      | The split is at or before the series' first occurrence                                           |
-| `CALENDAR_ATTENDEE_NOT_FOUND` | The caller is not invited to the event                                                           |
+| `CALENDAR_ATTENDEE_NOT_FOUND` | The caller is not invited to the event, or the attendee id is unknown                            |
 | `CALENDAR_RESPONSE_INVALID`   | The response is not one of the four values                                                       |
+| `CALENDAR_INVALID`            | A visibility that isn't `shared` or `private`, or a private calendar without an owner            |
+| `CALENDAR_GRANT_INVALID`      | A grant without a user, or a role that isn't `viewer` or `editor`                                |
+| `CALENDAR_ATTENDEE_INVALID`   | An attendee without a user id, an email or a subject                                             |
 
 ## With ReUI
 

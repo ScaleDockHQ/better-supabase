@@ -12,6 +12,11 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
+import {
+  calendarFeatures,
+  ownerText,
+  recurrenceSql,
+} from "./calendar-features.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The weekly hours a member works, in their own time zone. */
@@ -307,11 +312,19 @@ function busyBlocks(ctx: BlockSqlContext): string {
     : "false";
 
   const sources: string[] = [];
+  const features = calendarFeatures(ctx);
+  const recurrence = recurrenceSql(ctx);
+  const rdates = recurrence.rdates("e.");
 
   if (ctx.has("calendars", "ownerType") && ctx.has("calendars", "ownerId")) {
     sources.push(`select m.u as user_id, e.${ctx.col("events", "id")} as event_id
     from unnest(calendar_busy_blocks.user_ids) m (u)
-    join ${calendars} k on ${k("tenant")} = calendar_busy_blocks.tenant and ${k("ownerType")} = 'user' and ${k("ownerId")} = m.u::text
+    join ${calendars} k on ${k("tenant")} = calendar_busy_blocks.tenant and ${k("ownerType")} = 'user' and ${ownerText(ctx, "k.")} = m.u::text
+    join ${events} e on ${e("calendar")} = ${k("id")}`);
+  } else if (features.access && ctx.has("calendars", "ownerId")) {
+    sources.push(`select m.u as user_id, e.${ctx.col("events", "id")} as event_id
+    from unnest(calendar_busy_blocks.user_ids) m (u)
+    join ${calendars} k on ${k("tenant")} = calendar_busy_blocks.tenant and ${k("ownerId")}::text = m.u::text
     join ${events} e on ${e("calendar")} = ${k("id")}`);
   }
 
@@ -352,7 +365,23 @@ function busyBlocks(ctx: BlockSqlContext): string {
     and not exists (
       select 1 from ${events} o
       where o.${ctx.col("events", "recurrence")} = c.event_id and o.${ctx.col("events", "originalStart")} = s.at
-    )`;
+    )${
+      rdates === undefined
+        ? ""
+        : `
+  union all
+  select c.user_id, c.kind, r.at, r.at + (c.ends_at - c.starts_at), c.event_id, c.declines
+  from candidates c
+  cross join lateral unnest(c.rdates) r (at)
+  where c.recurrence is null
+    and r.at < calendar_busy_blocks.range_end
+    and r.at + (c.ends_at - c.starts_at) > calendar_busy_blocks.range_start
+    and not (r.at = any (c.exdates))
+    and not exists (
+      select 1 from ${events} o
+      where o.${ctx.col("events", "recurrence")} = c.event_id and o.${ctx.col("events", "originalStart")} = r.at
+    )`
+    }`;
 
   const candidates =
     sources.length === 0
@@ -362,7 +391,7 @@ function busyBlocks(ctx: BlockSqlContext): string {
   ),
   candidates as (
     select distinct s.user_id, ${e("id")} as event_id, ${kind} as kind, ${e("startsAt")} as starts_at, ${e("endsAt")} as ends_at,
-      ${e("tz")} as tz, ${e("rrule")} as rrule, ${e("recurrence")} as recurrence, ${e("exdates")} as exdates, ${declines} as declines
+      ${e("tz")} as tz, ${recurrence.rule("e.")} as rrule, ${e("recurrence")} as recurrence, ${recurrence.exdates("e.")} as exdates, ${declines} as declines${rdates === undefined ? "" : `, ${rdates} as rdates`}
     from sources s
     join ${events} e on ${e("id")} = s.event_id
     where ${e("tenant")} = calendar_busy_blocks.tenant
@@ -591,6 +620,9 @@ function autoDecline(ctx: BlockSqlContext): string {
     `${ctx.tableName("attendees").name}_auto_decline`,
   );
 
+  const features = calendarFeatures(ctx);
+  const recurrence = recurrenceSql(ctx);
+
   const owned =
     ctx.has("calendars", "ownerType") &&
     ctx.has("calendars", "ownerId") &&
@@ -607,11 +639,11 @@ as $$
 declare
   v_owner uuid;
 begin
-  select case when k.${ctx.col("calendars", "ownerId")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then k.${ctx.col("calendars", "ownerId")}::uuid end
+  select case when ${ownerText(ctx, "k.")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${ownerText(ctx, "k.")}::uuid end
     into v_owner
   from ${ctx.table("calendars")} k
   where k.${ctx.col("calendars", "id")} = new.${e("calendar")} and k.${ctx.col("calendars", "ownerType")} = 'user';
-  if v_owner is null then
+  if v_owner is null${features.table ? ` or ${recurrence.recurring("new.")}` : ""} then
     return null;
   end if;
   update ${attendees} a set ${a("response")} = ${ctx.value("attendees", "response", "declined")}
@@ -621,7 +653,7 @@ begin
     and ${ctx.is("attendees", "response", `a.${a("response")}`, ["needs-action"])}
     and x.${e("tenant")} = new.${e("tenant")}
     and x.${e("id")} <> new.${e("id")}
-    and x.${e("rrule")} is null
+    and ${recurrence.single("x.")}
     and ${ctx.is("events", "kind", `x.${e("kind")}`, ["event"])}
     and ${ctx.is("events", "status", `x.${e("status")}`, ["cancelled"], true)}
     and x.${e("startsAt")} < new.${e("endsAt")}
@@ -634,7 +666,7 @@ drop trigger if exists ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`
 create trigger ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`)}
 after insert or update of ${e("startsAt")}, ${e("endsAt")}, ${e("kind")}, ${e("autoDecline")}, ${e("status")} on ${events}
 for each row
-when (${ctx.is("events", "kind", `new.${e("kind")}`, ["event"], true)} and new.${e("autoDecline")} and ${ctx.is("events", "status", `new.${e("status")}`, ["cancelled"], true)} and new.${e("rrule")} is null)
+when (${ctx.is("events", "kind", `new.${e("kind")}`, ["event"], true)} and new.${e("autoDecline")} and ${ctx.is("events", "status", `new.${e("status")}`, ["cancelled"], true)}${features.table ? "" : ` and ${recurrence.single("new.")}`})
 execute function ${block}();
 `
     : "";
@@ -652,7 +684,7 @@ begin
   select x.${e("tenant")} as tenant, x.${e("startsAt")} as starts_at, x.${e("endsAt")} as ends_at
     into v_event
   from ${events} x
-  where x.${e("id")} = new.${a("event")} and x.${e("rrule")} is null and ${ctx.is("events", "kind", `x.${e("kind")}`, ["event"])} and ${ctx.is("events", "status", `x.${e("status")}`, ["cancelled"], true)};
+  where x.${e("id")} = new.${a("event")} and ${recurrence.single("x.")} and ${ctx.is("events", "kind", `x.${e("kind")}`, ["event"])} and ${ctx.is("events", "status", `x.${e("status")}`, ["cancelled"], true)};
   if found and exists (
     select 1 from ${busy}(v_event.tenant, array[new.${a("user")}], v_event.starts_at, v_event.ends_at) b
     where b.declines and b.event_id is distinct from new.${a("event")}

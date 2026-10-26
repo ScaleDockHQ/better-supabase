@@ -2,10 +2,15 @@ export {
   calendarEventOf,
   createCalendar,
   type Calendar,
+  type CalendarAttendeeInput,
+  type CalendarAttributes,
   type CalendarEventInput,
+  type CalendarGrant,
+  type CalendarGrantRole,
   type CalendarImport,
   type CalendarInfo,
   type CalendarOptions,
+  type CalendarVisibility,
   type SavedCalendarEvent,
 } from "./calendar.ts";
 

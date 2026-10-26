@@ -12,12 +12,19 @@ import { sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import {
   addExtraColumns,
+  addForeignKey,
   fail,
   lockTable,
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
 import { employeeFunctions } from "./employees-functions.ts";
+import {
+  editableContracts,
+  FLAT_DETAILS,
+  flatDetails,
+  splitName,
+} from "./employees-options.ts";
 import { sensitiveFunctions } from "./employees-sensitive.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -66,6 +73,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
       subject: {
         title: "name",
+        fallbackTitle: "firstName",
         permissions: { read: "read", write: "write" },
         search: { title: "name", body: ["email", "jobTitle"] },
       },
@@ -85,13 +93,21 @@ const NAMES: BlockSqlNames = {
     "extraColumns",
     "privateDetailsExtraColumns",
     "contractExtraColumns",
+    "name",
+    "privateDetails",
+    "contracts",
   ],
   tables: {
     employees: {
       name: "employees",
-      app: {},
+      app: {
+        unused: (ctx) => (splitName(ctx) ? [] : ["firstName", "lastName"]),
+      },
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
+        "name",
+        "firstName",
+        "lastName",
         "email",
         "jobTitle",
         "team",
@@ -124,17 +140,20 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        firstName: "first_name",
+        lastName: "last_name",
       },
       typed: ["status"],
     },
     privateDetails: {
       name: "employee_private_details",
-      app: {},
+      app: { unused: (ctx) => (flatDetails(ctx) ? [] : [...FLAT_DETAILS]) },
       optionalTable: true,
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
         "user",
         "nationalId",
+        "iban",
         "birthDate",
         "personalEmail",
         "phone",
@@ -144,6 +163,7 @@ const NAMES: BlockSqlNames = {
         "anonymizedAt",
         "updatedAt",
         "updatedBy",
+        ...FLAT_DETAILS,
       ],
       columns: {
         employee: "employee_id",
@@ -160,6 +180,15 @@ const NAMES: BlockSqlNames = {
         anonymizedAt: "anonymized_at",
         updatedAt: "updated_at",
         updatedBy: "updated_by",
+        addressLine1: "address_line1",
+        addressLine2: "address_line2",
+        postalCode: "postal_code",
+        city: "city",
+        region: "region",
+        country: "country",
+        emergencyName: "emergency_contact_name",
+        emergencyPhone: "emergency_contact_phone",
+        emergencyRelation: "emergency_contact_relation",
       },
     },
     contracts: {
@@ -182,9 +211,35 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      mappable: ["salaryPeriod"],
     },
   },
 };
+
+function nameColumns(
+  ctx: BlockSqlContext,
+  e: (column: string) => string,
+): string {
+  if (!splitName(ctx)) {
+    return `  ${e("name")} text not null check (length(trim(${e("name")})) between 1 and 200),`;
+  }
+
+  const last = ctx.has("employees", "lastName");
+
+  return [
+    `  ${e("firstName")} text not null check (length(trim(${e("firstName")})) between 1 and 200),`,
+    ...(last
+      ? [
+          `  ${e("lastName")} text check (${e("lastName")} is null or length(${e("lastName")}) <= 200),`,
+        ]
+      : []),
+    ...(ctx.has("employees", "name")
+      ? [
+          `  ${e("name")} text generated always as (trim(${e("firstName")}${last ? ` || coalesce(' ' || ${e("lastName")}, '')` : ""})) stored,`,
+        ]
+      : []),
+  ].join("\n");
+}
 
 /** The keys the employee reads return next to the table's columns. */
 const RESERVED = ["depth", "direct_reports"];
@@ -205,7 +260,7 @@ create table if not exists ${t("employees")} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
   ${e("user")} uuid references auth.users (id) on delete set null,
-  ${e("name")} text not null check (length(trim(${e("name")})) between 1 and 200),
+${nameColumns(ctx, e)}
   ${e("email")} text check (${e("email")} is null or length(${e("email")}) <= 320),
   ${e("jobTitle")} text check (${e("jobTitle")} is null or length(${e("jobTitle")}) <= 200),
   ${e("team")} uuid,
@@ -239,24 +294,33 @@ using (${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.ui
 create table if not exists ${t("privateDetails")} (
   ${p("employee")} uuid primary key references ${t("employees")} (${e("id")}) on delete cascade,
   ${p("tenant")} ${ctx.idType} not null,
-  ${p("user")} uuid,
-  ${p("nationalId")} text check (${p("nationalId")} is null or length(${p("nationalId")}) <= 64),
-  ${p("iban")} text check (${p("iban")} is null or ${p("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$'),
-  ${p("birthDate")} date,
+${ctx.has("privateDetails", "user") ? `  ${p("user")} uuid,\n` : ""}  ${p("nationalId")} text check (${p("nationalId")} is null or length(${p("nationalId")}) <= 64),
+${ctx.has("privateDetails", "iban") ? `  ${p("iban")} text check (${p("iban")} is null or ${p("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$'),\n` : ""}  ${p("birthDate")} date,
   ${p("personalEmail")} text check (${p("personalEmail")} is null or length(${p("personalEmail")}) <= 320),
   ${p("phone")} text check (${p("phone")} is null or length(${p("phone")}) <= 40),
-  ${p("address")} jsonb check (${p("address")} is null or jsonb_typeof(${p("address")}) = 'object'),
-  ${p("emergencyContacts")} jsonb not null default '[]' check (jsonb_typeof(${p("emergencyContacts")}) = 'array'),
-  ${p("offboardedAt")} timestamptz,
+${ctx.has("privateDetails", "address") ? `  ${p("address")} jsonb check (${p("address")} is null or jsonb_typeof(${p("address")}) = 'object'),\n` : ""}${ctx.has("privateDetails", "emergencyContacts") ? `  ${p("emergencyContacts")} jsonb not null default '[]' check (jsonb_typeof(${p("emergencyContacts")}) = 'array'),\n` : ""}${
+    flatDetails(ctx)
+      ? FLAT_DETAILS.filter((logical) => ctx.has("privateDetails", logical))
+          .map(
+            (logical) =>
+              `  ${p(logical)} text check (${p(logical)} is null or length(${p(logical)}) <= 200),\n`,
+          )
+          .join("")
+      : ""
+  }  ${p("offboardedAt")} timestamptz,
   ${p("anonymizedAt")} timestamptz,
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
 );${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
-create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;
-${lockTable(t("privateDetails"), { read: true })}
+${ctx.has("privateDetails", "user") ? `create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;\n` : ""}${lockTable(t("privateDetails"), { read: true })}
 drop policy if exists ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")};
 create policy ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")} for select to authenticated
-using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${p("user")} = (select auth.uid()));
+using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${
+    ctx.has("privateDetails", "user")
+      ? `${p("user")} = (select auth.uid())`
+      : `exists (
+  select 1 from ${t("employees")} x where x.${e("id")} = ${p("employee")} and x.${e("user")} = (select auth.uid()))`
+  });
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -361,6 +425,31 @@ function build(ctx: BlockSqlContext): string {
   }
 
   const keys = moduleOperations("employees");
+  const split = splitName(ctx);
+
+  if (!split && !ctx.has("employees", "name")) {
+    throw new TypeError(
+      'blocks.employees.columns.employees.name can be null only with options.name "split"',
+    );
+  }
+
+  if (split && !ctx.has("employees", "firstName")) {
+    throw new TypeError(
+      'blocks.employees.options.name "split" writes the first name, so columns.employees.firstName can\'t be null',
+    );
+  }
+
+  const fullName = (alias: string): string => {
+    if (ctx.has("employees", "name")) {
+      return `${alias}.${ctx.col("employees", "name")}`;
+    }
+
+    const first = `${alias}.${ctx.col("employees", "firstName")}`;
+
+    return ctx.has("employees", "lastName")
+      ? `trim(${first} || coalesce(' ' || ${alias}.${ctx.col("employees", "lastName")}, ''))`
+      : first;
+  };
 
   const names: EmployeeNames = {
     fn: (name) => ctx.fn(name),
@@ -372,20 +461,48 @@ function build(ctx: BlockSqlContext): string {
     types: `array[${ctx.list("employmentTypes", EMPLOYMENT_TYPES).map(sqlString).join(", ")}]::text[]`,
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("employees", RESERVED),
+    name: fullName,
+    json: (alias) =>
+      ctx.has("employees", "name")
+        ? `to_jsonb(${alias})`
+        : `(to_jsonb(${alias}) || jsonb_build_object('name', ${fullName(alias)}))`,
   };
 
   return `${schemaPreamble(ctx)}
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${
-    ctx.installed("time-tracking")
-      ? employeeKeySql(ctx, {
-          owner: ctx.of("time-tracking"),
-          table: "entries",
-        })
-      : ""
-  }`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeTrackingSql(ctx)}`;
+}
+
+const timeByEmployee = (ctx: BlockSqlContext): boolean =>
+  ctx.installed("time-tracking") &&
+  ctx.of("time-tracking").option("owner") === "employee";
+
+function timeTrackingSql(ctx: BlockSqlContext): string {
+  if (!ctx.installed("time-tracking")) {
+    return "";
+  }
+
+  const time = ctx.of("time-tracking");
+
+  if (!timeByEmployee(ctx)) {
+    return employeeKeySql(ctx, { owner: time, table: "entries" });
+  }
+
+  return (["entries", "timesheets"] as const)
+    .filter((table) => time.owns(table))
+    .map(
+      (table) =>
+        `\n${addForeignKey({
+          table: time.table(table),
+          name: `${time.tableName(table).name}_employee_fkey`,
+          column: time.col(table, "employee"),
+          references: `${ctx.table("employees")} (${ctx.col("employees", "id")})`,
+          onDelete: "restrict",
+        })}\n`,
+    )
+    .join("");
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -419,6 +536,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           args: ["uuid", "jsonb"],
           returns: "jsonb",
         },
+        ...(editableContracts(ctx)
+          ? [
+              {
+                name: "update_employee_contract",
+                args: ["uuid", "jsonb"],
+                returns: "jsonb",
+              },
+              {
+                name: "delete_employee_contract",
+                args: ["uuid"],
+                returns: "jsonb",
+              },
+            ]
+          : []),
       ]
     : [];
 
@@ -455,7 +586,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
       description:
         "With time-tracking, time entries gain employee_id, backfilled and kept current by triggers.",
       sql: (ctx) =>
-        ctx.installed("time-tracking")
+        ctx.installed("time-tracking") && !timeByEmployee(ctx)
           ? employeeKeyBackfillSql(ctx, {
               owner: ctx.of("time-tracking"),
               table: "entries",

@@ -666,6 +666,7 @@ export interface TimeEntryEventData {
   /** The time entry. */
   readonly id: string;
   readonly userId: string;
+  readonly employeeId?: string;
   readonly subjectType: string | null;
   readonly subjectId: string | null;
   /** When the entry starts, the time metrics bucket its seconds by. */
@@ -687,6 +688,7 @@ export interface TimesheetEventData {
   /** The timesheet. */
   readonly id: string;
   readonly userId: string;
+  readonly employeeId?: string;
   /** The Monday the week starts on, as `YYYY-MM-DD`. */
   readonly week: string;
   readonly approvalId: string | null;

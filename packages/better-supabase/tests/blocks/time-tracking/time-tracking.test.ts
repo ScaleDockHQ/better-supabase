@@ -396,6 +396,58 @@ describe("time-tracking client", () => {
     expect((await time.stop()).ok).toBe(false);
   });
 
+  it("acts for an employee and reads employee rows without an account", async () => {
+    const crew = { ...ENTRY, userId: null, employeeId: "emp1" };
+
+    const fake = transport({
+      log_time: () => crew,
+      list_time_entries: () => [crew],
+      get_timesheet: () => ({
+        ...SHEET,
+        userId: null,
+        employeeId: "emp1",
+        entries: [crew],
+        totals: { seconds: 7200, billableSeconds: 7200, amounts: [] },
+      }),
+      submit_timesheet: () => ({ ...SHEET, userId: null, employeeId: "emp1" }),
+      list_timesheets: () => [{ ...SHEET, userId: null, employeeId: "emp1" }],
+    });
+
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+
+    const logged = await time
+      .log({
+        startedAt: Temporal.Instant.from(AT),
+        endedAt: Temporal.Instant.from("2026-10-06T11:00:00Z"),
+        employeeId: "emp1",
+      })
+      .orThrow();
+
+    expect(logged).toMatchObject({ userId: "", employeeId: "emp1" });
+    await time.list({ employeeId: "emp1" }).orThrow();
+
+    expect(
+      await time.timesheet(WEEK, undefined, "emp1").orThrow(),
+    ).toMatchObject({ employeeId: "emp1", userId: "" });
+
+    await time.submit(WEEK, undefined, "emp1").orThrow();
+    await time.timesheets({ employeeId: "emp1" }).orThrow();
+
+    expect(
+      fake.calls.map(
+        ([, args]) => (args as { employee_id?: string }).employee_id,
+      ),
+    ).toEqual(["emp1", "emp1", "emp1", "emp1", "emp1"]);
+  });
+
+  it("sends no employee argument unless one is given", async () => {
+    const fake = transport({ list_time_entries: () => [] });
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+
+    await time.list().orThrow();
+    expect(fake.calls[0]?.[1]).not.toHaveProperty("employee_id");
+  });
+
   it("rejects an unknown timesheet status", async () => {
     const fake = transport({
       submit_timesheet: () => ({ ...SHEET, status: "lost" }),

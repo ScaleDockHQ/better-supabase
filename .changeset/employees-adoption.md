@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+`employees` takes three opt-in options for tables an app already has. `options.name: "split"` writes `firstName` and `lastName` instead of one name: `create` takes them or splits `name`, `update` takes `firstName`, `lastName` and `name`, and the full name is read from a mapped (generated) `name` column, which is never written, or joined from the parts when `name` is mapped to `null`; the record title then falls back to `firstName`. `options.privateDetails: "flat"` keeps the address and one emergency contact in plain columns (`addressLine1`, `addressLine2`, `postalCode`, `city`, `region`, `country`, `emergencyName`, `emergencyPhone`, `emergencyRelation`), written from those keys or the usual `address` object and `emergencyContacts` list, and read back in that shape. `options.contracts: "editable"` adds `update_employee_contract` and `delete_employee_contract` (client `updateContract` and `deleteContract`). The private details' `user` and `iban` columns can be mapped to `null`, and a contract's `salaryPeriod` takes `values` for an app enum. Without these settings the module renders as before.

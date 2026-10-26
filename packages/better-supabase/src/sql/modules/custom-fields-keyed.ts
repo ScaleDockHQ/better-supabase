@@ -1,11 +1,17 @@
 import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BoundSubject, PolymorphicColumns } from "../subject-columns.ts";
 import type { Subject } from "../subjects.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
+import {
+  boundRowSubject,
+  boundSubjectMatch,
+  boundSubjects as boundOf,
+} from "../subject-columns.ts";
 import {
   andSubjectAction,
   subjectActionCheck,
@@ -23,13 +29,6 @@ const VALUE_COLUMNS: Readonly<Record<string, readonly CustomFieldType[]>> = {
   valueEmail: ["email"],
 };
 
-/** A subject whose id lives in its own column of the values table. */
-interface BoundSubject {
-  readonly type: string;
-  readonly column: string;
-  readonly idType: string | undefined;
-}
-
 /** `blocks.custom-fields.on`, with `column` read per subject. */
 export function fieldSubjects(
   ctx: BlockSqlContext,
@@ -37,31 +36,20 @@ export function fieldSubjects(
   return subjectsOption(ctx, ["column"]);
 }
 
-/** The subjects that name a column of the values table (`on.<type>.column`). */
-function boundSubjects(ctx: BlockSqlContext): readonly BoundSubject[] {
-  return fieldSubjects(ctx).flatMap(([type, subject]) => {
-    const column = subject.extra["column"];
-
-    if (column === undefined) {
-      return [];
-    }
-
-    if (
-      typeof column !== "string" ||
-      !/^[a-z_][a-z0-9_]{0,62}$/u.test(column)
-    ) {
-      throw new TypeError(
-        `blocks.custom-fields.on.${type}.column must be a column name of the values table`,
-      );
-    }
-
-    return [{ type, column, idType: subject.idType }];
-  });
-}
+const boundSubjects = (ctx: BlockSqlContext): readonly BoundSubject[] =>
+  boundOf(fieldSubjects(ctx), "blocks.custom-fields.on");
 
 /** Whether the values table keeps `subject_type` and `subject_id`. */
 const polymorphic = (ctx: BlockSqlContext): boolean =>
   ctx.has("values", "subjectType") && ctx.has("values", "subjectId");
+
+const polyColumns = (ctx: BlockSqlContext): PolymorphicColumns | undefined =>
+  polymorphic(ctx)
+    ? {
+        type: ctx.col("values", "subjectType"),
+        id: ctx.col("values", "subjectId"),
+      }
+    : undefined;
 
 /**
  * Throws unless the subject columns are present, or every subject names its own
@@ -85,39 +73,14 @@ export function checkSubjectColumns(
   }
 }
 
-/** `v.<column> = id` for a bound subject, on the subject's id type. */
-function boundMatch(subject: BoundSubject, alias: string, id: string): string {
-  const column = `${alias}.${sqlIdent(subject.column)}`;
-
-  return subject.idType === undefined
-    ? `${column}::text = ${id}`
-    : `${column} = (${id})::${subject.idType}`;
-}
-
 /** Whether row `alias` belongs to the subject `type`/`id` (text expressions). */
-function subjectMatch(
+const subjectMatch = (
   ctx: BlockSqlContext,
   alias: string,
   type: string,
   id: string,
-): string {
-  const bound = boundSubjects(ctx);
-
-  const rest = polymorphic(ctx)
-    ? `${alias}.${ctx.col("values", "subjectType")} = ${type} and ${alias}.${ctx.col("values", "subjectId")} = ${id}`
-    : "false";
-
-  if (bound.length === 0) {
-    return rest;
-  }
-
-  return `(case ${type} ${bound
-    .map(
-      (subject) =>
-        `when ${sqlString(subject.type)} then ${boundMatch(subject, alias, id)}`,
-    )
-    .join(" ")} else ${rest} end)`;
-}
+): string =>
+  boundSubjectMatch(boundSubjects(ctx), polyColumns(ctx), alias, type, id);
 
 /** The subject type and id (text) of row `alias`. */
 function rowSubject(
@@ -125,28 +88,13 @@ function rowSubject(
   alias: string,
 ): { readonly type: string; readonly id: string } {
   const bound = boundSubjects(ctx);
-  const poly = polymorphic(ctx);
-
-  const type = `case ${bound
-    .map(
-      (subject) =>
-        `when ${alias}.${sqlIdent(subject.column)} is not null then ${sqlString(subject.type)}`,
-    )
-    .join(
-      " ",
-    )}${poly ? ` else ${alias}.${ctx.col("values", "subjectType")}::text` : ""} end`;
-
-  const id = `coalesce(${[
-    ...bound.map((subject) => `${alias}.${sqlIdent(subject.column)}::text`),
-    ...(poly ? [`${alias}.${ctx.col("values", "subjectId")}`] : []),
-  ].join(", ")})`;
 
   return bound.length === 0
     ? {
         type: `${alias}.${ctx.col("values", "subjectType")}::text`,
         id: `${alias}.${ctx.col("values", "subjectId")}`,
       }
-    : { type, id };
+    : boundRowSubject(bound, polyColumns(ctx), alias);
 }
 
 /** The block's field type of row `alias`, through `values.values.type`. */

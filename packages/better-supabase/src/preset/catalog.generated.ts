@@ -1916,7 +1916,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "autoDecline": "auto_decline",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "visibility": "visibility",
+              "owner": "owner_id",
+              "rdates": "rdates"
             }
           },
           "calendars": {
@@ -1929,7 +1932,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "color": "color",
               "ownerType": "owner_type",
               "ownerId": "owner_id",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "visibility": "visibility",
+              "description": "description",
+              "rank": "rank",
+              "isDefault": "is_default"
             }
           }
         },
@@ -2874,6 +2881,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "employees",
         "approvals"
       ],
       "manifest": "time-tracking",
@@ -2912,7 +2920,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "updatedAt": "updated_at",
               "seconds": "seconds",
-              "runningSince": "running_since"
+              "runningSince": "running_since",
+              "employee": "employee_id"
             }
           },
           "timesheets": {
@@ -2930,7 +2939,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "decidedBy": "decided_by",
               "decidedAt": "decided_at",
-              "decisionNote": "decision_note"
+              "decisionNote": "decision_note",
+              "employee": "employee_id"
             }
           }
         },
@@ -3930,6 +3940,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "primary": true,
             "subject": {
               "title": "name",
+              "fallbackTitle": "firstName",
               "permissions": {
                 "read": "read",
                 "write": "write"
@@ -3965,7 +3976,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "originId": "origin_id",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "firstName": "first_name",
+              "lastName": "last_name"
             }
           }
         },
@@ -7657,6 +7670,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarAttendee"
         },
         {
+          "name": "CalendarAttendeeInput"
+        },
+        {
+          "name": "CalendarAttributes"
+        },
+        {
           "name": "CalendarController"
         },
         {
@@ -7678,6 +7697,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventStatus"
         },
         {
+          "name": "CalendarGrant"
+        },
+        {
+          "name": "CalendarGrantRole"
+        },
+        {
           "name": "CalendarImport"
         },
         {
@@ -7694,6 +7719,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarTransparency"
+        },
+        {
+          "name": "CalendarVisibility"
         },
         {
           "name": "EventCalendarEvent"
@@ -7764,6 +7792,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "instant",
                 "optional": true,
                 "array": true
+              },
+              "rdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
               },
               "subjectType": {
                 "kind": "string",
@@ -7866,6 +7907,20 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "type": "string",
                     "format": "date-time"
                   }
+                },
+                "rdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
                 },
                 "subjectType": {
                   "type": [
@@ -7968,6 +8023,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "array": true
               },
+              "rdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
               "subjectType": {
                 "kind": "string",
                 "optional": true,
@@ -8070,6 +8138,20 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "format": "date-time"
                   }
                 },
+                "rdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
                 "subjectType": {
                   "type": [
                     "string",
@@ -8122,6 +8204,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "CalendarEvents",
         "types": [
           "calendar.created",
+          "calendar.updated",
           "calendar_event.created",
           "calendar_event.updated",
           "calendar_event.deleted"
@@ -13603,6 +13686,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "minLength": 1,
                 "maxLength": 200
               },
+              "firstName": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "lastName": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
               "email": {
                 "kind": "string",
                 "optional": true,
@@ -13665,6 +13758,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "name": {
                   "type": "string",
                   "minLength": 1,
+                  "maxLength": 200
+                },
+                "firstName": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "lastName": {
+                  "type": "string",
                   "maxLength": 200
                 },
                 "email": {

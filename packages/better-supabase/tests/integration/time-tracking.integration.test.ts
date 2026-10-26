@@ -511,4 +511,100 @@ create table tt_status_it.zones (id uuid primary key, timezone text);`);
       await s.close();
     }
   });
+
+  it("keeps time and timesheets per employee, also without an account", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const ada = await s.user("ada");
+      const grace = await s.user("grace");
+      await s.install(
+        ["organizations", "outbox", "employees", "time-tracking"],
+        {
+          modules: {
+            employees: { schema: "tt_employee_it" },
+            "time-tracking": {
+              schema: "tt_employee_it",
+              columns: { timesheets: { user: null } },
+              options: { approvals: false, owner: "employee" },
+            },
+          },
+        },
+      );
+      const tenant = await s.organization(owner, { member: ada, admin: grace });
+      await s.service();
+      const adaEmployee = await s.value<string>("gen_random_uuid()");
+      const crew = await s.value<string>("gen_random_uuid()");
+      await s.client.query(
+        "insert into tt_employee_it.employees (id, tenant_id, user_id, name) values ($1, $2, $3, 'Ada'), ($4, $2, null, 'Crew')",
+        [adaEmployee, tenant, ada.id, crew],
+      );
+
+      await s.as(ada);
+
+      const started = await s.value<{ employeeId: string }>(
+        "tt_employee_it.start_timer($1)",
+        [tenant],
+      );
+
+      expect(started.employeeId).toBe(adaEmployee);
+      await s.value("tt_employee_it.stop_timer($1)", [tenant]);
+      expect(
+        await s.hint(
+          "select tt_employee_it.log_time($1, '2026-03-02T09:00:00Z', '2026-03-02T10:00:00Z', employee_id => $2)",
+          [tenant, crew],
+        ),
+      ).toBe("TIME_FORBIDDEN");
+
+      await s.as(grace);
+
+      const logged = await s.value<{
+        employeeId: string;
+        userId: string | null;
+      }>(
+        "tt_employee_it.log_time($1, '2026-03-02T09:00:00Z', '2026-03-02T10:00:00Z', employee_id => $2)",
+        [tenant, crew],
+      );
+
+      expect(logged).toMatchObject({ employeeId: crew, userId: null });
+
+      const submitted = await s.value<{
+        id: string;
+        status: string;
+        employeeId: string;
+      }>("tt_employee_it.submit_timesheet($1, '2026-03-02', null, $2)", [
+        tenant,
+        crew,
+      ]);
+
+      expect(submitted).toMatchObject({
+        status: "submitted",
+        employeeId: crew,
+      });
+      expect(
+        await s.hint(
+          "select tt_employee_it.log_time($1, '2026-03-03T09:00:00Z', '2026-03-03T10:00:00Z', employee_id => $2)",
+          [tenant, crew],
+        ),
+      ).toBe("TIME_PERIOD_LOCKED");
+
+      const approved = await s.value<{ status: string }>(
+        "tt_employee_it.approve_timesheet($1)",
+        [submitted.id],
+      );
+
+      expect(approved.status).toBe("approved");
+
+      await s.as(ada);
+      expect(
+        await s.hint(
+          "select tt_employee_it.get_timesheet($1, '2026-03-02', employee_id => $2)",
+          [tenant, crew],
+        ),
+      ).toBe("TIME_FORBIDDEN");
+    } finally {
+      await s.close();
+    }
+  });
 });

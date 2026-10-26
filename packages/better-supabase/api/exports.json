@@ -6248,6 +6248,8 @@
       "Calendar",
       "CalendarActions",
       "CalendarAttendee",
+      "CalendarAttendeeInput",
+      "CalendarAttributes",
       "CalendarController",
       "CalendarControllerOptions",
       "CalendarEvent",
@@ -6255,12 +6257,15 @@
       "CalendarEventKind",
       "CalendarEvents",
       "CalendarEventStatus",
+      "CalendarGrant",
+      "CalendarGrantRole",
       "CalendarImport",
       "CalendarInfo",
       "CalendarOccurrence",
       "CalendarOptions",
       "CalendarSnapshot",
       "CalendarTransparency",
+      "CalendarVisibility",
       "CommonFreeTimeOptions",
       "EventCalendarEvent",
       "EventCalendarOptions",
@@ -7131,7 +7136,8 @@
       "JobStatus",
       "Recommendation",
       "RpcClient",
-      "Scorecard"
+      "Scorecard",
+      "ScorecardScore"
     ]
   },
   "./blocks/employees": {
@@ -7155,6 +7161,7 @@
       "BlockTransportMiddleware",
       "Contract",
       "ContractInput",
+      "ContractPatch",
       "EmergencyContact",
       "Employee",
       "EmployeeChange",

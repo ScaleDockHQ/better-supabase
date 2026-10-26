@@ -24,6 +24,7 @@ export interface CalendarEvent {
   /** The RFC 5545 `RRULE` value of a series, without the `RRULE:` prefix. */
   readonly rrule?: string;
   readonly exdates: readonly Temporal.Instant[];
+  readonly rdates?: readonly Temporal.Instant[];
   /** The series an override belongs to. */
   readonly recurrenceId?: string;
   /** The occurrence of the series an override replaces. */
@@ -38,6 +39,8 @@ export interface CalendarEvent {
   readonly autoDecline?: boolean;
   readonly attendees: readonly CalendarAttendee[];
   readonly updatedAt?: Temporal.Instant;
+  readonly visibility?: "public" | "private";
+  readonly ownerId?: string;
 }
 
 /** One occurrence in a range: a single event, or one instance of a series. */
@@ -68,6 +71,40 @@ export interface OccurrenceOptions {
 
 const keyOf = (id: string, start: Temporal.Instant): string =>
   `${id}::${start.toString()}`;
+
+const recurs = (event: CalendarEvent): boolean =>
+  event.rrule !== undefined || (event.rdates ?? []).length > 0;
+
+function seriesStarts(
+  event: CalendarEvent,
+  zoned: Temporal.ZonedDateTime,
+  window: OccurrenceRange,
+): Temporal.ZonedDateTime[] {
+  const ruled =
+    event.rrule === undefined
+      ? [zoned]
+      : expandRule({ dtstart: zoned, rrule: event.rrule, window });
+
+  if ((event.rdates ?? []).length === 0) {
+    return ruled;
+  }
+
+  const time = temporal();
+  const seen = new Set(ruled.map((when) => when.epochMilliseconds));
+  const all = [...ruled];
+
+  for (const rdate of event.rdates ?? []) {
+    if (
+      !seen.has(rdate.epochMilliseconds) &&
+      time.Instant.compare(rdate, window.until) < 0
+    ) {
+      seen.add(rdate.epochMilliseconds);
+      all.push(rdate.toZonedDateTimeISO(event.tz));
+    }
+  }
+
+  return all.toSorted((a, b) => time.ZonedDateTime.compare(a, b));
+}
 
 function overlaps(
   start: Temporal.Instant,
@@ -107,7 +144,7 @@ export function expandOccurrences(
   for (const event of events) {
     if (event.recurrenceId !== undefined && event.originalStart !== undefined) {
       overrides.set(keyOf(event.recurrenceId, event.originalStart), event);
-    } else if (event.rrule !== undefined) {
+    } else if (recurs(event)) {
       series.set(event.id, event);
     }
   }
@@ -138,7 +175,7 @@ export function expandOccurrences(
       continue;
     }
 
-    if (event.rrule === undefined) {
+    if (!recurs(event)) {
       if (keep(event) && overlaps(event.startsAt, event.endsAt, range)) {
         found.push({
           key: keyOf(event.id, event.startsAt),
@@ -170,10 +207,9 @@ export function expandOccurrences(
       event.exdates.map((date) => date.epochMilliseconds),
     );
 
-    for (const when of expandRule({
-      dtstart: zoned,
-      rrule: event.rrule,
-      window: { from: range.from.subtract(reach), until: range.until },
+    for (const when of seriesStarts(event, zoned, {
+      from: range.from.subtract(reach),
+      until: range.until,
     })) {
       const start = when.toInstant();
 

@@ -287,17 +287,20 @@ export interface BlockNameRegistry {
   };
   readonly "calendar": {
     readonly tables: {
-      readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt";
-      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response";
+      readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt" | "visibility" | "description" | "rank" | "isDefault";
+      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt" | "visibility" | "owner" | "rdates";
+      readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response" | "subjectType" | "subjectId" | "organizer" | "optional";
       readonly "workingHours": "id" | "tenant" | "user" | "weekday" | "startsAt" | "endsAt" | "tz";
+      readonly "grants": "id" | "tenant" | "calendar" | "user" | "role" | "createdAt";
+      readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";
+      readonly "recurrenceDates": "id" | "tenant" | "event" | "kind" | "at";
     };
     readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
     readonly actions: "manage" | "write" | "read";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {
-      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at";
-      readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at";
+      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at" | "visibility" | "owner_id" | "rdates";
+      readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at" | "visibility" | "description" | "rank" | "is_default";
     };
     readonly primary: "calendar_event";
   };
@@ -622,15 +625,15 @@ export interface BlockNameRegistry {
   };
   readonly "employees": {
     readonly tables: {
-      readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "privateDetails": "employee" | "tenant" | "user" | "nationalId" | "iban" | "birthDate" | "personalEmail" | "phone" | "address" | "emergencyContacts" | "offboardedAt" | "anonymizedAt" | "updatedAt" | "updatedBy";
+      readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt" | "firstName" | "lastName";
+      readonly "privateDetails": "employee" | "tenant" | "user" | "nationalId" | "iban" | "birthDate" | "personalEmail" | "phone" | "address" | "emergencyContacts" | "offboardedAt" | "anonymizedAt" | "updatedAt" | "updatedBy" | "addressLine1" | "addressLine2" | "postalCode" | "city" | "region" | "country" | "emergencyName" | "emergencyPhone" | "emergencyRelation";
       readonly "contracts": "id" | "tenant" | "employee" | "startsOn" | "endsOn" | "hoursPerWeek" | "salary" | "currency" | "salaryPeriod" | "note" | "createdBy" | "createdAt";
     };
     readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "offboard_employee" | "org_chart" | "reports_of" | "save_employee_private_details" | "update_employees";
     readonly actions: "read" | "write" | "viewSensitive";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard";
     readonly entities: {
-      readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at";
+      readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at" | "first_name" | "last_name";
     };
     readonly primary: "employee";
   };
@@ -784,6 +787,8 @@ export interface BlockNameRegistry {
       readonly "applications": "id" | "tenant" | "job" | "candidateType" | "candidateId" | "source" | "owner" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "rejectionReason" | "hiredAt" | "rank" | "createdAt" | "updatedAt";
       readonly "scorecards": "id" | "tenant" | "application" | "stage" | "reviewer" | "rating" | "recommendation" | "notes" | "submittedAt";
       readonly "interviews": "id" | "tenant" | "application" | "kind" | "startsAt" | "endsAt" | "location" | "interviewers" | "createdBy" | "createdAt";
+      readonly "interviewers": "tenant" | "interview" | "user";
+      readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
     readonly functions: "application_detail" | "apply_to_job" | "close_application" | "save_job" | "schedule_interview" | "submit_scorecard";
     readonly actions: "read" | "write" | "manage";
@@ -1706,15 +1711,15 @@ export interface BlockNameRegistry {
   };
   readonly "time-tracking": {
     readonly tables: {
-      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince";
-      readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote";
+      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince" | "employee";
+      readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
     readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reopen_timesheet" | "running_timer" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {
-      readonly "entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "seconds" | "running_since";
-      readonly "timesheet": "id" | "tenant_id" | "user_id" | "week" | "approval_id" | "note" | "submitted_at" | "approved_at" | "created_at" | "status" | "decided_by" | "decided_at" | "decision_note";
+      readonly "entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "seconds" | "running_since" | "employee_id";
+      readonly "timesheet": "id" | "tenant_id" | "user_id" | "week" | "approval_id" | "note" | "submitted_at" | "approved_at" | "created_at" | "status" | "decided_by" | "decided_at" | "decision_note" | "employee_id";
     };
     readonly primary: "entry";
   };
