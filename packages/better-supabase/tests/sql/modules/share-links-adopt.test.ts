@@ -65,11 +65,17 @@ const AS_SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_r
 
 const BOOT = { timeout: 60_000 };
 
-const render = (modules: AnyBlocksConfig = BLOCKS) =>
-  renderBlocks(["subjects", "share-links"], { modules, subjects: SUBJECTS });
+const render = (
+  modules: AnyBlocksConfig = BLOCKS,
+  subjects: SubjectsConfig = SUBJECTS,
+) => renderBlocks(["subjects", "share-links"], { modules, subjects });
 
-async function run(check: string): Promise<void> {
-  const files = render();
+async function run(
+  check: string,
+  subjects: SubjectsConfig = SUBJECTS,
+  allow = ALLOW,
+): Promise<void> {
+  const files = render(BLOCKS, subjects);
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -84,7 +90,7 @@ async function run(check: string): Promise<void> {
       ...files
         .filter((file) => file.kind === "data")
         .map((file) => file.contents),
-      ALLOW,
+      allow,
       check,
     ],
   });
@@ -159,5 +165,44 @@ $$;`),
     expect(sql).toContain(
       `coalesce("better_supabase"."can_subject"(create_share_link.subject_type, create_share_link.subject_id, 'share'), false)`,
     );
+  });
+
+  it("reads a record through its owner when nobody holds the read key", async () => {
+    const subjects: SubjectsConfig = {
+      thread: {
+        table: "public.threads",
+        idType: "uuid",
+        permissions: { read: { key: "thread.read", owner: "owner_id" } },
+      },
+    };
+
+    const allow = ALLOW.replace(
+      "as $$ select true $$;",
+      () => "as $$ select permission <> 'thread.read' $$;",
+    );
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_hint text;
+begin
+  ${as(ALICE)}
+  perform better_supabase.create_share_link('${TENANT}', 'thread', '${MINE}', 'view');
+  begin
+    perform better_supabase.create_share_link('${TENANT}', 'thread', '${THEIRS}', 'view');
+    v_hint := 'none';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  if v_hint <> 'SHARE_SUBJECT_NOT_FOUND' then
+    raise exception 'shared a thread the caller neither owns nor reads: %', v_hint;
+  end if;
+end;
+$$;`,
+        subjects,
+        allow,
+      ),
+    ).resolves.toBeUndefined();
   });
 });

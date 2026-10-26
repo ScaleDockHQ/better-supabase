@@ -12,7 +12,13 @@ const ctx = {
     eq: (left: string, right: string) => `${left} = ${right}`,
   },
   naming: { rename: (name: string) => name },
-} as unknown as Pick<BlockSqlContext, "scope" | "naming">;
+  can: (scope: string, id: string, permission: string) =>
+    `can_on(${scope}, ${id}, ${permission})`,
+  providerRowsWith: "rows_with({resource}, {permission}, {ids})",
+} as unknown as Pick<
+  BlockSqlContext,
+  "scope" | "naming" | "can" | "providerRowsWith"
+>;
 
 const args = { type: "t", id: "i", tenant: "o" };
 
@@ -40,5 +46,46 @@ describe("subjectReadable", () => {
 
   it("reads every subject when there are none to check", () => {
     expect(subjectReadable(ctx, [], args, { live: true })).toBe("true");
+  });
+});
+
+describe("subjectReadable with a registered read granted per row or to an owner", () => {
+  const rows: Subject = {
+    table: "app.files",
+    idType: "uuid",
+    permission: "file.read",
+    read: { entry: { key: "file.read", rows: "file_node" }, scope: "project" },
+    extra: {},
+  };
+
+  const owned: Subject = {
+    table: "app.notes",
+    read: { entry: { owner: "owner_id" } },
+    extra: {},
+  };
+
+  it("checks the key, the provider's row grants and the scope on the row", () => {
+    const sql = subjectReadable(ctx, [["file", rows]], args);
+
+    expect(sql).toContain(
+      `(can(o, 'file.read') or can_on(project, s."id"::text, 'file.read') or s."id"::text in (select r.id::text from rows_with(file_node, 'file.read', array[s."id"::text]) as r(id)))`,
+    );
+    expect(sql).not.toMatch(/\) and can\(o/u);
+  });
+
+  it("lets the owner column grant a read without a key", () => {
+    expect(subjectReadable(ctx, [["note", owned]], args)).toContain(
+      `and s."owner_id" = auth.uid())`,
+    );
+  });
+
+  it("needs the provider's rowsWith for a row grant", () => {
+    expect(() =>
+      subjectReadable(
+        { ...ctx, providerRowsWith: undefined },
+        [["file", rows]],
+        args,
+      ),
+    ).toThrow(/records\.file\.permissions\.read\.rows needs/u);
   });
 });

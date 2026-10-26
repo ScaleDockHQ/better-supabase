@@ -1484,6 +1484,12 @@ lists or revokes a link, and `comments` follows `read`, `comment` and
 `moderate`. A record type that declares none of them keeps the block's own
 checks.
 
+A block that checks whether the caller may read a record (tags, attachments,
+share links, versions, relations and the others that take `on`) reads the
+same `read` entry: with `rows` or `owner`, the key, the provider's row grants
+and the owner column each grant the read, as in `can_subject`. An `on` entry
+that sets its own `permission` keeps that key.
+
 With a registry, `gen` also emits the types in `database.types.ts`:
 
 ```ts

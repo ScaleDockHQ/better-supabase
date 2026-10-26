@@ -1,11 +1,17 @@
-import type { SubjectConfig } from "../config/types/subjects.ts";
+import type {
+  SubjectConfig,
+  SubjectPermission,
+} from "../config/types/subjects.ts";
 import type { BlockSqlContext } from "./context.ts";
 import type { BlockSqlAccessProvider } from "./module-types.ts";
 import type { GuestAction } from "./scope.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
 import { isRecord } from "../core/guards.ts";
-import { subjectPermissionKey } from "../core/subject-permission.ts";
+import {
+  subjectPermissionKey,
+  subjectPermissionOf,
+} from "../core/subject-permission.ts";
 import { SUBJECT_TYPE_PATTERN } from "../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/permissions-model.ts";
@@ -36,6 +42,14 @@ export interface Subject {
   readonly permission?: string;
   /** Delete the module's rows for a subject when the subject row is deleted. */
   readonly cascade?: boolean;
+  /**
+   * The registered `permissions.read` when it grants per row (`rows`) or to an
+   * owner column, so a read check runs the same grants as `can_subject`.
+   */
+  readonly read?: {
+    readonly entry: SubjectPermission;
+    readonly scope?: string;
+  };
   /** The module's own keys, such as a bucket per subject. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -179,6 +193,30 @@ function withAlways(
 }
 
 /**
+ * The registered read entry of `entry` when it grants per row or to an owner
+ * and `permission` (the subject's resolved key) is still the registry's.
+ */
+function registeredRead(
+  entry: SubjectConfig | undefined,
+  permission: string | undefined,
+): Subject["read"] {
+  const read = subjectPermissionOf(entry?.permissions?.["read"]);
+
+  if (
+    read === undefined ||
+    (read.rows === undefined && read.owner === undefined) ||
+    read.key !== permission
+  ) {
+    return undefined;
+  }
+
+  return {
+    entry: read,
+    ...(entry?.scope === undefined ? {} : { scope: entry.scope }),
+  };
+}
+
+/**
  * `blocks.<instance>.on`: subject type to `{ table, id?, tenant?, permission?,
  * cascade? }` plus the `extra` keys the module reads, falling back to the
  * app-wide `config.records` registry.
@@ -267,6 +305,7 @@ export function subjectsOption(
 
     const tenant = tenantless ? false : text("tenant");
     const permission = text("permission");
+    const read = registeredRead(ctx.subjects[type], permission);
 
     return [
       type,
@@ -277,6 +316,7 @@ export function subjectsOption(
         ...(tenant !== undefined && { tenant }),
         ...(permission !== undefined && { permission }),
         ...(cascade === true && { cascade }),
+        ...(read !== undefined && { read }),
         extra: Object.fromEntries(
           Object.entries(entry).filter(([key]) => extraKeys.includes(key)),
         ),
@@ -475,12 +515,63 @@ export function subjectTableBindings(
 }
 
 /**
+ * The grants of a registered `permissions.read` with `rows` or `owner` on
+ * subject row `s`, as `can_subject` runs them: the key in the tenant (and on
+ * the subject's scope), the provider's row grants for it, and the owner column,
+ * or-ed.
+ */
+function recordGrant(
+  ctx: Pick<BlockSqlContext, "scope" | "can" | "providerRowsWith">,
+  where: string,
+  subject: Subject,
+  tenant: string,
+): string {
+  const { entry, scope } = subject.read!;
+  const id = `s.${sqlIdent(subject.id ?? "id")}::text`;
+  const parts: string[] = [];
+
+  if (entry.key !== undefined) {
+    parts.push(ctx.scope.can(tenant, sqlString(entry.key)));
+
+    if (scope !== undefined) {
+      parts.push(ctx.can(scope, id, sqlString(entry.key)));
+    }
+
+    if (entry.rows !== undefined) {
+      if (ctx.providerRowsWith === undefined) {
+        throw new TypeError(
+          `${where}.rows needs blocks.permissions.model "provider" and an authorization provider with functions.rowsWith`,
+        );
+      }
+
+      parts.push(
+        `${id} in (select r.id::text from ${fillTemplate(
+          "authorization.functions.rowsWith",
+          ctx.providerRowsWith,
+          {
+            resource: entry.rows,
+            permission: sqlString(entry.key),
+            ids: `array[${id}]`,
+          },
+        )} as r(id))`,
+      );
+    }
+  }
+
+  if (entry.owner !== undefined) {
+    parts.push(`s.${sqlIdent(entry.owner)} = auth.uid()`);
+  }
+
+  return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+}
+
+/**
  * Whether the caller may read the subject `type`/`id` in `tenant`: its row is
  * visible to them (the subject table's own policies apply) and they hold its
  * permission. `true` without `subjects`, `false` for an unlisted type.
  */
 export function subjectReadable(
-  ctx: Pick<BlockSqlContext, "scope" | "naming">,
+  ctx: Pick<BlockSqlContext, "scope" | "naming" | "can" | "providerRowsWith">,
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly id: string; readonly tenant: string },
   options: {
@@ -518,11 +609,17 @@ export function subjectReadable(
         return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)}${live})`;
       }
 
-      const extra = subject.permission
-        ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
-        : "";
+      const granted =
+        subject.read === undefined
+          ? ""
+          : ` and ${recordGrant(ctx, `records.${type}.permissions.read`, subject, args.tenant)}`;
 
-      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live})${extra}`;
+      const extra =
+        subject.read === undefined && subject.permission
+          ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
+          : "";
+
+      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
 
