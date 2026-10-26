@@ -49,7 +49,7 @@ msgstr "AI-taken"
 #: src/app/[locale]/(app)/assistant/tasks/page.tsx
 msgctxt "aiTasks.6W7U7e"
 msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
-msgstr ""
+msgstr "Prompts op het ai-schedules-blok die de assistent volgens een schema uitvoert."
 
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
@@ -110,7 +110,7 @@ msgstr "Compliance"
 #: src/app/[locale]/(app)/compliance/page.tsx
 msgctxt "compliance.aN_4X-"
 msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
-msgstr ""
+msgstr "Hoe de controls van elk framework ervoor staan, welk bewijs verschuldigd is en welke contracten binnenkort verlengd moeten worden."
 
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
@@ -489,6 +489,22 @@ msgstr "Instellingen"
 msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Je account en je organisatie."
+
+#: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
+msgctxt "members.sKwqTt"
+msgid "All members"
+msgstr "Alle leden"
+
+#: src/app/[locale]/(app)/settings/roles/[roleId]/page.tsx
+msgctxt "roles.0QowWF"
+msgid "All roles"
+msgstr "Alle rollen"
+
+#: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.DtvBtA"
+msgid "All teams"
+msgstr "Alle teams"
 
 #: src/app/[locale]/(app)/shop/inventory/page.tsx
 #: src/app/[locale]/(app)/shop/page.tsx
@@ -3237,7 +3253,7 @@ msgstr "Beheersmaatregel"
 #: src/features/compliance/components/control-posture.tsx
 msgctxt "compliance.g9pEhE"
 msgid "Due"
-msgstr ""
+msgstr "Verschuldigd"
 
 #: src/features/courses/components/course-controls.tsx
 msgctxt "courses.1GGd_a"
@@ -4695,6 +4711,12 @@ msgid "Visible to everyone in the organization."
 msgstr "Zichtbaar voor iedereen in de organisatie."
 
 #: src/features/customers/components/customer-detail.tsx
+#: src/features/customers/components/owner-team-select.tsx
+msgctxt "customers.KZJPu-"
+msgid "Owner team"
+msgstr "Eigenaarsteam"
+
+#: src/features/customers/components/customer-detail.tsx
 msgctxt "customers.1EYCdR"
 msgid "Tags"
 msgstr "Labels"
@@ -4808,6 +4830,11 @@ msgstr "Er is nog niets gebeurd"
 msgctxt "customers.WGEKkb"
 msgid "Comments, files and versions show up here."
 msgstr "Reacties, bestanden en versies verschijnen hier."
+
+#: src/features/customers/components/owner-team-select.tsx
+msgctxt "customers.2-MeFM"
+msgid "No owner team"
+msgstr "Geen eigenaarsteam"
 
 #: src/features/customers/components/reactions-bar.tsx
 msgctxt "customers.XgWvGA"
@@ -5423,14 +5450,9 @@ msgid "Added by you"
 msgstr "Door jou toegevoegd"
 
 #: src/features/dashboard/components/workspace-summary.tsx
-msgctxt "dashboard.cZ-k_2"
-msgid "Latest note"
-msgstr "Nieuwste notitie"
-
-#: src/features/dashboard/components/workspace-summary.tsx
-msgctxt "dashboard.YIjtSu"
-msgid "None yet"
-msgstr "Nog geen"
+msgctxt "dashboard.-a-2ug"
+msgid "Members"
+msgstr "Leden"
 
 #: src/features/documents/components/document-editor-view.tsx
 msgctxt "documents.cDI3Bm"
@@ -7346,6 +7368,191 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nog niets gevonden. Een nieuw document is doorzoekbaar zodra het klaar is."
 
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Uitnodiging ingetrokken"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.HAhXzK"
+msgid "No open invitations."
+msgstr "Geen openstaande uitnodigingen."
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization._VQpyO"
+msgid "Expires {date}"
+msgstr "Verloopt op {date}"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.Hvn8PP"
+msgid "Revoke invitation for {email}"
+msgstr "Uitnodiging voor {email} intrekken"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.LzKmIB"
+msgid "That person is already a member or invited."
+msgstr "Die persoon is al lid of uitgenodigd."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.hYOE-U"
+msgid "Invite"
+msgstr "Uitnodigen"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.VUOqRw"
+msgid "Invitation created"
+msgstr "Uitnodiging aangemaakt"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.JbO9sG"
+msgid "Send this link. It works once and expires in seven days."
+msgstr "Stuur deze link. Hij werkt één keer en verloopt na zeven dagen."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.G8P44K"
+msgid "Invitation link"
+msgstr "Uitnodigingslink"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.lbr3Lq"
+msgid "Copy link"
+msgstr "Link kopiëren"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.zU_q1N"
+msgid "Link copied"
+msgstr "Link gekopieerd"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.919U2i"
+msgid "Invite a teammate"
+msgstr "Nodig een teamgenoot uit"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.30Bj4o"
+msgid "They join with the role you pick. You can't give a role above your own."
+msgstr "Ze worden lid met de rol die je kiest. Je kunt geen hogere rol geven dan je eigen rol."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.83nTSd"
+msgid "Send invitation"
+msgstr "Uitnodiging versturen"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.l8wanU"
+msgid "Joined"
+msgstr "Lid sinds"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.B50Tuv"
+msgid "Not on a team"
+msgstr "Niet in een team"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.Jjrc4P"
+msgid "you"
+msgstr "jij"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.T0e6Lh"
+msgid "Remove {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.0QowWF"
+msgid "All roles"
+msgstr "Alle rollen"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.U_vZbF"
+msgid "Role updated"
+msgstr "Rol bijgewerkt"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.6tBv0v"
+msgid "Member removed"
+msgstr "Lid verwijderd"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.QAz68F"
+msgid "Search members"
+msgstr "Leden zoeken"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.u4Mc5d"
+msgid "No members match"
+msgstr "Geen leden gevonden"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.af4ZBl"
+msgid "Try another name or role."
+msgstr "Probeer een andere naam of rol."
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.F4gyn3"
+msgid "Clear filters"
+msgstr "Filters wissen"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.hzby55"
+msgid "{count, number} people in this organization"
+msgstr "{count, number} mensen in deze organisatie"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.ESlZHv"
+msgid "Pending invitations"
+msgstr "Openstaande uitnodigingen"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.z7B1G5"
+msgid "There is no mailer in this example: copy the link and send it yourself."
+msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en verstuur hem zelf."
+
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.0HWXBy"
 msgid "The metrics didn't load"
@@ -7450,6 +7657,17 @@ msgstr "Werk dat aan jou is toegewezen en verzoeken voor jou verschijnen hier."
 msgctxt "myWork.do5cUm"
 msgid "Open the work board"
 msgstr "Open het werkbord"
+
+#: src/features/navigation/components/app-breadcrumbs.tsx
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.D3idYv"
+msgid "Settings"
+msgstr "Instellingen"
+
+#: src/features/navigation/components/app-breadcrumbs.tsx
+msgctxt "navigation.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
@@ -7672,6 +7890,16 @@ msgid "Members"
 msgstr "Leden"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.c35gM5"
+msgid "Roles"
+msgstr "Rollen"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.Tbo377"
 msgid "Billing"
 msgstr "Facturatie"
@@ -7690,11 +7918,6 @@ msgstr "Auditlog"
 msgctxt "navigation._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.D3idYv"
-msgid "Settings"
-msgstr "Instellingen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.rOZptg"
@@ -7799,13 +8022,6 @@ msgid "Name"
 msgstr "Naam"
 
 #: src/features/organization/components/create-organization-dialog.tsx
-#: src/features/organization/components/invite-member-dialog.tsx
-#: src/features/organization/components/leave-organization-button.tsx
-msgctxt "organization.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
-#: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.VzzYJk"
 msgid "Create"
 msgstr "Maken"
@@ -7855,26 +8071,6 @@ msgctxt "invitation.65cFZc"
 msgid "I already have one"
 msgstr "Ik heb er al een"
 
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.SpBqjJ"
-msgid "Invitation revoked"
-msgstr "Uitnodiging ingetrokken"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.HAhXzK"
-msgid "No open invitations."
-msgstr "Geen openstaande uitnodigingen."
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization._VQpyO"
-msgid "Expires {date}"
-msgstr "Verloopt op {date}"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.Hvn8PP"
-msgid "Revoke invitation for {email}"
-msgstr "Uitnodiging voor {email} intrekken"
-
 #: src/features/organization/components/invitation-response.tsx
 msgctxt "invitation.pvtgR2"
 msgid "Decline"
@@ -7889,72 +8085,6 @@ msgstr "Welkom aan boord"
 msgctxt "invitation.j2QN5I"
 msgid "Accept invitation"
 msgstr "Uitnodiging accepteren"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.LzKmIB"
-msgid "That person is already a member or invited."
-msgstr "Die persoon is al lid of uitgenodigd."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.hYOE-U"
-msgid "Invite"
-msgstr "Uitnodigen"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.VUOqRw"
-msgid "Invitation created"
-msgstr "Uitnodiging aangemaakt"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.JbO9sG"
-msgid "Send this link. It works once and expires in seven days."
-msgstr "Stuur deze link. Hij werkt één keer en verloopt na zeven dagen."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.G8P44K"
-msgid "Invitation link"
-msgstr "Uitnodigingslink"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.lbr3Lq"
-msgid "Copy link"
-msgstr "Link kopiëren"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.zU_q1N"
-msgid "Link copied"
-msgstr "Link gekopieerd"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.JXdbo8"
-msgid "Done"
-msgstr "Klaar"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.919U2i"
-msgid "Invite a teammate"
-msgstr "Nodig een teamgenoot uit"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.30Bj4o"
-msgid "They join with the role you pick. You can't give a role above your own."
-msgstr "Ze worden lid met de rol die je kiest. Je kunt geen hogere rol geven dan je eigen rol."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.sy-pv5"
-msgid "Email"
-msgstr "E-mail"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.1ZgrhW"
-msgid "Role"
-msgstr "Rol"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.83nTSd"
-msgid "Send invitation"
-msgstr "Uitnodiging versturen"
 
 #: src/features/organization/components/leave-organization-button.tsx
 #: src/features/organization/components/organization-general.tsx
@@ -7976,57 +8106,6 @@ msgstr "Je verliest toegang tot de klanten tot iemand je opnieuw uitnodigt."
 msgctxt "organization.fnihsY"
 msgid "Leave"
 msgstr "Verlaten"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.U_vZbF"
-msgid "Role updated"
-msgstr "Rol bijgewerkt"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.6tBv0v"
-msgid "Member removed"
-msgstr "Lid verwijderd"
-
-#: src/features/organization/components/member-table.tsx
-#: src/features/organization/use-role-label.ts
-msgctxt "organization.7L86Z5"
-msgid "Member"
-msgstr "Lid"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.l8wanU"
-msgid "Joined"
-msgstr "Lid sinds"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.Jjrc4P"
-msgid "you"
-msgstr "jij"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.T0e6Lh"
-msgid "Remove {name}"
-msgstr "{name} verwijderen"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.-a-2ug"
-msgid "Members"
-msgstr "Leden"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.hzby55"
-msgid "{count, number} people in this organization"
-msgstr "{count, number} mensen in deze organisatie"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.ESlZHv"
-msgid "Pending invitations"
-msgstr "Openstaande uitnodigingen"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.z7B1G5"
-msgid "There is no mailer in this example: copy the link and send it yourself."
-msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en stuur hem zelf."
 
 #: src/features/organization/components/organization-form.tsx
 msgctxt "organization.ABbHiq"
@@ -8107,6 +8186,11 @@ msgstr "Eigenaar"
 msgctxt "organization.iHN12u"
 msgid "Admin"
 msgstr "Beheerder"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.7L86Z5"
+msgid "Member"
+msgstr "Lid"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"
@@ -9437,6 +9521,106 @@ msgctxt "push.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.JzR7p4"
+msgid "Search permissions"
+msgstr "Rechten zoeken"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.cq1PPc"
+msgid "No permissions match"
+msgstr "Geen rechten gevonden"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.5zHeMF"
+msgid "Try another key."
+msgstr "Probeer een andere sleutel."
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.4YJHut"
+msgid "Clear search"
+msgstr "Zoekopdracht wissen"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.lkigRD"
+msgid "Granted here"
+msgstr "Hier toegekend"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.vLZn4l"
+msgid "Denied here"
+msgstr "Hier geweigerd"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.t6dbPc"
+msgid "Reset {key} to the default"
+msgstr "{key} terugzetten naar de standaard"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.kBykqJ"
+msgid "{members, plural, one {# member} other {# members}} · {count, number} of {total, number} permissions"
+msgstr "{members, plural, one {# lid} other {# leden}} · {count, number} van {total, number} rechten"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.Ymelch"
+msgid "The owner role holds every permission and can't change."
+msgstr "De eigenaarsrol heeft elk recht en kan niet worden gewijzigd."
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.Fq40c4"
+msgid "You can read this role. Changing it needs the roles.manage permission and every key it holds."
+msgstr "Je kunt deze rol bekijken. Wijzigen vereist het recht roles.manage en elke sleutel die de rol heeft."
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.F9jeKU"
+msgid "Catalog default"
+msgstr "Catalogusstandaard"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.nmR7zE"
+msgid "{count, plural, one {# override} other {# overrides}}"
+msgstr "{count, plural, one {# afwijking} other {# afwijkingen}}"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.SFuk1v"
+msgid "Permissions"
+msgstr "Rechten"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.pi29lP"
+msgid "In this organization"
+msgstr "In deze organisatie"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.c35gM5"
+msgid "Roles"
+msgstr "Rollen"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.f4FOpO"
+msgid "Every organization starts from the catalog's roles. Override a role's keys here; the change applies in this organization only."
+msgstr "Elke organisatie begint met de rollen uit de catalogus. Pas hier de sleutels van een rol aan; de wijziging geldt alleen in deze organisatie."
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.2RdEU8"
+msgid "No roles"
+msgstr "Geen rollen"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.dwGxtJ"
+msgid "The permissions catalog lists no tenant roles."
+msgstr "De rechtencatalogus bevat geen tenantrollen."
+
 #: src/features/rules/components/rule-builder.tsx
 msgctxt "rules.Z8IqfA"
 msgid "The rule didn't load"
@@ -10306,6 +10490,16 @@ msgstr "Organisatie"
 msgctxt "settings.-a-2ug"
 msgid "Members"
 msgstr "Leden"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.c35gM5"
+msgid "Roles"
+msgstr "Rollen"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.V8cirD"
@@ -11631,6 +11825,230 @@ msgctxt "subjects.3kbIhS"
 msgid "Untitled"
 msgstr "Zonder titel"
 
+#: src/features/teams/components/team-detail.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5lVaeB"
+msgid "No description"
+msgstr "Geen beschrijving"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.ULVuKn"
+msgid "Owned customers"
+msgstr "Klanten in eigendom"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.QsGKCb"
+msgid "{count, plural, =0 {No customers} one {# customer} other {# customers}} name this team as their owner"
+msgstr "{count, plural, =0 {Geen klanten hebben} one {# klant heeft} other {# klanten hebben}} dit team als eigenaar"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5GYr_-"
+msgid "No owned customers"
+msgstr "Geen klanten in eigendom"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.N-LkOO"
+msgid "Set a customer's owner team on its page."
+msgstr "Stel het eigenaarsteam van een klant in op de pagina van die klant."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.Q8Qw5B"
+msgid "Description"
+msgstr "Beschrijving"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.J9yqGv"
+msgid "Team created"
+msgstr "Team aangemaakt"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.xGiyeB"
+msgid "New team"
+msgstr "Nieuw team"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.mZefzf"
+msgid "Teams group members and can own customers."
+msgstr "Teams groeperen leden en kunnen eigenaar zijn van klanten."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.VzzYJk"
+msgid "Create"
+msgstr "Aanmaken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams._eT8WV"
+msgid "Team updated"
+msgstr "Team bijgewerkt"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.wEQDC6"
+msgid "Edit"
+msgstr "Bewerken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.I8Hyi4"
+msgid "Edit team"
+msgstr "Team bewerken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.XnwmYR"
+msgid "The slug stays the same when you rename a team."
+msgstr "De slug blijft hetzelfde als je een team hernoemt."
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.VRLUcc"
+msgid "Member to add"
+msgstr "Lid om toe te voegen"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.XKF1qH"
+msgid "Choose a member"
+msgstr "Kies een lid"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pm7N-R"
+msgid "Nobody is on this team"
+msgstr "Niemand zit in dit team"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pe_KhA"
+msgid "Choose a member above to add them."
+msgstr "Kies hierboven een lid om toe te voegen."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.IlJWZx"
+msgid "Ask an admin to add members."
+msgstr "Vraag een beheerder om leden toe te voegen."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.csSJhm"
+msgid "Take {name} off the team"
+msgstr "{name} uit het team halen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.6b87eq"
+msgid "Team restored"
+msgstr "Team hersteld"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.2M1Ej4"
+msgid "Team archived"
+msgstr "Team gearchiveerd"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.lNwtwt"
+msgid "Team deleted"
+msgstr "Team verwijderd"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.g9o_2L"
+msgid "Delete {name}?"
+msgstr "{name} verwijderen?"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.IXHy6n"
+msgid "Its members stay in the organization, and the customers it owned keep no owner."
+msgstr "De leden blijven in de organisatie, en de klanten waarvan het team eigenaar was, hebben daarna geen eigenaar."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.hvH0rZ"
+msgid "Search teams"
+msgstr "Teams zoeken"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.zi5WKg"
+msgid "No teams match"
+msgstr "Geen teams gevonden"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.AvP65a"
+msgid "Try another name or status."
+msgstr "Probeer een andere naam of status."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.k112pF"
+msgid "Show all teams"
+msgstr "Alle teams tonen"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.wIHVeU"
+msgid "{count, plural, one {# active team} other {# active teams}}"
+msgstr "{count, plural, one {# actief team} other {# actieve teams}}"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.68djwb"
+msgid "No teams yet"
+msgstr "Nog geen teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.3xX2Kk"
+msgid "Group members into teams so they can own customers."
+msgstr "Groepeer leden in teams zodat ze eigenaar kunnen zijn van klanten."
+
 #: src/features/templates/components/create-template-dialog.tsx
 msgctxt "templates.uI5hko"
 msgid "{name} created"
@@ -12037,9 +12455,9 @@ msgid "Access"
 msgstr "Toegang"
 
 #: src/features/user/components/profile-details.tsx
-msgctxt "user.JfBQtj"
-msgid "From the memberships claim in your access token, for the active organization."
-msgstr "Uit de memberships-claim in je toegangstoken, voor de actieve organisatie."
+msgctxt "user.hoC9fG"
+msgid "Your role comes from the memberships claim in your access token; the permissions are your role's catalog keys with this organization's overrides."
+msgstr "Je rol komt uit de memberships-claim in je toegangstoken; de rechten zijn de catalogussleutels van je rol met de afwijkingen van deze organisatie."
 
 #: src/features/user/components/profile-details.tsx
 msgctxt "user.1ZgrhW"

@@ -490,6 +490,22 @@ msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Your account and your organization."
 
+#: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
+msgctxt "members.sKwqTt"
+msgid "All members"
+msgstr "All members"
+
+#: src/app/[locale]/(app)/settings/roles/[roleId]/page.tsx
+msgctxt "roles.0QowWF"
+msgid "All roles"
+msgstr "All roles"
+
+#: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.DtvBtA"
+msgid "All teams"
+msgstr "All teams"
+
 #: src/app/[locale]/(app)/shop/inventory/page.tsx
 #: src/app/[locale]/(app)/shop/page.tsx
 msgctxt "shop.MlzEfB"
@@ -4695,6 +4711,12 @@ msgid "Visible to everyone in the organization."
 msgstr "Visible to everyone in the organization."
 
 #: src/features/customers/components/customer-detail.tsx
+#: src/features/customers/components/owner-team-select.tsx
+msgctxt "customers.KZJPu-"
+msgid "Owner team"
+msgstr "Owner team"
+
+#: src/features/customers/components/customer-detail.tsx
 msgctxt "customers.1EYCdR"
 msgid "Tags"
 msgstr "Tags"
@@ -4808,6 +4830,11 @@ msgstr "Nothing happened yet"
 msgctxt "customers.WGEKkb"
 msgid "Comments, files and versions show up here."
 msgstr "Comments, files and versions show up here."
+
+#: src/features/customers/components/owner-team-select.tsx
+msgctxt "customers.2-MeFM"
+msgid "No owner team"
+msgstr "No owner team"
 
 #: src/features/customers/components/reactions-bar.tsx
 msgctxt "customers.XgWvGA"
@@ -5423,14 +5450,9 @@ msgid "Added by you"
 msgstr "Added by you"
 
 #: src/features/dashboard/components/workspace-summary.tsx
-msgctxt "dashboard.cZ-k_2"
-msgid "Latest note"
-msgstr "Latest note"
-
-#: src/features/dashboard/components/workspace-summary.tsx
-msgctxt "dashboard.YIjtSu"
-msgid "None yet"
-msgstr "None yet"
+msgctxt "dashboard.-a-2ug"
+msgid "Members"
+msgstr "Members"
 
 #: src/features/documents/components/document-editor-view.tsx
 msgctxt "documents.cDI3Bm"
@@ -7346,6 +7368,191 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Invitation revoked"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.HAhXzK"
+msgid "No open invitations."
+msgstr "No open invitations."
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization._VQpyO"
+msgid "Expires {date}"
+msgstr "Expires {date}"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.Hvn8PP"
+msgid "Revoke invitation for {email}"
+msgstr "Revoke invitation for {email}"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.LzKmIB"
+msgid "That person is already a member or invited."
+msgstr "That person is already a member or invited."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.hYOE-U"
+msgid "Invite"
+msgstr "Invite"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.VUOqRw"
+msgid "Invitation created"
+msgstr "Invitation created"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.JbO9sG"
+msgid "Send this link. It works once and expires in seven days."
+msgstr "Send this link. It works once and expires in seven days."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.G8P44K"
+msgid "Invitation link"
+msgstr "Invitation link"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.lbr3Lq"
+msgid "Copy link"
+msgstr "Copy link"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.zU_q1N"
+msgid "Link copied"
+msgstr "Link copied"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.919U2i"
+msgid "Invite a teammate"
+msgstr "Invite a teammate"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.30Bj4o"
+msgid "They join with the role you pick. You can't give a role above your own."
+msgstr "They join with the role you pick. You can't give a role above your own."
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/members/components/invite-member-dialog.tsx
+msgctxt "organization.83nTSd"
+msgid "Send invitation"
+msgstr "Send invitation"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.l8wanU"
+msgid "Joined"
+msgstr "Joined"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/member-table.tsx
+msgctxt "members.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.B50Tuv"
+msgid "Not on a team"
+msgstr "Not on a team"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.Jjrc4P"
+msgid "you"
+msgstr "you"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.0QowWF"
+msgid "All roles"
+msgstr "All roles"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.U_vZbF"
+msgid "Role updated"
+msgstr "Role updated"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.6tBv0v"
+msgid "Member removed"
+msgstr "Member removed"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.QAz68F"
+msgid "Search members"
+msgstr "Search members"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.u4Mc5d"
+msgid "No members match"
+msgstr "No members match"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.af4ZBl"
+msgid "Try another name or role."
+msgstr "Try another name or role."
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.F4gyn3"
+msgid "Clear filters"
+msgstr "Clear filters"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.hzby55"
+msgid "{count, number} people in this organization"
+msgstr "{count, number} people in this organization"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.ESlZHv"
+msgid "Pending invitations"
+msgstr "Pending invitations"
+
+#: src/features/members/components/members-section.tsx
+msgctxt "members.z7B1G5"
+msgid "There is no mailer in this example: copy the link and send it yourself."
+msgstr "There is no mailer in this example: copy the link and send it yourself."
+
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.0HWXBy"
 msgid "The metrics didn't load"
@@ -7450,6 +7657,17 @@ msgstr "Work assigned to you and requests for you show up here."
 msgctxt "myWork.do5cUm"
 msgid "Open the work board"
 msgstr "Open the work board"
+
+#: src/features/navigation/components/app-breadcrumbs.tsx
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.D3idYv"
+msgid "Settings"
+msgstr "Settings"
+
+#: src/features/navigation/components/app-breadcrumbs.tsx
+msgctxt "navigation.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
@@ -7672,6 +7890,16 @@ msgid "Members"
 msgstr "Members"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.c35gM5"
+msgid "Roles"
+msgstr "Roles"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.Tbo377"
 msgid "Billing"
 msgstr "Billing"
@@ -7690,11 +7918,6 @@ msgstr "Audit log"
 msgctxt "navigation._3yfCs"
 msgid "AI providers"
 msgstr "AI providers"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.D3idYv"
-msgid "Settings"
-msgstr "Settings"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.rOZptg"
@@ -7799,13 +8022,6 @@ msgid "Name"
 msgstr "Name"
 
 #: src/features/organization/components/create-organization-dialog.tsx
-#: src/features/organization/components/invite-member-dialog.tsx
-#: src/features/organization/components/leave-organization-button.tsx
-msgctxt "organization.47FYwb"
-msgid "Cancel"
-msgstr "Cancel"
-
-#: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.VzzYJk"
 msgid "Create"
 msgstr "Create"
@@ -7855,26 +8071,6 @@ msgctxt "invitation.65cFZc"
 msgid "I already have one"
 msgstr "I already have one"
 
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.SpBqjJ"
-msgid "Invitation revoked"
-msgstr "Invitation revoked"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.HAhXzK"
-msgid "No open invitations."
-msgstr "No open invitations."
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization._VQpyO"
-msgid "Expires {date}"
-msgstr "Expires {date}"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.Hvn8PP"
-msgid "Revoke invitation for {email}"
-msgstr "Revoke invitation for {email}"
-
 #: src/features/organization/components/invitation-response.tsx
 msgctxt "invitation.pvtgR2"
 msgid "Decline"
@@ -7889,72 +8085,6 @@ msgstr "Welcome aboard"
 msgctxt "invitation.j2QN5I"
 msgid "Accept invitation"
 msgstr "Accept invitation"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.LzKmIB"
-msgid "That person is already a member or invited."
-msgstr "That person is already a member or invited."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.hYOE-U"
-msgid "Invite"
-msgstr "Invite"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.VUOqRw"
-msgid "Invitation created"
-msgstr "Invitation created"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.JbO9sG"
-msgid "Send this link. It works once and expires in seven days."
-msgstr "Send this link. It works once and expires in seven days."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.G8P44K"
-msgid "Invitation link"
-msgstr "Invitation link"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.lbr3Lq"
-msgid "Copy link"
-msgstr "Copy link"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.zU_q1N"
-msgid "Link copied"
-msgstr "Link copied"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.JXdbo8"
-msgid "Done"
-msgstr "Done"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.919U2i"
-msgid "Invite a teammate"
-msgstr "Invite a teammate"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.30Bj4o"
-msgid "They join with the role you pick. You can't give a role above your own."
-msgstr "They join with the role you pick. You can't give a role above your own."
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.sy-pv5"
-msgid "Email"
-msgstr "Email"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.1ZgrhW"
-msgid "Role"
-msgstr "Role"
-
-#: src/features/organization/components/invite-member-dialog.tsx
-msgctxt "organization.83nTSd"
-msgid "Send invitation"
-msgstr "Send invitation"
 
 #: src/features/organization/components/leave-organization-button.tsx
 #: src/features/organization/components/organization-general.tsx
@@ -7976,57 +8106,6 @@ msgstr "You lose access to its customers until someone invites you again."
 msgctxt "organization.fnihsY"
 msgid "Leave"
 msgstr "Leave"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.U_vZbF"
-msgid "Role updated"
-msgstr "Role updated"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.6tBv0v"
-msgid "Member removed"
-msgstr "Member removed"
-
-#: src/features/organization/components/member-table.tsx
-#: src/features/organization/use-role-label.ts
-msgctxt "organization.7L86Z5"
-msgid "Member"
-msgstr "Member"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.l8wanU"
-msgid "Joined"
-msgstr "Joined"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.Jjrc4P"
-msgid "you"
-msgstr "you"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.T0e6Lh"
-msgid "Remove {name}"
-msgstr "Remove {name}"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.-a-2ug"
-msgid "Members"
-msgstr "Members"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.hzby55"
-msgid "{count, number} people in this organization"
-msgstr "{count, number} people in this organization"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.ESlZHv"
-msgid "Pending invitations"
-msgstr "Pending invitations"
-
-#: src/features/organization/components/members-section.tsx
-msgctxt "organization.z7B1G5"
-msgid "There is no mailer in this example: copy the link and send it yourself."
-msgstr "There is no mailer in this example: copy the link and send it yourself."
 
 #: src/features/organization/components/organization-form.tsx
 msgctxt "organization.ABbHiq"
@@ -8107,6 +8186,11 @@ msgstr "Owner"
 msgctxt "organization.iHN12u"
 msgid "Admin"
 msgstr "Admin"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.7L86Z5"
+msgid "Member"
+msgstr "Member"
 
 #: src/features/people/components/add-candidate-dialog.tsx
 msgctxt "people.XrpTyF"
@@ -9437,6 +9521,106 @@ msgctxt "push.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.JzR7p4"
+msgid "Search permissions"
+msgstr "Search permissions"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.cq1PPc"
+msgid "No permissions match"
+msgstr "No permissions match"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.5zHeMF"
+msgid "Try another key."
+msgstr "Try another key."
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.4YJHut"
+msgid "Clear search"
+msgstr "Clear search"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.lkigRD"
+msgid "Granted here"
+msgstr "Granted here"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.vLZn4l"
+msgid "Denied here"
+msgstr "Denied here"
+
+#: src/features/roles/components/permission-matrix.tsx
+msgctxt "roles.t6dbPc"
+msgid "Reset {key} to the default"
+msgstr "Reset {key} to the default"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.kBykqJ"
+msgid "{members, plural, one {# member} other {# members}} · {count, number} of {total, number} permissions"
+msgstr "{members, plural, one {# member} other {# members}} · {count, number} of {total, number} permissions"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.Ymelch"
+msgid "The owner role holds every permission and can't change."
+msgstr "The owner role holds every permission and can't change."
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.Fq40c4"
+msgid "You can read this role. Changing it needs the roles.manage permission and every key it holds."
+msgstr "You can read this role. Changing it needs the roles.manage permission and every key it holds."
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.F9jeKU"
+msgid "Catalog default"
+msgstr "Catalog default"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.nmR7zE"
+msgid "{count, plural, one {# override} other {# overrides}}"
+msgstr "{count, plural, one {# override} other {# overrides}}"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.SFuk1v"
+msgid "Permissions"
+msgstr "Permissions"
+
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.pi29lP"
+msgid "In this organization"
+msgstr "In this organization"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.c35gM5"
+msgid "Roles"
+msgstr "Roles"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.f4FOpO"
+msgid "Every organization starts from the catalog's roles. Override a role's keys here; the change applies in this organization only."
+msgstr "Every organization starts from the catalog's roles. Override a role's keys here; the change applies in this organization only."
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.2RdEU8"
+msgid "No roles"
+msgstr "No roles"
+
+#: src/features/roles/components/roles-section.tsx
+msgctxt "roles.dwGxtJ"
+msgid "The permissions catalog lists no tenant roles."
+msgstr "The permissions catalog lists no tenant roles."
+
 #: src/features/rules/components/rule-builder.tsx
 msgctxt "rules.Z8IqfA"
 msgid "The rule didn't load"
@@ -10306,6 +10490,16 @@ msgstr "Organization"
 msgctxt "settings.-a-2ug"
 msgid "Members"
 msgstr "Members"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.c35gM5"
+msgid "Roles"
+msgstr "Roles"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.V8cirD"
@@ -11631,6 +11825,230 @@ msgctxt "subjects.3kbIhS"
 msgid "Untitled"
 msgstr "Untitled"
 
+#: src/features/teams/components/team-detail.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5lVaeB"
+msgid "No description"
+msgstr "No description"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.ULVuKn"
+msgid "Owned customers"
+msgstr "Owned customers"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.QsGKCb"
+msgid "{count, plural, =0 {No customers} one {# customer} other {# customers}} name this team as their owner"
+msgstr "{count, plural, =0 {No customers} one {# customer} other {# customers}} name this team as their owner"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5GYr_-"
+msgid "No owned customers"
+msgstr "No owned customers"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.N-LkOO"
+msgid "Set a customer's owner team on its page."
+msgstr "Set a customer's owner team on its page."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.J9yqGv"
+msgid "Team created"
+msgstr "Team created"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.xGiyeB"
+msgid "New team"
+msgstr "New team"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.mZefzf"
+msgid "Teams group members and can own customers."
+msgstr "Teams group members and can own customers."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams._eT8WV"
+msgid "Team updated"
+msgstr "Team updated"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.wEQDC6"
+msgid "Edit"
+msgstr "Edit"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.I8Hyi4"
+msgid "Edit team"
+msgstr "Edit team"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.XnwmYR"
+msgid "The slug stays the same when you rename a team."
+msgstr "The slug stays the same when you rename a team."
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.VRLUcc"
+msgid "Member to add"
+msgstr "Member to add"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.XKF1qH"
+msgid "Choose a member"
+msgstr "Choose a member"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pm7N-R"
+msgid "Nobody is on this team"
+msgstr "Nobody is on this team"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pe_KhA"
+msgid "Choose a member above to add them."
+msgstr "Choose a member above to add them."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.IlJWZx"
+msgid "Ask an admin to add members."
+msgstr "Ask an admin to add members."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.csSJhm"
+msgid "Take {name} off the team"
+msgstr "Take {name} off the team"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.6b87eq"
+msgid "Team restored"
+msgstr "Team restored"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.2M1Ej4"
+msgid "Team archived"
+msgstr "Team archived"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.lNwtwt"
+msgid "Team deleted"
+msgstr "Team deleted"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.zz6ObK"
+msgid "Restore"
+msgstr "Restore"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.g9o_2L"
+msgid "Delete {name}?"
+msgstr "Delete {name}?"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.IXHy6n"
+msgid "Its members stay in the organization, and the customers it owned keep no owner."
+msgstr "Its members stay in the organization, and the customers it owned keep no owner."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.hvH0rZ"
+msgid "Search teams"
+msgstr "Search teams"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.zi5WKg"
+msgid "No teams match"
+msgstr "No teams match"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.AvP65a"
+msgid "Try another name or status."
+msgstr "Try another name or status."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.k112pF"
+msgid "Show all teams"
+msgstr "Show all teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.wIHVeU"
+msgid "{count, plural, one {# active team} other {# active teams}}"
+msgstr "{count, plural, one {# active team} other {# active teams}}"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.68djwb"
+msgid "No teams yet"
+msgstr "No teams yet"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.3xX2Kk"
+msgid "Group members into teams so they can own customers."
+msgstr "Group members into teams so they can own customers."
+
 #: src/features/templates/components/create-template-dialog.tsx
 msgctxt "templates.uI5hko"
 msgid "{name} created"
@@ -12037,9 +12455,9 @@ msgid "Access"
 msgstr "Access"
 
 #: src/features/user/components/profile-details.tsx
-msgctxt "user.JfBQtj"
-msgid "From the memberships claim in your access token, for the active organization."
-msgstr "From the memberships claim in your access token, for the active organization."
+msgctxt "user.hoC9fG"
+msgid "Your role comes from the memberships claim in your access token; the permissions are your role's catalog keys with this organization's overrides."
+msgstr "Your role comes from the memberships claim in your access token; the permissions are your role's catalog keys with this organization's overrides."
 
 #: src/features/user/components/profile-details.tsx
 msgctxt "user.1ZgrhW"

@@ -1,3 +1,5 @@
+import { importOptionalPeer } from "../core/optional-peer.ts";
+
 /**
  * The parts of `@supabase/lite` that `liteStack()` uses, typed structurally so
  * the optional peer stays out of the published types.
@@ -48,37 +50,38 @@ export const LITE_INSTALL =
   "Supabase Lite is an optional peer: install it with `pnpm add -D @supabase/lite`";
 
 /**
- * `@supabase/lite` is an optional peer: variable specifiers keep bundlers from
- * resolving it, and a missing install returns `undefined` so callers can say
- * how to add it.
+ * `@supabase/lite` is an optional peer, loaded through `importOptionalPeer` so
+ * bundlers leave it out (a literal specifier, even in a `const`, is resolved by
+ * Turbopack). A missing install returns `undefined` so callers can say how to
+ * add it.
  */
 export async function loadLite(): Promise<LiteRuntime | undefined> {
-  const root = "@supabase/lite";
-  const pglite = "@supabase/lite/pglite";
-  const sqlite = "@supabase/lite/sqlite";
+  const [root, pg, sq] = await Promise.all([
+    importOptionalPeer("@supabase/lite"),
+    importOptionalPeer("@supabase/lite/pglite"),
+    importOptionalPeer("@supabase/lite/sqlite"),
+  ]);
 
-  try {
-    // SAFETY: @supabase/lite 0.11 exports `App`, `createPgliteConnection`
-    // and `createConnection` with these shapes; the catch covers a missing
-    // install.
-    const [{ App }, pg, sq] = (await Promise.all([
-      import(root),
-      import(pglite),
-      import(sqlite),
-    ])) as [
-      { readonly App: LiteRuntime["App"] },
-      { createPgliteConnection(): Promise<PgliteConnection> },
-      { createConnection(config: { url: string }): Promise<LiteConnection> },
-    ];
-
-    return {
-      App,
-      createPgliteConnection: () => pg.createPgliteConnection(),
-      createSqliteConnection: (url) => sq.createConnection({ url }),
-    };
-  } catch {
+  if (root === undefined || pg === undefined || sq === undefined) {
     return undefined;
   }
+
+  // SAFETY: @supabase/lite 0.11 exports `App` with this shape.
+  const { App } = root as { readonly App: LiteRuntime["App"] };
+
+  // SAFETY: @supabase/lite/pglite 0.11 exports `createPgliteConnection`.
+  const pglite = pg as { createPgliteConnection(): Promise<PgliteConnection> };
+
+  // SAFETY: @supabase/lite/sqlite 0.11 exports `createConnection`.
+  const sqlite = sq as {
+    createConnection(config: { url: string }): Promise<LiteConnection>;
+  };
+
+  return {
+    App,
+    createPgliteConnection: () => pglite.createPgliteConnection(),
+    createSqliteConnection: (url) => sqlite.createConnection({ url }),
+  };
 }
 
 /** Applies migrations, then declarative schemas, with Lite's migrator. */

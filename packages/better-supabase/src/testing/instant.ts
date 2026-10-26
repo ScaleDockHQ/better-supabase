@@ -1,5 +1,6 @@
 import type { BudgetPage, MeasuredRender } from "./budget.ts";
 
+import { importOptionalPeer } from "../core/optional-peer.ts";
 import { expectDbBudget } from "./budget.ts";
 
 /** The part of a Playwright `BrowserContext` that `instant()` uses. */
@@ -71,17 +72,10 @@ type Instant = <T>(
  * `undefined` so the caller can say how to add it.
  */
 async function loadInstant(): Promise<Instant | undefined> {
-  const specifier = "@next/playwright";
+  const module = await importOptionalPeer("@next/playwright");
 
-  try {
-    // SAFETY: @next/playwright exports `instant` with this signature; the
-    // catch covers a missing install.
-    const module = (await import(specifier)) as { instant: Instant };
-
-    return module.instant;
-  } catch {
-    return undefined;
-  }
+  // SAFETY: @next/playwright exports `instant` with this signature.
+  return (module as { instant: Instant } | undefined)?.instant;
 }
 
 async function assertUnderLock(expectation: InstantExpectation): Promise<void> {
