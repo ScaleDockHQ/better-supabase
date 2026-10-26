@@ -47,9 +47,23 @@
   - Settings tabs, for each user: a click from one tab to the next commits
     the "Settings" heading and the tab's content under the lock, through
     Security (the two-factor status and the connected agents) and back to
-    Profile; Audit log is absent for members (`settings.spec.ts`). The spec
-    signs in fresh, because Security asks the Auth server, which refuses a
-    saved session once the flows spec has signed that user out everywhere.
+    Profile, Teams and Roles included; Audit log is absent for members
+    (`settings.spec.ts`). The spec signs in fresh, because Security asks the
+    Auth server, which refuses a saved session once the flows spec has
+    signed that user out everywhere.
+  - `/api/unknown` answers a Problem Details 404 from `app/api/[...rest]`
+    (`initial-load.spec.ts`).
+  - Access, not under the lock (`access.spec.ts`): the owner creates a team,
+    adds and removes Max Member and deletes it; granting `customers.write`
+    to the member role in the permission matrix enables the member's
+    owner-team select on the next load, and resetting it disables it again.
+    An `afterEach` resets the override through `/api/v1`.
+  - API and MCP with Bearer tokens from Auth's password grant
+    (`api.spec.ts`, `e2e/tokens.ts`): `/api/v1` lists, creates and deletes
+    as the caller, refuses a member's role override with 403, and serves
+    `openapi.json`; `/api/mcp` answers anonymous clients 401 with the RFC
+    9728 metadata URL, lists the table and app tools, and returns the
+    member's refused override as a tool error.
   - Flows: sign in and out, a wrong password, sign-up without an
     organization, password reset through Mailpit, the organization switch
     without a reload, the language switch, the theme before first paint, and

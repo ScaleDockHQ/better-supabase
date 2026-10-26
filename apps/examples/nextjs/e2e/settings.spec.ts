@@ -51,6 +51,18 @@ const tabs: readonly Tab[] = [
     visibleTo: everyone,
   },
   {
+    path: "/settings/teams",
+    label: "Teams",
+    content: (page) => [cardTitle(page, "Teams")],
+    visibleTo: everyone,
+  },
+  {
+    path: "/settings/roles",
+    label: "Roles",
+    content: (page) => [cardTitle(page, "Roles"), visibleTestId(page, "roles")],
+    visibleTo: everyone,
+  },
+  {
     path: "/settings/billing",
     label: "Billing",
     content: (page) => [visibleTestId(page, "current-plan")],

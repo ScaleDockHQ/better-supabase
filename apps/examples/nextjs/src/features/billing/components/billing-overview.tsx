@@ -1,5 +1,8 @@
+import type { ComponentProps } from "react";
+
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
+import { Suspense } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -83,11 +86,7 @@ export async function CurrentPlan() {
  * `<Suspense>`.
  */
 export async function PlanGrid() {
-  const [session, permissions] = await Promise.all([
-    getSession(),
-    getPermissions(),
-  ]);
-
+  const session = await getSession();
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -100,13 +99,14 @@ export async function PlanGrid() {
     getExtracted("billing"),
   ]);
 
+  const initial = { plans, current: subscription?.planKey };
+
   return (
     <>
       <div data-recipe="plan-picker">
-        <PlanPicker
-          initial={{ plans, current: subscription?.planKey }}
-          canManage={can(permissions, "billing.manage")}
-        />
+        <Suspense fallback={<PlanPicker initial={initial} canManage={false} />}>
+          <ManagedPlanPicker initial={initial} />
+        </Suspense>
       </div>
       <p className="text-sm text-muted-foreground">
         {t(
@@ -114,6 +114,23 @@ export async function PlanGrid() {
         )}
       </p>
     </>
+  );
+}
+
+/**
+ * The permission is a private database read, so the plans render first with
+ * switching off and this swaps in once the caller's keys arrive.
+ */
+async function ManagedPlanPicker({
+  initial,
+}: Pick<ComponentProps<typeof PlanPicker>, "initial">) {
+  const permissions = await getPermissions();
+
+  return (
+    <PlanPicker
+      initial={initial}
+      canManage={can(permissions, "billing.manage")}
+    />
   );
 }
 

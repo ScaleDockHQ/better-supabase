@@ -23,9 +23,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * A URL outside every locale (for example `/api/unknown`, which the `[locale]`
- * segment reads as an unknown locale) skips the locale layout, so this renders
- * the whole document. It has no locale, so it links to both.
+ * Next renders this when routing matches nothing, and for a Server Action
+ * request whose action no longer exists. The `[locale]` root segment matches
+ * every path, so unknown pages render `[locale]/not-found.tsx` instead. This
+ * has no locale, so it links to both.
  */
 export default function GlobalNotFound() {
   return (

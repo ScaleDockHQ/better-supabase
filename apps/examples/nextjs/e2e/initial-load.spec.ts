@@ -15,6 +15,21 @@ test("the app sends the shared security headers", async ({ request }) => {
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
 });
 
+test("an unknown API path answers a Problem Details 404", async ({
+  request,
+}) => {
+  const response = await request.get("/api/unknown");
+
+  expect(response.status()).toBe(404);
+  expect(response.headers()["content-type"]).toContain(
+    "application/problem+json",
+  );
+  expect(await response.json()).toMatchObject({
+    kind: "not_found",
+    instance: "/api/unknown",
+  });
+});
+
 for (const locale of ["en", "nl"] as const) {
   test.describe(`initial load in ${locale}`, () => {
     test.describe("signed in", () => {

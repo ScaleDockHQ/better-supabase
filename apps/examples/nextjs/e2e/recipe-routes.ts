@@ -31,6 +31,17 @@ const submitDialog = async (page: Page, name: string): Promise<void> => {
     .click();
 };
 
+/** The work pages show an empty state until the board has an item. */
+const createWorkItem = async (page: Page): Promise<void> => {
+  await page.getByRole("button", { name: "New item" }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Title")
+    .fill(`Ship the launch post ${unique()}`);
+  await submitDialog(page, "Create item");
+  await expect(page.getByRole("dialog")).toBeHidden();
+};
+
 const createContact = async (page: Page): Promise<void> => {
   await page.getByRole("button", { name: "Add contact" }).first().click();
   await page.getByRole("dialog").getByLabel("Name").fill("Acme Rockets");
@@ -130,20 +141,21 @@ export const RECIPE_ROUTES: readonly RecipeRoute[] = [
       );
     },
   },
-  { slug: "work-item-board", path: "/en/work" },
+  { slug: "work-item-board", path: "/en/work", prepare: createWorkItem },
   { slug: "team-picker", path: "/en/work" },
-  { slug: "work-item-grid", path: "/en/work/grid" },
+  {
+    slug: "work-item-grid",
+    path: "/en/work",
+    prepare: async (page) => {
+      await createWorkItem(page);
+      await page.goto("/en/work/grid");
+    },
+  },
   {
     slug: "bulk-action-bar",
     path: "/en/work",
     prepare: async (page) => {
-      await page.getByRole("button", { name: "New item" }).click();
-      await page
-        .getByRole("dialog")
-        .getByLabel("Title")
-        .fill("Ship the launch post");
-      await submitDialog(page, "Create item");
-      await expect(page.getByRole("dialog")).toBeHidden();
+      await createWorkItem(page);
       await page.goto("/en/work/grid");
       await page.getByRole("checkbox", { name: "Select all" }).click();
     },
