@@ -34,3 +34,9 @@ made in the dashboard is found like any other.
 
 The docs page for existing apps is rewritten around the ladder, and an example starts as a plain
 Supabase app.
+
+## Status note
+
+All four rungs ship: `init` detection with `--from`, `gen` helpers for every table, `@bsb` table
+tags (ADR 0102), and `add <block> --over <table>`. `doctor --adoption` shows where each table
+stands. The dashboard-table gap is closed in ADR 0098 by saving the snapshot.
