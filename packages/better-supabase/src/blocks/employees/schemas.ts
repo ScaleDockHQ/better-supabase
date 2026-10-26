@@ -9,6 +9,8 @@ export const employeeInputSchema: EntitySchema<EmployeeInput> =
     title: "EmployeeInput",
     fields: {
       name: { kind: "string", minLength: 1, maxLength: 200 },
+      firstName: { kind: "string", optional: true, maxLength: 200 },
+      lastName: { kind: "string", optional: true, maxLength: 200 },
       email: { kind: "string", optional: true, maxLength: 320 },
       userId: { kind: "uuid", optional: true },
       jobTitle: { kind: "string", optional: true, maxLength: 200 },

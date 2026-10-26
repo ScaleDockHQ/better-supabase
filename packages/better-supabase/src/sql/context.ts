@@ -118,6 +118,7 @@ export interface BlockSqlTableLifecycle {
  */
 export interface BlockSqlEntitySubject {
   readonly title: string;
+  readonly fallbackTitle?: string;
   readonly deletedAt?: string;
   readonly permissions: {
     readonly read: string;

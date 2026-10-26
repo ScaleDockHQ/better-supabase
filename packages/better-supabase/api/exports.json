@@ -7155,6 +7155,7 @@
       "BlockTransportMiddleware",
       "Contract",
       "ContractInput",
+      "ContractPatch",
       "EmergencyContact",
       "Employee",
       "EmployeeChange",

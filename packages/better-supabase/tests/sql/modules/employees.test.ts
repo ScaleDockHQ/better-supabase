@@ -131,6 +131,7 @@ describe("employees module", () => {
         installed: () => true,
         hasTable: () => true,
         has: () => true,
+        option: () => undefined,
       } as never)
       .map((fn) => fn.name);
 

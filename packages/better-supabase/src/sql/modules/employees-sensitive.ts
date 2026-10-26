@@ -9,6 +9,11 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import {
+  editableContracts,
+  FLAT_DETAILS,
+  flatDetails,
+} from "./employees-options.ts";
 
 interface Detail {
   /** The camelCase key of `attrs`. */
@@ -54,6 +59,35 @@ const DETAILS: readonly Detail[] = [
   },
 ];
 
+const NESTED: Readonly<
+  Record<(typeof FLAT_DETAILS)[number], readonly [string, string]>
+> = {
+  addressLine1: ["address", "{address,line1}"],
+  addressLine2: ["address", "{address,line2}"],
+  postalCode: ["address", "{address,postalCode}"],
+  city: ["address", "{address,city}"],
+  region: ["address", "{address,region}"],
+  country: ["address", "{address,country}"],
+  emergencyName: ["emergencyContacts", "{emergencyContacts,0,name}"],
+  emergencyPhone: ["emergencyContacts", "{emergencyContacts,0,phone}"],
+  emergencyRelation: ["emergencyContacts", "{emergencyContacts,0,relation}"],
+};
+
+const ADDRESS_KEYS: Readonly<Record<string, string>> = {
+  addressLine1: "line1",
+  addressLine2: "line2",
+  postalCode: "postalCode",
+  city: "city",
+  region: "region",
+  country: "country",
+};
+
+const CONTACT_KEYS: Readonly<Record<string, string>> = {
+  emergencyName: "name",
+  emergencyPhone: "phone",
+  emergencyRelation: "relation",
+};
+
 /**
  * Private details and the contract history, when their tables exist: the
  * employee and holders of employees.view_sensitive read them.
@@ -96,11 +130,59 @@ function privateSql(
   const e = (column: string): string => n.c("employees", column);
   const table = n.t("privateDetails");
 
+  const flat = flatDetails(ctx)
+    ? FLAT_DETAILS.filter((logical) => has(logical))
+    : [];
+
+  const pairs = (
+    keys: Readonly<Record<string, string>>,
+    alias: string,
+  ): string =>
+    flat
+      .filter((logical) => Object.hasOwn(keys, logical))
+      .map(
+        (logical) =>
+          `${sqlString(keys[logical] ?? logical)}, ${alias}.${p(logical)}`,
+      )
+      .join(", ");
+
+  const json = (alias: string): string => {
+    const address = pairs(ADDRESS_KEYS, alias);
+    const contact = pairs(CONTACT_KEYS, alias);
+
+    const parts = [
+      ...(address === "" || has("address")
+        ? []
+        : [
+            `'address', nullif(jsonb_strip_nulls(jsonb_build_object(${address})), '{}'::jsonb)`,
+          ]),
+      ...(contact === "" || has("emergencyContacts")
+        ? []
+        : [
+            `'emergency_contacts', case when ${flat.includes("emergencyName") ? `${alias}.${p("emergencyName")} is null` : "true"} then '[]'::jsonb else jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(${contact}))) end`,
+          ]),
+    ];
+
+    return parts.length === 0
+      ? `to_jsonb(${alias})`
+      : `(to_jsonb(${alias}) || jsonb_build_object(${parts.join(", ")}))`;
+  };
+
   const sets = [
     ...DETAILS.filter((detail) => has(detail.column)).map((detail) => {
       const key = sqlString(detail.key);
 
       return `${p(detail.column)} = case when save_employee_private_details.attrs ? ${key} then ${detail.value(`save_employee_private_details.attrs ->> ${key}`, `save_employee_private_details.attrs -> ${key}`)} else x.${p(detail.column)} end`;
+    }),
+    ...flat.map((logical) => {
+      const [parent, path] = NESTED[logical];
+      const attrs = "save_employee_private_details.attrs";
+
+      const nested = has(parent)
+        ? ""
+        : ` when ${attrs} ? ${sqlString(parent)} then nullif(trim(${attrs} #>> ${sqlString(path)}), '')`;
+
+      return `${p(logical)} = case when ${attrs} ? ${sqlString(logical)} then nullif(trim(${attrs} ->> ${sqlString(logical)}), '')${nested} else x.${p(logical)} end`;
     }),
     ...(has("updatedAt") ? [`${p("updatedAt")} = now()`] : []),
     ...(has("updatedBy") ? [`${p("updatedBy")} = auth.uid()`] : []),
@@ -134,7 +216,7 @@ begin${load("employee_private_details", "employee", reader("v_employee"))}
   if v_row.${p("employee")} is null then
     return null;
   end if;
-  return to_jsonb(v_row);
+  return ${json("v_row")};
 end;
 $$;
 ${userGrant(`${n.fn("employee_private_details")}(uuid)`)}
@@ -165,7 +247,7 @@ begin${load("save_employee_private_details", "employee", reader("v_employee"))}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "a private detail has an invalid value", "22023")}
   end;
-  return to_jsonb(v_row);
+  return ${json("v_row")};
 end;
 $$;
 ${userGrant(`${n.fn("save_employee_private_details")}(uuid, jsonb)`)}
@@ -218,14 +300,16 @@ function contractsSql(
     `(${arg("hoursPerWeek")})::numeric`,
     `(${arg("salary")})::bigint`,
     `upper(${arg("currency")})`,
-    ...(has("salaryPeriod") ? [arg("salaryPeriod")] : []),
+    ...(has("salaryPeriod")
+      ? [ctx.cast("contracts", "salaryPeriod", arg("salaryPeriod"))]
+      : []),
     ...(has("note") ? [`nullif(trim(${arg("note")}), '')`] : []),
     ...(has("createdBy") ? ["auth.uid()"] : []),
   ];
 
   const updated = ctx.record({
     type: "employee.updated",
-    payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', v_employee.${e("name")}, 'fields', jsonb_build_array('contract'))`,
+    payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', ${n.name("v_employee")}, 'fields', jsonb_build_array('contract'))`,
     subject: `'employees/' || v_employee.${e("id")}::text`,
     tenant: `v_employee.${e("tenant")}::text`,
     audit: false,
@@ -286,5 +370,111 @@ begin${load("add_employee_contract", "employee", `(${n.service} or (${ctx.scope.
 end;
 $$;
 ${userGrant(`${n.fn("add_employee_contract")}(uuid, jsonb)`)}
+${editableContracts(ctx) ? editContractsSql(ctx, n, { table, k, has, row, updated, extras }) : ""}`;
+}
+
+interface ContractNames {
+  readonly table: string;
+  readonly k: (column: string) => string;
+  readonly has: (column: string) => boolean;
+  readonly row: (alias: string) => string;
+  readonly updated: string;
+  readonly extras: ReturnType<BlockSqlContext["extraColumns"]>;
+}
+
+function editContractsSql(
+  ctx: BlockSqlContext,
+  n: EmployeeNames,
+  names: ContractNames,
+): string {
+  const { table, k, has, row, updated, extras } = names;
+  const e = (column: string): string => n.c("employees", column);
+  const attrs = "update_employee_contract.attrs";
+
+  const patch = (logical: string, key: string, value: string): string =>
+    `${k(logical)} = case when ${attrs} ? ${sqlString(key)} then ${value} else x.${k(logical)} end`;
+
+  const text = (key: string): string => `${attrs} ->> ${sqlString(key)}`;
+
+  const sets = [
+    patch("startsOn", "startsOn", `(${text("startsOn")})::date`),
+    patch("endsOn", "endsOn", `(${text("endsOn")})::date`),
+    patch("hoursPerWeek", "hoursPerWeek", `(${text("hoursPerWeek")})::numeric`),
+    patch("salary", "salary", `(${text("salary")})::bigint`),
+    `${k("currency")} = case when ${attrs} ? 'salary' or ${attrs} ? 'currency' then upper(${text("currency")}) else x.${k("currency")} end`,
+    ...(has("salaryPeriod")
+      ? [
+          patch(
+            "salaryPeriod",
+            "salaryPeriod",
+            ctx.cast("contracts", "salaryPeriod", text("salaryPeriod")),
+          ),
+        ]
+      : []),
+    ...(has("note")
+      ? [patch("note", "note", `nullif(trim(${text("note")}), '')`)]
+      : []),
+  ];
+
+  const allowed = (alias: string): string =>
+    `(${n.service} or (${ctx.scope.can(`${alias}.${e("tenant")}`, n.write)} and ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)}))`;
+
+  const load = (fnName: string): string => `
+  select * into v_row from ${table} x where x.${k("id")} = ${fnName}.contract;
+  select * into v_employee from ${n.t("employees")} x where x.${e("id")} = v_row.${k("employee")};
+  if v_row.${k("id")} is null or v_employee.${e("id")} is null or not ${allowed("v_employee")} then
+    ${fail("EMPLOYEE_CONTRACT_NOT_FOUND", "no such contract you can change", "P0002")}
+  end if;`;
+
+  return `
+-- Changes the keys attrs sets on a contract: startsOn, endsOn, hoursPerWeek,
+-- salary with currency, salaryPeriod, note and fields. Needs
+-- employees.write and employees.view_sensitive.
+create or replace function ${n.fn("update_employee_contract")}(contract uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_employee ${n.t("employees")};
+  v_row ${table};
+begin${load("update_employee_contract")}
+  if jsonb_typeof(coalesce(${attrs}, '{}')) <> 'object' then
+    ${fail("EMPLOYEE_CONTRACT_INVALID", "attrs must be an object", "22023")}
+  end if;
+  if ${attrs} ? 'startsOn' and ${text("startsOn")} is null then
+    ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract needs a start date", "22023")}
+  end if;
+  begin
+    update ${table} x set ${sets.join(",\n      ")}
+    where x.${k("id")} = v_row.${k("id")}
+    returning * into v_row;${writeExtraColumns(table, extras, `(${attrs} -> 'fields')`, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
+  exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
+    ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
+  end;
+  ${updated}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${n.fn("update_employee_contract")}(uuid, jsonb)`)}
+
+-- Deletes a contract. Needs employees.write and employees.view_sensitive.
+create or replace function ${n.fn("delete_employee_contract")}(contract uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_employee ${n.t("employees")};
+  v_row ${table};
+begin${load("delete_employee_contract")}
+  delete from ${table} x where x.${k("id")} = v_row.${k("id")};
+  ${updated}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${n.fn("delete_employee_contract")}(uuid)`)}
 `;
 }

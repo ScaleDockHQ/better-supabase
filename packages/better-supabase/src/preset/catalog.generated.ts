@@ -3933,6 +3933,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "primary": true,
             "subject": {
               "title": "name",
+              "fallbackTitle": "firstName",
               "permissions": {
                 "read": "read",
                 "write": "write"
@@ -3968,7 +3969,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "originId": "origin_id",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "firstName": "first_name",
+              "lastName": "last_name"
             }
           }
         },
@@ -13606,6 +13609,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "minLength": 1,
                 "maxLength": 200
               },
+              "firstName": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "lastName": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
               "email": {
                 "kind": "string",
                 "optional": true,
@@ -13668,6 +13681,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "name": {
                   "type": "string",
                   "minLength": 1,
+                  "maxLength": 200
+                },
+                "firstName": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "lastName": {
+                  "type": "string",
                   "maxLength": 200
                 },
                 "email": {

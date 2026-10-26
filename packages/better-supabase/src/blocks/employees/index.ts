@@ -1,6 +1,7 @@
 export {
   type Contract,
   type ContractInput,
+  type ContractPatch,
   createEmployees,
   type EmergencyContact,
   type Employee,

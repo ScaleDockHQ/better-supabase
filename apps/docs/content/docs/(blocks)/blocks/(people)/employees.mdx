@@ -144,9 +144,74 @@ The three tables declare their tenant to `data-lifecycle`, so an organization ex
 
 `addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, salaryPeriod, note })` appends to the employee's contract history. `salary` is a `Money` value from [commerce](/docs/concepts/commerce), such as `money(5_400_000n, "EUR")`, which carries its currency and is sent as text so it stays exact past 2^53, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.view_sensitive`.
 
+With `options.contracts: "editable"`, contracts can be changed and removed
+too: `updateContract(contractId, patch)` sets the keys the patch names
+(`null` clears `endsOn`, `hoursPerWeek`, `salary`, `salaryPeriod` or `note`)
+and `deleteContract(contractId)` removes one (`update_employee_contract` and
+`delete_employee_contract` in SQL). Both need the same keys as adding one,
+record `employee.updated` with `fields: ["contract"]`, and fail with
+`EMPLOYEE_CONTRACT_NOT_FOUND` for a contract the caller can't change. An
+app's own salary period column maps its labels through
+[`values`](/docs/blocks/own-schemas#your-columns-values), as in
+`values: { contracts: { salaryPeriod: { hour: "hourly", month: "monthly" } } }`.
+
 ## Adopting a table
 
-An app with its own employees table keeps it: the module runs over it, maps its columns, and adds the columns it lacks unless you map them to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables.
+An app with its own employees table keeps it: the module runs over it, maps its columns, and adds the columns it lacks unless you map them to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables, and the private details' `user` and `iban` columns can be `null`.
+
+### First and last names
+
+With `options.name: "split"`, the module writes `firstName` and `lastName`
+(`first_name` and `last_name` by default) instead of one name. `create`
+takes `firstName` and `lastName`, or splits `name` at its first space;
+`update` takes `firstName`, `lastName` and `name` (split the same way). The
+full name is read from the `name` column when you map one, which the module
+never writes, so make it a generated column:
+
+```sql
+full_name text generated always as (trim(first_name || coalesce(' ' || last_name, ''))) stored
+```
+
+Map `name` to `null` when the table has no such column: reads, events and
+the org chart order then join the two parts, and the record title and search
+use `firstName`.
+
+### Flat private details
+
+With `options.privateDetails: "flat"`, the address and one emergency contact
+live in plain columns: `addressLine1`, `addressLine2`, `postalCode`, `city`,
+`region`, `country`, `emergencyName`, `emergencyPhone` and
+`emergencyRelation`. Map the ones your table has and the rest, with `address`
+and `emergencyContacts`, to `null`. `savePrivateDetails` takes either those
+keys or the usual `address` object (`line1`, `line2`, `postalCode`, `city`,
+`region`, `country`) and `emergencyContacts` list, whose first contact fills
+the columns; reads return `address` and `emergency_contacts` built from them.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  employees: {
+    tables: {
+      employees: "public.staff",
+      privateDetails: "public.staff_private",
+      contracts: "public.staff_contracts",
+    },
+    columns: {
+      employees: { name: "full_name", firstName: "first_name", lastName: "last_name" },
+      privateDetails: {
+        user: null, iban: null, address: null, emergencyContacts: null,
+        addressLine1: "home_line1", postalCode: "home_postal_code",
+        city: "home_city", country: "home_country",
+        addressLine2: null, region: null,
+        emergencyName: "emergency_name", emergencyPhone: "emergency_phone",
+        emergencyRelation: null,
+      },
+      contracts: { salaryPeriod: "pay_basis" },
+    },
+    values: { contracts: { salaryPeriod: { hour: "hourly", month: "monthly", year: "annual", week: null } } },
+    options: { name: "split", privateDetails: "flat", contracts: "editable" },
+  },
+},
+```
 
 ## Events
 
@@ -180,6 +245,7 @@ An app with its own employees table keeps it: the module runs over it, maps its 
 | `EMPLOYEE_PRIVATE_INVALID`       | a private detail has an invalid value, such as a malformed IBAN |
 | `EMPLOYEE_CONTRACT_INVALID`      | a contract without a start date, or with an invalid value       |
 | `EMPLOYEE_CONTRACT_OVERLAP`      | the contract starts on or before the latest one                 |
+| `EMPLOYEE_CONTRACT_NOT_FOUND`    | no contract the caller can change (editable contracts)          |
 
 ## Without the client
 

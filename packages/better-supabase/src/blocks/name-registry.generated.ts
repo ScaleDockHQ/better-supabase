@@ -622,15 +622,15 @@ export interface BlockNameRegistry {
   };
   readonly "employees": {
     readonly tables: {
-      readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "privateDetails": "employee" | "tenant" | "user" | "nationalId" | "iban" | "birthDate" | "personalEmail" | "phone" | "address" | "emergencyContacts" | "offboardedAt" | "anonymizedAt" | "updatedAt" | "updatedBy";
+      readonly "employees": "id" | "tenant" | "user" | "name" | "email" | "jobTitle" | "team" | "manager" | "employmentType" | "status" | "startDate" | "endDate" | "offboardReason" | "originType" | "originId" | "createdBy" | "createdAt" | "updatedAt" | "firstName" | "lastName";
+      readonly "privateDetails": "employee" | "tenant" | "user" | "nationalId" | "iban" | "birthDate" | "personalEmail" | "phone" | "address" | "emergencyContacts" | "offboardedAt" | "anonymizedAt" | "updatedAt" | "updatedBy" | "addressLine1" | "addressLine2" | "postalCode" | "city" | "region" | "country" | "emergencyName" | "emergencyPhone" | "emergencyRelation";
       readonly "contracts": "id" | "tenant" | "employee" | "startsOn" | "endsOn" | "hoursPerWeek" | "salary" | "currency" | "salaryPeriod" | "note" | "createdBy" | "createdAt";
     };
     readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "offboard_employee" | "org_chart" | "reports_of" | "save_employee_private_details" | "update_employees";
     readonly actions: "read" | "write" | "viewSensitive";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard";
     readonly entities: {
-      readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at";
+      readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at" | "first_name" | "last_name";
     };
     readonly primary: "employee";
   };

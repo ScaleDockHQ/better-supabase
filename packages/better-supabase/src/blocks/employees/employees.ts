@@ -48,6 +48,8 @@ const COLUMNS = new Set([
   "tenant_id",
   "user_id",
   "name",
+  "first_name",
+  "last_name",
   "email",
   "job_title",
   "team_id",
@@ -71,6 +73,8 @@ export interface Employee<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly name: string;
+  readonly firstName?: string;
+  readonly lastName?: string;
   readonly email?: string;
   /**
    * The account, when the employee has one; contractors and interns often
@@ -103,6 +107,8 @@ export interface OrgChartEntry<
 
 export interface EmployeeInput<F extends object = Record<never, never>> {
   readonly name: string;
+  readonly firstName?: string;
+  readonly lastName?: string;
   readonly email?: string;
   readonly userId?: string;
   readonly jobTitle?: string;
@@ -121,6 +127,8 @@ export interface EmployeeInput<F extends object = Record<never, never>> {
 
 export type EmployeeField =
   | "name"
+  | "firstName"
+  | "lastName"
   | "email"
   | "userId"
   | "jobTitle"
@@ -208,6 +216,16 @@ export interface ContractInput {
   readonly note?: string;
 }
 
+export interface ContractPatch {
+  readonly fields?: Readonly<Record<string, unknown>>;
+  readonly startsOn?: Temporal.PlainDate;
+  readonly endsOn?: Temporal.PlainDate | null;
+  readonly hoursPerWeek?: number | null;
+  readonly salary?: Money | null;
+  readonly salaryPeriod?: SalaryPeriod | null;
+  readonly note?: string | null;
+}
+
 export interface Employees<F extends object = Record<never, never>> {
   create(
     organizationId: string,
@@ -254,6 +272,11 @@ export interface Employees<F extends object = Record<never, never>> {
   contracts(employeeId: string): AsyncResult<readonly Contract[]>;
   /** Starts after the latest contract, which ends the day before. */
   addContract(employeeId: string, input: ContractInput): AsyncResult<Contract>;
+  updateContract(
+    contractId: string,
+    patch: ContractPatch,
+  ): AsyncResult<Contract>;
+  deleteContract(contractId: string): AsyncResult<Contract>;
 }
 
 export interface EmployeesOptions<
@@ -304,6 +327,21 @@ function contractArgs(input: ContractInput): Record<string, unknown> {
   };
 }
 
+function contractPatchArgs(patch: ContractPatch): Record<string, unknown> {
+  const { salary, ...rest } = patch;
+
+  if (salary === undefined) {
+    return argsOf(rest);
+  }
+
+  return {
+    ...argsOf(rest),
+    ...(salary === null
+      ? { salary: null, currency: null }
+      : { salary: amountText(salary), currency: salary.currency }),
+  };
+}
+
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
   const date = plainDate(value);
 
@@ -324,6 +362,8 @@ function employeeOf(value: unknown): Employee {
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
     name: textOf(row["name"]),
+    firstName: optionalText(row["first_name"]),
+    lastName: optionalText(row["last_name"]),
     email: optionalText(row["email"]),
     userId: optionalText(row["user_id"]),
     jobTitle: optionalText(row["job_title"]),
@@ -395,6 +435,8 @@ function contractOf(value: unknown): Contract {
 
 const BUILT_IN: ReadonlySet<string> = new Set<EmployeeField>([
   "name",
+  "firstName",
+  "lastName",
   "email",
   "userId",
   "jobTitle",
@@ -581,6 +623,14 @@ export function createEmployees<
         { employee: employeeId, attrs: contractArgs(input) },
         contractOf,
       ),
+    updateContract: (contractId, patch) =>
+      call(
+        "update_employee_contract",
+        { contract: contractId, attrs: contractPatchArgs(patch) },
+        contractOf,
+      ),
+    deleteContract: (contractId) =>
+      call("delete_employee_contract", { contract: contractId }, contractOf),
   };
 
   return withBlockHooks(client, options.hooks, {

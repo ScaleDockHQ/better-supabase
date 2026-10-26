@@ -353,6 +353,53 @@ describe("employees block", () => {
     ]);
   });
 
+  it("updates and deletes a contract and reads the name parts", async () => {
+    const contract = { id: "c1", employee_id: "e1", starts_on: "2026-01-01" };
+
+    const t = transport({
+      update_employee_contract: () => contract,
+      delete_employee_contract: () => contract,
+      create_employee: () => ({
+        ...EMPLOYEE,
+        name: "Grace Hopper",
+        first_name: "Grace",
+        last_name: "Hopper",
+      }),
+    });
+
+    const employees = createEmployees({ transport: t });
+
+    await employees
+      .updateContract("c1", { salary: null, endsOn: date("2026-12-31") })
+      .orThrow();
+    await employees
+      .updateContract("c1", { salary: money(500n, "EUR") })
+      .orThrow();
+    await employees.deleteContract("c1").orThrow();
+
+    expect(
+      await employees
+        .create("o1", {
+          name: "Grace Hopper",
+          firstName: "Grace",
+          lastName: "Hopper",
+        })
+        .orThrow(),
+    ).toMatchObject({
+      name: "Grace Hopper",
+      firstName: "Grace",
+      lastName: "Hopper",
+    });
+    expect(t.calls.slice(0, 3).map(([, args]) => args)).toEqual([
+      {
+        contract: "c1",
+        attrs: { endsOn: "2026-12-31", salary: null, currency: null },
+      },
+      { contract: "c1", attrs: { salary: "500", currency: "EUR" } },
+      { contract: "c1" },
+    ]);
+  });
+
   it("fails a contract row without a start date", async () => {
     const employees = createEmployees({
       transport: transport({

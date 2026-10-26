@@ -4829,6 +4829,18 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "name": {
+                "type": "string",
+                "default": "single"
+              },
+              "privateDetails": {
+                "type": "string",
+                "default": "json"
+              },
+              "contracts": {
+                "type": "string",
+                "default": "append"
               }
             }
           }
