@@ -87,7 +87,10 @@ export interface BlockSqlScopeSource {
 }
 
 const CALLER = "(select auth.uid())";
-const SIGNED_IN = `(${CALLER} is not null)`;
+
+// An anonymous sign-in is a signed-in user to Postgres; the `none` scope is for
+// accounts that signed up (ADR 0104).
+const SIGNED_IN = `(${CALLER} is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true')`;
 
 export function moduleScope(source: BlockSqlScopeSource): BlockSqlScope {
   const { kind, idType } = source;

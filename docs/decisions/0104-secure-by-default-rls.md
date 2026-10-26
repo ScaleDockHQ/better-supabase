@@ -30,3 +30,13 @@ delete; nothing revokes `PUBLIC` or sets default privileges; `none` scope admits
 
 Breaking for apps that relied on the open defaults. Each hardening step has a changeset and a
 migration note.
+
+## Status note
+
+- Done: `rls-guard` catches `alter table` (0.23.x) and `init` writes it into a new config; the `none`
+  scope refuses anonymous sign-ins.
+- Not done, by decision: the service-role check keeps reading the JWT claim. Block functions raise a
+  caller to the service role on purpose by setting `request.jwt.claims` inside `security definer`
+  code (`context.ts`, `orders-shared.ts`, `mail-sync-functions.ts`, `app-table-seal.ts`), so a check
+  that reads the `role` setting first rejects the library's own calls (the integration suite showed
+  it). A request can't set that claim: PostgREST sets it per request and `set_config` is not exposed.

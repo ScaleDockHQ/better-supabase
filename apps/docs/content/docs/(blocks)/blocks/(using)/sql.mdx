@@ -363,7 +363,8 @@ nullable: a user's id by default (`default auth.uid()`) in `user` scope, null
 in `none` scope. The block's functions take the same arguments in every
 scope. In `user` scope they replace the scope id a signed-in caller passes
 with the caller's own id, and in `none` scope with null, so one user can't
-write into another's rows. Blocks that need tenants (organizations,
+write into another's rows. `none` scope admits accounts that signed up and
+refuses anonymous sign-ins (the `is_anonymous` claim). Blocks that need tenants (organizations,
 invitations, billing and most business blocks) run only in `tenant` scope,
 and `add` refuses them in another one; set their `scope` to `tenant` to
 keep them per tenant while the rest of the app runs per user.
