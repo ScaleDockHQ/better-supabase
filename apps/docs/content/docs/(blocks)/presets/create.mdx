@@ -368,3 +368,20 @@ run the query, read the row, then verify it.
 On [/create](https://app.bettersupabase.com/create), the Migrations tab of Get code
 has a Validate in Postgres button that runs the same check on the server for
 the current selection and design.
+
+## Gate a migration plan
+
+`gatePlan` applies the rename and data loss rules to a migration plan from pg-delta (ADR 0106). A
+rename becomes a rename only when a `-- bsb: rename old -> new` line confirms it, an ambiguous
+candidate never does, and a destructive action blocks the plan unless you allow data loss.
+
+```ts
+import { gatePlan, parseRenameHints } from "better-supabase/create";
+
+const gate = gatePlan(plan, {
+  hints: parseRenameHints(editLog),
+  allowDataLoss: false,
+});
+// gate.accepted, gate.questions, gate.unresolved, gate.destructive, gate.blocked
+// gate.issues are `Issue` values with `source: "plan"`.
+```
