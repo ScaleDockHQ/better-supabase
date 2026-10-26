@@ -84,3 +84,11 @@ BS107, the schema scan for grants and the splinter multiple permissive
 lint count only permissive policies, so their findings don't change.
 Revisit this if a module needs a tenant table whose access must not follow
 `lifecycle.tenant`.
+
+## Update: templates are tokenized
+
+Authorization templates are read by `tokenizeTemplate` (`src/core/sql-template-tokens.ts`)
+instead of regular expressions, and `fillTemplate` refuses an unsafe template
+before it fills a placeholder. Strings, quoted identifiers and comments are
+read whole, so the checks for `;`, comments, dollar quotes and unqualified
+calls look at code only.
