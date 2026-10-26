@@ -346,6 +346,25 @@ doesn't ship (`pgmq` for jobs, `btree_gist` for time tracking) lands in
 `skipped` instead of failing. pgTAP is not available through
 `@supabase/lite`, so database tests still run with `supabase test db`.
 
+To check security instead of syntax, `verifyFiles` applies the same files, reads the
+catalog and returns `Issue` values with `source: "verifier"` plus an access matrix:
+
+```ts
+import { verifyFiles } from "better-supabase/create/lite";
+
+const { issues, matrix } = await verifyFiles(files, {
+  tenantScoped: ["public.projects"],
+});
+// issue codes: verify_rls_off, verify_policy_true, verify_anon_write,
+// verify_anon_reads_all, verify_public_grant, verify_definer_search_path,
+// verify_force_off, verify_scope_missing.
+// matrix cells: table, role (anon or authenticated), command and reach
+// (denied, policy or open).
+```
+
+`verifyQuery`, `readSecurityCatalog` and `verifyCatalog` do the same over a live database:
+run the query, read the row, then verify it.
+
 On [/create](https://app.bettersupabase.com/create), the Migrations tab of Get code
 has a Validate in Postgres button that runs the same check on the server for
 the current selection and design.

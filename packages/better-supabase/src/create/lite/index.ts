@@ -17,6 +17,8 @@ export * from "./import.ts";
 
 export * from "./data-api.ts";
 
+export * from "./verify.ts";
+
 export type {
   Persona,
   Sandbox,

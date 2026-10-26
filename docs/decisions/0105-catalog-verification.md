@@ -26,3 +26,9 @@ reads `true` or a missing `using` goes unseen.
 ## Consequences
 
 CI time grows with the matrix; the matrix runs offline in PGlite and online in pgTAP.
+
+## Status note
+
+`verifyCatalog`, `verifyFiles`, `accessMatrix` and the `verify_*` findings ship in
+`better-supabase/create/lite`. The matrix is computed from grants and policies, not from generated
+pgTAP files; the per-persona pgTAP emission and the random-project property test are not built yet.
