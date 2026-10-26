@@ -61,22 +61,27 @@ export function pushTickets(ctx: BlockSqlContext): string {
     ? `
   -- The delivery's provider message id is Expo's first ticket id, so every
   -- receipt of the delivery records its event on that message, once per
-  -- ticket.
-  perform ${notifications.fn("record_delivery_event")}(
-    'expo',
-    d.${d("providerMessageId")},
-    case when r ->> 'status' = 'ok' then 'delivered' else 'bounced' end,
-    'expo-receipt:' || (r ->> 'id'),
-    now(),
-    jsonb_strip_nulls(jsonb_build_object('token', x.${c("token")}, 'error', r ->> 'error', 'message', r ->> 'message')),
-    false
-  )
-  from ${t} x
-  join ${notifications.table("deliveries")} d on d.${d("id")} = x.${c("delivery")}
-  cross join jsonb_array_elements(complete_push_receipts.receipts) r
-  where x.${c("ticket")} = r ->> 'id'
-    and x.${c("checkedAt")} is null
-    and d.${d("providerMessageId")} is not null;`
+  -- ticket. The events stored now come back for the client to emit.
+  select coalesce(jsonb_agg(e.recorded || jsonb_build_object('provider_event_id', e.event_id)), '[]'::jsonb)
+  into v_events
+  from (
+    select ${notifications.fn("record_delivery_event")}(
+      'expo',
+      d.${d("providerMessageId")},
+      case when r ->> 'status' = 'ok' then 'delivered' else 'bounced' end,
+      'expo-receipt:' || (r ->> 'id'),
+      now(),
+      jsonb_strip_nulls(jsonb_build_object('token', x.${c("token")}, 'error', r ->> 'error', 'message', r ->> 'message')),
+      false
+    ) as recorded, 'expo-receipt:' || (r ->> 'id') as event_id
+    from ${t} x
+    join ${notifications.table("deliveries")} d on d.${d("id")} = x.${c("delivery")}
+    cross join jsonb_array_elements(complete_push_receipts.receipts) r
+    where x.${c("ticket")} = r ->> 'id'
+      and x.${c("checkedAt")} is null
+      and d.${d("providerMessageId")} is not null
+  ) e
+  where coalesce((e.recorded ->> 'recorded')::boolean, false);`
     : "";
 
   return `
@@ -186,15 +191,20 @@ $$;
 -- Stores what Expo answered for each ticket, [{ id, status: ok | error,
 -- error, message }], and records notification.delivered or bounced on the
 -- delivery when the notifications block tracks provider events. A ticket
--- Expo has no receipt for yet stays unchecked. Returns how many it stored.
+-- Expo has no receipt for yet stays unchecked. Returns { updated, events }:
+-- how many tickets it stored and the provider events it recorded for the
+-- first time, as record_delivery_event returns them. Postgres can't change
+-- a return type in place, so the integer version is dropped first.
+drop function if exists ${fn("complete_push_receipts")}(jsonb);
 create or replace function ${fn("complete_push_receipts")}(receipts jsonb)
-returns integer
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   v_count integer;
+  v_events jsonb := '[]'::jsonb;
 begin${serviceOnly}
   if jsonb_typeof(complete_push_receipts.receipts) <> 'array' or jsonb_array_length(complete_push_receipts.receipts) > 1000 then
     ${fail("PUSH_TOO_MANY", "pass at most 1000 receipts", "22023")}
@@ -206,7 +216,7 @@ begin${serviceOnly}
   where x.${c("ticket")} = r ->> 'id'
     and x.${c("checkedAt")} is null;
   get diagnostics v_count = row_count;
-  return v_count;
+  return jsonb_build_object('updated', v_count, 'events', v_events);
 end;
 $$;
 ${TICKET_FUNCTIONS.map(
@@ -237,6 +247,6 @@ export function ticketsContract(
       args: ["integer", "interval"],
       returns: "jsonb",
     },
-    { name: "complete_push_receipts", args: ["jsonb"], returns: "integer" },
+    { name: "complete_push_receipts", args: ["jsonb"], returns: "jsonb" },
   ];
 }

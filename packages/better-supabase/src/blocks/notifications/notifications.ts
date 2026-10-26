@@ -18,7 +18,6 @@ import type {
   NotificationUpdate,
   Notifications,
   NotificationsOptions,
-  RecordedDeliveryEvent,
   Rendered,
   SendInput,
   SentNotification,
@@ -64,6 +63,11 @@ import {
   subscriberEventOf,
 } from "./delivery-batch.ts";
 import {
+  deliveryEventKindOf,
+  emitDeliveryEvent,
+  recordedDeliveryEventOf,
+} from "./delivery-events.ts";
+import {
   LEVELS,
   cursorOf,
   filtersOf,
@@ -77,52 +81,12 @@ const SUPPRESSION_REASONS: readonly SuppressionReason[] = [
   "manual",
 ];
 
-const DELIVERY_EVENT_KINDS: readonly DeliveryEventKind[] = [
-  "delivered",
-  "opened",
-  "clicked",
-  "bounced",
-  "complained",
-  "delayed",
-];
-
 const DELIVERY_STATUSES: readonly SubjectDelivery["status"][] = [
   "pending",
   "sent",
   "failed",
   "skipped",
 ];
-
-const kindOf = (value: unknown): DeliveryEventKind | null =>
-  DELIVERY_EVENT_KINDS.find((kind) => kind === value) ?? null;
-
-const recordedOf = (value: unknown): RecordedDeliveryEvent | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const kind = kindOf(value["kind"]);
-
-  if (kind === null) {
-    return null;
-  }
-
-  return {
-    deliveryId: String(value["delivery_id"]),
-    notificationId: String(value["notification_id"]),
-    tenant: nullableText(value["tenant"]),
-    type: String(value["type"]),
-    channel: String(value["channel"]),
-    userId: nullableText(value["user_id"]),
-    subject: {
-      type: String(value["subject_type"]),
-      id: String(value["subject_id"]),
-    },
-    kind,
-    providerStatus: kindOf(value["provider_status"]),
-    recorded: value["recorded"] === true,
-  };
-};
 
 const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
   id: String(row["id"]),
@@ -134,7 +98,7 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
     DELIVERY_STATUSES.find((status) => status === row["status"]) ?? "pending",
   provider: nullableText(row["provider"]),
   providerMessageId: nullableText(row["provider_message_id"]),
-  providerStatus: kindOf(row["provider_status"]),
+  providerStatus: deliveryEventKindOf(row["provider_status"]),
   providerStatusAt: nullableInstant(row["provider_status_at"]),
   templateKey: nullableText(row["template_key"]),
   error: nullableText(row["error"]),
@@ -144,7 +108,7 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
   events: (Array.isArray(row["events"]) ? row["events"] : [])
     .filter(isRecord)
     .flatMap((event) => {
-      const kind = kindOf(event["kind"]);
+      const kind = deliveryEventKindOf(event["kind"]);
 
       return kind === null
         ? []
@@ -1035,23 +999,14 @@ export function createNotifications<
           detail: input.detail ?? {},
           suppress: input.suppress ?? null,
         },
-        recordedOf,
+        recordedDeliveryEventOf,
       ).map((recorded) => {
-        if (recorded?.recorded === true) {
-          emit(
-            `notification.${recorded.kind}`,
-            {
-              notificationId: recorded.notificationId,
-              organizationId: recorded.tenant,
-              type: recorded.type,
-              channel: recorded.channel,
-              deliveryId: recorded.deliveryId,
-              provider: input.provider,
-              providerEventId: input.providerEventId ?? null,
-              subjectType: recorded.subject.type,
-              subjectId: recorded.subject.id,
-            },
-            recorded.tenant,
+        if (recorded !== null) {
+          emitDeliveryEvent(
+            emitEvent,
+            recorded,
+            input.provider,
+            input.providerEventId ?? null,
           );
         }
 

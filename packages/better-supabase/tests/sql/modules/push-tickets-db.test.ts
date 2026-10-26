@@ -138,6 +138,7 @@ describe("push tickets", BOOT, () => {
 declare
   v_delivery uuid;
   v_tickets jsonb;
+  v_completed jsonb;
 begin
   ${SERVICE}
   perform ${NOTIFY("")};
@@ -158,7 +159,12 @@ begin
   if jsonb_array_length(better_supabase.unchecked_push_tickets(1000, '1 hour')) <> 0 then
     raise exception 'fresh tickets were returned';
   end if;
-  perform better_supabase.complete_push_receipts('[{"id":"r1","status":"ok"},{"id":"r2","status":"error","error":"DeviceNotRegistered"}]');
+  v_completed := better_supabase.complete_push_receipts('[{"id":"r1","status":"ok"},{"id":"r2","status":"error","error":"DeviceNotRegistered"}]');
+  if (v_completed ->> 'updated')::integer <> 2
+    or (select string_agg(e ->> 'kind' || ':' || (e ->> 'provider_event_id'), ',' order by e ->> 'kind') from jsonb_array_elements(v_completed -> 'events') e)
+      <> 'bounced:expo-receipt:r2,delivered:expo-receipt:r1' then
+    raise exception 'completed %', v_completed;
+  end if;
   if jsonb_array_length(better_supabase.unchecked_push_tickets(1000, '0 seconds')) <> 0 then
     raise exception 'receipts did not check the tickets';
   end if;

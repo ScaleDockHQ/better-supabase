@@ -166,7 +166,12 @@ role) reads up to 1000 tickets older than 15 minutes that have no receipt,
 asks Expo for their receipts and stores them. Each receipt records
 `notification.delivered` or `notification.bounced` on its delivery, which
 the delivery's history and `onDeliveryEvent` show, and a
-`DeviceNotRegistered` receipt prunes the device. A bounced push doesn't add
+`DeviceNotRegistered` receipt prunes the device. With `events`
+(`betterSupabase.events`, which `createBlocks` passes to every block), each receipt it records
+for the first time also emits the `notification.delivered` or
+`notification.bounced` block event, with the same data as
+`recordDeliveryEvent` and `provider: "expo"`, so your `betterSupabase.on`
+handlers see push receipts and email webhooks the same way. A bounced push doesn't add
 the user's address to the suppression list. Tickets Expo has no receipt for
 yet stay unchecked for the next run.
 

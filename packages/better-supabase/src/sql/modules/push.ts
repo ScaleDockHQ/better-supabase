@@ -338,12 +338,18 @@ export const PUSH: BlockSqlDefinition = {
   integrates: ["notifications"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "With the notifications block installed, push_tickets stores Expo's tickets per delivery; record_push_tickets, push_tickets_for, unchecked_push_tickets and complete_push_receipts are new, for retries that skip devices already sent to and the receipt check.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "complete_push_receipts returns { updated, events }: the ticket count and the provider events it recorded for the first time, so the client emits notification.delivered and notification.bounced like recordDeliveryEvent does.",
       sql: () => "",
     },
   ],

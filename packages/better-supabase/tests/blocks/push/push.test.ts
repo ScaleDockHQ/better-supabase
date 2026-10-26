@@ -14,6 +14,7 @@ import {
   registerDevice,
   unregisterOnSignOut,
 } from "../../../src/blocks/push/index.ts";
+import { EventHub } from "../../../src/core/events.ts";
 import { ok } from "../../../src/core/result.ts";
 
 function transport(
@@ -187,6 +188,92 @@ describe("createPush", () => {
         ],
       },
     );
+  });
+
+  it("emits the notification events the receipts recorded", async () => {
+    const recorded = (kind: string, id: string, isNew: boolean) => ({
+      delivery_id: `dl-${id}`,
+      notification_id: `n-${id}`,
+      tenant: "o1",
+      type: "task.assigned",
+      channel: "push",
+      user_id: "u1",
+      subject_type: "task",
+      subject_id: "t1",
+      kind,
+      provider_status: kind,
+      recorded: isNew,
+      provider_event_id: `expo-receipt:${id}`,
+    });
+
+    const { transport: t } = transport((fn) =>
+      fn === "unchecked_push_tickets"
+        ? [
+            { id: "r1", token: "a", deliveryId: "dl-r1" },
+            { id: "r2", token: "b", deliveryId: "dl-r2" },
+            { id: "r3", token: "c", deliveryId: "dl-r3" },
+          ]
+        : {
+            updated: 3,
+            events: [
+              recorded("delivered", "r1", true),
+              recorded("bounced", "r2", true),
+              recorded("delivered", "r3", false),
+            ],
+          },
+    );
+
+    const events = new EventHub();
+    const seen: { type: string; data: unknown; subject?: string }[] = [];
+    events.on("block", (event) =>
+      seen.push({
+        type: event.type,
+        data: event.data,
+        ...(event.subject === undefined ? {} : { subject: event.subject }),
+      }),
+    );
+
+    const checkReceipts = vi.fn(async () => ({
+      delivered: 2,
+      failed: [{ token: "b", id: "r2", error: "DeviceNotRegistered" }],
+      pruned: 1,
+      receipts: [
+        { id: "r1", token: "a", status: "ok" as const },
+        {
+          id: "r2",
+          token: "b",
+          status: "error" as const,
+          error: "DeviceNotRegistered",
+        },
+        { id: "r3", token: "c", status: "ok" as const },
+      ],
+    }));
+
+    await createPush({ transport: t, events })
+      .checkReceipts({ push: { send: vi.fn(), checkReceipts } })
+      .orThrow();
+
+    expect(seen).toEqual([
+      {
+        type: "notification.delivered",
+        subject: "notifications/n-r1",
+        data: {
+          notificationId: "n-r1",
+          organizationId: "o1",
+          type: "task.assigned",
+          channel: "push",
+          deliveryId: "dl-r1",
+          provider: "expo",
+          providerEventId: "expo-receipt:r1",
+          subjectType: "task",
+          subjectId: "t1",
+        },
+      },
+      expect.objectContaining({
+        type: "notification.bounced",
+        subject: "notifications/n-r2",
+      }),
+    ]);
   });
 
   it("skips completing when Expo has no receipts ready", async () => {
