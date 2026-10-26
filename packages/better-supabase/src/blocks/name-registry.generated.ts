@@ -630,7 +630,7 @@ export interface BlockNameRegistry {
       readonly "contracts": "id" | "tenant" | "employee" | "startsOn" | "endsOn" | "hoursPerWeek" | "salary" | "currency" | "salaryPeriod" | "note" | "createdBy" | "createdAt";
     };
     readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "offboard_employee" | "org_chart" | "reports_of" | "save_employee_private_details" | "update_employees";
-    readonly actions: "read" | "write" | "viewSensitive";
+    readonly actions: "read" | "write" | "viewSensitive" | "create" | "contractsRead" | "contractsWrite" | "privateDetailsWrite";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard";
     readonly entities: {
       readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at" | "first_name" | "last_name";
@@ -791,7 +791,7 @@ export interface BlockNameRegistry {
       readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
     readonly functions: "application_detail" | "apply_to_job" | "close_application" | "save_job" | "schedule_interview" | "submit_scorecard";
-    readonly actions: "read" | "write" | "manage";
+    readonly actions: "read" | "write" | "manage" | "create" | "jobsCreate" | "jobsUpdate" | "score";
     readonly hooks: "before_application_hire" | "after_application_hire";
     readonly entities: {
       readonly "job": "id" | "tenant_id" | "title" | "team_id" | "location" | "employment_type" | "description" | "hiring_manager_user_id" | "status" | "opened_at" | "closed_at" | "created_at" | "updated_at";
@@ -1671,7 +1671,7 @@ export interface BlockNameRegistry {
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
     readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "delete_work_item_checklist_item" | "get_work_item" | "list_work_item_checklist" | "list_work_items" | "save_iteration" | "save_project" | "save_work_item_checklist_item" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
-    readonly actions: "read" | "write" | "manage";
+    readonly actions: "read" | "write" | "manage" | "create" | "delete";
     readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
     readonly entities: {
       readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";

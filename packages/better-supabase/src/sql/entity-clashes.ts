@@ -78,7 +78,7 @@ export function entityTableClash(
     const [renamed, kept] = table.renamed ? [table, other] : [other, table];
 
     if (renamed.renamed && renamed.module !== kept.module) {
-      return `blocks.${renamed.module}.entities: the ${renamed.module} block's ${renamed.logical} table would be named ${renamed.name}, which the ${kept.module} block already uses. Choose another name.`;
+      return `blocks.${renamed.module}.names: the ${renamed.module} block's ${renamed.logical} table would be named ${renamed.name}, which the ${kept.module} block already uses. Choose another name.`;
     }
   }
 

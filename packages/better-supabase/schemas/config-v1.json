@@ -4896,6 +4896,14 @@
               "contracts": {
                 "type": "string",
                 "default": "append"
+              },
+              "salaryUnits": {
+                "type": "string",
+                "default": "minor"
+              },
+              "contractOverlap": {
+                "type": "string",
+                "default": "end"
               }
             }
           }
@@ -6661,6 +6669,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "authorCanDelete": {
+                "type": "boolean",
+                "default": true
               }
             }
           }

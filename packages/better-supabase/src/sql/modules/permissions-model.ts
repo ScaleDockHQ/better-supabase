@@ -228,6 +228,19 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   audit: { reveal: "tenant" },
   "data-lifecycle": { deletePlatform: "platform" },
   tags: { create: "tenant", update: "tenant", delete: "tenant" },
+  tasks: { create: "tenant", delete: "tenant" },
+  employees: {
+    create: "tenant",
+    contractsRead: "tenant",
+    contractsWrite: "tenant",
+    privateDetailsWrite: "tenant",
+  },
+  hiring: {
+    create: "tenant",
+    jobsCreate: "tenant",
+    jobsUpdate: "tenant",
+    score: "tenant",
+  },
   teams: {
     create: "tenant",
     update: "tenant",

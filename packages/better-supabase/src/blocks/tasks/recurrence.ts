@@ -32,7 +32,7 @@ export function nextWorkItemOccurrence(
 
 export interface WorkItemRecurrenceSinkOptions {
   /**
-   * The closed event's type without `typePrefix`, after `blocks.tasks.entities`
+   * The closed event's type without `typePrefix`, after `blocks.tasks.names`
    * (`task.closed`). Default `work_item.closed`.
    */
   readonly type?: string;

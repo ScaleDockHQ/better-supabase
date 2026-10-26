@@ -229,7 +229,7 @@ describe("blocks.<name>.entities in the SQL", () => {
         modules: { tasks: { entities: { work_item: "deal" } } },
       }),
     ).toThrow(
-      "blocks.tasks.entities: the tasks block's items table would be named deals, which the deals block already uses",
+      "blocks.tasks.names: the tasks block's items table would be named deals, which the deals block already uses",
     );
   });
 });

@@ -19,6 +19,9 @@ export interface WorkItemNames {
   readonly read: string;
   readonly write: string;
   readonly manage: string;
+  readonly create: string;
+  readonly remove: string;
+  readonly authorCanDelete: boolean;
   /** The identifier prefix without numbering, such as `TASK-`. */
   readonly prefix: string;
   /** The most assignees an item takes; 0 for no limit. */
@@ -30,7 +33,7 @@ export interface WorkItemNames {
    */
   readonly extras: readonly ExtraColumn[];
   /**
-   * An entity name, event type or payload key after `blocks.tasks.entities`:
+   * An entity name, event type or payload key after `blocks.tasks.names`:
    * `work_item` to `task`, `projectId` to `initiativeId`.
    */
   readonly e: (name: string) => string;
@@ -382,7 +385,7 @@ declare
   v_row ${t("items")};
   v_linked integer;
 begin
-  if not (${n.service} or ${ctx.scope.can("create_work_item.tenant", n.write)}) then
+  if not (${n.service} or ${ctx.scope.can("create_work_item.tenant", n.create)}) then
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to change work items")}
   end if;
   if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
@@ -650,7 +653,7 @@ declare
 begin
   delete from ${t("items")} x
   where x.${w("id")} = delete_work_item.work_item
-    and (${n.service} or ${has("createdBy") ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.manage)})
+    and (${n.service} or ${has("createdBy") && n.authorCanDelete ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.remove)})
   returning * into v_row;
   if v_row.${w("id")} is null then
     return false;

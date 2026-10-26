@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
+import { ISO_4217_MINOR_UNITS } from "../../commerce/iso4217.ts";
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
 import {
@@ -13,7 +14,21 @@ import {
   editableContracts,
   FLAT_DETAILS,
   flatDetails,
+  majorSalary,
+  overlappingContracts,
 } from "./employees-options.ts";
+
+function minorUnits(code: string): string {
+  const whens = Object.entries(ISO_4217_MINOR_UNITS)
+    .filter(([, units]) => units !== 2)
+    .map(
+      ([currency, units]) =>
+        `when ${sqlString(currency)} then ${String(units)}`,
+    )
+    .join(" ");
+
+  return `(case ${code} ${whens} else 2 end)`;
+}
 
 interface Detail {
   /** The camelCase key of `attrs`. */
@@ -108,7 +123,10 @@ export function sensitiveFunctions(
     ${fail("EMPLOYEE_NOT_FOUND", "no such employee whose details you can see", "P0002")}
   end if;`;
 
-  return `${privateSql(ctx, n, reader, load)}${contractsSql(ctx, n, reader, load)}`;
+  const contractReader = (alias: string): string =>
+    `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.contractsRead)} or ${alias}.${e("user")} = auth.uid())`;
+
+  return `${privateSql(ctx, n, reader, load)}${contractsSql(ctx, n, contractReader, load)}`;
 }
 
 type Reader = (alias: string) => string;
@@ -233,7 +251,7 @@ as $$
 declare
   v_employee ${n.t("employees")};
   v_row ${table};
-begin${load("save_employee_private_details", "employee", reader("v_employee"))}
+begin${load("save_employee_private_details", "employee", n.privateDetailsWrite === undefined ? reader("v_employee") : `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.privateDetailsWrite)}) or v_employee.${e("user")} = auth.uid())`)}
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "attrs must be an object", "22023")}
   end if;
@@ -269,8 +287,24 @@ function contractsSql(
   const e = (column: string): string => n.c("employees", column);
   const table = n.t("contracts");
 
+  const salary = has("salary");
+  const currency = has("currency");
+  const major = majorSalary(ctx);
+
+  const exponent = (code: string): string =>
+    currency ? minorUnits(code) : "2";
+
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, [k("salary")])}`;
+    salary
+      ? major
+        ? `to_jsonb(${alias}) || jsonb_build_object(${sqlString(k("salary").replaceAll('"', ""))}, (${alias}.${k("salary")} * power(10, ${exponent(currency ? `${alias}.${k("currency")}` : "null")}))::bigint::text)`
+        : `to_jsonb(${alias}) || ${int8Text(alias, [k("salary")])}`
+      : `to_jsonb(${alias})`;
+
+  const salaryValue = (minor: string, code: string): string =>
+    major
+      ? `(${minor})::numeric / power(10, ${exponent(code)})`
+      : `(${minor})::bigint`;
 
   const arg = (key: string): string =>
     `add_employee_contract.attrs ->> ${sqlString(key)}`;
@@ -285,8 +319,8 @@ function contractsSql(
     k("startsOn"),
     k("endsOn"),
     k("hoursPerWeek"),
-    k("salary"),
-    k("currency"),
+    ...(salary ? [k("salary")] : []),
+    ...(currency ? [k("currency")] : []),
     ...(has("salaryPeriod") ? [k("salaryPeriod")] : []),
     ...(has("note") ? [k("note")] : []),
     ...(has("createdBy") ? [k("createdBy")] : []),
@@ -298,8 +332,10 @@ function contractsSql(
     "v_starts",
     `(${arg("endsOn")})::date`,
     `(${arg("hoursPerWeek")})::numeric`,
-    `(${arg("salary")})::bigint`,
-    `upper(${arg("currency")})`,
+    ...(salary
+      ? [salaryValue(arg("salary"), `upper(${arg("currency")})`)]
+      : []),
+    ...(currency ? [`upper(${arg("currency")})`] : []),
     ...(has("salaryPeriod")
       ? [ctx.cast("contracts", "salaryPeriod", arg("salaryPeriod"))]
       : []),
@@ -348,17 +384,21 @@ declare
   v_employee ${n.t("employees")};
   v_row ${table};
   v_starts date;
-begin${load("add_employee_contract", "employee", `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.write)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)}))`)}
+begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_employee"))}
   begin
     v_starts := (${arg("startsOn")})::date;
     if v_starts is null then
       ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract needs a start date", "22023")}
-    end if;
+    end if;${
+      overlappingContracts(ctx)
+        ? ""
+        : `
     if exists (select 1 from ${table} x where x.${k("employee")} = v_employee.${e("id")} and x.${k("startsOn")} >= v_starts) then
       ${fail("EMPLOYEE_CONTRACT_OVERLAP", "a new contract starts after the latest one", "22023")}
     end if;
     update ${table} x set ${k("endsOn")} = v_starts - 1
-    where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);
+    where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);`
+    }
     insert into ${table} (${columns.join(", ")}${required.columns})
     values (${values.join(", ")}${required.values})
     returning * into v_row;${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
@@ -370,7 +410,19 @@ begin${load("add_employee_contract", "employee", `(${n.service} or (${ctx.scope.
 end;
 $$;
 ${userGrant(`${n.fn("add_employee_contract")}(uuid, jsonb)`)}
-${editableContracts(ctx) ? editContractsSql(ctx, n, { table, k, has, row, updated, extras }) : ""}`;
+${editableContracts(ctx) ? editContractsSql(ctx, n, { table, k, has, row, updated, extras, salaryValue }) : ""}`;
+}
+
+function contractWriter(
+  ctx: BlockSqlContext,
+  n: EmployeeNames,
+  alias: string,
+): string {
+  const tenant = `${alias}.${n.c("employees", "tenant")}`;
+
+  return n.contractsWrite === undefined
+    ? `(${n.service} or (${ctx.scope.can(tenant, n.write)} and ${ctx.scope.can(tenant, n.sensitive)}))`
+    : `(${n.service} or ${ctx.scope.can(tenant, n.contractsWrite)})`;
 }
 
 interface ContractNames {
@@ -380,6 +432,7 @@ interface ContractNames {
   readonly row: (alias: string) => string;
   readonly updated: string;
   readonly extras: ReturnType<BlockSqlContext["extraColumns"]>;
+  readonly salaryValue: (minor: string, code: string) => string;
 }
 
 function editContractsSql(
@@ -387,7 +440,7 @@ function editContractsSql(
   n: EmployeeNames,
   names: ContractNames,
 ): string {
-  const { table, k, has, row, updated, extras } = names;
+  const { table, k, has, row, updated, extras, salaryValue } = names;
   const e = (column: string): string => n.c("employees", column);
   const attrs = "update_employee_contract.attrs";
 
@@ -400,8 +453,25 @@ function editContractsSql(
     patch("startsOn", "startsOn", `(${text("startsOn")})::date`),
     patch("endsOn", "endsOn", `(${text("endsOn")})::date`),
     patch("hoursPerWeek", "hoursPerWeek", `(${text("hoursPerWeek")})::numeric`),
-    patch("salary", "salary", `(${text("salary")})::bigint`),
-    `${k("currency")} = case when ${attrs} ? 'salary' or ${attrs} ? 'currency' then upper(${text("currency")}) else x.${k("currency")} end`,
+    ...(has("salary")
+      ? [
+          patch(
+            "salary",
+            "salary",
+            salaryValue(
+              text("salary"),
+              has("currency")
+                ? `coalesce(upper(${text("currency")}), x.${k("currency")})`
+                : "null",
+            ),
+          ),
+        ]
+      : []),
+    ...(has("currency")
+      ? [
+          `${k("currency")} = case when ${attrs} ? 'salary' or ${attrs} ? 'currency' then upper(${text("currency")}) else x.${k("currency")} end`,
+        ]
+      : []),
     ...(has("salaryPeriod")
       ? [
           patch(
@@ -416,8 +486,7 @@ function editContractsSql(
       : []),
   ];
 
-  const allowed = (alias: string): string =>
-    `(${n.service} or (${ctx.scope.can(`${alias}.${e("tenant")}`, n.write)} and ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)}))`;
+  const allowed = (alias: string): string => contractWriter(ctx, n, alias);
 
   const load = (fnName: string): string => `
   select * into v_row from ${table} x where x.${k("id")} = ${fnName}.contract;
