@@ -59,12 +59,12 @@ export function catalogPolicy(entry: Policy): CatalogPolicy {
 const PLAIN = /^[a-z_][a-z0-9_$]*$/;
 
 /** `name`, double quoted unless it is a plain lowercase identifier. */
-export function quoteIdentifier(name: string): string {
+function quoteIdentifier(name: string): string {
   return PLAIN.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
 }
 
 /** `schema.table` quoted for SQL. */
-export function quotedTable(table: string): string {
+function quotedTable(table: string): string {
   return qualifiedName(table).split(".").map(quoteIdentifier).join(".");
 }
 
