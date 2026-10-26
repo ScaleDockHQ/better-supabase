@@ -72,6 +72,13 @@ export interface AppColumnConfig {
   /** What the column holds; see `APP_COLUMN_FORMATS`. */
   readonly format?: AppColumnFormat;
   /**
+   * The schema-qualified domain the column takes as its type, such as
+   * `bsb.email`, in place of the format's inline check. Only `migrate
+   * schema-first` and the preset writers set it (ADR 0102); it isn't a config
+   * key.
+   */
+  readonly domain?: string;
+  /**
    * The values a `text` column (single select) or each element of a `text[]`
    * column (multi-select) may take, checked by the database.
    */
