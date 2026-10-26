@@ -1,26 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import type { Snapshot } from "../../../src/cli/introspect/types.ts";
+import type { TableComment } from "../../../src/cli/gen/table-tags.ts";
 
 import { withTableTags } from "../../../src/cli/gen/table-tags.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
-async function tagged(table: string, comment: string): Promise<Snapshot> {
+async function tagged(
+  table: string,
+  comment: string,
+): Promise<readonly TableComment[]> {
   const { schema } = await first();
   const snapshot = await loadFixtureSnapshot();
 
-  return {
-    ...snapshot,
-    generator: {
-      ...snapshot.generator,
-      tables: snapshot.generator.tables.map((each) =>
-        each.schema === schema && each.name === table
-          ? { ...each, comment }
-          : each,
-      ),
-    },
-  };
+  return snapshot.generator.tables.map((each) =>
+    each.schema === schema && each.name === table ? { ...each, comment } : each,
+  );
 }
 
 async function first(): Promise<{ schema: string; name: string; key: string }> {
@@ -47,7 +42,9 @@ describe("withTableTags", () => {
   it("returns the config itself without tags", async () => {
     const config = resolveConfig({ blocks: {} }, "/tmp");
 
-    expect(withTableTags(config, await loadFixtureSnapshot())).toBe(config);
+    expect(
+      withTableTags(config, (await loadFixtureSnapshot()).generator.tables),
+    ).toBe(config);
   });
 
   it("turns subject, realtime and vector-search tags into config", async () => {
@@ -173,6 +170,21 @@ describe("withTableTags", () => {
     expect(next.appTables[name]?.events).toEqual({
       on: ["created"],
       include: ["a", "b"],
+    });
+
+    const hidden = withTableTags(
+      config,
+      await tagged(name, "@bsb encrypted note=text; server note secret"),
+    );
+
+    expect(hidden.appTables[name]?.columns?.["note"]).toEqual({
+      type: "text",
+      encrypted: true,
+      access: "server",
+    });
+    expect(hidden.appTables[name]?.columns?.["secret"]).toEqual({
+      type: "text",
+      access: "server",
     });
 
     const all = withTableTags(config, await tagged(name, "@bsb events"));

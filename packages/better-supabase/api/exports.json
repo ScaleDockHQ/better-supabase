@@ -7688,6 +7688,7 @@
       "subjectColumns",
       "TABLE_FEATURES",
       "tableFeatures",
+      "tableTagComments",
       "templateFunctions",
       "TENANT_SCOPE_NAMES",
       "TENANT_SCOPE_POLICY",
