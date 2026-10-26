@@ -1551,7 +1551,9 @@ comment on function app.deals_subject_merge(text, text, text) is 'better-supabas
 
 `better-supabase add rls-guard` installs an event trigger that enables row level
 security on every table created with `create table`, `create table as` or
-`select into`, so a table never reaches the Data API without RLS. Tables in
+`select into`, so a table never reaches the Data API without RLS. The trigger
+also fires after `alter table`, so `disable row level security` is undone right
+away. Tables in
 the Supabase-managed schemas (`auth`, `storage`, `realtime`, `extensions`
 and the others) and in `pg_*` schemas are skipped.
 
