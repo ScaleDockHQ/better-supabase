@@ -223,6 +223,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0106: The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss.
 - 0107: `designDataApi` stays in `create/lite`.
 - 0108: `db diff` plans with pg-delta's library on the stack's postgres role; renames and data loss are gated.
+- 0109: Hooks run an affected lint and typecheck, tests run in CI as shards, Next.js builds prerender a few pages outside Vercel production, worktrees set themselves up.
 
 ## Pre-release pins
 

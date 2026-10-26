@@ -112,14 +112,26 @@ bump is one commit series:
   that times itself (`typecheck:perf`) runs in its own `turbo run`, after
   the parallel one.
 - Turbo fails `lint` when code reads an env var that no `turbo.json` declares
-  (`turbo/no-undeclared-env-vars`). Declare it in `globalEnv` or the task's `env`.
-  Keep the top-level `global*` keys: the rule does not read a `global` block.
-- `lint`, `typecheck` and `test` depend on `transit`, not `^build`. Workspace
+  (`turbo/no-undeclared-env-vars`). Declare it in the `env` of the task whose
+  output it changes, or in `globalPassThroughEnv` when it changes no output
+  (`CI` and `NODE_ENV` are there; hashing them split the cache between CI,
+  Vercel and laptops). There is no `globalEnv`, because every key in it
+  invalidates every task. Keep the top-level `global*` keys: the rule does
+  not read a `global` block.
+- `typecheck` and `test` depend on `transit`, not `^build`. Workspace
   imports resolve to `src` through the `@better-supabase/source` export
   condition (tsconfig `customConditions`, Vitest `resolve.conditions`), and
   `publishConfig.exports` is the map that ships. A task that reads `dist`,
   such as the CLI's `bin.test.ts` or `tests/bundle`, declares `^build` in its
-  workspace `turbo.json`. Add a new export to both maps;
+  workspace `turbo.json`. `lint` depends on `^build` too: oxlint resolves
+  workspace imports through the default conditions, so it reads `dist`, and
+  without the edge a lint raced the library build that was rewriting it.
+- Never add a workspace package to the root `package.json`. Turbo hashes the
+  root's dependencies into every task, so a root dependency on
+  `better-supabase` made each library edit a cache miss everywhere. Root
+  scripts and workflows run the CLI as
+  `node packages/better-supabase/bin/better-supabase.js` (in a workflow,
+  `pnpm better-supabase` after `pnpm install`). Add a new export to both maps;
   `tests/entries.test.ts` checks that they match.
 - Turbo signs remote cache artifacts (`remoteCache.signature`). CI reads the
   key from `TURBO_REMOTE_CACHE_SIGNATURE_KEY` (at least 32 bytes); without it,
