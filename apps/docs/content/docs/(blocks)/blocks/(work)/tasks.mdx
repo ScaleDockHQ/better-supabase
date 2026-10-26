@@ -41,7 +41,7 @@ export default defineConfig({
 });
 ```
 
-The block registers the subject under the entity's final name, so after `names: { work_item: "task" }` it registers `task`. A `config.records.task` entry then clashes with it and the config is refused. Keep one of the two: remove the `records` entry, or set `names: { work_item: { name: "task", subject: false } }` and register the type yourself in `config.records`.
+The block registers the subject under the entity's final name, so after `names: { work_item: "task" }` it registers `task`. A `config.subjects.task` entry then clashes with it and the config is refused. Keep one of the two: remove the `records` entry, or set `names: { work_item: { name: "task", subject: false } }` and register the type yourself in `config.subjects`.
 
 ## Create, edit and assign
 

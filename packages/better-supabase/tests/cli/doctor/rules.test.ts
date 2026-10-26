@@ -1593,7 +1593,7 @@ describe("subject registry (BS331, BS332)", () => {
         base,
         {},
         {
-          records: {
+          subjects: {
             note: { table: "notes", title: "headline", url: "/n/{slug}" },
             ghost: { table: "public.ghosts" },
             other: { table: "elsewhere.things" },
@@ -1623,7 +1623,7 @@ describe("subject registry (BS331, BS332)", () => {
           base,
           {},
           {
-            records: {
+            subjects: {
               note: { table: "notes", title: "body", url: "/n/{id}" },
             },
           },
@@ -1633,7 +1633,7 @@ describe("subject registry (BS331, BS332)", () => {
   });
 
   it("warns about a subject table without RLS", async () => {
-    const config = { records: { note: { table: "notes" } } };
+    const config = { subjects: { note: { table: "notes" } } };
     expect(await run("BS332", context(base, {}, config))).toEqual([]);
 
     const open = snapshot((tables) => {
@@ -1681,7 +1681,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     subjects: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
     registry: Readonly<Record<string, { table: string }>> = {},
   ): BetterSupabaseConfig => ({
-    records: registry,
+    subjects: registry,
     blocks: { attachments: { on: subjects } },
   });
 
@@ -1758,7 +1758,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            records: {
+            subjects: {
               note: { table: "notes", permissions: { read: "notes.read" } },
             },
             blocks: { attachments: {} },
@@ -1775,7 +1775,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         withPolicies(strict, tenantOnly),
         {},
         {
-          records: {
+          subjects: {
             note: { table: "public.notes" },
             ghost: { table: "missing" },
           },
@@ -1809,7 +1809,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             forAll,
             {},
             {
-              records: { note: { table: "notes" } },
+              subjects: { note: { table: "notes" } },
               // SAFETY: malformed on values, which the rule skips.
               blocks: { attachments: { on: subjects as never } },
             },
@@ -1872,7 +1872,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            records: {
+            subjects: {
               note: { table: "notes", permissions: { upload: "notes.edit" } },
             },
             blocks: { attachments: {} },
@@ -1887,7 +1887,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            records: { note: { table: "notes" } },
+            subjects: { note: { table: "notes" } },
             blocks: { attachments: {} },
           },
         ),
@@ -1901,14 +1901,14 @@ describe("attachments subject on block-wide keys (BS345)", () => {
 });
 
 describe("block on names an unknown record type (BS346)", () => {
-  it("reports list entries and keys that config.records lacks", async () => {
+  it("reports list entries and keys that config.subjects lacks", async () => {
     const findings = await run(
       "BS346",
       context(
         base,
         {},
         {
-          records: { deal: { table: "deals" } },
+          subjects: { deal: { table: "deals" } },
           blocks: {
             tags: { on: ["deal", "ghost"] },
             attachments: { on: { memo: {} } },
@@ -1931,7 +1931,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            records: { deal: { table: "deals" } },
+            subjects: { deal: { table: "deals" } },
             blocks: { tags: { on: ["deal"] }, comments: {} },
           },
         ),
@@ -1939,7 +1939,7 @@ describe("block on names an unknown record type (BS346)", () => {
     ).toEqual([]);
   });
 
-  it("passes a hyphenated type config.records registers", async () => {
+  it("passes a hyphenated type config.subjects registers", async () => {
     expect(
       await run(
         "BS346",
@@ -1947,7 +1947,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            records: { "purchase-order": { table: "purchase_orders" } },
+            subjects: { "purchase-order": { table: "purchase_orders" } },
             blocks: {
               notifications: { on: { "purchase-order": {} } },
               attachments: { on: ["purchase-order"] },
@@ -3027,7 +3027,7 @@ describe("soft-delete columns reactions read (BS213)", () => {
             base,
             {},
             {
-              records: {
+              subjects: {
                 project: { table: "projects", deletedAt: "deleted_at" },
               },
             },

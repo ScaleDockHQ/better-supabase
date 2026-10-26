@@ -59,7 +59,7 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 
 A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and the table keeps `rate` and `rate_currency` set together (`TIME_RATE_INVALID`). The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
 
-An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.records`](/docs/blocks/sql#subject-registry) or the block's `on`. Entries stay when their record is deleted, so billed time keeps its history.
+An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.subjects`](/docs/blocks/sql#subject-registry) or the block's `on`. Entries stay when their record is deleted, so billed time keeps its history.
 
 With the [employees block](/docs/blocks/employees) installed, every entry
 has an `employee_id` column: the employee of the organization behind the

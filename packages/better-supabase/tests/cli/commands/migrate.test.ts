@@ -89,4 +89,33 @@ describe("migrate schema-first", () => {
 
     expect(text).toContain("create table");
   });
+
+  it("reads the removed records key, and other commands refuse it", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        blocks: [],
+        records: { invoice: { table: "invoices" } },
+        tables: {
+          invoices: { owner: "none", columns: { number: { type: "text" } } },
+        },
+      }),
+    );
+
+    const migrated = await run([
+      "migrate",
+      "schema-first",
+      "--dry-run",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(migrated).toMatchObject({ code: 0 });
+
+    const refused = await run(["doctor", "--cwd", dir]);
+
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain("migrate schema-first");
+    expect(refused.stderr).toContain("renamed to `subjects`");
+  });
 });

@@ -1406,7 +1406,7 @@ revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from pu
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
 -- The employee for a hired application, in preboarding: the name comes from
--- the candidate's record in config.records, and the job title, team and
+-- the candidate's record in config.subjects, and the job title, team and
 -- employment type from the job. attrs overrides any of them. Calling it
 -- again returns the same employee, and with the relations module the
 -- employee is created_from the application.

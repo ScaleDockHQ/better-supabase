@@ -49,11 +49,11 @@ it:
 Members must hold `messages.read` in the tenant. Sending to a `tenant`
 channel joins the sender to it. A `subject` conversation opens only in the
 record's own tenant: when the record's type has a tenant column in
-`config.records` and the row belongs to another tenant, `open_conversation`
+`config.subjects` and the row belongs to another tenant, `open_conversation`
 fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
 `tenant: false` has no tenant to compare.
 
-Every type in `config.records` takes a `subject` conversation by default. To
+Every type in `config.subjects` takes a `subject` conversation by default. To
 keep them to some types, list those in `blocks.messaging.on`, such as
 `on: ["customer", "task"]`; `open_conversation` then refuses any other type
 with `MESSAGING_SUBJECT_UNSUPPORTED`, for the service role as well. Comments
@@ -150,7 +150,7 @@ Any other JSON anchor, such as a text range, is stored as it is.
 ## Record mentions
 
 `@[Name](subject:<type>/<id>)` mentions a record registered in
-[`config.records`](/docs/blocks/sql#subject-registry), such as a deal or a
+[`config.subjects`](/docs/blocks/sql#subject-registry), such as a deal or a
 customer, and renders as a chip. `recordMention(name, subject)` writes one,
 `mentionSegments(body)` splits a body into text, user, record and scope
 segments for rendering, and `parseMentions(body)` returns the mentioned

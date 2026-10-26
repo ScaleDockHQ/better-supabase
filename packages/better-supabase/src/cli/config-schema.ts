@@ -908,8 +908,7 @@ const ENTRIES = {
       ...pickEntries(["claims", "authorization", "entitlements"]),
     }),
   ),
-  records: FLAT.subjects,
-  tables: FLAT.appTables,
+  subjects: FLAT.subjects,
   blocks: FLAT.blocks,
   adapters: FLAT.integrations,
   gen: v.optional(

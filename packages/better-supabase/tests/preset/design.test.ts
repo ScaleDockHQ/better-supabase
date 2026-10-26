@@ -513,7 +513,7 @@ describe("design config", () => {
     expect(source).toContain(
       `    tags: { options: { extraColumns: { color: "text not null default 'gray'" } } },`,
     );
-    expect(source).toContain("  tables: {\n    projects: { columns: {");
+    expect(source).not.toContain("tables:");
     expect(source).not.toContain("positions");
   });
 

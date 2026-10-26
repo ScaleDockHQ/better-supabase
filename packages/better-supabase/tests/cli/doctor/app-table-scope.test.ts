@@ -74,11 +74,11 @@ const appFile = {
 
 const context = (
   snap: Snapshot,
-  tables: AppTablesConfig,
+  appTables: AppTablesConfig,
   extra: Partial<DoctorContext> = {},
 ): DoctorContext => ({
   config: resolveConfig(
-    { auth: { organization: { column: "organization_id" } }, tables },
+    { auth: { organization: { column: "organization_id" } }, appTables },
     "/project",
   ),
   snapshot: snap,

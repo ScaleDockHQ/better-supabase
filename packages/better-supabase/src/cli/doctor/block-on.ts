@@ -12,7 +12,7 @@ function namedTypes(on: unknown): readonly string[] {
 }
 
 /**
- * Block entries whose `on` names a type `config.records` doesn't register. The
+ * Block entries whose `on` names a type `config.subjects` doesn't register. The
  * block's SQL refuses such a type when it renders, so this reports it before
  * `gen`.
  */
@@ -23,7 +23,7 @@ export function onUnknownRecordTypes(context: DoctorContext): FindingInput[] {
     namedTypes(entry?.on)
       .filter((type) => !registered.has(type))
       .map((type): FindingInput => ({
-        message: `blocks.${instance}.on names "${type}", which is not a record type. Register it in config.records, or remove it from on.`,
+        message: `blocks.${instance}.on names "${type}", which is not a record type. Register it in config.subjects, or remove it from on.`,
         target: `blocks.${instance}.on.${type}`,
       })),
   );

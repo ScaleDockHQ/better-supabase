@@ -4,7 +4,7 @@ description: Record one-off and recurring gifts from donors, post them on the le
 ---
 
 `donations` records gifts from donors, who are any records in
-`config.records`. Gifts go to funds or campaigns and post on the
+`config.subjects`. Gifts go to funds or campaigns and post on the
 [ledger](/docs/blocks/ledger), so what a fund raised is a ledger balance.
 Pledges repeat a gift every week, month, quarter or year. Card and bank
 charges go through a payments provider, and tax receipts get numbers from a
@@ -211,7 +211,7 @@ move to the kept record.
 | `DONATIONS_FORBIDDEN`        | the caller lacks `donations.read` or `donations.manage`                 |
 | `DONATIONS_NO_PAYMENTS`      | `give`, `chargeDuePledges` or `webhook` ran without a payments provider |
 | `DONATION_AMOUNT_INVALID`    | the amount isn't above zero or its currency isn't valid                 |
-| `DONATION_DONOR_INVALID`     | the donor isn't a record of the organization in `config.records`        |
+| `DONATION_DONOR_INVALID`     | the donor isn't a record of the organization in `config.subjects`       |
 | `DONATION_FUND_INVALID`      | the fund's key, name, goal or dates aren't valid, or it's archived      |
 | `DONATION_FUND_NOT_FOUND`    | no fund with this id in the organization                                |
 | `DONATION_NOT_FOUND`         | no gift with this id that the caller can read                           |

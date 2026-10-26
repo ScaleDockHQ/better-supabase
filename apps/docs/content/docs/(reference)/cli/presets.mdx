@@ -58,46 +58,20 @@ Create isn't part of the preset, so set it up from Get code.
 pnpm better-supabase add --preset crm --scope user --api api
 ```
 
-### Breaking changes
+### Tables in a design
 
-Before it writes a design, `add --preset` compares its tables with `tables`.
-Adding a table, an optional column, an index, a comment or a subject title
-is safe, and so is a looser rule or a new `onDelete`. These break rows
-already in the database or app code that reads them:
-
-- renaming a table or column, dropping a column, or changing its type or
-  the table's id type;
-- making a column required without a default;
-- a new or tighter rule that existing rows may fail: `unique`, a removed
-  option, a raised `min` or lowered `max`, a checked format (`email`,
-  `url`, `rating`, `percent`), a new reference target or a new unique set;
-- a new `scope`, or removing `timestamps`, `rank` or `softDelete`, which
-  drops the columns they add.
-
-`add --preset` lists each breaking change with the expand-and-contract steps that
-make it safe, writes nothing and exits 1:
-
-```txt
-Breaking changes to app tables:
-  Changes notes.body from jsonb to text.
-    1. Add a text column next to body.
-    2. Fill it from body with a cast in a migration, and write both columns.
-    3. Move reads to the new column, drop body in a later migration and rename the new one if you need the name.
-```
-
-Pass `--allow-breaking` to write the design anyway, for example on a project
-without data. `--dry-run` prints the list and the diff without it. A table
-or column with the same definition under a new name counts as a rename.
-With `--allow-breaking`, `add --preset` prints the `alter table ... rename`
-statements to run in a migration before `upgrade`, so the rows move to the
-new name (`data.renames` under `--json`).
-
-A table in `tables` that the design doesn't name is kept, and `add --preset`
-reports it (`data.kept`). Remove it from `tables` yourself to drop it.
-`diffAppTables` and `diffDesigns` from `better-supabase/preset` return the
-same changes, and Create shows them on the Changes tab of Get code.
+A design's tables are SQL files you own (ADR 0102). `init --preset` and
+`add --preset` write each table as `supabase/schemas/public/tables/<name>.sql`,
+with its features as `@bsb` tags in the table comment, and leave the config
+without a `tables` key. A file that exists stays as it is, so a table you edited
+is never overwritten, and a table the design leaves out is never dropped. To
+change a table the design already created, edit its SQL and run `db diff`:
+renames, retypes and dropped columns are planned as migrations there, with
+their data loss reported.
+`diffAppTables` and `diffDesigns` from `better-supabase/preset` still compare two
+designs, and Create shows the result on the Changes tab of Get code.
 [Doctor's BS228](/docs/cli/doctor#bs228) reports a column whose type or
-nullability in the database has drifted from `tables`.
+nullability in the database has drifted from the table's SQL.
 
 ### Adopting existing tables
 

@@ -180,7 +180,7 @@ function blockSubjects(
 /**
  * Whether the subject a new link names exists in the link's tenant and the
  * caller may share it. Block-owned types come first; registered subjects
- * (`config.records` or `on`) check the row's tenant and the subject's read
+ * (`config.subjects` or `on`) check the row's tenant and the subject's read
  * permission. Any other type fails.
  */
 function subjectCheck(ctx: BlockSqlContext): string {

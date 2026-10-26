@@ -148,7 +148,7 @@ describe("state machine", () => {
     );
   });
 
-  it("takes the tenant column of a named table from config.records", () => {
+  it("takes the tenant column of a named table from config.subjects", () => {
     const sql = renderBlocks(["state-machine"], {
       modules: { "state-machine": { options: { machines: { quote } } } },
       subjects: { offer: { table: "quotes", tenant: "org_id" } },
@@ -161,7 +161,7 @@ describe("state machine", () => {
     expect(sql).not.toContain('new."tenant_id"');
   });
 
-  it("follows the tenant rename for a table config.records leaves out", () => {
+  it("follows the tenant rename for a table config.subjects leaves out", () => {
     const sql = sqlOf(
       {
         memberships: { entities: { organization: "workspace" } },

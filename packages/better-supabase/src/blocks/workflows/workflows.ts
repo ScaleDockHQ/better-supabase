@@ -29,7 +29,10 @@ import {
 /** A workflow run's state, in the words ai-chat and ai-schedules runs share. */
 export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
-/** The record a run belongs to: a subject type from `config.records` and its id. */
+/**
+ * The record a run belongs to: a subject type from `config.subjects` and its
+ * id.
+ */
 export interface WorkflowSubject {
   readonly type: string;
   readonly id: string;

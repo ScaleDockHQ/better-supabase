@@ -35,7 +35,7 @@ const FILES = [
   },
 ];
 
-describe("blocks.<name>.on entries that inherit from config.records", () => {
+describe("blocks.<name>.on entries that inherit from config.subjects", () => {
   it("takes the table and id type of a registered record", () => {
     const tables = adoptedTables(MODULES, undefined, { subjects: SUBJECTS });
 
@@ -54,7 +54,7 @@ describe("blocks.<name>.on entries that inherit from config.records", () => {
     ).toContain("apply");
   });
 
-  it("still needs a table for a type config.records doesn't register", () => {
+  it("still needs a table for a type config.subjects doesn't register", () => {
     expect(() => adoptedTables(MODULES)).toThrow(/needs a table/u);
   });
 });

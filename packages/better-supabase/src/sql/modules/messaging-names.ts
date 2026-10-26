@@ -264,7 +264,7 @@ export interface MessagingSql {
   ) => string | undefined;
   /**
    * Whether a record conversation's type follows the record's own checks: its
-   * `config.records` entry declares `comment`, so `can_subject` decides read,
+   * `config.subjects` entry declares `comment`, so `can_subject` decides read,
    * send (`comment`) and moderate (`moderate`, when declared, besides the
    * tenant key). `undefined` when no type declares `comment`.
    */

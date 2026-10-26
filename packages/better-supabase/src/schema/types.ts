@@ -359,7 +359,7 @@ export interface Schema<
     readonly models: M;
     readonly database: D;
     readonly functions: F;
-    /** The `config.records` type names. */
+    /** The `config.subjects` type names. */
     readonly subjects: S;
     /** The repository extensions' types, as `.use()` collects them. */
     readonly extensions: E;
@@ -399,7 +399,7 @@ export type DatabaseOf<S> = S extends Schema<AnyModels, infer D> ? D : never;
 export type FunctionsOf<S> =
   S extends Schema<AnyModels, unknown, infer F> ? F : never;
 
-/** The schema's subject types (`config.records`), `string` without a registry. */
+/** The schema's subject types (`config.subjects`), `string` without a registry. */
 export type SubjectTypeOf<S> =
   S extends Schema<AnyModels, unknown, AnyFunctions, infer T> ? T : string;
 

@@ -652,7 +652,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   if (subjects.length > 0) {
     lines.push(
-      "/** The app's subject types, from `config.records`. */",
+      "/** The app's subject types, from `config.subjects`. */",
       `export const subjectTypes = [${subjects.map(q).join(", ")}] as const;`,
       "export type SubjectType = (typeof subjectTypes)[number];",
       "/** One subject: its type and its id as text. */",

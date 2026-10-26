@@ -3,7 +3,7 @@ title: Pipelines
 description: Tenant-editable pipelines for any record type, with ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status the stage sets through the state machine.
 ---
 
-`pipelines` puts any record your app registers in [`config.records`](/docs/blocks/sql#subject-registry) on a pipeline the organization edits: deals, quotes, job applications, tickets, tasks. Each organization can keep several pipelines per record type, each with its own stages, and every stage has a category your config declares. A category maps to one of three fixed outcomes, `open`, `success` or `failure`, so reports and policies read the outcome and never a stage name.
+`pipelines` puts any record your app registers in [`config.subjects`](/docs/blocks/sql#subject-registry) on a pipeline the organization edits: deals, quotes, job applications, tickets, tasks. Each organization can keep several pipelines per record type, each with its own stages, and every stage has a category your config declares. A category maps to one of three fixed outcomes, `open`, `success` or `failure`, so reports and policies read the outcome and never a stage name.
 
 The module writes a history row every time a record changes stage, keeps the time it entered its current stage, totals each board column per currency, and can set a status column from the stage category, so `won` on a deal still runs through the [state machine](/docs/blocks/state-machine).
 
@@ -17,7 +17,7 @@ The module needs `tenant`, `permissions` and `subjects`.
 
 ## Bind a record type
 
-Register the record in `config.records`, add a `stage_id` and a `pipeline_id` column (both `uuid`) to its table, and bind it in the module's options. `categories` is required: it names the categories stages of this type can have and maps each to an outcome. `stages` is the template the first pipeline of an organization starts with.
+Register the record in `config.subjects`, add a `stage_id` and a `pipeline_id` column (both `uuid`) to its table, and bind it in the module's options. `categories` is required: it names the categories stages of this type can have and maps each to an outcome. `stages` is the template the first pipeline of an organization starts with.
 
 ```ts title="better-supabase.config.ts"
 subjects: {

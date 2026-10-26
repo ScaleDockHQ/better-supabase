@@ -49,12 +49,12 @@ export default defineConfig({
     casing: "camel",
     output: "src/lib/supabase/generated.ts",
   },
-  records: { customer: { table: "customers" } },
+  subjects: { customer: { table: "customers" } },
   adapters: ["next"],
   tooling: {
     doctor: { strict: true },
   },
-  tables: {
+  appTables: {
     notes: { owner: "user", columns: { body: { type: "text" } } },
   },
   blocks: {

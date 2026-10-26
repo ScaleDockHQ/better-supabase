@@ -300,7 +300,7 @@ const subjectsArg = (
 
 /**
  * The engagements block: calls, emails, meetings, notes and tasks on any record
- * registered in `config.records`, for a record's activity panel, a "next step"
+ * registered in `config.subjects`, for a record's activity panel, a "next step"
  * and a member's task list.
  */
 export function createActivities<

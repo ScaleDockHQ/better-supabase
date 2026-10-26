@@ -38,6 +38,7 @@ import {
   hasDefaultTable,
   proposeAdoption,
 } from "../sql/adopt.ts";
+import { appTablePlan } from "../sql/app-table-files.ts";
 import {
   addBlocksToConfig,
   addBlocksToJson,
@@ -545,7 +546,20 @@ export async function runApply(
     ...(renames.length === 0 ? {} : { renames }),
   };
 
-  if (text === source) {
+  // The design's tables are SQL files you own, written next to the config edit.
+  const tables =
+    design?.appTables === undefined
+      ? undefined
+      : await appTablePlan(
+          {
+            ...config,
+            appTables:
+              designConfig(resolvePreset(preset), design).appTables ?? {},
+          },
+          "better-supabase add",
+        );
+
+  if (text === source && tables === undefined) {
     lines.push(`${shown} already holds the preset.`);
 
     return {
@@ -556,9 +570,15 @@ export async function runApply(
   }
 
   const plan: FilePlan = {
-    root: config.root,
+    root: tables?.plan.root ?? config.root,
+    base: config.root,
     regenerate: "better-supabase add",
-    files: [{ path: file, contents: text, policy: "edit" }],
+    files: [
+      ...(text === source
+        ? []
+        : [{ path: file, contents: text, policy: "edit" as const }]),
+      ...(tables?.plan.files ?? []),
+    ],
   };
 
   const applied = await applyPlan(plan, args, paint);

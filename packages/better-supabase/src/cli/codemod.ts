@@ -459,7 +459,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\bcomments\s*:\s*\{/,
         message:
-          "With `config.records` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
+          "With `config.subjects` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
       },
     ],
   },

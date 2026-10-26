@@ -213,7 +213,7 @@ function machine(
 
   if (tenantColumn === undefined) {
     throw new TypeError(
-      `${where}: ${table} has no tenant column in config.records, which a machine needs`,
+      `${where}: ${table} has no tenant column in config.subjects, which a machine needs`,
     );
   }
 

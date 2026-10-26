@@ -1,4 +1,3 @@
-import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { PresetCatalog, PresetGlueItem } from "./catalog-types.ts";
 import type { presetConfig } from "./config.ts";
 import type { ResolvedPreset } from "./resolve.ts";
@@ -37,17 +36,13 @@ function literal(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/**
- * The flat keys `configSource` writes, grouped: `presetConfig`, and `appTables`
- * for a design.
- */
-export type ConfigSourceKeys = ReturnType<typeof presetConfig> & {
-  readonly appTables?: AppTablesConfig;
-};
+/** The flat keys `configSource` writes: `presetConfig`. */
+export type ConfigSourceKeys = ReturnType<typeof presetConfig>;
 
 /**
- * `better-supabase.config.ts` with these keys: every block with its reason, the
- * conventions, and the app tables, under a comment with the `/create` URL.
+ * `better-supabase.config.ts` with these keys: every block with its reason and
+ * the conventions, under a comment with the `/create` URL. A design's tables
+ * are SQL files that `init --preset` writes, so they are not in the config.
  */
 export function configSource(
   resolved: ResolvedPreset,
@@ -63,7 +58,6 @@ export function configSource(
 
   const grouped = groupEntries(config);
   const blocks = grouped["blocks"];
-  const tables = grouped["tables"];
 
   for (const group of ["database", "gen", "adapters"]) {
     if (grouped[group] !== undefined) {
@@ -94,19 +88,7 @@ export function configSource(
     }
   }
 
-  lines.push("  },");
-
-  if (typeof tables === "object" && tables !== null) {
-    lines.push("  tables: {");
-
-    for (const [name, table] of Object.entries(tables)) {
-      lines.push(`    ${key(name)}: ${literal(table)},`);
-    }
-
-    lines.push("  },");
-  }
-
-  lines.push("});", "");
+  lines.push("  },", "});", "");
 
   return lines.join("\n");
 }

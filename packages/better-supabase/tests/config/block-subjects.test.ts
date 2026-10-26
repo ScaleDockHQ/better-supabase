@@ -108,7 +108,10 @@ describe("withBlockSubjects", () => {
 describe("resolveConfig subjects", () => {
   it("adds block subjects next to the app's own", () => {
     const resolved = resolveConfig(
-      { blocks: ["tasks"], records: { invoice: { table: "public.invoices" } } },
+      {
+        blocks: ["tasks"],
+        subjects: { invoice: { table: "public.invoices" } },
+      },
       "/app",
     );
 

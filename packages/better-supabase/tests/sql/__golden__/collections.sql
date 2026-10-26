@@ -82,7 +82,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -214,7 +214,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';
@@ -1185,7 +1185,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1317,7 +1317,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';
@@ -2293,7 +2293,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "app_private"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2425,7 +2425,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';
@@ -3396,7 +3396,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3528,7 +3528,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';
@@ -4711,7 +4711,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 -- better_supabase.subject_collections is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."subject_collections" add column if not exists "id" uuid default gen_random_uuid();
@@ -4833,7 +4833,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';
@@ -5804,7 +5804,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.records records.
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5936,7 +5936,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.records' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';

@@ -1,10 +1,10 @@
 ---
 title: Search
-description: A search index kept up by triggers from config.records, search(q) as the caller, recents and favorites, and useCommandSearch for a Cmd+K dialog.
+description: A search index kept up by triggers from config.subjects, search(q) as the caller, recents and favorites, and useCommandSearch for a Cmd+K dialog.
 ---
 
 `search` keeps one `search_documents` row per searchable subject. Triggers
-generated from each `search` entry in `config.records` write the row when the
+generated from each `search` entry in `config.subjects` write the row when the
 source row changes, and `search(q)` reads the index as the caller: full-text
 matches, prefixes while the user types and trigram matches for typos, filtered
 to what the caller can read. With `vector-search` and embeddings, the results
@@ -417,7 +417,7 @@ each document write with the subject type and id. `createSearch` takes
 
 ## Example
 
-The Next.js example declares `customer` in `config.records` (`deletedAt:
+The Next.js example declares `customer` in `config.subjects` (`deletedAt:
 "archived_at"`, so archived customers leave the index) and installs `search`
 with `api: "api"`. The header has a Search button that also opens on Cmd+K:
 `useCommandSearch({ schema: "api" })` drives a dialog that lists favorites and

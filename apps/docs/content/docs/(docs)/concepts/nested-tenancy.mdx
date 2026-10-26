@@ -47,7 +47,7 @@ The consequences are the same everywhere:
 
 ## Subjects at either level
 
-`config.records` registers record types such as `task` or `deployment` once.
+`config.subjects` registers record types such as `task` or `deployment` once.
 Each subject names its own `tenant` column, so a subject table can carry the
 environment id while another carries the organization id. Subject checks
 (`can_subject`) use the tenant of the subject's table, so a comment on a task

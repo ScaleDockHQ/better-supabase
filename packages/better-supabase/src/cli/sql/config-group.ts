@@ -1,10 +1,9 @@
 /**
  * The 0.15 config regrouping: top-level keys move into `database`, `auth`,
- * `gen`, `api` and `tooling`; `subjects`, `appTables` and `integrations` become
- * `records`, `tables` and `adapters`; block entries take `ownership`, `owner`,
- * `names` and `callbacks`; `claims.tenant` and the tenant plugin's column
- * become `auth.organization`. The edit is textual, like the rest of
- * `config-edit.ts`, so comments and formatting survive.
+ * `gen`, `api` and `tooling`; `integrations` becomes `adapters`; block entries
+ * take `ownership`, `owner`, `names` and `callbacks`; `claims.tenant` and the
+ * tenant plugin's column become `auth.organization`. The edit is textual, like
+ * the rest of `config-edit.ts`, so comments and formatting survive.
  */
 
 import type { ConfigEdit, Property } from "./config-edit.ts";
@@ -12,7 +11,6 @@ import type { ConfigEdit, Property } from "./config-edit.ts";
 import {
   CONFIG_GROUPS,
   groupEntries,
-  hasFlatTables,
   RENAMED_BLOCK_KEYS,
   RENAMED_CONFIG_KEYS,
 } from "../../config/index.ts";
@@ -364,13 +362,10 @@ function regroup(
     }
   };
 
-  const flatTables = hasFlatTables(props.flatMap((prop) => prop.key ?? []));
-
   for (const [index, prop] of props.entries()) {
     const key = prop.key!;
 
-    const group =
-      key === "tables" && !flatTables ? undefined : GROUP_OF.get(key);
+    const group = GROUP_OF.get(key);
 
     const rename = RENAMED_CONFIG_KEYS.find(([, flat]) => flat === key);
     const isGroup = GROUP_KEYS.has(key);

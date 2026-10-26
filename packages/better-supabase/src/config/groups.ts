@@ -44,11 +44,7 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Top-level keys renamed by the regrouping: the grouped name, then the flat. */
-export const RENAMED_CONFIG_KEYS: Pairs = [
-  ["records", "subjects"],
-  ["tables", "appTables"],
-  ["adapters", "integrations"],
-];
+export const RENAMED_CONFIG_KEYS: Pairs = [["adapters", "integrations"]];
 
 /** Keys renamed inside `blocks.<name>`: the grouped name, then the flat. */
 export const RENAMED_BLOCK_KEYS: Pairs = [
@@ -124,9 +120,9 @@ function organizationOf(organization: unknown, out: Entries): Entries {
 
 /**
  * The grouped config in the flat shape `resolveConfig` reads: every group's
- * keys at the top level, `records`, `tables` and `adapters` under their flat
- * names, `auth.organization` as `claims.tenant` and `organization`, and the
- * renamed block and app table keys under their flat names.
+ * keys at the top level, `adapters` under its flat name, `auth.organization` as
+ * `claims.tenant` and `organization`, and the renamed block and app table keys
+ * under their flat names.
  */
 export function flattenConfig(config: BetterSupabaseConfig): FlatConfig {
   const source: Entries = { ...config };
@@ -188,25 +184,6 @@ const GROUP_OF = new Map<string, string>(
 
 const ENVIRONMENT_KEY = /^\$(?:development|production|test|ci)$/;
 
-const GROUPED_KEYS = new Set([
-  "database",
-  "auth",
-  "api",
-  "tooling",
-  "records",
-  "adapters",
-]);
-
-/**
- * Whether a top-level `tables` is the generator overrides of a config written
- * before 0.15 rather than the app tables of a grouped one.
- */
-export function hasFlatTables(keys: readonly string[]): boolean {
-  return (
-    keys.includes("appTables") || !keys.some((key) => GROUPED_KEYS.has(key))
-  );
-}
-
 /**
  * Moves `claims.tenant`, the flat `organization` and the 0.14 tenant plugin's
  * column to `auth.organization`.
@@ -265,11 +242,9 @@ export function groupConfig(config: FlatConfig): BetterSupabaseConfig {
 export function groupEntries(config: object): Entries {
   const out: Entries = {};
   const groups: Record<string, Entries> = {};
-  const flatTables = hasFlatTables(Object.keys(config));
 
   for (const [key, value] of Object.entries(config)) {
-    const group =
-      key === "tables" && !flatTables ? undefined : GROUP_OF.get(key);
+    const group = GROUP_OF.get(key);
 
     const renamed = RENAMED_CONFIG_KEYS.find(([, flat]) => flat === key);
 
@@ -302,10 +277,6 @@ export function groupEntries(config: object): Entries {
   }
 
   withOrganization(out, groups);
-
-  if (out["tables"] !== undefined && flatTables) {
-    out["tables"] = eachEntry(out["tables"], OWNER, true);
-  }
 
   if (out["blocks"] !== undefined) {
     out["blocks"] = eachEntry(out["blocks"], RENAMED_BLOCK_KEYS, true);

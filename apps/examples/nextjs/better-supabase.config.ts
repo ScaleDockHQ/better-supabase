@@ -101,7 +101,7 @@ export default defineConfig({
   // Rows the search index, comments and other subject-aware modules point at.
   // Installed blocks register their own entities (deals, work items, ...);
   // `blocks.<name>.entities` sets their pages.
-  records: {
+  subjects: {
     customer: {
       table: "public.customers",
       idType: "uuid",

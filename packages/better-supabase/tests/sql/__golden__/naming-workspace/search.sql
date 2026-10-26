@@ -2,7 +2,7 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
 -- @bsb-hash sha256:d6a82e9d582202b39da01b475bf8e380cac8519de135df34a230215f7fed4f76
--- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -92,7 +92,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.records' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"

@@ -179,9 +179,8 @@ describe("flattenConfig and groupConfig", () => {
       tasks: ["types"],
     },
     tooling: { doctor: { strict: true } },
-    records: { customer: { table: "customers" } },
+    subjects: { customer: { table: "customers" } },
     adapters: ["next"],
-    tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
     blocks: {
       teams: { ownership: "custom", owner: "user" },
       memberships: { names: { organization: "workspace" } },
@@ -200,9 +199,6 @@ describe("flattenConfig and groupConfig", () => {
       doctor: { strict: true },
       subjects: { customer: { table: "customers" } },
       integrations: ["next"],
-      appTables: {
-        notes: { scope: "user", columns: { body: { type: "text" } } },
-      },
       blocks: {
         teams: { mode: "custom", scope: "user" },
         memberships: { entities: { organization: "workspace" } },

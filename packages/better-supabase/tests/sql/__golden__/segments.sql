@@ -150,7 +150,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -331,7 +331,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -654,7 +654,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -853,7 +853,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -1181,7 +1181,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -1362,7 +1362,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -1685,7 +1685,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -1866,7 +1866,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -2278,7 +2278,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -2459,7 +2459,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -2782,7 +2782,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -2963,7 +2963,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;

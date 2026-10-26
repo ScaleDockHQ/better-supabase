@@ -44,7 +44,7 @@ The binding takes the block's key in camel case: `shareLinks` for
 With a block that has a `record` binding installed, [`gen`](/docs/cli/gen)
 writes one file per record type in `records/` next to the main module. A
 block binds to the record types its `on` names, or to every type in
-`config.records` when it names none; `versions` binds to the types that set
+`config.subjects` when it names none; `versions` binds to the types that set
 `versions`. Set `gen.recordTypes: false` in the config to write none. `gen`
 writes no UI: the cards come from the [UI recipes](/docs/registry/ui-recipes).
 
