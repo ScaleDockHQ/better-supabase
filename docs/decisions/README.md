@@ -110,3 +110,4 @@ add one, and link it from the code or config it explains.
 | [0104](0104-secure-by-default-rls.md)                     | Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on                                                  |
 | [0105](0105-catalog-verification.md)                      | The catalog is verified offline and by a generated role by command by table access matrix                                                 |
 | [0106](0106-pgdelta-plans.md)                             | The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss                                                     |
+| [0107](0107-design-data-api-stays-in-lite.md)             | `designDataApi` stays in `create/lite`                                                                                                    |

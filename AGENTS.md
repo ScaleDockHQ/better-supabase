@@ -221,6 +221,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0104: Per-command tenant scope to public, default privileges, anonymous excluded, rls-guard on.
 - 0105: The catalog is verified offline and by a generated role by command by table access matrix.
 - 0106: The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss.
+- 0107: `designDataApi` stays in `create/lite`.
 
 ## Pre-release pins
 

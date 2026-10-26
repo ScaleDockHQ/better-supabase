@@ -13,6 +13,8 @@ export type { SkippedBlock } from "./apply.ts";
 
 export type { RawCatalog, RawColumn, RawTable } from "./catalog.ts";
 
+export { catalogQuery, readCatalog } from "./catalog.ts";
+
 export * from "./import.ts";
 
 export * from "./data-api.ts";
