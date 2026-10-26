@@ -234,10 +234,7 @@ function renameJson(value: unknown, review: ReviewLine[]): unknown {
  * the `records` entries move into `subjects` and an existing `subjects` entry
  * wins, as the 0.29 config loader merges them.
  */
-export function recordsToSubjects(
-  source: string,
-  json: boolean,
-): CodemodConfigEdit {
+function recordsToSubjects(source: string, json: boolean): CodemodConfigEdit {
   const review: ReviewLine[] = [];
 
   if (json) {
@@ -284,7 +281,7 @@ const COMMENT =
  * renamed to `subject`. A comment that has both keeps `subject` and drops
  * `record`, with a review line.
  */
-export function recordTagsToSubject(sql: string): {
+function recordTagsToSubject(sql: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
