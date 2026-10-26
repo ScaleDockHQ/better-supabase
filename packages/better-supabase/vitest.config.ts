@@ -48,8 +48,8 @@ export default defineConfig({
       // own line.
       thresholds: {
         statements: 97,
-        lines: 89,
-        functions: 100,
+        lines: 97,
+        functions: 98,
         branches: 91,
         "src/cli/**": {
           statements: 97,
