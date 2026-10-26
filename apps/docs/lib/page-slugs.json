@@ -190,6 +190,7 @@
   "cli/gen",
   "cli/init",
   "cli/mcp",
+  "cli/migrate",
   "cli/powersync",
   "cli/presets",
   "cli/spec",
