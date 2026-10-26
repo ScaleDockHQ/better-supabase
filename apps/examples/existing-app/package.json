@@ -1,0 +1,22 @@
+{
+  "name": "@better-supabase/example-existing-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A plain Supabase app with its own tables, adopted one rung at a time.",
+  "type": "module",
+  "scripts": {
+    "adoption": "better-supabase doctor --adoption",
+    "lint": "oxlint",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}
