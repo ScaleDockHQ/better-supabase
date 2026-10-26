@@ -1,5 +1,22 @@
 # better-supabase
 
+## 0.28.0
+
+### Minor Changes
+
+- [#441](https://github.com/ScaleDockHQ/better-supabase/pull/441) [`d4f90b9`](https://github.com/ScaleDockHQ/better-supabase/commit/d4f90b92485aec7849e390e1e1f4a8c9d6636648) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase add <block> --over <schema.table>` installs one block over a table you already have. It proposes the `tables` and `columns` mapping, reports what cannot map and writes `blocks.<block>` to the config, like `add --adopt <block> --tables`, and refuses to combine with those two flags.
+
+- [#424](https://github.com/ScaleDockHQ/better-supabase/pull/424) [`3f57909`](https://github.com/ScaleDockHQ/better-supabase/commit/3f579097ed06cd53ede3662c2d700dbdc7276567) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase db diff` plans with pg-delta's library on a local pg-delta project. A rename becomes a rename only when a migration records `-- bsb: rename old -> new`, and a diff that drops tables or columns stops with a `check_failed` error until you pass `--allow-data-loss`. The shadow database comes from `provisionCoLocatedShadow`, so `pg_dump`, `psql` and `BSB_PG_BIN` are no longer used. Install `@supabase/pg-delta` and `@supabase/pg-topo` (optional peers) to use it. The Supabase CLI still runs for the migra workflow and remote databases.
+
+- [#425](https://github.com/ScaleDockHQ/better-supabase/pull/425) [`59bc947`](https://github.com/ScaleDockHQ/better-supabase/commit/59bc94765ec964766a7e0c8a8874e472f8ca3b56) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase init` recognizes a project that already has a `supabase` folder: it prints the migrations, schema files and snapshot tables it found, says that the database is unchanged, and points at `doctor` and `table` as next steps. The new `--from` flag starts a project from a `postgres://` URL, which writes the database's schema to `supabase/snapshot.json`, or from a preset, design code, URL or file like `--preset`.
+
+- [#431](https://github.com/ScaleDockHQ/better-supabase/pull/431) [`67eb312`](https://github.com/ScaleDockHQ/better-supabase/commit/67eb312aa30b7b714cf4353c9ba9629ddf2b20e5) Thanks [@martijn00](https://github.com/martijn00)! - Tenant topics of `realtime-tables` (`bsb:t:<table>:<tenant>`) are now received by members of that tenant at the time of the message, checked with `member_organization_ids()`, instead of by whoever carries the tenant id in their token. A removed member stops receiving at once. Without the `memberships` module tenant topics stay closed; unscoped and own-user topics are unchanged.
+  The preset catalog is regenerated with it.
+
+### Patch Changes
+
+- [#438](https://github.com/ScaleDockHQ/better-supabase/pull/438) [`2199b2d`](https://github.com/ScaleDockHQ/better-supabase/commit/2199b2d1d391064c30dd0e9460fe6ce08f01301f) Thanks [@martijn00](https://github.com/martijn00)! - `migrate schema-first` keeps the grants, comment and policies of a view in the view's own file, and leaves out a `drop view` for a view it writes. `gen` names the events of a table with an `events` tag after its `subject` tag type, as the table's trigger does.
+
 ## 0.27.1
 
 ### Patch Changes
