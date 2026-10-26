@@ -9,6 +9,7 @@ import * as v from "valibot";
 
 import type { AppDb } from "@/lib/supabase";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -71,7 +72,7 @@ export const createWorkItem = bsb.action(
       custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "work_items.write"),
+    authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
     const created = await db.$blocks.tasks.create(
@@ -138,7 +139,7 @@ export const moveWorkItem = bsb.action(
       nextId: OptionalId,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "work_items.write"),
+    authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
     if (stageChanged) {
@@ -171,7 +172,7 @@ export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "work_items.write"),
+    authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, stageId }, { db, auth }) => {
     const moved = await applyChanges(db, [
@@ -193,7 +194,7 @@ export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
     requireOrganization: true,
-    authorize: (session) => can(session, "work_items.write"),
+    authorize: async () => can(await getPermissions(), "work_items.write"),
   },
   async ({ id, userId }, { db, auth }) => {
     const assigned = await db.$blocks.tasks.assign(id, userId ? [userId] : []);
@@ -215,7 +216,7 @@ export const createTeam = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "teams.manage"),
+    authorize: async () => can(await getPermissions(), "teams.manage"),
   },
   async ({ name }, { tenant, db, auth }) => {
     const created = await db.teams.create(tenant, name);
@@ -240,7 +241,7 @@ export const saveWorkView = bsb.action(
       sort: WorkItemSortSchema,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "views.read"),
+    authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ name, q, state, sort }, { tenant, db, auth }) => {
     const query: WorkViewQuery = { sort };
@@ -274,7 +275,7 @@ export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "views.read"),
+    authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
@@ -307,7 +308,7 @@ export const runWorkBulkAction = bsb.action(
       }),
     ]),
     requireOrganization: true,
-    authorize: (session) => can(session, "bulk.run"),
+    authorize: async () => can(await getPermissions(), "bulk.run"),
   },
   async (input, { tenant, db, auth }) => {
     const { bulk } = db;

@@ -2,6 +2,7 @@ import { tenantOf } from "better-supabase/next";
 import { forbidden } from "next/navigation";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -10,14 +11,18 @@ import { InboxView } from "./inbox-view";
 
 /** Render inside `<Suspense>`. */
 export async function InboxList() {
-  const session = await getSession();
+  const [session, permissions] = await Promise.all([
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
     return null;
   }
 
-  if (!can(session, "inbox.read")) {
+  if (!can(permissions, "inbox.read")) {
     forbidden();
   }
 

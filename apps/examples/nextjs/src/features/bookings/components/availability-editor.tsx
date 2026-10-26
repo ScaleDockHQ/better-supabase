@@ -20,8 +20,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { loadBookingSetup, settle } from "../bookings-queries";
 import { BookingLinkButton } from "./booking-link-button";
@@ -31,9 +31,9 @@ import { WeeklyHoursForm } from "./weekly-hours-form";
 
 // #region recipe:availability-editor
 export async function AvailabilityEditor() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "bookings.manage")) {
+  if (!can(permissions, "bookings.manage")) {
     forbidden();
   }
 
@@ -64,7 +64,9 @@ export async function AvailabilityEditor() {
                 { count: page.liveLinks },
               )}
             </Badge>
-            {can(session, "share_links.create") ? <BookingLinkButton /> : null}
+            {can(permissions, "share_links.create") ? (
+              <BookingLinkButton />
+            ) : null}
           </CardAction>
         ) : null}
       </CardHeader>

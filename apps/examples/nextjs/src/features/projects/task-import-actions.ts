@@ -14,6 +14,7 @@ import {
 import * as v from "valibot";
 
 import { importRunHooks } from "@/features/imports/import-run";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -96,7 +97,7 @@ export const previewTaskImport = bsb.action(
   {
     input: Input,
     requireOrganization: true,
-    authorize: (session) => can(session, "imports.manage"),
+    authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ projectId, csv, mapping }, { tenant, db }) => {
     const definition = appTableImport({
@@ -124,7 +125,7 @@ export const runTaskImport = bsb.action(
   {
     input: Input,
     requireOrganization: true,
-    authorize: (session) => can(session, "imports.manage"),
+    authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ projectId, csv, mapping }, { tenant, db, auth }) => {
     const definition = appTableImport({

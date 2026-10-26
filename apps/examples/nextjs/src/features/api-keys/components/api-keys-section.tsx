@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -16,9 +17,10 @@ import { ApiKeyTable } from "./api-key-table";
 
 /** Render inside `<Suspense>`; the fallback is `ApiKeysSectionSkeleton`. */
 export async function ApiKeysSection() {
-  const [session, t] = await Promise.all([
+  const [session, t, permissions] = await Promise.all([
     getSession(),
     getExtracted("apiKeys"),
+    getPermissions(),
   ]);
 
   const organizationId = tenantOf(session);
@@ -27,7 +29,7 @@ export async function ApiKeysSection() {
     return null;
   }
 
-  const manage = can(session, "api_keys.manage");
+  const manage = can(permissions, "api_keys.manage");
 
   return (
     <Card data-recipe="api-keys-table">

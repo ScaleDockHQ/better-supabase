@@ -37,8 +37,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { settle } from "@/features/people/people-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadDispatchWeek } from "../field-queries";
@@ -73,19 +73,19 @@ export async function DispatchBoard({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "dispatch.read")) {
+  if (!can(permissions, "dispatch.read")) {
     forbidden();
   }
 
-  const manage = can(session, "dispatch.manage");
+  const manage = can(permissions, "dispatch.manage");
   const monday = mondayOf(query["week"]);
   const board = await settle(() => loadDispatchWeek(monday.toString()));
 

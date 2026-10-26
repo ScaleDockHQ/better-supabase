@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -18,7 +19,11 @@ import { OrganizationForm } from "./organization-form";
 
 /** Render inside `<Suspense>`; the fallback is `OrganizationGeneralSkeleton`. */
 export async function OrganizationGeneral() {
-  const session = await getSession();
+  const [session, permissions] = await Promise.all([
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -51,7 +56,7 @@ export async function OrganizationGeneral() {
           <OrganizationForm
             name={organization.name}
             slug={organization.slug}
-            canEdit={can(session, "organization.update")}
+            canEdit={can(permissions, "organization.update")}
           />
         </CardContent>
       </Card>

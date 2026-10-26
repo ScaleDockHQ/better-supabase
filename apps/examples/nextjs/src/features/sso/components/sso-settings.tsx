@@ -26,8 +26,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { SsoSettingsData } from "../sso-queries";
 
@@ -59,7 +59,7 @@ async function loadSettings(): Promise<
  * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
-  if (!can(await getSession(), "sso.manage")) {
+  if (!can(await getPermissions(), "sso.manage")) {
     forbidden();
   }
 

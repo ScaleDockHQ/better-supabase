@@ -1,6 +1,6 @@
 import { getEnabledFlags } from "@/features/flags/flag-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { navItems } from "../nav-items";
 import { SideNav } from "./side-nav";
@@ -10,12 +10,15 @@ import { SideNav } from "./side-nav";
  * the organization's flags allow, then hands plain ids to the client menu.
  */
 export async function AppNav() {
-  const [session, flags] = await Promise.all([getSession(), getEnabledFlags()]);
+  const [flags, permissions] = await Promise.all([
+    getEnabledFlags(),
+    getPermissions(),
+  ]);
 
   const visible = navItems
     .filter(
       (item) =>
-        (!item.requires || can(session, item.requires)) &&
+        (!item.requires || can(permissions, item.requires)) &&
         (!item.flag || flags.some((flag) => flag === item.flag)),
     )
     .map((item) => item.id);

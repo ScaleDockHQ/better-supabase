@@ -4,6 +4,7 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -14,7 +15,7 @@ export const scheduleSampleTask = bsb.action(
   {
     input: v.object({}),
     requireOrganization: true,
-    authorize: (session) => can(session, "ai.create"),
+    authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async (_input, { tenant, supabase }) => {
     const created = await aiTasks(supabase).create(tenant, {
@@ -39,7 +40,7 @@ export const setAiTaskEnabled = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
     requireOrganization: true,
-    authorize: (session) => can(session, "ai.create"),
+    authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async ({ id, enabled }, { tenant, supabase }) => {
     const tasks = aiTasks(supabase);

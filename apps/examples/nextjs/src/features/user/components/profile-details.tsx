@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getPermissionSnapshot } from "../permission-snapshot";
+import { getPermissions } from "../permission-snapshot";
 import { roleOf } from "../user-permissions";
 import { getMyProfile, getSession } from "../user-queries";
 import { AvatarForm } from "./avatar-form";
@@ -22,7 +22,7 @@ export async function ProfileDetails() {
   const [session, profile, snapshot, t, format] = await Promise.all([
     getSession(),
     getMyProfile(),
-    getPermissionSnapshot(),
+    getPermissions(),
     getExtracted("user"),
     getFormatter(),
   ]);
@@ -58,7 +58,7 @@ export async function ProfileDetails() {
           <CardTitle>{t("Access")}</CardTitle>
           <CardDescription>
             {t(
-              "From the memberships claim in your access token, for the active organization.",
+              "Your role comes from the memberships claim in your access token; the permissions are your role's catalog keys with this organization's overrides.",
             )}
           </CardDescription>
         </CardHeader>
@@ -73,9 +73,9 @@ export async function ProfileDetails() {
               className="flex flex-wrap gap-1 sm:col-span-3"
               data-testid="permissions"
             >
-              {snapshot.permissions.length === 0
+              {(snapshot?.keys ?? []).length === 0
                 ? t("None")
-                : snapshot.permissions.map((permission) => (
+                : (snapshot?.keys ?? []).map((permission) => (
                     <Badge
                       key={permission}
                       variant="outline"

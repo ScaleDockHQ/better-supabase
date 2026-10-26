@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { WebhookEndpointRow, WebhookStatus } from "../webhook-types";
 import type { WebhooksOverview } from "../webhooks-queries";
@@ -140,14 +140,14 @@ function EndpointStatusBadge({
  * delete endpoints, and retry finished deliveries.
  */
 export async function WebhookEndpoints() {
-  const [session, state, t, format] = await Promise.all([
-    getSession(),
+  const [state, t, format, permissions] = await Promise.all([
     loadWebhooksState(),
     getExtracted("webhooks"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "webhooks.read")) {
+  if (!can(permissions, "webhooks.read")) {
     forbidden();
   }
 
@@ -155,7 +155,7 @@ export async function WebhookEndpoints() {
     return null;
   }
 
-  const manage = can(session, "webhooks.manage");
+  const manage = can(permissions, "webhooks.manage");
 
   const firstEnabled =
     state.kind === "ok"

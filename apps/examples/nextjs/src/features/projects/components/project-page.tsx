@@ -15,6 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentThread } from "@/features/customers/components/comment-thread";
 import { TagInput } from "@/features/customers/components/tag-input";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
@@ -44,7 +45,12 @@ export async function ProjectPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const [{ id }, session, permissions] = await Promise.all([
+    params,
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -159,7 +165,7 @@ export async function ProjectPage({
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
               )}
-              canComment={can(session, "messages.send")}
+              canComment={can(permissions, "messages.send")}
             />
           </CardContent>
         </Card>
@@ -194,8 +200,8 @@ export async function ProjectPage({
           <ProjectHistory
             projectId={record.id}
             versions={history.data}
-            canSave={can(session, "versions.create")}
-            canRestore={can(session, "versions.restore")}
+            canSave={can(permissions, "versions.create")}
+            canRestore={can(permissions, "versions.restore")}
           />
         ) : (
           <ProjectLoadError title={t("The history didn't load")} />

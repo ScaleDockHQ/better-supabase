@@ -27,8 +27,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { retryRules } from "../rules-actions";
@@ -36,13 +36,13 @@ import { getRules } from "../rules-queries";
 
 /** Render inside `<Suspense>`: the customer rules in evaluation order. */
 export async function RuleList() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("rules"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "rules.read")) {
+  if (!can(permissions, "rules.read")) {
     forbidden();
   }
 
@@ -52,7 +52,7 @@ export async function RuleList() {
     return null;
   }
 
-  const canEdit = can(session, "rules.edit");
+  const canEdit = can(permissions, "rules.edit");
 
   const newRule = (
     <Link

@@ -27,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadContacts, settle } from "../crm-queries";
@@ -37,9 +37,12 @@ import { CrmLoadError } from "./crm-load-error";
 
 /** Render inside `<Suspense>`: the organization's companies and people. */
 export async function ContactList() {
-  const [session, t] = await Promise.all([getSession(), getExtracted("crm")]);
+  const [t, permissions] = await Promise.all([
+    getExtracted("crm"),
+    getPermissions(),
+  ]);
 
-  if (!can(session, "parties.read")) {
+  if (!can(permissions, "parties.read")) {
     forbidden();
   }
 

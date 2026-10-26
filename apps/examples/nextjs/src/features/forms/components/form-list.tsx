@@ -27,8 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getForms } from "../forms-queries";
@@ -43,9 +43,9 @@ async function retry() {
 
 /** The New form button, for members who may build forms. */
 export async function FormManagerActions() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  return can(session, "forms.manage") ? <CreateFormDialog /> : null;
+  return can(permissions, "forms.manage") ? <CreateFormDialog /> : null;
 }
 
 /** Render inside `<Suspense>`: the organization's forms. */

@@ -33,8 +33,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { settle } from "@/features/people/people-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { loadShipmentTracking } from "../field-queries";
@@ -98,15 +98,15 @@ export async function ShipmentTracking({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "shipments.read")) {
+  if (!can(permissions, "shipments.read")) {
     forbidden();
   }
 
@@ -120,7 +120,7 @@ export async function ShipmentTracking({
     return null;
   }
 
-  const newShipment = can(session, "shipments.manage") ? (
+  const newShipment = can(permissions, "shipments.manage") ? (
     <NewShipmentDialog />
   ) : null;
 

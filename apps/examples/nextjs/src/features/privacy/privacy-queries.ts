@@ -5,6 +5,7 @@ import type {
 
 import { tenantOf } from "better-supabase/next";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -44,10 +45,17 @@ function toRow(item: DataExport): ExportRow {
  */
 export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+
+  const [{ session, db }, permissions] = await Promise.all([
+    bsb.cached(),
+    getPermissions(),
+  ]);
+
   const tenant = tenantOf(session);
   const { dataLifecycle } = db;
-  const canExport = tenant !== undefined && can(session, "organization.export");
+
+  const canExport =
+    tenant !== undefined && can(permissions, "organization.export");
 
   const [mine, organization, deletion] = await Promise.all([
     dataLifecycle.exports().orThrow(),
@@ -56,7 +64,7 @@ export async function loadPrivacy(): Promise<PrivacyData> {
   ]);
 
   return {
-    canDelete: tenant !== undefined && can(session, "organization.delete"),
+    canDelete: tenant !== undefined && can(permissions, "organization.delete"),
     mine: mine.filter((item) => item.subject === "user").map(toRow),
     organization: organization?.map(toRow) ?? null,
     purgeAfter:

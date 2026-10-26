@@ -35,8 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getStockLevels } from "../shop-queries";
@@ -52,9 +52,9 @@ async function retry() {
 
 /** Render inside `<Suspense>`: stock per tracked variant and active location. */
 export async function InventoryTable() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "inventory.read")) {
+  if (!can(permissions, "inventory.read")) {
     forbidden();
   }
 
@@ -67,7 +67,7 @@ export async function InventoryTable() {
     return null;
   }
 
-  const canManage = can(session, "inventory.manage");
+  const canManage = can(permissions, "inventory.manage");
 
   const locationName = new Map(
     stock.kind === "ok"

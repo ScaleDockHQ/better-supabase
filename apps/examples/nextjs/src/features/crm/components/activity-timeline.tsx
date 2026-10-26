@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { ContactKind } from "../crm-queries";
 
@@ -55,13 +55,13 @@ export async function ActivityTimeline({
 }: {
   subject: { type: ContactKind; id: string };
 }) {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("crm"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "engagements.read")) {
+  if (!can(permissions, "engagements.read")) {
     return null;
   }
 
@@ -71,7 +71,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const canLog = can(session, "engagements.write");
+  const canLog = can(permissions, "engagements.write");
 
   const types = new Map([
     ["call", t("Call")],

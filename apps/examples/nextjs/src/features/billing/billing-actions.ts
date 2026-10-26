@@ -7,6 +7,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -18,7 +19,7 @@ import { getPlans } from "./billing-queries";
 export const markPlanReviewed = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "onboarding.complete"),
+    authorize: async () => can(await getPermissions(), "onboarding.complete"),
   },
   async (_input, { tenant: organizationId, db }) => {
     const completed = await db.onboarding.complete(
@@ -41,7 +42,7 @@ export const markPlanReviewed = bsb.action(
 export const loadPlanCatalog = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "billing.read"),
+    authorize: async () => can(await getPermissions(), "billing.read"),
   },
   async (_input, { tenant: organizationId, db }) => {
     const plans = await getPlans();
@@ -66,7 +67,7 @@ export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
     requireOrganization: true,
-    authorize: (session) => can(session, "billing.manage"),
+    authorize: async () => can(await getPermissions(), "billing.manage"),
   },
   async ({ plan }): Promise<Result<{ url: string | undefined }>> => {
     const plans: readonly PlanOption[] = await getPlans();

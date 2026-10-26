@@ -35,8 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getTrash } from "../trash-queries";
@@ -53,11 +53,11 @@ async function retry() {
  * forever.
  */
 export async function TrashBin() {
-  const [view, session, t, format] = await Promise.all([
+  const [view, t, format, permissions] = await Promise.all([
     getTrash(),
-    getSession(),
     getExtracted("trash"),
     getFormatter(),
+    getPermissions(),
   ]);
 
   if (view.kind === "no-organization") {
@@ -69,7 +69,7 @@ export async function TrashBin() {
     ["drive_node", t("Drive item")],
   ]);
 
-  const canPurge = can(session, "trash.manage");
+  const canPurge = can(permissions, "trash.manage");
 
   return (
     <Card data-recipe="trash-bin">

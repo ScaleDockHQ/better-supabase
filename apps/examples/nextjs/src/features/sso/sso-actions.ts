@@ -9,6 +9,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { env } from "@/env";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -52,7 +53,7 @@ export const addSsoDomain = bsb.action(
   {
     input: v.object({ domain: DOMAIN }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ domain }, { tenant, db, auth }) => {
     const added = await db.sso.addDomain(tenant, domain);
@@ -71,7 +72,7 @@ export const removeSsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { db, auth }) => {
     const removed = await db.sso.removeDomain(id);
@@ -90,7 +91,7 @@ export const verifySsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();
@@ -128,7 +129,7 @@ export const updateSsoDomain = bsb.action(
       enforceSso: v.optional(v.boolean()),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id, autoJoinRole, enforceSso }, { db, auth }) => {
     const settings: DomainSettingsDraft = {};
@@ -165,7 +166,7 @@ export const addSamlConnection = bsb.action(
       domains: v.pipe(v.array(DOMAIN), v.minLength(1)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ metadataUrl, domains }, { tenant, auth }) => {
     const admin = ssoAdmin();
@@ -198,7 +199,7 @@ export const removeSamlConnection = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sso.manage"),
+    authorize: async () => can(await getPermissions(), "sso.manage"),
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();

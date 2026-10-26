@@ -7,6 +7,7 @@ import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -70,7 +71,7 @@ export const updateOrganization = bsb.action(
   {
     input: v.object({ name: Name, slug: Slug }),
     requireOrganization: true,
-    authorize: (session) => can(session, "organization.update"),
+    authorize: async () => can(await getPermissions(), "organization.update"),
   },
   async ({ name, slug }, { tenant: organizationId, db }) => {
     const updated = await db.$blocks.organizations.update(organizationId, {
@@ -106,7 +107,7 @@ export const updateOrganization = bsb.action(
 export const invitationSent = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "members.invite"),
+    authorize: async () => can(await getPermissions(), "members.invite"),
   },
   async (_input, { tenant: organizationId, db }) => {
     await db.onboarding.complete(gettingStarted, "invite", organizationId);
@@ -132,7 +133,7 @@ export const revokeInvitation = bsb.action(
   {
     input: v.object({ invitationId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "members.invite"),
+    authorize: async () => can(await getPermissions(), "members.invite"),
   },
   async ({ invitationId }, { tenant: organizationId, db }) => {
     const revoked =
@@ -166,8 +167,9 @@ export const memberChanged = bsb.action(
   {
     input: v.object({ userId: Id }),
     requireOrganization: true,
-    authorize: (session) =>
-      can(session, "members.update_role") || can(session, "members.remove"),
+    authorize: async () =>
+      can(await getPermissions(), "members.update_role") ||
+      can(await getPermissions(), "members.remove"),
   },
   ({ userId }) => {
     bsb.invalidateSession(userId);

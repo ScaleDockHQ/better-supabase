@@ -4,6 +4,7 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -20,7 +21,7 @@ export const addEventReminder = bsb.action(
       offsetMinutes: v.picklist(REMINDER_OFFSETS),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "reminders.manage"),
+    authorize: async () => can(await getPermissions(), "reminders.manage"),
   },
   async ({ eventId, offsetMinutes }, { db, auth }) => {
     const saved = await db.reminders.upsert(
@@ -43,7 +44,7 @@ export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "reminders.manage"),
+    authorize: async () => can(await getPermissions(), "reminders.manage"),
   },
   async ({ reminderId }, { db, auth }) => {
     const removed = await db.reminders.remove(reminderId);
@@ -74,7 +75,7 @@ export const createCalendar = bsb.action(
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "calendar.manage"),
+    authorize: async () => can(await getPermissions(), "calendar.manage"),
   },
   async ({ name, tz }, { tenant, db, auth }) => {
     const created = await db.calendar.createCalendar(tenant, name, { tz });
@@ -112,7 +113,7 @@ export const createEvent = bsb.action(
       ),
     ),
     requireOrganization: true,
-    authorize: (session) => can(session, "calendar.write"),
+    authorize: async () => can(await getPermissions(), "calendar.write"),
   },
   async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
@@ -161,7 +162,7 @@ export const setWorkingHours = bsb.action(
       v.check((input) => input.start < input.end, "End after the start"),
     ),
     requireOrganization: true,
-    authorize: (session) => can(session, "calendar.read"),
+    authorize: async () => can(await getPermissions(), "calendar.read"),
   },
   async ({ tz, start, end }, { tenant, db, auth }) => {
     const saved = await db.calendar.setWorkingHours(tenant, {

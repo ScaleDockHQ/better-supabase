@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { ServicePrincipalRow } from "../service-principals-queries";
 
@@ -79,13 +79,13 @@ async function retry() {
  * them. Members without `service_principals.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
-  const [session, t, format] = await Promise.all([
-    getSession(),
+  const [t, format, permissions] = await Promise.all([
     getExtracted("servicePrincipals"),
     getFormatter(),
+    getPermissions(),
   ]);
 
-  if (!can(session, "service_principals.read")) {
+  if (!can(permissions, "service_principals.read")) {
     return null;
   }
 
@@ -95,7 +95,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const manage = can(session, "service_principals.manage");
+  const manage = can(permissions, "service_principals.manage");
 
   const roles = new Map([
     ["owner", t("Owner")],

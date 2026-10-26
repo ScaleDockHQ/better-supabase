@@ -1,7 +1,8 @@
 import type { ProxyOptions } from "better-supabase/next";
 import type { NextRequest } from "next/server";
 
-import { toSession } from "better-supabase/next";
+import { createClient } from "@supabase/supabase-js";
+import { toSession, tenantOf } from "better-supabase/next";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
@@ -9,13 +10,44 @@ import { NextResponse } from "next/server";
 
 import { env } from "@/env";
 
+import type { Permission } from "./features/user/user-permissions";
+
 import { requiredPermission } from "./features/navigation/nav-items";
-import { can } from "./features/user/user-permissions";
 import { pricingFlags } from "./flags";
 import { routing } from "./i18n/routing";
+import { betterSupabase } from "./lib/supabase";
 import { bsb } from "./lib/supabase/server";
 
 const intl = createMiddleware(routing);
+
+/**
+ * Whether the caller holds `permission` in the active organization, through the
+ * permissions block's `my_permissions` as the caller. The proxy has no request
+ * cache, so a gated path costs one call; a failed call lets the page decide.
+ */
+async function holds(
+  auth: Parameters<NonNullable<ProxyOptions["protect"]>>[0],
+  session: ReturnType<typeof toSession>,
+  permission: Permission,
+): Promise<boolean> {
+  const tenant = tenantOf(session);
+
+  if (auth.kind !== "user" || tenant === undefined) {
+    return false;
+  }
+
+  const client = createClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { accessToken: () => Promise.resolve(auth.token) },
+  );
+
+  const held = await betterSupabase
+    .connect(client, { tenant })
+    .permissions.can(permission);
+
+  return held.ok ? held.data : true;
+}
 
 /** Pages a signed-out visitor may open; the rest redirect to sign-in. */
 const PUBLIC = new Set([
@@ -96,7 +128,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
 
   const permission = requiredPermission(path);
 
-  if (permission && !can(session, permission)) {
+  if (permission && !(await holds(auth, session, permission))) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
 

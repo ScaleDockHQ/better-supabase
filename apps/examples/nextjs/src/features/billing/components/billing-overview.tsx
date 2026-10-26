@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -26,7 +27,11 @@ import { PlanPicker } from "./plan-picker";
  * subscription.
  */
 export async function CurrentPlan() {
-  const session = await getSession();
+  const [session, permissions] = await Promise.all([
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -62,7 +67,7 @@ export async function CurrentPlan() {
       <CardContent>
         <PlanFeatures />
       </CardContent>
-      {can(session, "onboarding.complete") ? (
+      {can(permissions, "onboarding.complete") ? (
         <CardFooter>
           <MarkPlanReviewedButton />
         </CardFooter>
@@ -78,7 +83,11 @@ export async function CurrentPlan() {
  * `<Suspense>`.
  */
 export async function PlanGrid() {
-  const session = await getSession();
+  const [session, permissions] = await Promise.all([
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -96,7 +105,7 @@ export async function PlanGrid() {
       <div data-recipe="plan-picker">
         <PlanPicker
           initial={{ plans, current: subscription?.planKey }}
-          canManage={can(session, "billing.manage")}
+          canManage={can(permissions, "billing.manage")}
         />
       </div>
       <p className="text-sm text-muted-foreground">

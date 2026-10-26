@@ -13,8 +13,8 @@ import {
 
 import type { Permission } from "../user-permissions";
 
+import { getPermissions } from "../permission-snapshot";
 import { can } from "../user-permissions";
-import { getSession } from "../user-queries";
 
 /**
  * Renders `children` only when the session has `permission`. UI only: the data
@@ -27,9 +27,12 @@ export async function PermissionGate({
   permission: Permission;
   children: ReactNode;
 }) {
-  const [session, t] = await Promise.all([getSession(), getExtracted("user")]);
+  const [t, permissions] = await Promise.all([
+    getExtracted("user"),
+    getPermissions(),
+  ]);
 
-  if (can(session, permission)) {
+  if (can(permissions, permission)) {
     return children;
   }
 

@@ -38,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getInvoices } from "../invoice-queries";
 import {
@@ -60,9 +60,9 @@ async function retry() {
  * billing page still shows the plan.
  */
 export async function InvoicesTable() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "invoices.read")) {
+  if (!can(permissions, "invoices.read")) {
     return null;
   }
 
@@ -77,7 +77,7 @@ export async function InvoicesTable() {
     return null;
   }
 
-  const canWrite = can(session, "invoices.write");
+  const canWrite = can(permissions, "invoices.write");
 
   const status = (value: InvoiceStatus, overdue: boolean) => {
     if (overdue) {

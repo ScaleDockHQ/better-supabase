@@ -19,8 +19,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { loadDirectory, settle } from "../people-queries";
 import { AddEmployeeDialog } from "./add-employee-dialog";
@@ -34,12 +34,12 @@ import { PeopleLoadError } from "./people-load-error";
  * with `employees.view_sensitive`.
  */
 export async function EmployeeDirectory() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
+    getPermissions(),
   ]);
 
-  if (!can(session, "employees.read")) {
+  if (!can(permissions, "employees.read")) {
     forbidden();
   }
 
@@ -49,8 +49,8 @@ export async function EmployeeDirectory() {
     return null;
   }
 
-  const canWrite = can(session, "employees.write");
-  const canViewSensitive = can(session, "employees.view_sensitive");
+  const canWrite = can(permissions, "employees.write");
+  const canViewSensitive = can(permissions, "employees.view_sensitive");
 
   const managers =
     directory.kind === "ok"

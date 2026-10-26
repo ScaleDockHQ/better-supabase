@@ -11,6 +11,7 @@ import {
 } from "better-supabase/blocks/imports";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -91,7 +92,7 @@ export const previewCustomerImport = bsb.action(
   {
     input: Input,
     requireOrganization: true,
-    authorize: (session) => can(session, "imports.manage"),
+    authorize: async () => can(await getPermissions(), "imports.manage"),
   },
   async ({ csv, mapping }, { db }) => {
     const preview = await dryRun(
@@ -125,8 +126,9 @@ export const runCustomerImport = bsb.action(
   {
     input: Input,
     requireOrganization: true,
-    authorize: (session) =>
-      can(session, "imports.manage") && can(session, "customers.write"),
+    authorize: async () =>
+      can(await getPermissions(), "imports.manage") &&
+      can(await getPermissions(), "customers.write"),
   },
   async ({ csv, mapping }, { tenant, db, auth }) => {
     const existing = await db.customers.list({

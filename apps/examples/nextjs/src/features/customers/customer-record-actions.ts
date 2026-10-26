@@ -8,6 +8,7 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -51,7 +52,7 @@ export const createShareLink = bsb.action(
       expiresInDays: v.picklist(SHARE_EXPIRY_DAYS),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "share_links.create"),
+    authorize: async () => can(await getPermissions(), "share_links.create"),
   },
   async (
     { customerId, expiresInDays },
@@ -105,7 +106,7 @@ export const startAttachmentUpload = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "attachments.upload"),
+    authorize: async () => can(await getPermissions(), "attachments.upload"),
   },
   async (
     { customerId, name, mimeType, size },
@@ -135,7 +136,7 @@ export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "attachments.upload"),
+    authorize: async () => can(await getPermissions(), "attachments.upload"),
   },
   async ({ id }, { supabase, auth }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
@@ -151,7 +152,7 @@ export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "attachments.read"),
+    authorize: async () => can(await getPermissions(), "attachments.read"),
   },
   async ({ id }, { supabase }) =>
     customerAttachments(supabase)
@@ -172,8 +173,9 @@ export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
     requireOrganization: true,
-    authorize: (session) =>
-      can(session, "versions.restore") && can(session, "customers.write"),
+    authorize: async () =>
+      can(await getPermissions(), "versions.restore") &&
+      can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
     const { versions } = db.$with({ tenant: organizationId });
@@ -216,7 +218,7 @@ export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "versions.read"),
+    authorize: async () => can(await getPermissions(), "versions.read"),
   },
   async (
     { fromId, toId },
@@ -245,9 +247,9 @@ export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "sla.read"),
+    authorize: async () => can(await getPermissions(), "sla.read"),
   },
-  async ({ customerId }, { tenant: organizationId, db, session, auth }) => {
+  async ({ customerId }, { tenant: organizationId, db, auth }) => {
     const { sla } = db.$with({ tenant: organizationId });
     const subject = { type: SUBJECT, id: customerId };
     const started = await sla.start(subject);
@@ -258,7 +260,7 @@ export const startCustomerSla = bsb.action(
       return started.ok ? ok(started.data.length) : started;
     }
 
-    if (!can(session, "sla.manage")) {
+    if (!can(await getPermissions(), "sla.manage")) {
       return err(
         dbError(
           "forbidden",

@@ -19,8 +19,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getOrderBoard } from "../kitchen-queries";
@@ -35,14 +35,14 @@ async function retry() {
 
 /** Render inside `<Suspense>`: loads the board and keeps it live. */
 export async function OrderBoard() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "orders.read") && !can(session, "orders.prepare")) {
+  if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
   }
 
   const canPrepare =
-    can(session, "orders.prepare") || can(session, "orders.manage");
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [board, t] = await Promise.all([getOrderBoard(), getExtracted("shop")]);
 

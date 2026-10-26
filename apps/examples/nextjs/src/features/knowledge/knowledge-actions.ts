@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -21,7 +22,7 @@ export const addDocument = bsb.action(
       text: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100_000)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "ai.create"),
+    authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async ({ title, text }, { tenant, supabase }) => {
     const base = knowledge(supabase);
@@ -47,7 +48,7 @@ export const removeDocument = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireOrganization: true,
-    authorize: (session) => can(session, "ai.create"),
+    authorize: async () => can(await getPermissions(), "ai.create"),
   },
   async ({ id }, { supabase }) => {
     const removed = await knowledge(supabase).documents.remove(id);
@@ -76,7 +77,7 @@ export const searchKnowledge = bsb.action(
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "ai.create"),
+    authorize: async () => can(await getPermissions(), "ai.create"),
   },
   ({ query }, { tenant, supabase }) =>
     knowledge(supabase)

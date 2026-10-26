@@ -3,6 +3,7 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export const createSampleCourse = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "courses.manage"),
+    authorize: async () => can(await getPermissions(), "courses.manage"),
   },
   async ({ title, lessons }, { db, auth }) => {
     const { courses } = db;
@@ -78,7 +79,7 @@ export const enrollInCourse = bsb.action(
   {
     input: v.object({ courseId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "courses.read"),
+    authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ courseId }, { db, auth }) => {
     const learner = await db.courses.enroll(courseId);
@@ -98,7 +99,7 @@ export const completeLesson = bsb.action(
   {
     input: v.object({ lessonId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "courses.read"),
+    authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ lessonId }, { db, auth }) => {
     const learner = await db.courses.complete(lessonId);
@@ -128,7 +129,7 @@ export const submitQuiz = bsb.action(
       answers: v.record(v.pipe(v.string(), v.maxLength(63)), Answer),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "courses.read"),
+    authorize: async () => can(await getPermissions(), "courses.read"),
   },
   async ({ lessonId, answers }, { db, auth }) => {
     const result = await db.courses.submitQuiz(lessonId, answers);

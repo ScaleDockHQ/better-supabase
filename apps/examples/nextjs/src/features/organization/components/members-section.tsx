@@ -10,6 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { assignableRoles, getRoles } from "@/features/roles/roles-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -20,7 +22,11 @@ import { MemberTable } from "./member-table";
 
 /** Render inside `<Suspense>`; the fallback is `MembersSectionSkeleton`. */
 export async function MembersSection() {
-  const session = await getSession();
+  const [session, permissions] = await Promise.all([
+    getSession(),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
   const role = roleOf(session);
 
@@ -28,13 +34,16 @@ export async function MembersSection() {
     return null;
   }
 
-  const canInvite = can(session, "members.invite");
+  const canInvite = can(permissions, "members.invite");
 
-  const [members, invitations, t] = await Promise.all([
+  const [members, invitations, roles, t] = await Promise.all([
     getMembers(organizationId),
     canInvite ? getInvitations(organizationId) : Promise.resolve([]),
+    getRoles(),
     getExtracted("organization"),
   ]);
+
+  const assignable = assignableRoles(roles ?? [], permissions);
 
   return (
     <>
@@ -50,7 +59,7 @@ export async function MembersSection() {
             <CardAction>
               <InviteMemberDialog
                 organizationId={organizationId}
-                myRole={role}
+                assignable={assignable}
               />
             </CardAction>
           ) : null}
@@ -60,9 +69,9 @@ export async function MembersSection() {
             organizationId={organizationId}
             initial={members}
             currentUserId={session.user.id}
-            myRole={role}
-            canUpdateRole={can(session, "members.update_role")}
-            canRemove={can(session, "members.remove")}
+            assignable={assignable}
+            canUpdateRole={can(permissions, "members.update_role")}
+            canRemove={can(permissions, "members.remove")}
           />
         </CardContent>
       </Card>

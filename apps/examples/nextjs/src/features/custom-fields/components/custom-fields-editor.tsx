@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { retryCustomFields } from "../custom-fields-actions";
 import { getFields } from "../custom-fields-queries";
@@ -60,13 +60,13 @@ export async function CustomFieldsEditor({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, params] = await Promise.all([
-    getSession(),
+  const [t, params, permissions] = await Promise.all([
     getExtracted("custom-fields"),
     searchParams,
+    getPermissions(),
   ]);
 
-  if (!can(session, "custom_fields.read")) {
+  if (!can(permissions, "custom_fields.read")) {
     forbidden();
   }
 
@@ -78,7 +78,7 @@ export async function CustomFieldsEditor({
     return null;
   }
 
-  const canManage = can(session, "custom_fields.manage");
+  const canManage = can(permissions, "custom_fields.manage");
 
   return (
     <Card data-recipe="custom-fields-editor">

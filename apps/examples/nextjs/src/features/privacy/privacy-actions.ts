@@ -9,6 +9,7 @@ import {
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -49,7 +50,7 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
 export const requestOrganizationExport = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "organization.export"),
+    authorize: async () => can(await getPermissions(), "organization.export"),
   },
   async (_input, { tenant, db, auth }) => {
     const requested = await db.dataLifecycle.requestExport({
@@ -88,7 +89,7 @@ export const downloadExport = bsb.action(
 export const requestOrganizationDeletion = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "organization.delete"),
+    authorize: async () => can(await getPermissions(), "organization.delete"),
   },
   async (_input, { tenant, db, auth }) => {
     const requested =

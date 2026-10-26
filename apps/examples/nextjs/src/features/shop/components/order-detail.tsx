@@ -38,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { getOrderDetail } from "../shop-queries";
 import { OrderStatusBadge } from "./order-status-badge";
@@ -62,9 +62,9 @@ export async function OrderDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const [{ id }, permissions] = await Promise.all([params, getPermissions()]);
 
-  if (!can(session, "orders.read")) {
+  if (!can(permissions, "orders.read")) {
     forbidden();
   }
 
@@ -97,7 +97,7 @@ export async function OrderDetail({
   }
 
   const view = detail.data;
-  const canManage = can(session, "orders.manage");
+  const canManage = can(permissions, "orders.manage");
   const amount = (value: Money) => formatMoney(value, locale);
 
   const problemLabel = (problem: string) => {
@@ -335,7 +335,7 @@ export async function OrderDetail({
                       ]
                     : [],
                 )}
-                canCreate={can(session, "promotions.manage")}
+                canCreate={can(permissions, "promotions.manage")}
               />
             ) : view.promotions.length === 0 ? (
               <p className="text-sm text-muted-foreground">

@@ -6,6 +6,7 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -179,7 +180,7 @@ export const setTaskField = bsb.action(
       ]),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "bulk.run"),
+    authorize: async () => can(await getPermissions(), "bulk.run"),
   },
   async ({ ids, values }, { db, auth }) => {
     const patch =
@@ -214,7 +215,7 @@ export const saveTaskView = bsb.action(
       projectId: v.nullable(Id),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "views.read"),
+    authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
     const query: TaskViewQuery = {};
@@ -258,7 +259,7 @@ export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "views.read"),
+    authorize: async () => can(await getPermissions(), "views.read"),
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
@@ -289,7 +290,7 @@ export const restoreProjectFields = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "versions.restore"),
+    authorize: async () => can(await getPermissions(), "versions.restore"),
   },
   async ({ projectId, versionId, fields }, { db, auth }) => {
     const { versions } = db;

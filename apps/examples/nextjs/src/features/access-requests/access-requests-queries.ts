@@ -6,6 +6,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { Role } from "@/lib/claims";
 
 import { getMembers } from "@/features/organization/organization-queries";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -55,14 +56,19 @@ async function memberNames(
  */
 export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
-  const { session, db, auth } = await bsb.cached();
+
+  const [{ session, db, auth }, permissions] = await Promise.all([
+    bsb.cached(),
+    getPermissions(),
+  ]);
+
   const tenant = tenantOf(session);
 
   if (!tenant || auth.kind !== "user") {
     return null;
   }
 
-  const readsAll = can(session, "access_requests.read");
+  const readsAll = can(permissions, "access_requests.read");
 
   const [requests, names] = await Promise.all([
     db.accessRequests.list(tenant, { mine: !readsAll, pageSize: 50 }).orThrow(),
@@ -70,7 +76,7 @@ export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   ]);
 
   return {
-    canDecide: can(session, "members.update_role"),
+    canDecide: can(permissions, "members.update_role"),
     requests: requests.map((request) => ({
       approvalId: request.approvalId ?? null,
       createdAt: request.createdAt.toString(),

@@ -25,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RoleBadge } from "@/features/user/components/role-badge";
-import { assignableRoles } from "@/features/user/user-permissions";
 import { useMembers } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
@@ -55,14 +54,14 @@ export function MemberTable({
   organizationId,
   initial,
   currentUserId,
-  myRole,
+  assignable,
   canUpdateRole,
   canRemove,
 }: {
   organizationId: string;
   initial: readonly Member[];
   currentUserId: string;
-  myRole: Role;
+  assignable: readonly Role[];
   canUpdateRole: boolean;
   canRemove: boolean;
 }) {
@@ -80,8 +79,6 @@ export function MemberTable({
       await memberChanged({ userId });
     },
   });
-
-  const assignable = assignableRoles(myRole);
 
   const roleItems = assignable.map((role) => ({
     value: role,

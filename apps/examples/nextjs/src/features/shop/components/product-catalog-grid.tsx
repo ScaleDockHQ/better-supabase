@@ -29,8 +29,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { Product } from "../shop-queries";
 
@@ -47,9 +47,9 @@ async function retry() {
 
 /** Render inside `<Suspense>`: the organization's products as cards. */
 export async function ProductCatalogGrid() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
-  if (!can(session, "catalog.read")) {
+  if (!can(permissions, "catalog.read")) {
     forbidden();
   }
 
@@ -63,7 +63,7 @@ export async function ProductCatalogGrid() {
     return null;
   }
 
-  const canManage = can(session, "catalog.manage");
+  const canManage = can(permissions, "catalog.manage");
 
   const status = (product: Product) => {
     switch (product.status) {
@@ -128,7 +128,7 @@ export async function ProductCatalogGrid() {
               })}
             </p>
             <div className="flex items-center gap-2">
-              {can(session, "promotions.manage") ? (
+              {can(permissions, "promotions.manage") ? (
                 <CreatePromotionCodeDialog />
               ) : null}
               {canManage ? <CreateProductDialog variant="outline" /> : null}

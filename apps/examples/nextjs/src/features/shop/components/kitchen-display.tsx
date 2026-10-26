@@ -26,8 +26,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { getKitchen } from "../kitchen-queries";
@@ -53,14 +53,17 @@ export async function KitchenDisplay({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, params] = await Promise.all([getSession(), searchParams]);
+  const [params, permissions] = await Promise.all([
+    searchParams,
+    getPermissions(),
+  ]);
 
-  if (!can(session, "orders.read") && !can(session, "orders.prepare")) {
+  if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
   }
 
   const canPrepare =
-    can(session, "orders.prepare") || can(session, "orders.manage");
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
     getKitchen(

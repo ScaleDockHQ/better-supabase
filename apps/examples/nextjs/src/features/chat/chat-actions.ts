@@ -4,6 +4,7 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { customerAttachments } from "@/features/customers/customer-attachments";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -51,7 +52,7 @@ export const createChannel = bsb.action(
       visibility: v.picklist(["public", "private"]),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "channels.create"),
+    authorize: async () => can(await getPermissions(), "channels.create"),
   },
   async ({ name, topic, visibility }, { db }) => {
     const created = await db.channels.create({
@@ -88,7 +89,7 @@ export const startChatUpload = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "messages.send"),
+    authorize: async () => can(await getPermissions(), "messages.send"),
   },
   async ({ conversationId, name, mimeType, size }, { tenant, supabase }) => {
     const upload = await customerAttachments(supabase, tenant).upload(
@@ -119,7 +120,7 @@ export const confirmChatUpload = bsb.action(
   {
     input: v.object({ id: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "messages.send"),
+    authorize: async () => can(await getPermissions(), "messages.send"),
   },
   async ({ id }, { supabase }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);

@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { SettingsLayout } from "./settings-layout";
 
@@ -9,10 +9,10 @@ import { SettingsLayout } from "./settings-layout";
  * every write; the session decides which controls are enabled.
  */
 export async function Preferences() {
-  const session = await getSession();
+  const permissions = await getPermissions();
 
   return (
-    <SettingsLayout canEditOrganization={can(session, "settings.update")} />
+    <SettingsLayout canEditOrganization={can(permissions, "settings.update")} />
   );
 }
 

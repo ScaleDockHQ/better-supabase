@@ -7,6 +7,7 @@ import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
@@ -27,7 +28,7 @@ export const createCustomer = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "customers.write"),
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ name }, { tenant: organizationId, db }) => {
     const { usage, onboarding } = db;
@@ -76,7 +77,7 @@ export const uploadCustomerLogo = bsb.action(
       ),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "customers.write"),
+    authorize: async () => can(await getPermissions(), "customers.write"),
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.

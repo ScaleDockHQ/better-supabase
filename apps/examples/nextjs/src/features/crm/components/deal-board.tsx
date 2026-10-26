@@ -19,8 +19,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import { loadDealBoard, settle } from "../crm-queries";
 import { CreateDealDialog } from "./create-deal-dialog";
@@ -34,9 +34,12 @@ import { DealKanban } from "./deal-kanban";
  * pipeline. Dragging a deal saves its new stage through `moveDeal`.
  */
 export async function DealBoard() {
-  const [session, t] = await Promise.all([getSession(), getExtracted("crm")]);
+  const [t, permissions] = await Promise.all([
+    getExtracted("crm"),
+    getPermissions(),
+  ]);
 
-  if (!can(session, "deals.read")) {
+  if (!can(permissions, "deals.read")) {
     forbidden();
   }
 
@@ -62,7 +65,7 @@ export async function DealBoard() {
         <CardDescription>
           {t("Drag a deal to another stage to move it.")}
         </CardDescription>
-        {pipeline && can(session, "deals.write") ? (
+        {pipeline && can(permissions, "deals.write") ? (
           <CardAction>
             <CreateDealDialog pipelineId={pipeline.id} stages={openStages} />
           </CardAction>
@@ -79,14 +82,14 @@ export async function DealBoard() {
               </EmptyMedia>
               <EmptyTitle>{t("No pipeline yet")}</EmptyTitle>
               <EmptyDescription>
-                {can(session, "pipelines.manage")
+                {can(permissions, "pipelines.manage")
                   ? t(
                       "Start with six stages, from qualified to closed won or lost.",
                     )
                   : t("Ask an admin to create the sales pipeline.")}
               </EmptyDescription>
             </EmptyHeader>
-            {can(session, "pipelines.manage") ? (
+            {can(permissions, "pipelines.manage") ? (
               <EmptyContent>
                 <CreatePipelineButton />
               </EmptyContent>
@@ -99,7 +102,7 @@ export async function DealBoard() {
               .join(",")}
             stages={board.data.stages}
             deals={board.data.deals}
-            canMove={can(session, "deals.write")}
+            canMove={can(permissions, "deals.write")}
           />
         )}
       </CardContent>

@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -29,7 +30,8 @@ export const requestAccess = bsb.action(
       reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "access_requests.create"),
+    authorize: async () =>
+      can(await getPermissions(), "access_requests.create"),
   },
   async ({ role, duration, reason }, { tenant, db, auth }) => {
     const input: AccessRequestDraft = { organizationId: tenant, role };
@@ -62,7 +64,7 @@ export const decideAccessRequest = bsb.action(
       decision: v.picklist(["approve", "reject"]),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "members.update_role"),
+    authorize: async () => can(await getPermissions(), "members.update_role"),
   },
   async ({ approvalId, decision }, { db, auth }) => {
     const { approvals } = db;

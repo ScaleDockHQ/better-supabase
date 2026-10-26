@@ -36,8 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 
 import type { SigningKeysOverview } from "../signing-keys-queries";
 
@@ -75,12 +75,12 @@ async function retry() {
  * only, so this checks `organization.update` before it reads.
  */
 export async function SigningKeysRotation() {
-  const [session, t] = await Promise.all([
-    getSession(),
+  const [t, permissions] = await Promise.all([
     getExtracted("signingKeys"),
+    getPermissions(),
   ]);
 
-  if (!can(session, SIGNING_KEYS_PERMISSION)) {
+  if (!can(permissions, SIGNING_KEYS_PERMISSION)) {
     forbidden();
   }
 

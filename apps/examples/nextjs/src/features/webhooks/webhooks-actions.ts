@@ -6,6 +6,7 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -39,8 +40,8 @@ const CreateEndpoint = v.object({
 
 const manage = { requireOrganization: true, authorize: canManage } as const;
 
-function canManage(session: Parameters<typeof can>[0]): boolean {
-  return can(session, "webhooks.manage");
+async function canManage(): Promise<boolean> {
+  return can(await getPermissions(), "webhooks.manage");
 }
 
 /**

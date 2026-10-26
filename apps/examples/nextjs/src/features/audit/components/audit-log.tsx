@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/features/billing/components/feature-gate";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
@@ -31,14 +32,19 @@ import { AuditLogTable } from "./audit-log-table";
 
 /** Render inside `<Suspense>`. The log is a plan feature (`audit`). */
 export async function AuditLog() {
-  const [session, t] = await Promise.all([getSession(), getExtracted("audit")]);
+  const [session, t, permissions] = await Promise.all([
+    getSession(),
+    getExtracted("audit"),
+    getPermissions(),
+  ]);
+
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
     return null;
   }
 
-  if (!can(session, "audit.read")) {
+  if (!can(permissions, "audit.read")) {
     forbidden();
   }
 

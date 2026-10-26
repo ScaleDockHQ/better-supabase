@@ -35,8 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import { TIME_ZONE, loadTimesheet, settle } from "../people-queries";
@@ -107,15 +107,15 @@ export async function Timesheet({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [session, t, format, query] = await Promise.all([
-    getSession(),
+  const [t, format, query, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
     searchParams,
+    getPermissions(),
     connection(),
   ]);
 
-  if (!can(session, "time_tracking.track")) {
+  if (!can(permissions, "time_tracking.track")) {
     forbidden();
   }
 

@@ -38,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import type { AccessRequestsData } from "../access-requests-queries";
@@ -79,7 +79,7 @@ const STATUS_VARIANT: Record<AccessRequestStatus, BadgeProps["variant"]> = {
  * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
-  if (!can(await getSession(), "access_requests.create")) {
+  if (!can(await getPermissions(), "access_requests.create")) {
     forbidden();
   }
 

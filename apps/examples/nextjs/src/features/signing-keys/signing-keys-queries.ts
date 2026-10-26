@@ -1,6 +1,7 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -29,10 +30,15 @@ export interface SigningKeysOverview {
  */
 export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
   "use cache: private";
-  const { session } = await bsb.cached();
+
+  const [{ session }, permissions] = await Promise.all([
+    bsb.cached(),
+    getPermissions(),
+  ]);
+
   const tenant = tenantOf(session);
 
-  if (!tenant || !can(session, SIGNING_KEYS_PERMISSION)) {
+  if (!tenant || !can(permissions, SIGNING_KEYS_PERMISSION)) {
     return null;
   }
 

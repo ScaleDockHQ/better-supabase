@@ -5,6 +5,7 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -36,7 +37,7 @@ export const createContact = bsb.action(
       domain: Optional,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "parties.write"),
+    authorize: async () => can(await getPermissions(), "parties.write"),
   },
   async ({ kind, name, email, domain }, { tenant, db, auth }) => {
     const { contacts: parties } = db.$blocks;
@@ -61,7 +62,7 @@ export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
     requireOrganization: true,
-    authorize: (session) => can(session, "parties.write"),
+    authorize: async () => can(await getPermissions(), "parties.write"),
   },
   async ({ companyId, personId, role }, { db, auth }) => {
     const linked = await db.$blocks.contacts.linkPerson(
@@ -91,7 +92,7 @@ export const logActivity = bsb.action(
       body: Optional,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "engagements.write"),
+    authorize: async () => can(await getPermissions(), "engagements.write"),
   },
   async (
     { subjectType, subjectId, type, title, body },
@@ -137,7 +138,7 @@ const DEFAULT_STAGES = [
 export const createDefaultPipeline = bsb.action(
   {
     requireOrganization: true,
-    authorize: (session) => can(session, "pipelines.manage"),
+    authorize: async () => can(await getPermissions(), "pipelines.manage"),
   },
   async (_input, { tenant, db, auth }) => {
     const { pipelines } = db;
@@ -191,7 +192,7 @@ export const createDeal = bsb.action(
       stageId: Id,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "deals.write"),
+    authorize: async () => can(await getPermissions(), "deals.write"),
   },
   async (
     { name, amount, currency, closeOn, pipelineId, stageId },
@@ -221,7 +222,7 @@ export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "deals.write"),
+    authorize: async () => can(await getPermissions(), "deals.write"),
   },
   async ({ dealId, stageId }, { db, auth }) => {
     const moved = await db.deals.update([
@@ -256,7 +257,7 @@ export const createTarget = bsb.action(
       periodEnd: IsoDate,
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "targets.manage"),
+    authorize: async () => can(await getPermissions(), "targets.manage"),
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },
@@ -297,7 +298,7 @@ export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
     requireOrganization: true,
-    authorize: (session) => can(session, "quotes.write"),
+    authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ title, currency }, { tenant, db, auth }) => {
     const created = await db.quotes.create(tenant, { title, currency });
@@ -329,7 +330,7 @@ export const saveQuoteLines = bsb.action(
       lines: v.pipe(v.array(QuoteLine), v.maxLength(100)),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "quotes.write"),
+    authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId, currency, lines }, { db, auth }) => {
     const saved = await db.quotes.setLines(
@@ -358,7 +359,7 @@ export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "quotes.write"),
+    authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId }, { db, auth }) => {
     const sent = await db.quotes.send(quoteId);
@@ -381,7 +382,7 @@ export const decideQuote = bsb.action(
       decision: v.picklist(["accepted", "rejected", "changes_requested"]),
     }),
     requireOrganization: true,
-    authorize: (session) => can(session, "quotes.write"),
+    authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId, decision }, { db, auth }) => {
     const decided = await db.quotes.decide(quoteId, decision);
@@ -401,7 +402,7 @@ export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireOrganization: true,
-    authorize: (session) => can(session, "quotes.write"),
+    authorize: async () => can(await getPermissions(), "quotes.write"),
   },
   async ({ quoteId }, { db, auth }) => {
     const revised = await db.quotes.revise(quoteId);
