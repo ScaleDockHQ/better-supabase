@@ -1,6 +1,6 @@
 ---
 title: Next.js auth
-description: Sign in, verify links and codes, OAuth with PKCE, MFA and sign-out from Server Actions, with the session visible in the same request.
+description: Sign in, send and verify email links and codes, OAuth with PKCE, MFA and sign-out from Server Actions, with the session visible in the same request.
 ---
 
 `createNext` signs users in and out on the server. Each helper makes the Auth
@@ -18,16 +18,26 @@ once.
 | `authorizeUrl`, then `exchangeCode` | `/auth/v1/authorize`, then `grant_type=pkce`    |
 | `verifyMfa`                         | `POST /auth/v1/factors/:id/challenge`, `verify` |
 | `signOut`                           | `POST /auth/v1/logout`, then the cookies        |
+| `signInWithOtp`                     | `POST /auth/v1/otp`                             |
+| `resetPasswordForEmail`             | `POST /auth/v1/recover`                         |
+| `signUp`                            | `POST /auth/v1/signup`                          |
+| `resend`                            | `POST /auth/v1/resend`                          |
 
-Every helper except `authorizeUrl` returns an `ActionResult<SignedIn>`,
+The helpers that start or end a session return an `ActionResult<SignedIn>`,
 plain data that a Server Action can return to a client form as it is:
 
 ```ts
 interface SignedIn {
   redirectTo: string; // `next` when it is a same-origin path, else `fallback`
   mfa: boolean; // a verified factor and the session is not aal2 yet
+  user: UserClaims | null; // id, email, role and metadata; null when signed out
 }
 ```
+
+`user` is read from the verified claims, like `AuthSession.user`, so the
+action needs no `getUser()` call to decide where to go. The helpers that only
+send an email (`signInWithOtp`, `resetPasswordForEmail`, `resend`) return an
+`ActionResult<null>`, and `signUp` returns `null` until the user confirms.
 
 The committed session never leaves the server: read it with
 `bsb.getRequestSession()` or `bsb.context()` later in the same action.
@@ -203,12 +213,53 @@ verifies its token once more on the next render. `cookieScopes` on
 wrote it at, see
 [Sessions](/docs/auth/sessions#moving-the-cookie-to-another-domain-or-path).
 
-## Flows that start no session
+## Flows that send an email
 
-Sending a magic link or a code, a password reset email, `signUp` with email
-confirmation and resending an email start no session, so they stay on the
-supabase-js client. After `updateUser({ password })`, call
-`bsb.invalidateSession(userId)`.
+`signInWithOtp`, `resetPasswordForEmail`, `signUp` and `resend` start the flow
+with the same PKCE verifier cookie as `authorizeUrl`, so the link in the email
+lands on `redirectTo` with a `?code=` that `exchangeCode` turns into a
+session. The default email templates (`{{ .ConfirmationURL }}`) work as they
+are, and the callback route from [OAuth with PKCE](#oauth-with-pkce) serves
+every flow.
+
+```ts title="src/features/auth/auth-actions.ts"
+export async function sendMagicLink(form: FormData): Promise<string | null> {
+  const result = await bsb.signInWithOtp({
+    email: String(form.get("email")),
+    redirectTo: `${process.env.APP_URL}/auth/callback`,
+    next: String(form.get("next") ?? ""),
+    shouldCreateUser: false,
+  });
+
+  return result.ok ? null : (result.error.code ?? result.error.kind);
+}
+```
+
+The same email carries a 6-digit code: verify it with
+`verifyOtp({ type: "email", email, token, next })`, which needs no cookie.
+
+| Helper                                         | Sends                                     |
+| ---------------------------------------------- | ----------------------------------------- |
+| `signInWithOtp({ email, redirectTo, ... })`    | a magic link and a code                   |
+| `resetPasswordForEmail({ email, redirectTo })` | a password reset link                     |
+| `signUp({ email, password, redirectTo })`      | the confirmation link                     |
+| `resend({ type, email, redirectTo })`          | the `signup` or `email_change` link again |
+
+`signInWithOtp` creates the user unless `shouldCreateUser` is `false`, and
+`signInWithOtp` and `signUp` take `data` for the new user's `user_metadata`.
+With email confirmation off, `signUp` gets a session back from Auth and
+commits it like `signIn`, so it returns `SignedIn` instead of `null`.
+
+For a password reset, point `redirectTo` at the callback with the reset form
+as `next`. The exchange signs the user in, the form calls
+`updateUser({ password })`, then `bsb.invalidateSession(userId)`.
+
+The verifier cookie holds one flow: a newer flow in the same browser replaces
+it, and it expires after 10 minutes. A link opened in another browser, or
+after that, fails with `code_verifier_missing`; ask the user to request a new
+one. A flow started with the supabase-js client stores its verifier in its own
+format, which `exchangeCode` doesn't read: start every flow whose link
+`exchangeCode` handles with these helpers.
 
 ## Reads in the same request
 

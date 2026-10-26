@@ -4,17 +4,22 @@ import type {
   ResolveAuthOptions,
 } from "../auth/resolve.ts";
 import type { CookieScope, StoredSession } from "../auth/session.ts";
-import type { PasswordGrantOptions } from "../auth/sign-in.ts";
+import type { EmailFlowPath, PasswordGrantOptions } from "../auth/sign-in.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { Result } from "../core/result.ts";
 import type { ActionResult } from "../server/kit.ts";
 import type {
   CodeExchange,
+  EmailRedirect,
   MfaVerification,
   OAuthStart,
+  ResendParams,
+  ResetPasswordParams,
   SignInCredentials,
   SignInOptions,
+  SignInWithOtpParams,
   SignOutParams,
+  SignUpParams,
   SignedIn,
   VerifyOtpParams,
 } from "./types.ts";
@@ -28,6 +33,7 @@ import {
 } from "../auth/session.ts";
 import {
   authorizeUrlFor,
+  emailFlow,
   mfaGrant,
   needsMfa,
   otpGrant,
@@ -37,7 +43,7 @@ import {
   revokeSession,
   safeRedirectPath,
 } from "../auth/sign-in.ts";
-import { snapshotOf } from "../auth/snapshot.ts";
+import { authOfSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { dbError } from "../core/errors.ts";
 import { ok } from "../core/result.ts";
 
@@ -99,6 +105,15 @@ export interface AuthFlows {
     params?: SignOutParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
+  resetPasswordForEmail(
+    params: ResetPasswordParams,
+  ): Promise<ActionResult<null>>;
+  signUp(
+    params: SignUpParams,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn | null>>;
+  resend(params: ResendParams): Promise<ActionResult<null>>;
 }
 
 function refused(auth: AuthState): ActionResult<never> {
@@ -126,6 +141,60 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     auth?.cookie?.name ?? sessionCookieName(deps.env().url);
 
   const verifierName = (): string => `${cookieName()}-code-verifier`;
+
+  const setVerifier = async (value: string, maxAge: number): Promise<void> => {
+    (await deps.jar()).set(verifierName(), value, {
+      path: "/",
+      ...auth?.cookie?.options,
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge,
+    });
+  };
+
+  /** Writes a new PKCE verifier cookie and returns its challenge. */
+  const startPkce = async (): Promise<string> => {
+    const { verifier, challenge } = await pkcePair();
+    await setVerifier(verifier, VERIFIER_MAX_AGE);
+
+    return challenge;
+  };
+
+  /** `redirectTo` with a same-origin `next` as `?next=`. */
+  const callbackUrl = (params: EmailRedirect): string => {
+    const next = safeRedirectPath(params.next, "");
+    const target = new URL(params.redirectTo);
+
+    if (next) {
+      target.searchParams.set("next", next);
+    }
+
+    return target.href;
+  };
+
+  /** Starts an email flow; drops the verifier when Auth refuses it. */
+  const sendEmail = async (
+    path: EmailFlowPath,
+    params: EmailRedirect,
+    body: Record<string, unknown>,
+  ): Promise<Result<StoredSession | null>> => {
+    const challenge = await startPkce();
+
+    const sent = await emailFlow(
+      path,
+      { body, redirectTo: callbackUrl(params), challenge },
+      await grantOptions(),
+    );
+
+    if (!sent.ok) {
+      await setVerifier("", 0);
+    }
+
+    return sent;
+  };
+
+  const requested = (sent: Result<unknown>): ActionResult<null> =>
+    sent.ok ? { ok: true, data: null, error: null } : sent;
 
   const grantOptions = async (): Promise<PasswordGrantOptions> => {
     const env = deps.env();
@@ -212,6 +281,7 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
           stored !== null &&
           needsMfa(stored) &&
           snapshotOf(resolution.auth)?.claims["aal"] !== "aal2",
+        user: resolution.auth.kind === "user" ? resolution.auth.user : null,
       },
       error: null,
     };
@@ -238,47 +308,64 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       ),
 
     async authorizeUrl(params) {
-      const { verifier, challenge } = await pkcePair();
-      const jar = await deps.jar();
-
-      jar.set(verifierName(), verifier, {
-        path: "/",
-        ...auth?.cookie?.options,
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: VERIFIER_MAX_AGE,
-      });
-
-      const next = safeRedirectPath(params.next, "");
-      const redirectTo = new URL(params.redirectTo);
-
-      if (next) {
-        redirectTo.searchParams.set("next", next);
-      }
+      const challenge = await startPkce();
 
       return {
         url: authorizeUrlFor(
           deps.env().url,
-          { ...params, redirectTo: redirectTo.href },
+          { ...params, redirectTo: callbackUrl(params) },
           challenge,
         ),
       };
     },
 
-    async exchangeCode(params, options = {}) {
-      const jar = await deps.jar();
+    async signInWithOtp(params) {
+      return requested(
+        await sendEmail("otp", params, {
+          email: params.email,
+          create_user: params.shouldCreateUser ?? true,
+          data: params.data ?? {},
+        }),
+      );
+    },
 
-      const verifier = jar
+    async resetPasswordForEmail(params) {
+      return requested(
+        await sendEmail("recover", params, { email: params.email }),
+      );
+    },
+
+    async signUp(params, options = {}) {
+      const sent = await sendEmail("signup", params, {
+        email: params.email,
+        password: params.password,
+        data: params.data ?? {},
+      });
+
+      if (!sent.ok || sent.data === null) {
+        return requested(sent);
+      }
+
+      await setVerifier("", 0);
+
+      return commit(sent, params.next, options);
+    },
+
+    async resend(params) {
+      return requested(
+        await sendEmail("resend", params, {
+          email: params.email,
+          type: params.type,
+        }),
+      );
+    },
+
+    async exchangeCode(params, options = {}) {
+      const verifier = (await deps.jar())
         .getAll()
         .find((cookie) => cookie.name === verifierName())?.value;
 
-      jar.set(verifierName(), "", {
-        path: "/",
-        ...auth?.cookie?.options,
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 0,
-      });
+      await setVerifier("", 0);
 
       if (!verifier) {
         return {
@@ -345,11 +432,14 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       }
 
       if (scope === "others") {
+        const kept = current ? authOfSnapshot(current) : undefined;
+
         return {
           ok: true,
           data: {
             redirectTo: safeRedirectPath(params.next, options.fallback ?? "/"),
             mfa: false,
+            user: kept?.kind === "user" ? kept.user : null,
           },
           error: null,
         };

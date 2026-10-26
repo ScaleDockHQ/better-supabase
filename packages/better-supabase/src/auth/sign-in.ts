@@ -264,6 +264,42 @@ export async function pkceGrant(
   );
 }
 
+/** The Auth endpoints that email the user a link to `redirect_to`. */
+export type EmailFlowPath = "otp" | "recover" | "signup" | "resend";
+
+/**
+ * Starts an email flow (magic link or code, password reset, sign-up, resend)
+ * with a PKCE `challenge`, so the link lands on `redirectTo` with a `?code=`
+ * that `pkceGrant` exchanges. Returns the session a sign-up starts when email
+ * confirmation is off, else `null`.
+ */
+export async function emailFlow(
+  path: EmailFlowPath,
+  params: {
+    readonly body: Body;
+    readonly redirectTo: string;
+    readonly challenge: string;
+  },
+  options: PasswordGrantOptions,
+): Promise<Result<StoredSession | null>> {
+  const what = path === "signup" ? "Sign-up" : "Email request";
+
+  const sent = await authPost(
+    `${path}?redirect_to=${encodeURIComponent(params.redirectTo)}`,
+    {
+      ...params.body,
+      code_challenge: params.challenge,
+      code_challenge_method: "s256",
+    },
+    options,
+    what,
+  );
+
+  return sent.ok && typeof sent.data["access_token"] !== "string"
+    ? ok(null)
+    : sessionFrom(sent, options, what);
+}
+
 /**
  * Challenges an MFA factor and verifies the code against it, as the user the
  * access token belongs to. Returns the `aal2` session.

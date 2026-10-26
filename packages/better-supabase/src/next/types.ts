@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { UserClaims } from "@supabase/server";
 import type { NextRequest } from "next/server.js";
 
 import type { AuthState } from "../auth/resolve.ts";
@@ -543,6 +544,35 @@ export interface BetterNext<
     params?: SignOutParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Emails a magic link and a code. It writes the PKCE verifier cookie like
+   * `authorizeUrl`, so the link's `?code=` goes to `exchangeCode`, and the code
+   * to `verifyOtp` with `type: "email"`. Returns `null`: nothing is signed in
+   * yet.
+   */
+  signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
+  /**
+   * Emails a password reset link with the PKCE verifier cookie. `exchangeCode`
+   * on the callback signs the user in; the app then asks for the new password.
+   * Auth answers the same whether or not an account has the email.
+   */
+  resetPasswordForEmail(
+    params: ResetPasswordParams,
+  ): Promise<ActionResult<null>>;
+  /**
+   * Signs up with an email and a password. With email confirmation on, it
+   * emails the confirmation link with the PKCE verifier cookie and returns
+   * `null`. With it off, Auth returns a session, committed like `signIn`.
+   */
+  signUp(
+    params: SignUpParams,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn | null>>;
+  /**
+   * Emails the sign-up confirmation or the email change link again, with a new
+   * PKCE verifier cookie.
+   */
+  resend(params: ResendParams): Promise<ActionResult<null>>;
 }
 
 export interface SignInCredentials {
@@ -567,6 +597,48 @@ export type VerifyOtpParams = OtpParams & {
 export interface OAuthStart extends AuthorizeUrlParams {
   /** Where to go after the callback; checked before use. */
   readonly next?: string | null;
+}
+
+/**
+ * Where an email link lands. The verifier cookie lives 10 minutes and holds one
+ * flow: a newer `authorizeUrl` or email flow in the same browser replaces it.
+ */
+export interface EmailRedirect {
+  /**
+   * The absolute URL of the callback route that calls `exchangeCode`. It must
+   * be in the project's redirect allow list.
+   */
+  readonly redirectTo: string;
+  /** Rides on `redirectTo` as `?next=` when it is a same-origin path. */
+  readonly next?: string | null;
+}
+
+/** `signInWithOtp` input. */
+export interface SignInWithOtpParams extends EmailRedirect {
+  readonly email: string;
+  /** Create a user when no account has the email. Defaults to `true`. */
+  readonly shouldCreateUser?: boolean;
+  /** `user_metadata` for a user this creates. */
+  readonly data?: Readonly<Record<string, unknown>>;
+}
+
+/** `resetPasswordForEmail` input. */
+export interface ResetPasswordParams extends EmailRedirect {
+  readonly email: string;
+}
+
+/** `signUp` input. */
+export interface SignUpParams extends EmailRedirect {
+  readonly email: string;
+  readonly password: string;
+  /** `user_metadata` for the new user. */
+  readonly data?: Readonly<Record<string, unknown>>;
+}
+
+/** `resend` input. */
+export interface ResendParams extends EmailRedirect {
+  readonly type: "signup" | "email_change";
+  readonly email: string;
 }
 
 /** `exchangeCode` input: the callback's `?code=` and `?next=`. */
@@ -603,6 +675,11 @@ export interface SignedIn {
    * `redirectTo`. Advisory: keep the proxy and `action({ aal: 2 })` gates.
    */
   readonly mfa: boolean;
+  /**
+   * The signed-in user, read from the verified claims like `AuthSession.user`;
+   * `null` once signed out.
+   */
+  readonly user: UserClaims | null;
 }
 
 /** What `startSupport` returns: plain data, safe across the action boundary. */

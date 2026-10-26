@@ -174,7 +174,11 @@ describe("auth flows", () => {
 
     expect(signed).toEqual({
       ok: true,
-      data: { redirectTo: "/en", mfa: false },
+      data: {
+        redirectTo: "/en",
+        mfa: false,
+        user: expect.objectContaining({ id: USER, role: "authenticated" }),
+      },
       error: null,
     });
     expect(fetch).toHaveBeenCalledOnce();
@@ -360,7 +364,15 @@ describe("auth flows", () => {
     });
 
     // Plain data only: the token stays in the cookie and on the request's reads.
-    expect(Object.keys(signed.data ?? {})).toEqual(["redirectTo", "mfa"]);
+    expect(Object.keys(signed.data ?? {})).toEqual([
+      "redirectTo",
+      "mfa",
+      "user",
+    ]);
+    expect(structuredClone(signed.data?.user)).toMatchObject({
+      id: USER,
+      appMetadata: { tenant_id: "org-1" },
+    });
   });
 
   it("reads the jar in a Server Action, where React's cache is off", async () => {
@@ -430,7 +442,7 @@ describe("auth flows", () => {
 
     expect(signedOut).toEqual({
       ok: true,
-      data: { redirectTo: "/bye", mfa: false },
+      data: { redirectTo: "/bye", mfa: false, user: null },
       error: null,
     });
     expect(order).toEqual(["grant", "logout"]);
@@ -491,7 +503,11 @@ describe("auth flows", () => {
 
     const kept = await bsb.signOut({ scope: "others" });
 
-    expect(kept.data).toEqual({ redirectTo: "/", mfa: false });
+    expect(kept.data).toMatchObject({
+      redirectTo: "/",
+      mfa: false,
+      user: { id: USER },
+    });
     expect(callsOf(fetch)[1]?.url).toContain("scope=others");
     expect(sessionToken()).toBe(token);
     expect((await bsb.getRequestSession())?.userId).toBe(USER);
@@ -502,7 +518,11 @@ describe("auth flows", () => {
   it("signs out a signed-out caller without calling Auth", async () => {
     const { bsb, fetch } = setup(() => Response.error());
 
-    expect((await bsb.signOut()).data).toEqual({ redirectTo: "/", mfa: false });
+    expect((await bsb.signOut()).data).toEqual({
+      redirectTo: "/",
+      mfa: false,
+      user: null,
+    });
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -725,5 +745,222 @@ describe("auth flows", () => {
     expect(
       (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
     ).toMatchObject({ code: "mfa_factor_not_found" });
+  });
+
+  async function challengeOf(verifier: string | undefined): Promise<string> {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(verifier),
+    );
+
+    return Buffer.from(new Uint8Array(digest)).toString("base64url");
+  }
+
+  const CALLBACK = "https://app.test/auth/callback";
+
+  it("emails a magic link with a PKCE challenge and exchanges its code", async () => {
+    const token = await signer.sign({ sub: USER, email: "a@b.test" });
+
+    const { bsb, fetch } = setup((url) =>
+      url.includes("/otp") ? Response.json({}) : tokens(token),
+    );
+
+    const sent = await bsb.signInWithOtp({
+      email: "a@b.test",
+      redirectTo: CALLBACK,
+      next: "/projects",
+      data: { name: "A" },
+    });
+
+    const verifier = mocks.jar.get(VERIFIER);
+
+    expect(sent).toEqual({ ok: true, data: null, error: null });
+    expect(verifier?.options).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+    expect(callsOf(fetch)[0]).toEqual({
+      url: `${PROJECT_URL}/auth/v1/otp?redirect_to=${encodeURIComponent(`${CALLBACK}?next=%2Fprojects`)}`,
+      body: {
+        email: "a@b.test",
+        create_user: true,
+        data: { name: "A" },
+        code_challenge: await challengeOf(verifier?.value),
+        code_challenge_method: "s256",
+      },
+      headers: expect.any(Object),
+    });
+    expect(sessionToken()).toBeUndefined();
+
+    nextRequest();
+
+    const exchanged = await bsb.exchangeCode({ code: "c1", next: "/projects" });
+
+    expect(exchanged.data).toMatchObject({
+      redirectTo: "/projects",
+      user: { id: USER, email: "a@b.test" },
+    });
+    expect(callsOf(fetch)[1]?.body).toEqual({
+      auth_code: "c1",
+      code_verifier: verifier?.value,
+    });
+    expect(mocks.jar.has(VERIFIER)).toBe(false);
+    expect(sessionToken()).toBe(token);
+  });
+
+  it("resets a password through a code the raw verifier exchanges", async () => {
+    const token = await signer.sign({ sub: USER });
+
+    const { bsb, fetch } = setup((url) =>
+      url.includes("/recover") ? Response.json({}) : tokens(token),
+    );
+
+    const sent = await bsb.resetPasswordForEmail({
+      email: "a@b.test",
+      redirectTo: `${CALLBACK}?type=recovery`,
+      next: "//evil.test",
+    });
+
+    const verifier = mocks.jar.get(VERIFIER)?.value;
+
+    expect(sent.ok).toBe(true);
+    expect(callsOf(fetch)[0]).toMatchObject({
+      url: `${PROJECT_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(`${CALLBACK}?type=recovery`)}`,
+      body: {
+        email: "a@b.test",
+        code_challenge: await challengeOf(verifier),
+        code_challenge_method: "s256",
+      },
+    });
+
+    nextRequest();
+
+    const exchanged = await bsb.exchangeCode({ code: "r1" });
+
+    expect(exchanged.ok).toBe(true);
+    expect(callsOf(fetch)[1]?.body).toEqual({
+      auth_code: "r1",
+      code_verifier: verifier,
+    });
+    expect(sessionToken()).toBe(token);
+  });
+
+  it("signs up with email confirmation and leaves the session to the link", async () => {
+    const { bsb, fetch } = setup(() =>
+      Response.json({ id: USER, email: "a@b.test" }),
+    );
+
+    const signed = await bsb.signUp({
+      email: "a@b.test",
+      password: "pw",
+      redirectTo: CALLBACK,
+    });
+
+    expect(signed).toEqual({ ok: true, data: null, error: null });
+    expect(callsOf(fetch)[0]).toMatchObject({
+      url: `${PROJECT_URL}/auth/v1/signup?redirect_to=${encodeURIComponent(CALLBACK)}`,
+      body: {
+        email: "a@b.test",
+        password: "pw",
+        data: {},
+        code_challenge: await challengeOf(mocks.jar.get(VERIFIER)?.value),
+      },
+    });
+    expect(sessionToken()).toBeUndefined();
+  });
+
+  it("commits the session a sign-up returns when confirmation is off", async () => {
+    const token = await signer.sign({ sub: USER, email: "a@b.test" });
+    const { bsb } = setup(() => tokens(token));
+
+    const signed = await bsb.signUp(
+      {
+        email: "a@b.test",
+        password: "pw",
+        redirectTo: CALLBACK,
+        next: "/welcome",
+      },
+      { fallback: "/en" },
+    );
+
+    expect(signed.data).toMatchObject({
+      redirectTo: "/welcome",
+      mfa: false,
+      user: { id: USER, email: "a@b.test" },
+    });
+    expect(sessionToken()).toBe(token);
+    expect(mocks.jar.has(VERIFIER)).toBe(false);
+    expect((await bsb.getRequestSession())?.userId).toBe(USER);
+  });
+
+  it("resends a link with a new verifier", async () => {
+    const { bsb, fetch } = setup(() => Response.json({}));
+
+    await bsb.signUp({
+      email: "a@b.test",
+      password: "pw",
+      redirectTo: CALLBACK,
+    });
+    const first = mocks.jar.get(VERIFIER)?.value;
+
+    const sent = await bsb.resend({
+      type: "signup",
+      email: "a@b.test",
+      redirectTo: CALLBACK,
+    });
+
+    const second = mocks.jar.get(VERIFIER)?.value;
+
+    expect(sent.ok).toBe(true);
+    expect(second).not.toBe(first);
+    expect(callsOf(fetch)[1]).toMatchObject({
+      url: `${PROJECT_URL}/auth/v1/resend?redirect_to=${encodeURIComponent(CALLBACK)}`,
+      body: {
+        email: "a@b.test",
+        type: "signup",
+        code_challenge: await challengeOf(second),
+        code_challenge_method: "s256",
+      },
+    });
+  });
+
+  it("maps a refused email request without Auth's message and drops the verifier", async () => {
+    const { bsb } = setup((url) =>
+      url.includes("/otp")
+        ? Response.json(
+            { error_code: "otp_disabled", msg: "Signups not allowed for otp" },
+            { status: 422 },
+          )
+        : Response.json(
+            { error_code: "over_email_send_rate_limit" },
+            { status: 429 },
+          ),
+    );
+
+    const refused = await bsb.signInWithOtp({
+      email: "a@b.test",
+      redirectTo: CALLBACK,
+      shouldCreateUser: false,
+    });
+
+    expect(refused).toMatchObject({
+      ok: false,
+      error: { kind: "unauthorized", code: "otp_disabled" },
+    });
+    expect(refused.error?.message).not.toContain("Signups");
+    expect(mocks.jar.has(VERIFIER)).toBe(false);
+
+    const limited = await bsb.resetPasswordForEmail({
+      email: "a@b.test",
+      redirectTo: CALLBACK,
+    });
+
+    expect(limited.error).toMatchObject({
+      kind: "rate_limited",
+      code: "over_email_send_rate_limit",
+    });
+    expect(mocks.jar.has(VERIFIER)).toBe(false);
   });
 });
