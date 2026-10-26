@@ -28,8 +28,8 @@ export interface SettingsTab {
 }
 
 /**
- * The proxy reads the same permissions from `navItems` for the organization
- * tabs.
+ * `PermissionRedirect` reads the same permissions from `navItems` for the
+ * organization tabs.
  */
 export const settingsTabs: readonly SettingsTab[] = [
   { id: "profile", href: "/settings/profile" },

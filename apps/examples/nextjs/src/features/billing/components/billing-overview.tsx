@@ -1,5 +1,3 @@
-import type { ComponentProps } from "react";
-
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { Suspense } from "react";
@@ -19,6 +17,8 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
+import type { PlanOption } from "../billing-queries";
+
 import { getPlans, getSubscription } from "../billing-queries";
 import { MarkPlanReviewedButton } from "./mark-plan-reviewed-button";
 import { PlanFeatures } from "./plan-features";
@@ -30,18 +30,15 @@ import { PlanPicker } from "./plan-picker";
  * subscription.
  */
 export async function CurrentPlan() {
-  const [session, permissions] = await Promise.all([
-    getSession(),
-    getPermissions(),
-  ]);
-
+  const session = await getSession();
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
     return null;
   }
 
-  const [subscription, plans, t, format] = await Promise.all([
+  const [permissions, subscription, plans, t, format] = await Promise.all([
+    getPermissions(),
     getSubscription(organizationId),
     getPlans(),
     getExtracted("billing"),
@@ -93,19 +90,20 @@ export async function PlanGrid() {
     return null;
   }
 
-  const [plans, subscription, t] = await Promise.all([
-    getPlans(),
-    getSubscription(organizationId),
-    getExtracted("billing"),
-  ]);
-
-  const initial = { plans, current: subscription?.planKey };
+  const [plans, t] = await Promise.all([getPlans(), getExtracted("billing")]);
 
   return (
     <>
       <div data-recipe="plan-picker">
-        <Suspense fallback={<PlanPicker initial={initial} canManage={false} />}>
-          <ManagedPlanPicker initial={initial} />
+        <Suspense
+          fallback={
+            <PlanPicker
+              initial={{ plans, current: undefined }}
+              canManage={false}
+            />
+          }
+        >
+          <ManagedPlanPicker plans={plans} organizationId={organizationId} />
         </Suspense>
       </div>
       <p className="text-sm text-muted-foreground">
@@ -121,14 +119,25 @@ export async function PlanGrid() {
  * The permission is a private database read, so the plans render first with
  * switching off and this swaps in once the caller's keys arrive.
  */
+/**
+ * The organization's plan and the manage permission are private reads; the
+ * cards above paint from the shared catalog while they load.
+ */
 async function ManagedPlanPicker({
-  initial,
-}: Pick<ComponentProps<typeof PlanPicker>, "initial">) {
-  const permissions = await getPermissions();
+  plans,
+  organizationId,
+}: {
+  plans: readonly PlanOption[];
+  organizationId: string;
+}) {
+  const [subscription, permissions] = await Promise.all([
+    getSubscription(organizationId),
+    getPermissions(),
+  ]);
 
   return (
     <PlanPicker
-      initial={initial}
+      initial={{ plans, current: subscription?.planKey }}
       canManage={can(permissions, "billing.manage")}
     />
   );

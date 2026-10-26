@@ -1,8 +1,21 @@
+import type { Page, Response } from "@playwright/test";
+
 import { expect, test } from "@playwright/test";
 
 import { cardTitle, signIn, visibleTestId } from "./nav";
 import { accessToken } from "./tokens";
 import { users } from "./users";
+
+/**
+ * The matrix shows an override at once (`useOptimistic`); the database has it
+ * only when the Server Action, a POST to the page, answers.
+ */
+const serverAction = (page: Page): Promise<Response> =>
+  page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.request().headers()["next-action"] !== undefined,
+  );
 
 /**
  * The teams and permissions blocks end to end: an owner manages a team, and a
@@ -107,15 +120,18 @@ test.describe("role overrides", () => {
     await matrix.getByLabel("Search permissions").fill("customers.write");
     const toggle = matrix.getByRole("switch", { name: "customers.write" });
     await expect(toggle).not.toBeChecked();
-    await toggle.click();
+    await Promise.all([serverAction(admin), toggle.click()]);
     await expect(matrix.getByText("Granted here")).toBeVisible();
 
     await member.reload();
     await expect(ownerTeam).toBeEnabled();
 
-    await matrix
-      .getByRole("button", { name: "Reset customers.write to the default" })
-      .click();
+    await Promise.all([
+      serverAction(admin),
+      matrix
+        .getByRole("button", { name: "Reset customers.write to the default" })
+        .click(),
+    ]);
     await expect(matrix.getByText("Granted here")).toHaveCount(0);
     await expect(toggle).not.toBeChecked();
 

@@ -3,6 +3,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
 import { navItems } from "../nav-items";
+import { PermissionRedirect } from "./permission-redirect";
 import { SideNav } from "./side-nav";
 
 /**
@@ -15,13 +16,18 @@ export async function AppNav() {
     getPermissions(),
   ]);
 
-  const visible = navItems
-    .filter(
-      (item) =>
-        (!item.requires || can(permissions, item.requires)) &&
-        (!item.flag || flags.some((flag) => flag === item.flag)),
-    )
+  const allowed = navItems.filter(
+    (item) => !item.requires || can(permissions, item.requires),
+  );
+
+  const visible = allowed
+    .filter((item) => !item.flag || flags.some((flag) => flag === item.flag))
     .map((item) => item.id);
 
-  return <SideNav visible={visible} />;
+  return (
+    <>
+      <SideNav visible={visible} />
+      <PermissionRedirect allowed={allowed.map((item) => item.id)} />
+    </>
+  );
 }
