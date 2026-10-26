@@ -105,7 +105,7 @@ permissions, ID type and API schema. Once you pass a convention flag, it
 asks for none of them and takes the defaults for the rest. It writes only
 the values that differ from the defaults: `sql` for the scope, tenant name
 and API schema, and `blocks.permissions` for the access model and id type, which
-installs the access block. With `--access provider` it also writes a comment
+installs the permissions block. With `--access provider` it also writes a comment
 that points you at the `authorization` key.
 
 Without a preset, `init` always writes `blocks: { 'rls-guard': {} }`, which installs the

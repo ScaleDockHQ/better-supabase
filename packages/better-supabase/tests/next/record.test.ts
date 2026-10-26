@@ -391,7 +391,7 @@ describe("recordListServer", () => {
     });
   });
 
-  it("allows every column without an access block", async () => {
+  it("allows every column without a permissions block", async () => {
     const open = recordListServer(
       { context: () => Promise.resolve({ db }) },
       defineRecordList(

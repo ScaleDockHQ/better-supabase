@@ -27,7 +27,7 @@ export type RecordTypePermissions = Readonly<
   Record<string, Readonly<Record<string, string>>>
 >;
 
-/** A block whose client loads the caller's keys, such as the access block. */
+/** A block whose client loads the caller's keys, such as the permissions block. */
 export interface PermissionsBlock extends AnyBlock {
   readonly create:
     | ((options: never) => {
@@ -50,7 +50,7 @@ export interface RecordTypeSpec<T extends string, B extends RecordTypeBlocks> {
    */
   readonly permissions?: RecordTypePermissions;
   /**
-   * The access block, which loads the caller's keys for the `can` flags.
+   * The permissions block, which loads the caller's keys for the `can` flags.
    * Without it every flag is `true` and RLS decides.
    */
   readonly access?: PermissionsBlock;
@@ -182,8 +182,8 @@ export function recordPermissionKeys(
 /**
  * What the caller may do on each of a record type's bindings, from its
  * `PermissionSet`. A binding action with no key in `permissions` is allowed,
- * and so is everything when `set` is `undefined` (no access block): RLS and
- * each function's checks decide.
+ * and so is everything when `set` is `undefined` (no permissions block): RLS
+ * and each function's checks decide.
  */
 export function recordCan<B extends RecordTypeBlocks, N extends BindingName<B>>(
   feature: Pick<RecordType<string, B>, "blocks" | "permissions"> & {
