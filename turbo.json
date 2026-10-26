@@ -107,7 +107,7 @@
       ]
     },
     "lint": {
-      "dependsOn": ["transit"],
+      "dependsOn": ["transit", "^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.mdx"]
     },
     "//#format:check": {},
