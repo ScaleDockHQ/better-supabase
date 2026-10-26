@@ -294,8 +294,7 @@ using (${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.ui
 create table if not exists ${t("privateDetails")} (
   ${p("employee")} uuid primary key references ${t("employees")} (${e("id")}) on delete cascade,
   ${p("tenant")} ${ctx.idType} not null,
-  ${p("user")} uuid,
-  ${p("nationalId")} text check (${p("nationalId")} is null or length(${p("nationalId")}) <= 64),
+${ctx.has("privateDetails", "user") ? `  ${p("user")} uuid,\n` : ""}  ${p("nationalId")} text check (${p("nationalId")} is null or length(${p("nationalId")}) <= 64),
 ${ctx.has("privateDetails", "iban") ? `  ${p("iban")} text check (${p("iban")} is null or ${p("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$'),\n` : ""}  ${p("birthDate")} date,
   ${p("personalEmail")} text check (${p("personalEmail")} is null or length(${p("personalEmail")}) <= 320),
   ${p("phone")} text check (${p("phone")} is null or length(${p("phone")}) <= 40),
@@ -313,8 +312,7 @@ ${ctx.has("privateDetails", "address") ? `  ${p("address")} jsonb check (${p("ad
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
 );${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
-create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;
-${lockTable(t("privateDetails"), { read: true })}
+${ctx.has("privateDetails", "user") ? `create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;\n` : ""}${lockTable(t("privateDetails"), { read: true })}
 drop policy if exists ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")};
 create policy ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")} for select to authenticated
 using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${

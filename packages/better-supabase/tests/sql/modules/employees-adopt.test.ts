@@ -163,6 +163,70 @@ describe("employees over the app's tables", () => {
     ).toThrow(/options.name "split"/u);
   });
 
+  it("renders split names, flat details and editable contracts on managed tables", () => {
+    const sql = renderBlocks(["employees"], {
+      modules: {
+        employees: {
+          columns: {
+            privateDetails: {
+              user: null,
+              address: null,
+              emergencyContacts: null,
+            },
+          },
+          options: {
+            name: "split",
+            privateDetails: "flat",
+            contracts: "editable",
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"first_name" text not null');
+    expect(sql).toContain(
+      `"name" text generated always as (trim("first_name" || coalesce(' ' || "last_name", ''))) stored`,
+    );
+    expect(sql).toContain('"address_line1" text check');
+    expect(sql).toContain('"emergency_contact_relation" text check');
+    expect(sql).toContain("update_employee_contract");
+    expect(sql).not.toContain('"emergency_contacts" jsonb');
+
+    const firstOnly = renderBlocks(["employees"], {
+      modules: {
+        employees: {
+          columns: { employees: { name: null, lastName: null } },
+          options: { name: "split" },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(firstOnly).toContain('"first_name" text not null');
+    expect(firstOnly).not.toContain("generated always");
+  });
+
+  it("refuses unknown options and a split name without a first name column", () => {
+    expect(() =>
+      renderBlocks(["employees"], {
+        modules: { employees: { options: { name: "full" } } },
+      }),
+    ).toThrow(/options.name must be/u);
+    expect(() =>
+      renderBlocks(["employees"], {
+        modules: {
+          employees: {
+            columns: { employees: { firstName: null } },
+            options: { name: "split" },
+          },
+        },
+      }),
+    ).toThrow(/firstName can't be null/u);
+  });
+
   it("leaves the update and delete of contracts out by default", () => {
     const sql = renderBlocks(["employees"], { modules: {} })
       .map((file) => file.contents)

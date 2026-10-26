@@ -207,6 +207,67 @@ describe("time tracking per employee with a column per record type", () => {
     ).toThrow(/timesheets.user can be null only/u);
   });
 
+  it("renders employee-owned managed tables with foreign keys to employees", () => {
+    const sql = renderBlocks(["time-tracking", "employees"], {
+      modules: {
+        "time-tracking": {
+          columns: { timesheets: { user: null } },
+          options: { approvals: false, owner: "employee" },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"employee_id" uuid not null');
+    expect(sql).toContain('unique ("tenant_id", "employee_id", "week")');
+    expect(sql).toContain("time_is_my_employee");
+    expect(sql).toContain("time_entries_employee_fkey");
+    expect(sql).toContain("timesheets_employee_fkey");
+    expect(sql).not.toContain("bsb_time_entries_employee_sync");
+  });
+
+  it("refuses an unknown owner, a missing employees block and record columns on managed tables", () => {
+    expect(() =>
+      renderBlocks(["time-tracking"], {
+        modules: { "time-tracking": { options: { owner: "team" } } },
+      }),
+    ).toThrow(/owner must be/u);
+    expect(() =>
+      renderBlocks(["time-tracking"], {
+        modules: {
+          "time-tracking": { options: { approvals: false, owner: "employee" } },
+        },
+      }),
+    ).toThrow(/needs the employees block/u);
+    expect(() =>
+      renderBlocks(["time-tracking"], {
+        modules: {
+          "time-tracking": {
+            on: {
+              task: {
+                table: "public.tasks",
+                idType: "uuid",
+                column: "task_id",
+              },
+            },
+          },
+        },
+      }),
+    ).toThrow(/column of your own entries table/u);
+    expect(() =>
+      render({
+        "time-tracking": {
+          ...BLOCKS["time-tracking"],
+          columns: {
+            entries: { subjectType: null, subjectId: null, employee: null },
+            timesheets: { approval: null, user: null, status: "state" },
+          },
+        },
+      }),
+    ).toThrow(/can't be null/u);
+  });
+
   it(
     "tracks on typed record columns and keeps timesheets for an employee without an account",
     BOOT,
