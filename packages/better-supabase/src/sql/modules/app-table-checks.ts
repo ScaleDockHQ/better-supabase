@@ -13,8 +13,11 @@ export function constraintChecks(
 ): string[] {
   const conditions: string[] = [];
 
+  // A domain carries the format's pattern and bounds.
   const format =
-    column.format === undefined ? undefined : FIELD_FORMATS[column.format];
+    column.format === undefined || column.domain !== undefined
+      ? undefined
+      : FIELD_FORMATS[column.format];
 
   if (format?.pattern !== undefined) {
     conditions.push(`${ident} ~* ${sqlString(format.pattern)}`);

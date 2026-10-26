@@ -61,6 +61,108 @@ describe("migrate schema-first", () => {
     expect(text).toContain("realtime");
   });
 
+  it("types a format column as a domain in the bsb schema", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        blocks: [],
+        tables: {
+          people: {
+            owner: "none",
+            columns: {
+              email: { type: "text", format: "email" },
+              stars: { type: "integer", format: "rating" },
+              score: { type: "integer", format: "rating", max: 3 },
+              phone: { type: "text", format: "phone" },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await run(["migrate", "schema-first", "--cwd", dir]);
+
+    expect(result).toMatchObject({ code: 0 });
+
+    const schemas = join(dir, "supabase/schemas");
+
+    const table = await readFile(
+      join(schemas, "public/tables/people.sql"),
+      "utf-8",
+    );
+
+    expect(table).toMatch(/"?email"? bsb\.email/u);
+    expect(table).toMatch(/"?stars"? bsb\.rating/u);
+    expect(table).toMatch(/"?score"? integer/u);
+    expect(table).toMatch(/"?phone"? text/u);
+    expect(table).not.toContain("people_email_check");
+    expect(table).toContain("people_score_check");
+
+    expect(await readFile(join(schemas, "bsb/schema.sql"), "utf-8")).toContain(
+      "create schema if not exists bsb;",
+    );
+
+    const email = await readFile(
+      join(schemas, "bsb/domains/email.sql"),
+      "utf-8",
+    );
+
+    expect(email).toContain("create domain bsb.email as text");
+    expect(email).toContain("constraint email_check check (value ~*");
+
+    expect(
+      await readFile(join(schemas, "bsb/domains/rating.sql"), "utf-8"),
+    ).toContain("value >= 1 and value <= 5");
+
+    await expect(
+      readFile(join(schemas, "bsb/domains/phone.sql"), "utf-8"),
+    ).rejects.toThrow(/ENOENT/u);
+  });
+
+  it("writes a rollup as a security invoker view in its own file", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        blocks: [],
+        tables: {
+          projects: {
+            owner: "none",
+            columns: { name: { type: "text" } },
+            rollups: {
+              task_count: {
+                table: "tasks",
+                via: "project_id",
+                aggregate: "count",
+              },
+            },
+          },
+          tasks: {
+            owner: "none",
+            columns: {
+              project_id: {
+                type: "uuid",
+                nullable: false,
+                references: { table: "projects", onDelete: "cascade" },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await run(["migrate", "schema-first", "--cwd", dir]);
+
+    expect(result).toMatchObject({ code: 0 });
+
+    const view = await readFile(
+      join(dir, "supabase/schemas/public/views/projects_view.sql"),
+      "utf-8",
+    );
+
+    expect(view).toContain("with (security_invoker = true)");
+    expect(view).not.toContain("drop view");
+  });
+
   it("writes above the project root when supabase lives in the monorepo root", async () => {
     const app = join(dir, "apps", "web");
 
