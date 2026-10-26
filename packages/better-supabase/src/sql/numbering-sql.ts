@@ -12,7 +12,7 @@ function sequenceFormatOf(
   ctx: BlockSqlContext,
   entity: string,
   tenant: string,
-): string | undefined {
+): { readonly format: string; readonly assigns: boolean } | undefined {
   if (!ctx.installed("numbering")) {
     return undefined;
   }
@@ -23,16 +23,21 @@ function sequenceFormatOf(
     return undefined;
   }
 
-  return isRecord(entry["formatFrom"])
-    ? `${ctx.of("numbering").fn("number_format")}(${tenant}, ${sqlString(entity)})`
-    : sqlString(entry["format"]);
+  return {
+    format: isRecord(entry["formatFrom"])
+      ? `${ctx.of("numbering").fn("number_format")}(${tenant}, ${sqlString(entity)})`
+      : sqlString(entry["format"]),
+    assigns: typeof entry["table"] === "string",
+  };
 }
 
 /**
  * PL/pgSQL that assigns the next number of `entity` in `tenant` to `target.seq`
  * (bigint) and `target.identifier` (text): from `numbering` when it numbers the
  * entity, otherwise one more than the tenant's highest in `fallback.table`
- * under a transaction lock, with `prefix` in front (`DEAL-4821`).
+ * under a transaction lock, with `prefix` in front (`DEAL-4821`). When the
+ * entity has a table, the number is marked as issued for the transaction, so
+ * its assign trigger accepts it on the block's insert instead of refusing it.
  */
 export function assignNumberSql(
   ctx: BlockSqlContext,
@@ -46,13 +51,18 @@ export function assignNumberSql(
     readonly prefix: string;
   },
 ): string {
-  const format = sequenceFormatOf(ctx, entity, tenant);
+  const sequence = sequenceFormatOf(ctx, entity, tenant);
 
-  if (format !== undefined) {
+  if (sequence !== undefined) {
     const next = ctx.of("numbering").fn("next_number");
 
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
-  ${target.identifier} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;
+  ${target.identifier} := better_supabase.format_assigned_number(${sequence.format}, ${target.seq}, now());${
+    sequence.assigns
+      ? `
+  perform set_config('better_supabase.issued_number', ${sqlString(entity)} || chr(31) || ${target.seq}::text || chr(31) || ${target.identifier}, true);`
+      : ""
+  }`;
   }
 
   return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ${sqlString(`:${entity}`)}, 0));

@@ -280,6 +280,21 @@ export interface BlockSqlValueMethods {
    * column of `table` maps values.
    */
   labelsJson(table: string, alias: string): string;
+  /**
+   * `to_jsonb(alias)` of a row of `table` keyed as on the module's own table:
+   * each logical column the app renames also under the module's column name,
+   * and each mapped typed column read back as its label, so a client parses the
+   * row the same way over the app's table. `as` gives the value of a renamed
+   * logical column from its column expression, such as an int8 as text.
+   * `to_jsonb(alias)` when nothing is renamed or mapped.
+   */
+  rowJson(
+    table: string,
+    alias: string,
+    options?: {
+      readonly as?: Readonly<Record<string, (value: string) => string>>;
+    },
+  ): string;
   /** Whether `blocks.<name>.values` maps any label of a typed logical column. */
   mapsValues(table: string, column: string): boolean;
 }
@@ -290,11 +305,19 @@ export interface BlockSqlValueMethods {
  */
 export function valueMethods(input: {
   readonly tables: Readonly<
-    Record<string, { readonly mappable?: readonly string[] }>
+    Record<
+      string,
+      {
+        readonly columns: Readonly<Record<string, string>>;
+        readonly mappable?: readonly string[];
+      }
+    >
   >;
   readonly maps: ValueMaps;
   readonly cast: BlockSqlValueMethods["cast"];
   readonly column: (table: string, logical: string) => string;
+  readonly mapped: (table: string, logical: string) => string | null;
+  readonly own: (name: string) => string;
 }): BlockSqlValueMethods {
   const { tables, maps, column } = input;
   const mapOf = (table: string, logical: string) => maps[table]?.[logical];
@@ -356,6 +379,36 @@ export function valueMethods(input: {
           return `${sqlString(name)}, ${readValue(mapOf(table, logical), `${alias}.${sqlIdent(name)}`)}`;
         })
         .join(", ")})`;
+    },
+    rowJson(table, alias, options = {}) {
+      const pairs = Object.entries(tables[table]?.columns ?? {}).flatMap(
+        ([logical, name]) => {
+          const app = input.mapped(table, logical);
+          const own = input.own(name);
+          const labelled = changes(table, logical);
+
+          if (app === null || (app === own && !labelled)) {
+            return [];
+          }
+
+          const value = `${alias}.${sqlIdent(app)}`;
+          const as = options.as?.[logical];
+
+          return [
+            `${sqlString(own)}, ${
+              labelled
+                ? readValue(mapOf(table, logical), value)
+                : as === undefined
+                  ? value
+                  : as(value)
+            }`,
+          ];
+        },
+      );
+
+      return pairs.length === 0
+        ? `to_jsonb(${alias})`
+        : `(to_jsonb(${alias}) || jsonb_build_object(${pairs.join(", ")}))`;
     },
     mapsValues: changes,
   };

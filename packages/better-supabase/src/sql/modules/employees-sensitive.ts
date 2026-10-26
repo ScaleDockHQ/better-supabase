@@ -182,8 +182,8 @@ function privateSql(
     ];
 
     return parts.length === 0
-      ? `to_jsonb(${alias})`
-      : `(to_jsonb(${alias}) || jsonb_build_object(${parts.join(", ")}))`;
+      ? ctx.rowJson("privateDetails", alias)
+      : `(${ctx.rowJson("privateDetails", alias)} || jsonb_build_object(${parts.join(", ")}))`;
   };
 
   const sets = [
@@ -294,12 +294,22 @@ function contractsSql(
   const exponent = (code: string): string =>
     currency ? minorUnits(code) : "2";
 
+  const minorText = (alias: string, value: string): string =>
+    major
+      ? `(${value} * power(10, ${exponent(currency ? `${alias}.${k("currency")}` : "null")}))::bigint::text`
+      : `${value}::text`;
+
+  const json = (alias: string): string =>
+    ctx.rowJson("contracts", alias, {
+      as: { salary: (value) => minorText(alias, value) },
+    });
+
   const row = (alias: string): string =>
     salary
       ? major
-        ? `to_jsonb(${alias}) || jsonb_build_object(${sqlString(k("salary").replaceAll('"', ""))}, (${alias}.${k("salary")} * power(10, ${exponent(currency ? `${alias}.${k("currency")}` : "null")}))::bigint::text)`
-        : `to_jsonb(${alias}) || ${int8Text(alias, [k("salary")])}`
-      : `to_jsonb(${alias})`;
+        ? `${json(alias)} || jsonb_build_object(${sqlString(k("salary").replaceAll('"', ""))}, ${minorText(alias, `${alias}.${k("salary")}`)})`
+        : `${json(alias)} || ${int8Text(alias, [k("salary")])}`
+      : json(alias);
 
   const salaryValue = (minor: string, code: string): string =>
     major

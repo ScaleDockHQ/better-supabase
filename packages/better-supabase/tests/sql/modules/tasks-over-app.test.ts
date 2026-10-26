@@ -97,20 +97,25 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+  extra: readonly string[] = [],
+): Promise<void> {
   const blocks = [
     "memberships",
     "permissions",
     "subjects",
     "pipelines",
+    ...extra,
     "tasks",
   ];
 
   // The config resolver registers the block's subjects with the app's columns.
   const files = renderBlocks(blocks, {
-    modules: BLOCKS,
+    modules,
     ownTables: OWN_TABLES,
-    subjects: withBlockSubjects({}, blocks, BLOCKS),
+    subjects: withBlockSubjects({}, blocks, modules),
   });
 
   await using stack = await liteStack({
@@ -189,5 +194,76 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/has no estimate column/);
+  });
+});
+
+const USER = "22222222-2222-4222-8222-222222222222";
+
+const AS_USER = `perform set_config('request.jwt.claims', '{"sub":"${USER}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${USER}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+const ALLOW = `create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $f$ select true $f$;
+create or replace function better_supabase.tenant_ids_with(permission text)
+returns setof uuid language sql stable as $f$ select '${TENANT}'::uuid $f$;`;
+
+const NUMBERED: AnyBlocksConfig = {
+  numbering: {
+    options: {
+      entities: {
+        work_item: {
+          period: "none",
+          format: "T-{n}",
+          table: "public.tickets",
+          column: "code",
+          sequenceColumn: "seq",
+          tenantColumn: "org_id",
+        },
+      },
+    },
+  },
+  tasks: {
+    ...BLOCKS["tasks"],
+    values: { items: { state: { backlog: "unstarted", triage: "backlog" } } },
+  },
+};
+
+describe("tasks over the app's numbered tickets", BOOT, () => {
+  it("numbers a member's item through the entity trigger and returns the block's keys", async () => {
+    await expect(
+      run(
+        `${ALLOW}
+do $$
+declare
+  v_item jsonb;
+begin
+  ${AS_USER}
+  v_item := better_supabase.create_work_item('${TENANT}', '{"title": "Ship it"}'::jsonb, null);
+  if v_item ->> 'identifier' <> 'T-1' or v_item ->> 'number' <> '1' then
+    raise exception 'numbered %', v_item;
+  end if;
+  if v_item ->> 'tenant_id' <> '${TENANT}' or v_item ->> 'state' <> 'triage'
+    or (select state::text from public.tickets where id = (v_item ->> 'id')::uuid) <> 'backlog' then
+    raise exception 'keys %', v_item;
+  end if;
+  if current_setting('better_supabase.issued_number', true) <> '' then
+    raise exception 'issued number left set';
+  end if;
+end;
+$$;
+do $$
+begin
+  ${AS_USER}
+  insert into public.tickets (org_id, seq, code, title) values ('${TENANT}', 9, 'T-9', 'By hand');
+  raise exception 'a hand-set number was accepted';
+exception when insufficient_privilege then
+  null;
+end;
+$$;`,
+        NUMBERED,
+        ["numbering"],
+      ),
+    ).resolves.toBeUndefined();
   });
 });

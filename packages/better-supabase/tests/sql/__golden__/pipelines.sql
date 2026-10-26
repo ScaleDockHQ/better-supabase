@@ -4592,7 +4592,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:8c2a9f4431b50dd447843cd1c39d62271cb5619956ab387b142d5b4090912ec3
+-- @bsb-hash sha256:b6b6128ca15fa115f0b09012dc48fa5b417a74636f3e8e779ef5a5a3d7960978
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4880,7 +4880,7 @@ begin
         using v_pipeline, v_created;
     end if;
   end;
-  return (select to_jsonb(x) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
 revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
@@ -4998,7 +4998,7 @@ begin
         using v_stage;
     end if;
   end;
-  return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
 revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
@@ -5215,8 +5215,8 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('stages', coalesce((
-      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+  select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg((to_jsonb(st) || jsonb_build_object('tenant_id', st."org_id")) order by st."rank" collate "C")
       from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
     ), '[]'::jsonb)) order by x."rank" collate "C"), '[]'::jsonb)
   from "better_supabase"."pipelines" x

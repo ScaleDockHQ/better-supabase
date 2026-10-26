@@ -167,7 +167,7 @@ export function workItemFunctions(
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias})${ctx.labelsJson("items", alias)} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
+    `${ctx.rowJson("items", alias, { as: { number: (v) => `${v}::text` } })} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -313,7 +313,7 @@ ${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) 
   when check_violation or not_null_violation then
     ${fail("WORK_ITEM_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', ${
+  return (select ${ctx.rowJson("projects", "x")} || jsonb_build_object('progress', ${
     has("project")
       ? `(
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end
@@ -360,7 +360,7 @@ begin
   exception when check_violation or not_null_violation then
     ${fail("WORK_ITEM_ITERATION_INVALID", "an iteration needs a name and ends on or after it starts", "22023")}
   end;
-  return (select to_jsonb(x) from ${t("iterations")} x where x.${i("id")} = v_id);
+  return (select ${ctx.rowJson("iterations", "x")} from ${t("iterations")} x where x.${i("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
