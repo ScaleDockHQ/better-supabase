@@ -31,3 +31,5 @@ export * from "./schema.ts";
 export type * from "./types.ts";
 
 export * from "./migration.ts";
+
+export * from "./plan-gate.ts";
