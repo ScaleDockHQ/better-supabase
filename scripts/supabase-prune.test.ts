@@ -5,6 +5,7 @@ import type { Stack } from "./supabase-prune.ts";
 import {
   mergedBranches,
   prunableStacks,
+  shouldApply,
   worktreeRoots,
 } from "./supabase-prune.ts";
 
@@ -39,6 +40,14 @@ describe("prunableStacks", () => {
     expect(
       prunableStacks(stacks, roots, merged).map((entry) => entry.id),
     ).toEqual(["a", "b"]);
+  });
+});
+
+describe("shouldApply", () => {
+  it("only lists the stacks unless --apply is passed", () => {
+    expect(shouldApply([])).toBe(false);
+    expect(shouldApply(["--dry-run"])).toBe(false);
+    expect(shouldApply(["--apply"])).toBe(true);
   });
 });
 
