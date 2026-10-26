@@ -88,4 +88,26 @@ describe("splitAppTables", () => {
     expect(files[0]?.contents).toContain("create index b_i");
     expect(files.at(-1)?.path).toBe("public/_custom/app_tables.sql");
   });
+
+  it("matches schema-qualified config entries and repeated views", () => {
+    const qualified = {
+      ...base,
+      subjects: { a: { table: "a" }, other: { table: "public.a" } },
+      realtime: { ...base.realtime, tables: ["public.a"] },
+      vectorSearch: [
+        { table: "public.a", column: "e", distance: "cosine" as const },
+      ],
+    };
+
+    const sql =
+      'create table "public"."a" (id int); create view public.v as select 1; create index v_i on public.v (n); grant select on public.v to anon;';
+
+    const files = splitAppTables(qualified, sql, ["a"]);
+    const table = files[0]?.contents ?? "";
+
+    expect(table).toContain("subject type=other");
+    expect(table).toContain("realtime");
+    expect(table).toContain("vector-search column=e");
+    expect(files.some((file) => file.path === "public/views/v.sql")).toBe(true);
+  });
 });
