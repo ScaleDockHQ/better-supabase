@@ -92,12 +92,17 @@ function env(names: readonly string[]): string | undefined {
  * It creates a new tenant id, inserts the fixtures that `build` returns through
  * the service role (RLS and plugins don't apply), and hands back the inserted
  * rows. Call `cleanup()` in `afterEach` (or `await using`) to delete them. A
- * user from `asUser` then reads them over PostgREST like any other.
+ * user from `asUser` then reads them over PostgREST like any other. The access
+ * contract trusts a tenant claim only for a member, so seed the user's
+ * membership too (under the catalog model, `role` is the role's id).
  *
  * ```ts
  * const scope = await scopedSeed(
  *   betterSupabase,
  *   ({ tenant, id }) => ({
+ *     memberships: {
+ *       alice: { organizationId: tenant, userId: aliceId, role: "member" },
+ *     },
  *     customers: {
  *       first: { organizationId: tenant, name: `first-${id()}` },
  *     },

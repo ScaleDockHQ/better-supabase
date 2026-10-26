@@ -152,7 +152,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes revoke_pass",
-  permissions: "can my_permissions",
+  permissions: "can list_roles my_permissions set_permission_override",
   pipelines:
     "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:

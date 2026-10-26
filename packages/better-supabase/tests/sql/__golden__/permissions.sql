@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:2d82f65c4ec893e82b50d5b31c88fbb0669a6f1150016fd20f6044970bedb6bf
+-- @bsb-hash sha256:db2eb5784557b505c25957b13f0fe478c47a318888b8bedf1bac0e2d13953328
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,7 +111,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select null::text
+  select case op
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
+  end
 $$;
 
 -- The roles model (blocks.permissions.roles): each role's permission keys.
@@ -355,6 +358,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -424,7 +429,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f1577b6ab97cf4beea65901083faa9bccc92cf0253648919bc742f26551d5ce0
+-- @bsb-hash sha256:0e4f2448fdd24698793bad821a2208b8dcbdec6696715c3b171629eda6e6345c
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -740,6 +745,8 @@ as $$
     when 'passes.checkIn' then 'passes.check_in'
     when 'passes.manage' then 'passes.manage'
     when 'passes.read' then 'passes.read'
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
     when 'pipelines.manage' then 'pipelines.manage'
     when 'pipelines.read' then 'pipelines.read'
     when 'posts.manage' then 'posts.manage'
@@ -1071,6 +1078,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -1140,7 +1149,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:0d402889eb8dc36255b07403ae1f2e1fe05912a48aa3e079893ad1fe8312ca6a
+-- @bsb-hash sha256:88f7501b8fd91f273cf577d6bf23abeabc3a6591be5aa4cfb3ec19ad95052b5b
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1255,7 +1264,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select null::text
+  select case op
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
+  end
 $$;
 
 -- The roles model (blocks.permissions.roles): each role's permission keys.
@@ -1499,6 +1511,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -1568,7 +1582,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:524b7807c49f90bd2a9c015ac1ca71a21da4d00d1c2723f86a1877357f89482a
+-- @bsb-hash sha256:070102f8310c172aba7099aea199e9627c34c984a796f9d39bd35fbc1a91bc9e
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1678,7 +1692,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select null::text
+  select case op
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
+  end
 $$;
 
 -- The roles model (blocks.permissions.roles): each role's permission keys.
@@ -1922,6 +1939,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -2175,7 +2194,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:2d82f65c4ec893e82b50d5b31c88fbb0669a6f1150016fd20f6044970bedb6bf
+-- @bsb-hash sha256:db2eb5784557b505c25957b13f0fe478c47a318888b8bedf1bac0e2d13953328
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2285,7 +2304,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select null::text
+  select case op
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
+  end
 $$;
 
 -- The roles model (blocks.permissions.roles): each role's permission keys.
@@ -2529,6 +2551,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -2598,7 +2622,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:3eb57e054b7c32fc047661f879afa40785204080e308d16fec68362ea5fa350b
+-- @bsb-hash sha256:721d34a0349bcd8852820b6756c0a8781039976fc209a2b2a44b4e47546b640f
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2708,7 +2732,10 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select null::text
+  select case op
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
+  end
 $$;
 
 -- The roles model (blocks.permissions.roles): each role's permission keys.
@@ -2952,6 +2979,8 @@ as $$
     ), '{}'::text[])
   end
 $$;
+drop function if exists "better_supabase"."list_roles"(uuid);
+drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;

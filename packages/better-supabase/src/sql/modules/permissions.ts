@@ -29,6 +29,10 @@ import {
   tenantScope,
 } from "./permissions-model.ts";
 import { operationsSql } from "./permissions-operations.ts";
+import {
+  catalogRoleFunctions,
+  rendersRoleFunctions,
+} from "./permissions-roles.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 
@@ -1015,7 +1019,7 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
-${myPermissionsSql(id)}${providerGuestFunctions(ctx.installedModules, layout)}
+${myPermissionsSql(id)}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[
   "permission_matches(text, text)",
@@ -1128,5 +1132,7 @@ export const ACCESS: BlockSqlDefinition = {
     },
     { name: "permission_claims", args: ["uuid"], returns: "jsonb" },
   ],
+  unusedPermissions: (ctx) =>
+    rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
   build: accessSql,
 };

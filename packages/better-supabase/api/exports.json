@@ -3238,7 +3238,9 @@
     "types": [
       "AccessCallOptions",
       "BlockTransport",
+      "CatalogRole",
       "PermissionFlags",
+      "PermissionOverride",
       "Permissions",
       "PermissionsActions",
       "PermissionsController",

@@ -483,6 +483,30 @@ describe("access module", () => {
     expect(sql).toContain(`r."scope"::text = 'platform'`);
   });
 
+  it("reads and overrides catalog roles only under the catalog model", () => {
+    const sql = access({ model: "catalog" });
+
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."list_roles"(tenant uuid)',
+    );
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."set_permission_override"(tenant uuid, role text, permission text, granted boolean)',
+    );
+    expect(sql).toContain(
+      "better_supabase.member_can(auth.uid(), tenant, 'roles.manage')",
+    );
+    expect(sql).toContain("better_supabase.can_assign(tenant, v_role::text)");
+    expect(sql).toContain("PERMISSIONS_SELF_LOCKOUT");
+
+    const roles = access({ model: "roles" });
+    expect(roles).toContain(
+      'drop function if exists "better_supabase"."list_roles"(uuid);',
+    );
+    expect(roles).not.toContain(
+      'function "better_supabase"."list_roles"(tenant',
+    );
+  });
+
   it("drops platform permissions while a token acts for another user", () => {
     for (const model of ["roles", "catalog"] as const) {
       expect(access({ model })).toContain(

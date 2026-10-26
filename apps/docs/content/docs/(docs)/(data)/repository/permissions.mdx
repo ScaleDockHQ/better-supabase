@@ -303,6 +303,37 @@ export default defineConfig({
 `null` marks an optional table or column you don't have. With
 `overrides: null`, role defaults are the only source.
 
+The catalog matches keys exactly: `*` and `prefix.*` grant nothing here, so an
+owner role lists every key it holds.
+
+#### A roles page
+
+With the overrides table, the block adds two functions an admin page calls.
+`list_roles(tenant)` returns the tenant roles with their default keys, the keys
+they hold in that tenant after its overrides, the overrides themselves and how
+many members hold each one; it needs `members.read`. The function
+`set_permission_override(tenant, role, permission, granted)` grants (`true`) or
+denies (`false`) one key to a role in one tenant, and `null` removes the
+override so the role's default applies again. It needs `roles.manage`. A member
+can only change a role they could assign and a key they hold themselves, and
+nobody can remove `roles.manage` from the role they hold. The catalog's audit
+trigger records every override under the `access` category.
+
+The permissions client calls both:
+
+```ts title="app/settings/roles/actions.ts"
+const roles = await blocks.permissions.roles().orThrow();
+// [{ id, key: "member", members: 4, defaultPermissions, permissions, overrides }]
+
+await blocks.permissions
+  .setOverride("member", "customers.write", true)
+  .orThrow();
+```
+
+`blocks.permissions.permissions.listRoles` and `.setOverride` rename the two
+keys. The Next.js example's roles page (`apps/examples/nextjs`, under
+`/settings/roles`) shows the permission matrix with a toggle per key.
+
 ### provider
 
 With an [authorization provider](/docs/extending/authorization-providers) in

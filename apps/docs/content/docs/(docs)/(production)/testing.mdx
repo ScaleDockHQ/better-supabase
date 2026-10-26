@@ -111,6 +111,9 @@ test("lists the tenant's customers", async () => {
   await using scope = await scopedSeed(
     betterSupabase,
     ({ tenant }) => ({
+      memberships: {
+        alice: { organizationId: tenant, userId: aliceId, role: "member" },
+      },
       customers: { first: { organizationId: tenant, name: "First" } },
     }),
     {
@@ -129,6 +132,11 @@ test("lists the tenant's customers", async () => {
   expect(await alice.db.customers.count().orThrow()).toBe(1);
 });
 ```
+
+Seed the user's membership as well: the access contract trusts the
+`tenant_id` claim only when the user is a member of that tenant, so a claim for
+a tenant without one reads nothing. Under the catalog model, `role` holds the
+role's id from `better_supabase.roles`.
 
 `node:test` runs the tests of one file one after another and the files in
 parallel, and each call gets its own tenant, so the files never see each

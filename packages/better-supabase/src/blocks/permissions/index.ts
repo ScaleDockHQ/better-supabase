@@ -1,6 +1,8 @@
 export {
   type Permissions,
   type AccessCallOptions,
+  type CatalogRole,
+  type PermissionOverride,
   type PermissionsOptions,
   createPermissions,
 } from "./permissions.ts";

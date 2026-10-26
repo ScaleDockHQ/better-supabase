@@ -1,10 +1,44 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f4e0bb59a48222aa2b5b4a00b781aed98f358835963905ff1ad505e45557c620
+-- @bsb-hash sha256:6633b17b62d07e9e5916daa0f01681b598d1660ed7504ad27151b613278ac7a3
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -314,6 +348,8 @@ as $$
     when 'passes.checkIn' then 'passes.check_in'
     when 'passes.manage' then 'passes.manage'
     when 'passes.read' then 'passes.read'
+    when 'permissions.listRoles' then 'members.read'
+    when 'permissions.setOverride' then 'roles.manage'
     when 'pipelines.manage' then 'pipelines.manage'
     when 'pipelines.read' then 'pipelines.read'
     when 'posts.manage' then 'posts.manage'
@@ -749,6 +785,135 @@ as $$
     ), '{}'::text[])
   end
 $$;
+-- The tenant roles of the catalog with their keys in one tenant: the role's
+-- defaults, the keys after this tenant's overrides, the overrides and how many
+-- members hold the role.
+create or replace function "better_supabase"."list_roles"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), list_roles.tenant, 'members.read'), false)) then
+    raise exception 'Not allowed to read roles' using errcode = '42501', hint = 'PERMISSIONS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'key', r."key",
+      'members', (select count(*) from "public"."memberships" mm where mm."organization_id" = list_roles.tenant and mm."role" = r."id"),
+      'default_permissions', coalesce((
+        select jsonb_agg(p."key" order by p."key")
+        from "better_supabase"."role_permissions" x join "better_supabase"."permissions" p on p."id" = x."permission_id"
+        where x."role_id" = r."id"
+      ), '[]'::jsonb),
+      'permissions', coalesce((
+        select jsonb_agg(p."key" order by p."key")
+        from "better_supabase"."permissions" p
+        where coalesce(
+          (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
+            where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+          exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
+        )
+      ), '[]'::jsonb),
+      'overrides', coalesce((
+        select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
+        from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
+        where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id"
+      ), '[]'::jsonb)
+    ) order by r."key")
+    from "better_supabase"."roles" r
+    where true and r."scope"::text = 'tenant'
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_roles"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_roles"(uuid) to authenticated, service_role;
+
+-- Grants (true) or denies (false) one key to a role in one tenant; null
+-- clears the override, so the role's default applies again. Members change
+-- only roles they could assign, and only keys they hold themselves.
+-- Errors carry a code in the hint: PERMISSIONS_FORBIDDEN, PERMISSIONS_ROLE_UNKNOWN,
+-- PERMISSIONS_KEY_UNKNOWN, PERMISSIONS_ROLE_CEILING, PERMISSIONS_KEY_CEILING,
+-- PERMISSIONS_SELF_LOCKOUT.
+create or replace function "better_supabase"."set_permission_override"(tenant uuid, role text, permission text, granted boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_role uuid;
+  v_permission uuid;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (v_service or coalesce(better_supabase.member_can(auth.uid(), tenant, 'roles.manage'), false)) then
+    raise exception 'Not allowed to change role permissions' using errcode = '42501', hint = 'PERMISSIONS_FORBIDDEN';
+  end if;
+  select r."id" into v_role from "better_supabase"."roles" r
+  where (r."id"::text = role or r."key" = role) and r."scope"::text = 'tenant';
+  if v_role is null then
+    raise exception 'Unknown role' using errcode = 'P0002', hint = 'PERMISSIONS_ROLE_UNKNOWN';
+  end if;
+  select p."id" into v_permission from "better_supabase"."permissions" p where p."key" = permission;
+  if v_permission is null then
+    raise exception 'Unknown permission' using errcode = 'P0002', hint = 'PERMISSIONS_KEY_UNKNOWN';
+  end if;
+  if not v_service then
+    if not better_supabase.can_assign(tenant, v_role::text) then
+      raise exception 'That role is above your own' using errcode = '42501', hint = 'PERMISSIONS_ROLE_CEILING';
+    end if;
+    if not coalesce(better_supabase.member_can(auth.uid(), tenant, permission), false) then
+      raise exception 'You can only change keys you hold' using errcode = '42501', hint = 'PERMISSIONS_KEY_CEILING';
+    end if;
+    if granted is distinct from true and permission = 'roles.manage' and exists (
+      select 1 from "public"."memberships" mm where mm."organization_id" = tenant and mm."user_id" = auth.uid() and mm."role" = v_role
+    ) then
+      raise exception 'You cannot take this key from your own role' using errcode = '42501', hint = 'PERMISSIONS_SELF_LOCKOUT';
+    end if;
+  end if;
+  if granted is null then
+    delete from "better_supabase"."permission_overrides" ov
+    where ov."organization_id" = tenant and ov."role_id" = v_role and ov."permission_id" = v_permission;
+  else
+    insert into "better_supabase"."permission_overrides" ("organization_id", "role_id", "permission_id", "granted")
+    values (tenant, v_role, v_permission, granted)
+    on conflict ("organization_id", "role_id", "permission_id") do update set "granted" = excluded."granted";
+  end if;
+  return (select jsonb_build_object(
+      'id', r."id",
+      'key', r."key",
+      'members', (select count(*) from "public"."memberships" mm where mm."organization_id" = set_permission_override.tenant and mm."role" = r."id"),
+      'default_permissions', coalesce((
+        select jsonb_agg(p."key" order by p."key")
+        from "better_supabase"."role_permissions" x join "better_supabase"."permissions" p on p."id" = x."permission_id"
+        where x."role_id" = r."id"
+      ), '[]'::jsonb),
+      'permissions', coalesce((
+        select jsonb_agg(p."key" order by p."key")
+        from "better_supabase"."permissions" p
+        where coalesce(
+          (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
+            where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+          exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
+        )
+      ), '[]'::jsonb),
+      'overrides', coalesce((
+        select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
+        from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
+        where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id"
+      ), '[]'::jsonb)
+    ) from "better_supabase"."roles" r where r."id" = v_role);
+end;
+$$;
+revoke execute on function "better_supabase"."set_permission_override"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."set_permission_override"(uuid, text, text, boolean) to authenticated, service_role;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -792,6 +957,24 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
 create or replace function "api"."tenant_disabled"(tenant uuid)
 returns boolean
 language sql
@@ -818,6 +1001,24 @@ set search_path = ''
 as $$ select "better_supabase"."platform_can_assign"($1, $2) $$;
 revoke execute on function "api"."platform_can_assign"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."platform_can_assign"(uuid, text) to service_role;
+
+create or replace function "api"."list_roles"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_roles"($1) $$;
+revoke execute on function "api"."list_roles"(uuid) from public, anon;
+grant execute on function "api"."list_roles"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_permission_override"(tenant uuid, role text, permission text, granted boolean)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_permission_override"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_permission_override"(uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."set_permission_override"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."permission_matches"(granted text, wanted text)
 returns boolean
