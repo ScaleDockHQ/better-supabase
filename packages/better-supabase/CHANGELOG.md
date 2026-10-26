@@ -1,5 +1,26 @@
 # better-supabase
 
+## 0.30.0
+
+### Minor Changes
+
+- [#455](https://github.com/ScaleDockHQ/better-supabase/pull/455) [`e24c29b`](https://github.com/ScaleDockHQ/better-supabase/commit/e24c29b31ddcf021081ed838270ba60723308497) Thanks [@mick340](https://github.com/mick340)! - Blocks laid over your own tables now behave as they do on their own tables.
+  
+  - Numbering: a block that numbers its own row (tasks, deals, quotes, invoices, donations) marks the number it took from `next_number` for the transaction, so a `numbering` entity with a `table` accepts it instead of refusing it with `NUMBER_MANUAL`, and the number is assigned once.
+  - Rows: read functions of tasks, employees, hiring, pipelines, quotes and invoices return a row of your table keyed as on the block's table. A renamed column also comes back under the block's name (`tenant_id` when the tenant column is `organization_id`), and a mapped value as its label, so the TypeScript clients parse it. Bug fix: `organizationId` and renamed fields used to read as missing.
+  - Extra columns: `insertExtraColumns` writes every extra column in the insert, with the type's `default` for a key the call leaves out, so a check across extra columns holds when the row is created. Tasks, quote, invoice and deal lines, employee contracts and private details, teams, tags, saved views, hiring jobs and calendars use it.
+  - `add_employee_contract` keeps your contract table's currency default when `attrs` has no `currency`.
+  - Value maps: `blocks.<name>.values` now applies in the catalog, quotes, invoices, inventory, orders and shipments modules: status and kind literals in functions, policies and reads, with list values and `null` for a label your app lacks. `products.kind` and the status of stock reservations and transfers are typed columns. A quote whose map sets `viewed: null` keeps its status when the link is opened.
+  - Calendar: `columns.rules.id` may be `null` for a rules table keyed by its event, and `options.ruleDialect` (`weekdays: "lower"`, `monthDay: "scalar"`, `ordinal: { weekday, position }`) reads and writes structured rules in your table's shape.
+  
+  Generated SQL changes only where these apply: blocks over your tables, a renamed tenant column, extra columns and numbered entities with a table.
+
+- [#454](https://github.com/ScaleDockHQ/better-supabase/pull/454) [`9afb69c`](https://github.com/ScaleDockHQ/better-supabase/commit/9afb69c99a9b46098bb5cc9515c5825e9876a063) Thanks [@mick340](https://github.com/mick340)! - `createNext` signs users in and out on the server for every flow that starts or ends a session. `verifyOtp` verifies an email link's `token_hash` or an emailed code, `authorizeUrl` and `exchangeCode` run OAuth with a PKCE verifier cookie (httpOnly, `SameSite=Lax`, 10 minutes, deleted on exchange), `verifyMfa` commits the `aal2` session, and `signOut` ends the session in Auth before it clears the cookies, forgets the verified session and expires the user's cache tags. `signInWithPassword` is the same as `signIn`. Each returns `redirectTo` (a same-origin `next` or the fallback) and `mfa`, plain data a Server Action can return to the client; the committed session is on `getRequestSession()` and `context()` for the rest of the request.
+  
+  After a sign-in or sign-out, `getRequestSession()`, `session()`, `context()` and `cached()` return the new session for the rest of the request. Reads rebuild the request from the cookie jar, so a Server Action sees its own writes, and a render that never commits still verifies its token once. Auth errors keep their `error_code` as `code` and no longer carry Auth's message, so a form can't reveal whether an account exists. `cookieScopes` on `createNext` also expires the session cookie at old scopes on sign-out.
+  
+  Doctor's BS506 warns when an env file sets `SUPABASE_URL` and a browser spelling such as `NEXT_PUBLIC_SUPABASE_URL` to different URLs, since the session cookie name comes from the URL and the server and the browser would then read different cookies. Set `auth.cookie.name` on both clients when the split is intended.
+
 ## 0.29.0
 
 ### Minor Changes

@@ -4,7 +4,7 @@
   "title": "useAnnouncements",
   "description": "useAnnouncements: the announcements block's controllers as React hooks, for React DOM and React Native.",
   "dependencies": [
-    "better-supabase@^0.29.0"
+    "better-supabase@^0.30.0"
   ],
   "files": [
     {
