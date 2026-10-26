@@ -811,6 +811,18 @@ the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
 so a saved snapshot skips it. The check is `not valid` on purpose; see
 [Your own schemas](/docs/blocks/own-schemas#why-the-check-is-not-valid).
 
+### BS239
+
+**Warning: pg-delta packages missing.** The project runs the pg-delta
+workflow (`database.sql.workflow`, or the one doctor reads from
+`supabase/config.toml`), but `@supabase/pg-delta` or `@supabase/pg-topo` is not
+installed. [`db diff`](/docs/cli/db#diff) plans the migration with both and
+stops until they are there. Install them as dev dependencies:
+
+```bash
+pnpm add -D @supabase/pg-delta @supabase/pg-topo
+```
+
 ## Drift
 
 ### BS301

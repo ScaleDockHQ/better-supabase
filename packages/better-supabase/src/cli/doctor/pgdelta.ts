@@ -171,8 +171,50 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
     });
 }
 
-/** Statements in declarative schema files that pg-delta can't order. */
+const PGDELTA_PEERS = ["@supabase/pg-delta", "@supabase/pg-topo"] as const;
+
+/**
+ * The pg-delta peers `db diff` loads that a Supabase project on the pg-delta
+ * workflow doesn't install.
+ */
+function missingPeers(context: DoctorContext): FindingInput[] {
+  if (context.peers === undefined || pgdeltaToml(context) === undefined) {
+    return [];
+  }
+
+  const installed = new Set(
+    context.peers.flatMap((peer) =>
+      peer.installed === undefined ? [] : [peer.name],
+    ),
+  );
+
+  const missing = PGDELTA_PEERS.filter((name) => !installed.has(name));
+
+  if (missing.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      message: `The project diffs with pg-delta (database.sql.workflow), but ${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} not installed, so \`better-supabase db diff\` stops before it plans a migration. Install them: pnpm add -D ${PGDELTA_PEERS.join(" ")}`,
+      target: missing.join(", "),
+    },
+  ];
+}
+
+/**
+ * The pg-delta peers, and statements in declarative schema files that pg-delta
+ * can't order.
+ */
 export const PGDELTA_RULES: readonly Rule[] = [
+  {
+    code: "BS239",
+    severity: "warning",
+    title: "pg-delta packages missing",
+    description:
+      "The project runs the pg-delta workflow, but `@supabase/pg-delta` or `@supabase/pg-topo` is not installed. `db diff` plans the migration with both, so it fails until they are.",
+    check: missingPeers,
+  },
   {
     code: "BS317",
     severity: "warning",

@@ -27,8 +27,8 @@ config's per-table features (`subjects`, `database.realtime`,
 Then edit the config:
 
 1. Delete `tables`.
-2. Rename `records` to `subjects`. `npx better-supabase codemod 0.29` does it
-   for you. It also renames a `@bsb record` tag in `supabase/schemas`, which no
+2. Rename `records` to `subjects`. `npx better-supabase@latest codemod 0.29`
+   does it for you (the codemod ships from 0.30). It also renames a `@bsb record` tag in `supabase/schemas`, which no
    release reads, to `@bsb subject`.
 3. Run `npx better-supabase upgrade`, which removes the old
    `900_better_supabase_app_tables.sql` file.

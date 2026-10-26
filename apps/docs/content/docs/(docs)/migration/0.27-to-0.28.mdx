@@ -16,7 +16,8 @@ with pg-delta's library (#424). Install its two optional peers first:
 pnpm add -D @supabase/pg-delta @supabase/pg-topo
 ```
 
-Doctor's BS239 reports when they are missing. Two behaviours are new:
+From 0.30, doctor's [BS239](/docs/cli/doctor#bs239) reports when they are
+missing. Two behaviours are new:
 
 - A rename is a rename only when a migration records it with
   `-- bsb: rename old -> new`. Without the comment, the plan drops the old
