@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:9c9f1d43691b401236c508e8b156bc6e63aefeae6289dc498d0888e745ddc217
+-- @bsb-hash sha256:af1dbffd4bb909282bb3fc7def037bd0e2206e4f3c161b07a1ce58c368a1cb9e
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -73,14 +73,23 @@ alter table "public"."contacts" enable row level security;
 revoke all on "public"."contacts" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."contacts" to authenticated;
 grant all on "public"."contacts" to service_role;
-drop policy if exists "contacts_select" on "public"."contacts";
-create policy "contacts_select" on "public"."contacts" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "contacts_insert" on "public"."contacts";
-create policy "contacts_insert" on "public"."contacts" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "contacts_update" on "public"."contacts";
-create policy "contacts_update" on "public"."contacts" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "contacts_delete" on "public"."contacts";
-create policy "contacts_delete" on "public"."contacts" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists contacts_select on "public"."contacts";
+create policy contacts_select on "public"."contacts"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists contacts_insert on "public"."contacts";
+create policy contacts_insert on "public"."contacts"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists contacts_update on "public"."contacts";
+create policy contacts_update on "public"."contacts"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists contacts_delete on "public"."contacts";
+create policy contacts_delete on "public"."contacts"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."contacts";
 drop policy if exists bsb_tenant_scope_select on "public"."contacts";
 create policy bsb_tenant_scope_select on "public"."contacts" as restrictive
@@ -129,14 +138,23 @@ alter table "public"."notes" enable row level security;
 revoke all on "public"."notes" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."notes" to authenticated;
 grant all on "public"."notes" to service_role;
-drop policy if exists "notes_select" on "public"."notes";
-create policy "notes_select" on "public"."notes" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists "notes_insert" on "public"."notes";
-create policy "notes_insert" on "public"."notes" for insert to authenticated with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_update" on "public"."notes";
-create policy "notes_update" on "public"."notes" for update to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists "notes_delete" on "public"."notes";
-create policy "notes_delete" on "public"."notes" for delete to authenticated using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_select on "public"."notes";
+create policy notes_select on "public"."notes"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists notes_insert on "public"."notes";
+create policy notes_insert on "public"."notes"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_update on "public"."notes";
+create policy notes_update on "public"."notes"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
+drop policy if exists notes_delete on "public"."notes";
+create policy notes_delete on "public"."notes"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_tenant_scope on "public"."notes";
 drop policy if exists bsb_tenant_scope_select on "public"."notes";
 create policy bsb_tenant_scope_select on "public"."notes" as restrictive
@@ -168,7 +186,7 @@ alter table "public"."notes" add constraint "notes_contact_id_fkey" foreign key 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:f3c3e0d7aa25744916fef75b462885216ef89523038ed305cf8197ad7594e617
+-- @bsb-hash sha256:ac484348a24e40470b9e119e9ad9f59e6b7e8ea10daca5920e6e048fb1230519
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -200,7 +218,10 @@ with o as (
 insert into "public"."contacts" ("organization_id") select o.id from o;
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."contacts" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."contacts"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -223,7 +244,10 @@ with o as (
 insert into "public"."notes" ("organization_id") select o.id from o;
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."notes" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."notes"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ecf645d279000578d1722da52d738f3ca07f468c093db46215d4cd095774648a
+-- @bsb-hash sha256:1dd3eade5f3457e4b7b201daa207b23e7fb3fa19ea6285117b55bceffaab8189
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -127,8 +127,9 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists "custom_emoji_read" on "better_supabase"."custom_emoji";
-create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select to authenticated
+drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
+create policy custom_emoji_read on "better_supabase"."custom_emoji"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -148,23 +149,25 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on "better_supabase"."reactions";
-create policy "reactions_read" on "better_supabase"."reactions" for select to authenticated
+drop policy if exists reactions_read on "better_supabase"."reactions";
+create policy reactions_read on "better_supabase"."reactions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists "reactions_insert" on "better_supabase"."reactions";
-create policy "reactions_insert" on "better_supabase"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+drop policy if exists reactions_insert on "better_supabase"."reactions";
+create policy reactions_insert on "better_supabase"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "reactions_delete" on "better_supabase"."reactions";
-create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists reactions_delete on "better_supabase"."reactions";
+create policy reactions_delete on "better_supabase"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
-create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
+drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
+create policy reaction_scores_read on "better_supabase"."reaction_scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
 drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
@@ -532,13 +535,12 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;
@@ -661,7 +663,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:6c483d8bbb6b4b086d7f7412e9891c54ac54504dbfd5b7f13b6c1ec1e621bd06
+-- @bsb-hash sha256:8ae1623c455af784b33a31750392d5da2bd66affc9f9cd5869ec583f4d57fbf0
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -787,8 +789,9 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists "custom_emoji_read" on "better_supabase"."custom_emoji";
-create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select to authenticated
+drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
+create policy custom_emoji_read on "better_supabase"."custom_emoji"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -808,23 +811,25 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on "better_supabase"."reactions";
-create policy "reactions_read" on "better_supabase"."reactions" for select to authenticated
+drop policy if exists reactions_read on "better_supabase"."reactions";
+create policy reactions_read on "better_supabase"."reactions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists "reactions_insert" on "better_supabase"."reactions";
-create policy "reactions_insert" on "better_supabase"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+drop policy if exists reactions_insert on "better_supabase"."reactions";
+create policy reactions_insert on "better_supabase"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "reactions_delete" on "better_supabase"."reactions";
-create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists reactions_delete on "better_supabase"."reactions";
+create policy reactions_delete on "better_supabase"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
-create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
+drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
+create policy reaction_scores_read on "better_supabase"."reaction_scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
 drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
@@ -1192,13 +1197,12 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;
@@ -1321,7 +1325,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:4f26796335eb058783b7a16318b828ad970e514c623acb14b447471d5fa8d190
+-- @bsb-hash sha256:35b0f6b95d37dddc822d6838fd4ce12fcd8e589436ae94b18adbf3f6032575a2
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1452,8 +1456,9 @@ alter table "app_private"."custom_emoji" enable row level security;
 revoke all on "app_private"."custom_emoji" from public, anon, authenticated;
 grant select on "app_private"."custom_emoji" to authenticated;
 grant all on "app_private"."custom_emoji" to service_role;
-drop policy if exists "custom_emoji_read" on "app_private"."custom_emoji";
-create policy "custom_emoji_read" on "app_private"."custom_emoji" for select to authenticated
+drop policy if exists custom_emoji_read on "app_private"."custom_emoji";
+create policy custom_emoji_read on "app_private"."custom_emoji"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -1473,23 +1478,25 @@ $$;
 revoke execute on function "app_private"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on "app_private"."reactions";
-create policy "reactions_read" on "app_private"."reactions" for select to authenticated
+drop policy if exists reactions_read on "app_private"."reactions";
+create policy reactions_read on "app_private"."reactions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists "reactions_insert" on "app_private"."reactions";
-create policy "reactions_insert" on "app_private"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+drop policy if exists reactions_insert on "app_private"."reactions";
+create policy reactions_insert on "app_private"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "reactions_delete" on "app_private"."reactions";
-create policy "reactions_delete" on "app_private"."reactions" for delete to authenticated
+    and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists reactions_delete on "app_private"."reactions";
+create policy reactions_delete on "app_private"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists "reaction_scores_read" on "app_private"."reaction_scores";
-create policy "reaction_scores_read" on "app_private"."reaction_scores" for select to authenticated
+drop policy if exists reaction_scores_read on "app_private"."reaction_scores";
+create policy reaction_scores_read on "app_private"."reaction_scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
 drop trigger if exists "bsb_reactions_check" on "app_private"."reactions";
@@ -1857,13 +1864,12 @@ grant execute on function "app_private"."list_custom_emoji"(uuid) to authenticat
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;
@@ -1986,7 +1992,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:59f4a4a0bdee8f2e6df9dddc3c860a234cd3715ef1bc403de1cfde87feed59fa
+-- @bsb-hash sha256:74c4d0b44d20d34621a8417aa2e91b456841ed199ef2dc13975ec5bbefa6c198
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2112,8 +2118,9 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists "custom_emoji_read" on "better_supabase"."custom_emoji";
-create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select to authenticated
+drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
+create policy custom_emoji_read on "better_supabase"."custom_emoji"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -2133,23 +2140,25 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on "better_supabase"."reactions";
-create policy "reactions_read" on "better_supabase"."reactions" for select to authenticated
+drop policy if exists reactions_read on "better_supabase"."reactions";
+create policy reactions_read on "better_supabase"."reactions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists "reactions_insert" on "better_supabase"."reactions";
-create policy "reactions_insert" on "better_supabase"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+drop policy if exists reactions_insert on "better_supabase"."reactions";
+create policy reactions_insert on "better_supabase"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "reactions_delete" on "better_supabase"."reactions";
-create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists reactions_delete on "better_supabase"."reactions";
+create policy reactions_delete on "better_supabase"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
-create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
+drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
+create policy reaction_scores_read on "better_supabase"."reaction_scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
 drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
@@ -2517,13 +2526,12 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;
@@ -2752,7 +2760,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:7416df983c77300e046f110152e312b77cdd1d530da795e36d7002ac8845dbd8
+-- @bsb-hash sha256:91232185cbe0e58935db01644f2a4b0fedfd798702b1eae468875119035bab8e
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2886,7 +2894,8 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists bsb_custom_emoji_select on "better_supabase"."custom_emoji";
-create policy bsb_custom_emoji_select on "better_supabase"."custom_emoji" for select to authenticated
+create policy bsb_custom_emoji_select on "better_supabase"."custom_emoji"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -2907,22 +2916,24 @@ revoke execute on function "better_supabase"."reaction_subject_visible"(text, te
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_reactions_select on "better_supabase"."reactions";
-create policy bsb_reactions_select on "better_supabase"."reactions" for select to authenticated
+create policy bsb_reactions_select on "better_supabase"."reactions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 drop policy if exists bsb_reactions_insert on "better_supabase"."reactions";
-create policy bsb_reactions_insert on "better_supabase"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+create policy bsb_reactions_insert on "better_supabase"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
-  ) and (select better_supabase.actor_may_write()));
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_reactions_delete on "better_supabase"."reactions";
-create policy bsb_reactions_delete on "better_supabase"."reactions" for delete to authenticated
+create policy bsb_reactions_delete on "better_supabase"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 drop policy if exists bsb_reaction_scores_select on "better_supabase"."reaction_scores";
-create policy bsb_reaction_scores_select on "better_supabase"."reaction_scores" for select to authenticated
+create policy bsb_reaction_scores_select on "better_supabase"."reaction_scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
 drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
@@ -3290,13 +3301,12 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;
@@ -3419,7 +3429,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:2d64f131090cdbe6853e2929e67497218641ea2d0b4a54ec04aaa9c777656774
+-- @bsb-hash sha256:6f880764b7b36766b2676eabbffaa4b2501d339b5ff54ee74a050355c9415516
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3545,8 +3555,9 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists "custom_emoji_read" on "better_supabase"."custom_emoji";
-create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select to authenticated
+drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
+create policy custom_emoji_read on "better_supabase"."custom_emoji"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
@@ -3566,23 +3577,25 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on "better_supabase"."reactions";
-create policy "reactions_read" on "better_supabase"."reactions" for select to authenticated
+drop policy if exists reactions_read on "better_supabase"."reactions";
+create policy reactions_read on "better_supabase"."reactions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"));
-drop policy if exists "reactions_insert" on "better_supabase"."reactions";
-create policy "reactions_insert" on "better_supabase"."reactions" for insert to authenticated
-  with check ((
-    "user_id" = (select auth.uid())
+drop policy if exists reactions_insert on "better_supabase"."reactions";
+create policy reactions_insert on "better_supabase"."reactions"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "org_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id")
-  ) and (select better_supabase.actor_may_write()));
-drop policy if exists "reactions_delete" on "better_supabase"."reactions";
-create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id")) and (select better_supabase.actor_may_write()));
+drop policy if exists reactions_delete on "better_supabase"."reactions";
+create policy reactions_delete on "better_supabase"."reactions"
+  for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
-create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
+drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
+create policy reaction_scores_read on "better_supabase"."reaction_scores"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"));
 
 drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
@@ -3950,13 +3963,12 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_reactions_receive" on realtime.messages;
-    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        drop policy if exists bsb_reactions_receive on realtime.messages;
+create policy bsb_reactions_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
-        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x)
-      );
+        and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
   end if;
 end;
 $do$;

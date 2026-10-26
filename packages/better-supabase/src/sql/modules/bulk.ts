@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -249,9 +250,7 @@ ${declares.map((line) => `  ${line}`).join("\n")}
 create index if not exists bulk_runs_created_by_idx on ${runs} (${c("createdBy")}, ${c("createdAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("runs").name}_tenant_idx`)} on ${runs} (${c("tenant")});
 ${lockTable(runs, { read: true })}
-drop policy if exists bulk_runs_read on ${runs};
-create policy bulk_runs_read on ${runs} for select to authenticated
-  using (${c("createdBy")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: runs, name: "bulk_runs_read", command: "select", roles: ["authenticated"], using: `${c("createdBy")} = (select auth.uid())` }), { drop: true, target: runs })}
 `
     : "";
 

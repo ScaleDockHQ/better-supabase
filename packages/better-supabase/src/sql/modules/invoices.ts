@@ -15,6 +15,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import {
   invoiceFunctions,
@@ -183,17 +184,24 @@ create table if not exists ${t("invoices")} (
 );
 create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin ? index("invoices_origin_idx", ["originType", "originId"]) : ""}${index("invoices_original_idx", ["original"])}${company ? index("invoices_company_idx", ["companyType", "companyId"]) : ""}${addExtraColumns(t("invoices"), n.extras)}${appUniqueIndex(ctx, "invoices", ["tenant", "kind", "number"])}
 ${lockModuleTable(ctx, "invoices", { read: true })}
-drop policy if exists ${ctx.naming.rename("invoices_read")} on ${t("invoices")};
-create policy ${ctx.naming.rename("invoices_read")} on ${t("invoices")} for select to authenticated
-using (${guestOr(ctx.scope.check(i("tenant"), n.read), [
-    ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
-    ...(company
-      ? [ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId"))]
-      : []),
-    ...(contact
-      ? [ctx.scope.guestParty(i("tenant"), i("contactType"), i("contactId"))]
-      : []),
-  ])});
+${renderPolicy(
+  makePolicy({
+    table: t("invoices"),
+    name: ctx.naming.rename("invoices_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: guestOr(ctx.scope.check(i("tenant"), n.read), [
+      ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
+      ...(company
+        ? [ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId"))]
+        : []),
+      ...(contact
+        ? [ctx.scope.guestParty(i("tenant"), i("contactType"), i("contactId"))]
+        : []),
+    ]),
+  }),
+  { drop: true, target: t("invoices") },
+)}
 
 `;
 }

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:705a56a4590453e32683b542591eb2b4a99e6f3f0cf54ce3ced18b6d1833898d
+-- @bsb-hash sha256:83b85656064c70f99417d04ace0f4378e6fe220792d1acb3f82bf07518be01f3
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,8 @@ revoke all on "better_supabase"."activity_entries" from public, anon, authentica
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
-create policy activity_entries_read on "better_supabase"."activity_entries" for select to authenticated
+create policy activity_entries_read on "better_supabase"."activity_entries"
+  for select to authenticated
   using ("organization_id" = (select auth.uid()));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
 drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);

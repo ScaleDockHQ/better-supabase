@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
   addExtraColumns,
@@ -208,9 +209,7 @@ alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_C
 ${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
-${ctx.owns("organizations") ? "" : `drop policy if exists bsb_organizations_read on ${n.organization};\n`}drop policy if exists ${readPolicy} on ${n.organization};
-create policy ${readPolicy} on ${n.organization} for select to authenticated
-  using (${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}()));
+${ctx.owns("organizations") ? "" : `drop policy if exists bsb_organizations_read on ${n.organization};\n`}${renderPolicy(makePolicy({ table: n.organization, name: readPolicy, command: "select", roles: ["authenticated"], using: `${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}())` }), { drop: true, target: n.organization })}
 `;
 }
 

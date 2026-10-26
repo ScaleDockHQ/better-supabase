@@ -43,3 +43,19 @@ A breaking release with a migration guide, a codemod and a changeset.
 - `audit`, `audit-reads` and `expose` change the table's SQL only (the audit trigger, the reveal
   audit and the grants live in the table's own file), so `gen` reads nothing from them.
 - A key the config sets itself wins over a tag, so a project moves one table at a time.
+
+## Addendum: the SQL modules read tags too
+
+- `loadConfig` reads the `@bsb` comments in the declarative schema files and adds `subject`,
+  `realtime`, `vector-search` and `json` entries to the resolved config, so `upgrade`, `gen` and
+  doctor see one config. `appTables` is never filled from tags: the tables' SQL is already in the
+  files.
+- `subject` takes `type`, `id`, `id-type`, `tenant` (`false` for none), `title`, `url`, `scope`,
+  `cascade`, `deleted-at`, `search` (bare), `search-title`, `search-body`, `search-description`,
+  `search-exclude`, `rank`, `rank-group`, `versions` (comma list), `versions-auto=false` and
+  `can-<action>=<permission>`. Subjects that need `search.from`, `search.watch` or row grants stay in
+  `subjects`.
+- Dropping `tables` removes the `appTables.set` bulk action, because the bulk module adds it only
+  for a config with app tables.
+- `server` lists the columns signed-in users can't read (the column grants already exclude them),
+  so `gen` types them as not selectable.

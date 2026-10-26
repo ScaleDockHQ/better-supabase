@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:2675c42ddcd84151e7476517644a548810f376f4da9ce9fa7735340708ea348e
+-- @bsb-hash sha256:a3a90860abacbce2f65a115719c0681de17da458039a2f30635382e1cc43aeba
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,8 +90,9 @@ grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
 drop policy if exists saved_views_read on "better_supabase"."saved_views";
-create policy saved_views_read on "better_supabase"."saved_views" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+create policy saved_views_read on "better_supabase"."saved_views"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and false)
@@ -113,8 +114,9 @@ revoke all on "better_supabase"."saved_view_preferences" from public, anon, auth
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
-using ("user_id" = (select auth.uid()));
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 
 drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);

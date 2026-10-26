@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";
@@ -35,11 +36,17 @@ function sessionPolicies(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const statements = tables.map((table) => {
     const target = qualifiedTable(table);
 
-    return `drop policy if exists bsb_session_active on ${target};
-create policy bsb_session_active on ${target} as restrictive
-  for all to authenticated
-  using ((select better_supabase.session_active()))
-  with check ((select better_supabase.session_active()));`;
+    return renderPolicy(
+      makePolicy({
+        table: target,
+        name: "bsb_session_active",
+        roles: ["authenticated"],
+        permissive: false,
+        using: "(select better_supabase.session_active())",
+        check: "(select better_supabase.session_active())",
+      }),
+      { drop: true, target },
+    );
   });
 
   return `

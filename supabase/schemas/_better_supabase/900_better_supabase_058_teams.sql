@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:0c55d2555883a76f4e5c9801ed1af1611bc23e19775d7707d6488763e1032e79
+-- @bsb-hash sha256:e54f40469e08976923edec3c21305dbc1b22abc98bf24d8a3eadfa6051360bc6
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,8 +81,9 @@ revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
-create policy teams_read on "better_supabase"."teams" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create policy teams_read on "better_supabase"."teams"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 create table if not exists "better_supabase"."team_members" (
   "team_id" uuid not null references "better_supabase"."teams" ("id") on delete cascade,
@@ -98,8 +99,9 @@ revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
-create policy team_members_read on "better_supabase"."team_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create policy team_members_read on "better_supabase"."team_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 alter table "better_supabase"."team_members" drop constraint if exists team_members_membership_fkey;
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey

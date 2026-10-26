@@ -10,6 +10,7 @@ import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { ACTING_MEMBER } from "../actor-guard.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   batchFunction,
   defaultPartition,
@@ -934,12 +935,17 @@ revoke execute on function ${ctx.fn("audit_read_tenants")}() from public, anon;
 revoke execute on function ${ctx.fn("audit_reads_all")}() from public, anon;
 grant execute on function ${ctx.fn("audit_read_tenants")}() to authenticated, service_role;
 grant execute on function ${ctx.fn("audit_reads_all")}() to authenticated, service_role;
-drop policy if exists bsb_audit_read on ${log};
-create policy bsb_audit_read on ${log} for select to authenticated
-  using (
-    ${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
-    or (select ${ctx.fn("audit_reads_all")}())
-  );
+${renderPolicy(
+  makePolicy({
+    table: log,
+    name: "bsb_audit_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
+    or (select ${ctx.fn("audit_reads_all")}())`,
+  }),
+  { drop: true, target: log },
+)}
 ${
   hidden.size > 0
     ? `revoke select on ${log} from authenticated;

@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:e24e303b48d6b41c0d82e64e3969e0de40dcb96b3a1b796d493edf54475c3626
+-- @bsb-hash sha256:616c7b6c98230d67a6eb2815ae340230ae16aa0dcba96606daeb7340e9fd75e8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -174,14 +174,17 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 drop policy if exists deals_read on "better_supabase"."deals";
-create policy deals_read on "better_supabase"."deals" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deals_read on "better_supabase"."deals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
-create policy deal_contacts_read on "better_supabase"."deal_contacts" for select to authenticated
-using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+create policy deal_contacts_read on "better_supabase"."deal_contacts"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
 drop policy if exists deal_members_read on "better_supabase"."deal_members";
-create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
+create policy deal_members_read on "better_supabase"."deal_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
 create or replace function better_supabase.bsb_deal_guard()
 returns trigger

@@ -10,6 +10,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { subjectPermissionKey } from "../../core/subject-permission.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -166,12 +167,8 @@ create table if not exists ${t("members")} (
   }
 create index if not exists ${ctx.naming.rename("segment_members_subject_idx")} on ${t("members")} (${m("tenant")}, ${m("subjectId")});
 ${lockTable(t("members"), { read: true })}
-drop policy if exists ${policy("segments")} on ${t("segments")};
-create policy ${policy("segments")} on ${t("segments")} for select to authenticated
-using (${ctx.scope.check(s("tenant"), n.read)});
-drop policy if exists ${policy("members")} on ${t("members")};
-create policy ${policy("members")} on ${t("members")} for select to authenticated
-using (${ctx.scope.check(m("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("segments"), name: policy("segments"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { drop: true, target: t("segments") })}
+${renderPolicy(makePolicy({ table: t("members"), name: policy("members"), command: "select", roles: ["authenticated"], using: ctx.scope.check(m("tenant"), n.read) }), { drop: true, target: t("members") })}
 `;
 }
 

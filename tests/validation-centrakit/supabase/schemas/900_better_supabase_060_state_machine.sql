@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:e0bce5f5d49a1f2477bfbd77731306072904e55ada580b9da2c7790c26e59a59
+-- @bsb-hash sha256:a564364618e5d14d2dcc0a005983d68ef19dd05d337638b795794753d00161ae
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,8 @@ alter table "centrakit"."status_history" enable row level security;
 grant select on "centrakit"."status_history" to authenticated;
 grant all on "centrakit"."status_history" to service_role;
 drop policy if exists bsb_status_history_select on "centrakit"."status_history";
-create policy bsb_status_history_select on "centrakit"."status_history" for select to authenticated
+create policy bsb_status_history_select on "centrakit"."status_history"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -62,7 +63,8 @@ revoke all on "better_supabase"."status_stages" from public, anon, authenticated
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (false);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
@@ -85,7 +87,8 @@ revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenti
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (false);
 
 

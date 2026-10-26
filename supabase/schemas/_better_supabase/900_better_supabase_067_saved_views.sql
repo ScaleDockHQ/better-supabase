@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:c46070669dfe0dd783098a11b7829ad59710d3e563d6bc6b57981c7aebf8e810
+-- @bsb-hash sha256:09ca628b50caccca3ed21a0f28986fab572dbff62a80f368cca4a4b5d04f3884
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,8 +89,9 @@ grant select on "better_supabase"."shared_views" to authenticated;
 grant all on "better_supabase"."shared_views" to service_role;
 
 drop policy if exists saved_views_read on "better_supabase"."shared_views";
-create policy saved_views_read on "better_supabase"."shared_views" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+create policy saved_views_read on "better_supabase"."shared_views"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and "team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -112,8 +113,9 @@ revoke all on "better_supabase"."saved_view_preferences" from public, anon, auth
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences" for select to authenticated
-using ("user_id" = (select auth.uid()));
+create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 
 drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid, jsonb);

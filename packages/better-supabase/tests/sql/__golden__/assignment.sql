@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:8ab83a406afab40e0d18640801d7b9ce91d94362b671a83535fec06e507e1cf2
+-- @bsb-hash sha256:5e138ab8040bc8ccf0b09b7e4ee7478262422b293e3ea45d5e9ce94232c37d6a
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -125,14 +125,17 @@ revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
-create policy assignment_queues_read on "better_supabase"."assignment_queues" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queues_read on "better_supabase"."assignment_queues"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignment_queue_members_read on "better_supabase"."assignment_queue_members";
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignments_read on "better_supabase"."assignments";
-create policy assignments_read on "better_supabase"."assignments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignments_read on "better_supabase"."assignments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
@@ -525,7 +528,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:1838ae67029b28f7af5421c172a681482fcb7641b21e52636e9b6155cfd145da
+-- @bsb-hash sha256:702945f2ca53c373e3d41cae2548d1679fa91331a029fa677d32a33d50de90b9
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -649,14 +652,17 @@ revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
-create policy assignment_queues_read on "better_supabase"."assignment_queues" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queues_read on "better_supabase"."assignment_queues"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignment_queue_members_read on "better_supabase"."assignment_queue_members";
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignments_read on "better_supabase"."assignments";
-create policy assignments_read on "better_supabase"."assignments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignments_read on "better_supabase"."assignments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
@@ -1049,7 +1055,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:e7f1a5cb7f0d91c2feb5180ec4f03c6823b388b05b336f7c1f1b320a34499f19
+-- @bsb-hash sha256:b637502b4690f0477947b0b20970525eea1b3b0ab120d117c3da9d4edeeadd95
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1178,14 +1184,17 @@ revoke all on "app_private"."assignments" from public, anon, authenticated;
 grant select on "app_private"."assignments" to authenticated;
 grant all on "app_private"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "app_private"."assignment_queues";
-create policy assignment_queues_read on "app_private"."assignment_queues" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queues_read on "app_private"."assignment_queues"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignment_queue_members_read on "app_private"."assignment_queue_members";
-create policy assignment_queue_members_read on "app_private"."assignment_queue_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queue_members_read on "app_private"."assignment_queue_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignments_read on "app_private"."assignments";
-create policy assignments_read on "app_private"."assignments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignments_read on "app_private"."assignments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
@@ -1578,7 +1587,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:e3dbbb1e9abe7e41ca1f20755d494aaaca49f806c6f6804b0ba145e7993b4ab8
+-- @bsb-hash sha256:596d664a142ed1ebbece0a1787308f3974dad878ce7db38a1f272038314ea67d
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1702,14 +1711,17 @@ revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
-create policy assignment_queues_read on "better_supabase"."assignment_queues" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queues_read on "better_supabase"."assignment_queues"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignment_queue_members_read on "better_supabase"."assignment_queue_members";
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignments_read on "better_supabase"."assignments";
-create policy assignments_read on "better_supabase"."assignments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignments_read on "better_supabase"."assignments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
@@ -2178,7 +2190,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:17d7e4bae24b9f96e8c44aaffac511beabd9b352a0a9baedcb4dcd0f451bc887
+-- @bsb-hash sha256:341ddeb8d3db6565708110e3ef123e3b9ac83c3dc53b0ca9a20d938e6b8e7216
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2311,14 +2323,17 @@ alter table "better_supabase"."assignments" enable row level security;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists bsb_assignment_queues_select on "better_supabase"."assignment_queues";
-create policy bsb_assignment_queues_select on "better_supabase"."assignment_queues" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy bsb_assignment_queues_select on "better_supabase"."assignment_queues"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists bsb_assignment_queue_members_select on "better_supabase"."assignment_queue_members";
-create policy bsb_assignment_queue_members_select on "better_supabase"."assignment_queue_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy bsb_assignment_queue_members_select on "better_supabase"."assignment_queue_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists bsb_assignments_select on "better_supabase"."assignments";
-create policy bsb_assignments_select on "better_supabase"."assignments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy bsb_assignments_select on "better_supabase"."assignments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
@@ -2711,7 +2726,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:f6127ea91ffe0786093bcbe9d56a9e9db1053fc1e2fd8a5bcbe46bee77d6f09b
+-- @bsb-hash sha256:62b7caf626cb3274d296152db86838b28dafbb31823ff4747d3c2ed3fc01aed1
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2835,14 +2850,17 @@ revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
-create policy assignment_queues_read on "better_supabase"."assignment_queues" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queues_read on "better_supabase"."assignment_queues"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignment_queue_members_read on "better_supabase"."assignment_queue_members";
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 drop policy if exists assignments_read on "better_supabase"."assignments";
-create policy assignments_read on "better_supabase"."assignments" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
+create policy assignments_read on "better_supabase"."assignments"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a

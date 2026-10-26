@@ -6,6 +6,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -121,9 +122,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("checks").name}_due_idx`)
   }
 
 ${lockTable(checks, { read: true })}
-drop policy if exists ${policy} on ${checks};
-create policy ${policy} on ${checks} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), n.compute)});
+${renderPolicy(makePolicy({ table: checks, name: policy, command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), n.compute) }), { drop: true, target: checks })}
 `;
 }
 

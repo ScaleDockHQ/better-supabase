@@ -8,6 +8,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   raise,
   schemaPreamble,
@@ -347,9 +348,7 @@ alter table ${keys} enable row level security;
 ${revokeTable(keys)}
 grant select on ${keys} to authenticated;
 grant all on ${keys} to service_role;
-drop policy if exists ai_provider_keys_read on ${keys};
-create policy ai_provider_keys_read on ${keys} for select to authenticated
-  using (${ctx.scope.check(k.tenant, manage)});
+${renderPolicy(makePolicy({ table: keys, name: "ai_provider_keys_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(k.tenant, manage) }), { drop: true, target: keys })}
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -371,9 +370,7 @@ alter table ${batches} enable row level security;
 ${revokeTable(batches)}
 grant select on ${batches} to authenticated;
 grant all on ${batches} to service_role;
-drop policy if exists ai_batches_read on ${batches};
-create policy ai_batches_read on ${batches} for select to authenticated
-  using (${b.user} = (select auth.uid()) or ${ctx.scope.check(b.tenant, manage)});
+${renderPolicy(makePolicy({ table: batches, name: "ai_batches_read", command: "select", roles: ["authenticated"], using: `${b.user} = (select auth.uid()) or ${ctx.scope.check(b.tenant, manage)}` }), { drop: true, target: batches })}
 
 create table if not exists ${items} (
   ${i.batch} uuid not null references ${batches} (${b.id}) on delete cascade,
@@ -388,9 +385,7 @@ alter table ${items} enable row level security;
 ${revokeTable(items)}
 grant select on ${items} to authenticated;
 grant all on ${items} to service_role;
-drop policy if exists ai_batch_items_read on ${items};
-create policy ai_batch_items_read on ${items} for select to authenticated
-  using (exists (select 1 from ${batches} y where y.${b.id} = ${i.batch}));
+${renderPolicy(makePolicy({ table: items, name: "ai_batch_items_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${batches} y where y.${b.id} = ${i.batch})` }), { drop: true, target: items })}
 
 create or replace function ${fn("list_ai_provider_keys")}(tenant ${id})
 returns jsonb

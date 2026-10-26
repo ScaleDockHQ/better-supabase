@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:20410d003522c90c8ba1c713f818ac98455a0b50eec48043f2fecbd17beb2b6a
+-- @bsb-hash sha256:351cc835a444a45d7855be1bbfa909d1923bd57774746648a6249fe3c6d6a1a8
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,11 +98,13 @@ revoke all on "better_supabase"."segment_members" from public, anon, authenticat
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
 drop policy if exists segments_read on "better_supabase"."segments";
-create policy segments_read on "better_supabase"."segments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
+create policy segments_read on "better_supabase"."segments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 drop policy if exists segment_members_read on "better_supabase"."segment_members";
-create policy segment_members_read on "better_supabase"."segment_members" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
+create policy segment_members_read on "better_supabase"."segment_members"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
 -- Creates or changes a segment: segment is { id?, subjectType, name,
 -- description?, conditions }. conditions is a FilterQuery over the rule

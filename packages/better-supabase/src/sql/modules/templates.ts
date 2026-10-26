@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -405,9 +406,7 @@ ${column("templates", "isDefault", () => "boolean not null default false")}${col
 );${addExtraColumns(t, extras)}
 ${also("templates", "key", () => `create unique index if not exists ${ctx.naming.rename("templates_key_idx")} on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;\n`)}${also("templates", "isDefault", () => `create unique index if not exists ${ctx.naming.rename("templates_default_idx")} on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};\n`)}create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
 ${also("templates", "forkedFrom", () => `create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;\n`)}${also("templates", "createdBy", () => `create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});\n`)}${lockModuleTable(ctx, "templates", { read: true })}
-drop policy if exists ${ctx.naming.rename("templates_read")} on ${t};
-create policy ${ctx.naming.rename("templates_read")} on ${t} for select to authenticated
-  using (${readable});
+${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("templates_read"), command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: t })}
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
@@ -423,9 +422,7 @@ ${column("versions", "createdBy", () => "uuid references auth.users (id) on dele
 );
 create unique index if not exists ${ctx.naming.rename("template_versions_one_draft_idx")} on ${ver} (${cv("template")}) where ${cv("publishedAt")} is null;${appUniqueIndex(ctx, "versions", ["template", "version"])}
 ${also("versions", "createdBy", () => `create index if not exists ${ctx.naming.rename("template_versions_created_by_idx")} on ${ver} (${cv("createdBy")});\n`)}${lockModuleTable(ctx, "versions", { read: true })}
-drop policy if exists ${ctx.naming.rename("template_versions_read")} on ${ver};
-create policy ${ctx.naming.rename("template_versions_read")} on ${ver} for select to authenticated
-  using (exists (select 1 from ${t} x where x.${ct("id")} = ${cv("template")}));
+${renderPolicy(makePolicy({ table: ver, name: ctx.naming.rename("template_versions_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} x where x.${ct("id")} = ${cv("template")})` }), { drop: true, target: ver })}
 
 -- Each time a published version created a record, and which one.
 create table if not exists ${app} (
@@ -442,9 +439,7 @@ create index if not exists ${ctx.naming.rename("template_applications_template_i
 create index if not exists ${ctx.naming.rename("template_applications_version_idx")} on ${app} (${ca("version")});
 create index if not exists ${ctx.naming.rename("template_applications_subject_idx")} on ${app} (${ca("subjectType")}, ${ca("subjectId")});
 ${also("applications", "appliedBy", () => `create index if not exists ${ctx.naming.rename("template_applications_applied_by_idx")} on ${app} (${ca("appliedBy")});\n`)}${lockModuleTable(ctx, "applications", { read: true })}
-drop policy if exists ${ctx.naming.rename("template_applications_read")} on ${app};
-create policy ${ctx.naming.rename("template_applications_read")} on ${app} for select to authenticated
-  using (${ca("tenant")} in (select ${ctx.scope.ids(read)}));
+${renderPolicy(makePolicy({ table: app, name: ctx.naming.rename("template_applications_read"), command: "select", roles: ["authenticated"], using: `${ca("tenant")} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: app })}
 ${workflows?.ddl ?? ""}
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service

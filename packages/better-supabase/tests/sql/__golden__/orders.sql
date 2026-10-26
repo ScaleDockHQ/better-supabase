@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:084fb47b56220a545c3a9851f3a1c175371dd97e5ac7d44f9e8830bc9d5d83be
+-- @bsb-hash sha256:732d5ed5a7a5a5b59fc9c29bd0114edfde4677c3cfd2fc79c809f904942cae30
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,8 +159,9 @@ revoke all on "better_supabase"."shipping_rates" from public, anon, authenticate
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
-create policy shipping_rates_read on "better_supabase"."shipping_rates" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy shipping_rates_read on "better_supabase"."shipping_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
@@ -186,8 +187,9 @@ revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists carts_read on "better_supabase"."carts";
-create policy carts_read on "better_supabase"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy carts_read on "better_supabase"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -206,8 +208,9 @@ revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
-create policy cart_lines_read on "better_supabase"."cart_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_lines_read on "better_supabase"."cart_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -254,8 +257,9 @@ revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists orders_read on "better_supabase"."orders";
-create policy orders_read on "better_supabase"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy orders_read on "better_supabase"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -286,8 +290,9 @@ revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists order_lines_read on "better_supabase"."order_lines";
-create policy order_lines_read on "better_supabase"."order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_lines_read on "better_supabase"."order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -310,8 +315,9 @@ revoke all on "better_supabase"."order_payments" from public, anon, authenticate
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists order_payments_read on "better_supabase"."order_payments";
-create policy order_payments_read on "better_supabase"."order_payments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_payments_read on "better_supabase"."order_payments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -332,8 +338,9 @@ revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
-create policy fulfillments_read on "better_supabase"."fulfillments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy fulfillments_read on "better_supabase"."fulfillments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillment_lines" (
   "tenant_id" uuid not null,
@@ -348,8 +355,9 @@ revoke all on "better_supabase"."fulfillment_lines" from public, anon, authentic
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
@@ -367,8 +375,9 @@ revoke all on "better_supabase"."order_returns" from public, anon, authenticated
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists order_returns_read on "better_supabase"."order_returns";
-create policy order_returns_read on "better_supabase"."order_returns" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_returns_read on "better_supabase"."order_returns"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
@@ -383,8 +392,9 @@ revoke all on "better_supabase"."order_return_lines" from public, anon, authenti
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
-create policy order_return_lines_read on "better_supabase"."order_return_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy order_return_lines_read on "better_supabase"."order_return_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
@@ -409,8 +419,9 @@ revoke all on "better_supabase"."order_refunds" from public, anon, authenticated
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
-create policy order_refunds_read on "better_supabase"."order_refunds" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_refunds_read on "better_supabase"."order_refunds"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -2111,7 +2122,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:bd3b84c520da0324e908a4cba894833fe0a4f25fa7c4b797325bdd2f65cd7cff
+-- @bsb-hash sha256:d0411e4723d25ba66b5cc639f7375a1b10054fcd8492a744ecf40d7253025f4a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2269,8 +2280,9 @@ revoke all on "better_supabase"."shipping_rates" from public, anon, authenticate
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
-create policy shipping_rates_read on "better_supabase"."shipping_rates" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy shipping_rates_read on "better_supabase"."shipping_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2296,8 +2308,9 @@ revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists carts_read on "better_supabase"."carts";
-create policy carts_read on "better_supabase"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy carts_read on "better_supabase"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2316,8 +2329,9 @@ revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
-create policy cart_lines_read on "better_supabase"."cart_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_lines_read on "better_supabase"."cart_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2364,8 +2378,9 @@ revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists orders_read on "better_supabase"."orders";
-create policy orders_read on "better_supabase"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy orders_read on "better_supabase"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2396,8 +2411,9 @@ revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists order_lines_read on "better_supabase"."order_lines";
-create policy order_lines_read on "better_supabase"."order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_lines_read on "better_supabase"."order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2420,8 +2436,9 @@ revoke all on "better_supabase"."order_payments" from public, anon, authenticate
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists order_payments_read on "better_supabase"."order_payments";
-create policy order_payments_read on "better_supabase"."order_payments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_payments_read on "better_supabase"."order_payments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2442,8 +2459,9 @@ revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
-create policy fulfillments_read on "better_supabase"."fulfillments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy fulfillments_read on "better_supabase"."fulfillments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillment_lines" (
   "tenant_id" uuid not null,
@@ -2458,8 +2476,9 @@ revoke all on "better_supabase"."fulfillment_lines" from public, anon, authentic
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2477,8 +2496,9 @@ revoke all on "better_supabase"."order_returns" from public, anon, authenticated
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists order_returns_read on "better_supabase"."order_returns";
-create policy order_returns_read on "better_supabase"."order_returns" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_returns_read on "better_supabase"."order_returns"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
@@ -2493,8 +2513,9 @@ revoke all on "better_supabase"."order_return_lines" from public, anon, authenti
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
-create policy order_return_lines_read on "better_supabase"."order_return_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy order_return_lines_read on "better_supabase"."order_return_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2519,8 +2540,9 @@ revoke all on "better_supabase"."order_refunds" from public, anon, authenticated
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
-create policy order_refunds_read on "better_supabase"."order_refunds" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_refunds_read on "better_supabase"."order_refunds"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -4311,7 +4333,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:0e3636ce3485653b08b166cd619d5643b21b04c53e039efc279578090bdc8409
+-- @bsb-hash sha256:a4b2bb437d782fa38032623d8352c2cdf0ed10223f43a34dbeffa349acd28731
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4474,8 +4496,9 @@ revoke all on "app_private"."shipping_rates" from public, anon, authenticated;
 grant select on "app_private"."shipping_rates" to authenticated;
 grant all on "app_private"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "app_private"."shipping_rates";
-create policy shipping_rates_read on "app_private"."shipping_rates" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy shipping_rates_read on "app_private"."shipping_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "app_private"."carts" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4501,8 +4524,9 @@ revoke all on "app_private"."carts" from public, anon, authenticated;
 grant select on "app_private"."carts" to authenticated;
 grant all on "app_private"."carts" to service_role;
 drop policy if exists carts_read on "app_private"."carts";
-create policy carts_read on "app_private"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy carts_read on "app_private"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "app_private"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4521,8 +4545,9 @@ revoke all on "app_private"."cart_lines" from public, anon, authenticated;
 grant select on "app_private"."cart_lines" to authenticated;
 grant all on "app_private"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "app_private"."cart_lines";
-create policy cart_lines_read on "app_private"."cart_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_lines_read on "app_private"."cart_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "app_private"."orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4569,8 +4594,9 @@ revoke all on "app_private"."orders" from public, anon, authenticated;
 grant select on "app_private"."orders" to authenticated;
 grant all on "app_private"."orders" to service_role;
 drop policy if exists orders_read on "app_private"."orders";
-create policy orders_read on "app_private"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy orders_read on "app_private"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "app_private"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4601,8 +4627,9 @@ revoke all on "app_private"."order_lines" from public, anon, authenticated;
 grant select on "app_private"."order_lines" to authenticated;
 grant all on "app_private"."order_lines" to service_role;
 drop policy if exists order_lines_read on "app_private"."order_lines";
-create policy order_lines_read on "app_private"."order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_lines_read on "app_private"."order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "app_private"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4625,8 +4652,9 @@ revoke all on "app_private"."order_payments" from public, anon, authenticated;
 grant select on "app_private"."order_payments" to authenticated;
 grant all on "app_private"."order_payments" to service_role;
 drop policy if exists order_payments_read on "app_private"."order_payments";
-create policy order_payments_read on "app_private"."order_payments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_payments_read on "app_private"."order_payments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "app_private"."fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4647,8 +4675,9 @@ revoke all on "app_private"."fulfillments" from public, anon, authenticated;
 grant select on "app_private"."fulfillments" to authenticated;
 grant all on "app_private"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "app_private"."fulfillments";
-create policy fulfillments_read on "app_private"."fulfillments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy fulfillments_read on "app_private"."fulfillments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "app_private"."fulfillment_lines" (
   "tenant_id" uuid not null,
@@ -4663,8 +4692,9 @@ revoke all on "app_private"."fulfillment_lines" from public, anon, authenticated
 grant select on "app_private"."fulfillment_lines" to authenticated;
 grant all on "app_private"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "app_private"."fulfillment_lines";
-create policy fulfillment_lines_read on "app_private"."fulfillment_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy fulfillment_lines_read on "app_private"."fulfillment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "app_private"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4682,8 +4712,9 @@ revoke all on "app_private"."order_returns" from public, anon, authenticated;
 grant select on "app_private"."order_returns" to authenticated;
 grant all on "app_private"."order_returns" to service_role;
 drop policy if exists order_returns_read on "app_private"."order_returns";
-create policy order_returns_read on "app_private"."order_returns" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_returns_read on "app_private"."order_returns"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "app_private"."order_return_lines" (
   "tenant_id" uuid not null,
@@ -4698,8 +4729,9 @@ revoke all on "app_private"."order_return_lines" from public, anon, authenticate
 grant select on "app_private"."order_return_lines" to authenticated;
 grant all on "app_private"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "app_private"."order_return_lines";
-create policy order_return_lines_read on "app_private"."order_return_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy order_return_lines_read on "app_private"."order_return_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "app_private"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4724,8 +4756,9 @@ revoke all on "app_private"."order_refunds" from public, anon, authenticated;
 grant select on "app_private"."order_refunds" to authenticated;
 grant all on "app_private"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "app_private"."order_refunds";
-create policy order_refunds_read on "app_private"."order_refunds" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_refunds_read on "app_private"."order_refunds"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -6426,7 +6459,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:1b8c693376658edfab723371a5bfa8b1aeae978dee975806e75216d19123457c
+-- @bsb-hash sha256:0aa3b9a4c6557f92fcaee0a23b2b526a38cb94031e28255ac507ed621e9ba3ca
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6584,8 +6617,9 @@ revoke all on "better_supabase"."shipping_rates" from public, anon, authenticate
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
-create policy shipping_rates_read on "better_supabase"."shipping_rates" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy shipping_rates_read on "better_supabase"."shipping_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6611,8 +6645,9 @@ revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists carts_read on "better_supabase"."carts";
-create policy carts_read on "better_supabase"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy carts_read on "better_supabase"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6631,8 +6666,9 @@ revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
-create policy cart_lines_read on "better_supabase"."cart_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_lines_read on "better_supabase"."cart_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6679,8 +6715,9 @@ revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists orders_read on "better_supabase"."orders";
-create policy orders_read on "better_supabase"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy orders_read on "better_supabase"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6711,8 +6748,9 @@ revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists order_lines_read on "better_supabase"."order_lines";
-create policy order_lines_read on "better_supabase"."order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_lines_read on "better_supabase"."order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6735,8 +6773,9 @@ revoke all on "better_supabase"."order_payments" from public, anon, authenticate
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists order_payments_read on "better_supabase"."order_payments";
-create policy order_payments_read on "better_supabase"."order_payments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_payments_read on "better_supabase"."order_payments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6757,8 +6796,9 @@ revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
-create policy fulfillments_read on "better_supabase"."fulfillments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy fulfillments_read on "better_supabase"."fulfillments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillment_lines" (
   "tenant_id" uuid not null,
@@ -6773,8 +6813,9 @@ revoke all on "better_supabase"."fulfillment_lines" from public, anon, authentic
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6792,8 +6833,9 @@ revoke all on "better_supabase"."order_returns" from public, anon, authenticated
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists order_returns_read on "better_supabase"."order_returns";
-create policy order_returns_read on "better_supabase"."order_returns" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_returns_read on "better_supabase"."order_returns"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
@@ -6808,8 +6850,9 @@ revoke all on "better_supabase"."order_return_lines" from public, anon, authenti
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
-create policy order_return_lines_read on "better_supabase"."order_return_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy order_return_lines_read on "better_supabase"."order_return_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6834,8 +6877,9 @@ revoke all on "better_supabase"."order_refunds" from public, anon, authenticated
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
-create policy order_refunds_read on "better_supabase"."order_refunds" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_refunds_read on "better_supabase"."order_refunds"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -8785,7 +8829,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:3d8b834262b015daf61cf9c0d0efd9957aa5a68ddac0ec9eecc725d8277f694f
+-- @bsb-hash sha256:3fb4796e6f169abe8a099745eac41755f9cfdacb077a34e8870b5d99379ad309
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8957,8 +9001,9 @@ alter table "better_supabase"."shipping_rates" enable row level security;
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists bsb_shipping_rates_select on "better_supabase"."shipping_rates";
-create policy bsb_shipping_rates_select on "better_supabase"."shipping_rates" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy bsb_shipping_rates_select on "better_supabase"."shipping_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.carts is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."carts" add column if not exists "id" uuid default gen_random_uuid();
@@ -8982,8 +9027,9 @@ alter table "better_supabase"."carts" enable row level security;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists bsb_carts_select on "better_supabase"."carts";
-create policy bsb_carts_select on "better_supabase"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy bsb_carts_select on "better_supabase"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.cart_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."cart_lines" add column if not exists "id" uuid default gen_random_uuid();
@@ -9000,8 +9046,9 @@ alter table "better_supabase"."cart_lines" enable row level security;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists bsb_cart_lines_select on "better_supabase"."cart_lines";
-create policy bsb_cart_lines_select on "better_supabase"."cart_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy bsb_cart_lines_select on "better_supabase"."cart_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 -- better_supabase.orders is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."orders" add column if not exists "id" uuid default gen_random_uuid();
@@ -9044,8 +9091,9 @@ alter table "better_supabase"."orders" enable row level security;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists bsb_orders_select on "better_supabase"."orders";
-create policy bsb_orders_select on "better_supabase"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy bsb_orders_select on "better_supabase"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.order_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_lines" add column if not exists "id" uuid default gen_random_uuid();
@@ -9074,8 +9122,9 @@ alter table "better_supabase"."order_lines" enable row level security;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists bsb_order_lines_select on "better_supabase"."order_lines";
-create policy bsb_order_lines_select on "better_supabase"."order_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy bsb_order_lines_select on "better_supabase"."order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- better_supabase.order_payments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_payments" add column if not exists "id" uuid default gen_random_uuid();
@@ -9096,8 +9145,9 @@ alter table "better_supabase"."order_payments" enable row level security;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists bsb_order_payments_select on "better_supabase"."order_payments";
-create policy bsb_order_payments_select on "better_supabase"."order_payments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy bsb_order_payments_select on "better_supabase"."order_payments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- better_supabase.fulfillments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."fulfillments" add column if not exists "id" uuid default gen_random_uuid();
@@ -9116,8 +9166,9 @@ alter table "better_supabase"."fulfillments" enable row level security;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists bsb_fulfillments_select on "better_supabase"."fulfillments";
-create policy bsb_fulfillments_select on "better_supabase"."fulfillments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy bsb_fulfillments_select on "better_supabase"."fulfillments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- better_supabase.fulfillment_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."fulfillment_lines" add column if not exists "tenant_id" uuid;
@@ -9130,8 +9181,9 @@ alter table "better_supabase"."fulfillment_lines" enable row level security;
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists bsb_fulfillment_lines_select on "better_supabase"."fulfillment_lines";
-create policy bsb_fulfillment_lines_select on "better_supabase"."fulfillment_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy bsb_fulfillment_lines_select on "better_supabase"."fulfillment_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.order_returns is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_returns" add column if not exists "id" uuid default gen_random_uuid();
@@ -9147,8 +9199,9 @@ alter table "better_supabase"."order_returns" enable row level security;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists bsb_order_returns_select on "better_supabase"."order_returns";
-create policy bsb_order_returns_select on "better_supabase"."order_returns" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy bsb_order_returns_select on "better_supabase"."order_returns"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- better_supabase.order_return_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_return_lines" add column if not exists "tenant_id" uuid;
@@ -9161,8 +9214,9 @@ alter table "better_supabase"."order_return_lines" enable row level security;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists bsb_order_return_lines_select on "better_supabase"."order_return_lines";
-create policy bsb_order_return_lines_select on "better_supabase"."order_return_lines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy bsb_order_return_lines_select on "better_supabase"."order_return_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 -- better_supabase.order_refunds is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_refunds" add column if not exists "id" uuid default gen_random_uuid();
@@ -9185,8 +9239,9 @@ alter table "better_supabase"."order_refunds" enable row level security;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists bsb_order_refunds_select on "better_supabase"."order_refunds";
-create policy bsb_order_refunds_select on "better_supabase"."order_refunds" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy bsb_order_refunds_select on "better_supabase"."order_refunds"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -10887,7 +10942,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@2 managed
--- @bsb-hash sha256:09578f2defab0babfd3ac8fac895015f462ad326d192c76b322ffabd51481d37
+-- @bsb-hash sha256:c2f8062b406ee5facbd0a32f97b4978bbc58fee65ebc229f966fb6b32ae8cceb
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11045,8 +11100,9 @@ revoke all on "better_supabase"."shipping_rates" from public, anon, authenticate
 grant select on "better_supabase"."shipping_rates" to authenticated;
 grant all on "better_supabase"."shipping_rates" to service_role;
 drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
-create policy shipping_rates_read on "better_supabase"."shipping_rates" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy shipping_rates_read on "better_supabase"."shipping_rates"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11072,8 +11128,9 @@ revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
 drop policy if exists carts_read on "better_supabase"."carts";
-create policy carts_read on "better_supabase"."carts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy carts_read on "better_supabase"."carts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11092,8 +11149,9 @@ revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
 drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
-create policy cart_lines_read on "better_supabase"."cart_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
+create policy cart_lines_read on "better_supabase"."cart_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."orders" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11140,8 +11198,9 @@ revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
 drop policy if exists orders_read on "better_supabase"."orders";
-create policy orders_read on "better_supabase"."orders" for select to authenticated
-using ("customer_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy orders_read on "better_supabase"."orders"
+  for select to authenticated
+  using ("customer_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11172,8 +11231,9 @@ revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
 drop policy if exists order_lines_read on "better_supabase"."order_lines";
-create policy order_lines_read on "better_supabase"."order_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_lines_read on "better_supabase"."order_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11196,8 +11256,9 @@ revoke all on "better_supabase"."order_payments" from public, anon, authenticate
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
 drop policy if exists order_payments_read on "better_supabase"."order_payments";
-create policy order_payments_read on "better_supabase"."order_payments" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_payments_read on "better_supabase"."order_payments"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11218,8 +11279,9 @@ revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."fulfillments" to authenticated;
 grant all on "better_supabase"."fulfillments" to service_role;
 drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
-create policy fulfillments_read on "better_supabase"."fulfillments" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy fulfillments_read on "better_supabase"."fulfillments"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."fulfillment_lines" (
   "org_id" uuid not null,
@@ -11234,8 +11296,9 @@ revoke all on "better_supabase"."fulfillment_lines" from public, anon, authentic
 grant select on "better_supabase"."fulfillment_lines" to authenticated;
 grant all on "better_supabase"."fulfillment_lines" to service_role;
 drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11253,8 +11316,9 @@ revoke all on "better_supabase"."order_returns" from public, anon, authenticated
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
 drop policy if exists order_returns_read on "better_supabase"."order_returns";
-create policy order_returns_read on "better_supabase"."order_returns" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_returns_read on "better_supabase"."order_returns"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 create table if not exists "better_supabase"."order_return_lines" (
   "org_id" uuid not null,
@@ -11269,8 +11333,9 @@ revoke all on "better_supabase"."order_return_lines" from public, anon, authenti
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
 drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
-create policy order_return_lines_read on "better_supabase"."order_return_lines" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
+create policy order_return_lines_read on "better_supabase"."order_return_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
 create table if not exists "better_supabase"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
@@ -11295,8 +11360,9 @@ revoke all on "better_supabase"."order_refunds" from public, anon, authenticated
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
 drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
-create policy order_refunds_read on "better_supabase"."order_refunds" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
+create policy order_refunds_read on "better_supabase"."order_refunds"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when

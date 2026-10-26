@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:dba29dbbebae1af77ca5aa7ed6cab4caffdc4af1bf5ab5522c7114430a8549e1
+-- @bsb-hash sha256:291fabc4b636cc0db3c190545062a8c750263d04c172bb918a15634b41624ed4
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,8 @@ revoke all on "better_supabase"."status_history" from public, anon, authenticate
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history" for select to authenticated
+create policy status_history_read on "better_supabase"."status_history"
+  for select to authenticated
   using (case "better_supabase"."status_history"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       else false
@@ -91,7 +92,8 @@ revoke all on "better_supabase"."status_stages" from public, anon, authenticated
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
+create policy status_stages_read on "better_supabase"."status_stages"
+  for select to authenticated
   using (case "better_supabase"."status_stages"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       else false
@@ -117,7 +119,8 @@ revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenti
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
+create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+  for select to authenticated
   using (case "better_supabase"."subject_lifecycles"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
       else false

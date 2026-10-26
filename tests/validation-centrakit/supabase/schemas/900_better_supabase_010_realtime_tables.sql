@@ -1,6 +1,6 @@
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:5950c3d3f29aa9507e7a4be16601e63fdf1f03115479e23321480c0d58fa6ef0
+-- @bsb-hash sha256:0af558ec917620c5bceb5a0a84bcfef1062ea8c2cccb438cdf48179d2fd7ec84
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -245,9 +245,9 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bsb_realtime_tables_receive on realtime.messages;
-create policy bsb_realtime_tables_receive on realtime.messages for select to authenticated
-  using (
-    realtime.messages.extension = 'broadcast'
+create policy bsb_realtime_tables_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
     and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
@@ -257,8 +257,7 @@ create policy bsb_realtime_tables_receive on realtime.messages for select to aut
       ))
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
-    )
-  );
+    ));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

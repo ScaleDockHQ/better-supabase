@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { scoresFunctions } from "./scores-functions.ts";
 
@@ -191,16 +192,13 @@ create index if not exists ${name("scores", "history_idx")} on ${scores} (${s("m
 
 ${lockTable(models, { read: true })}
 drop policy if exists ${name("models", "read")} on ${models};
-create policy ${name("models", "read")} on ${models} for select to authenticated
-  using (${ctx.scope.check(m("tenant"), read)});
+${renderPolicy(makePolicy({ table: models, name: name("models", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(m("tenant"), read) }), { target: models })}
 ${lockTable(versions, { read: true })}
 drop policy if exists ${name("versions", "read")} on ${versions};
-create policy ${name("versions", "read")} on ${versions} for select to authenticated
-  using (${ctx.scope.check(v("tenant"), read)});
+${renderPolicy(makePolicy({ table: versions, name: name("versions", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { target: versions })}
 ${lockTable(scores, { read: true })}
 drop policy if exists ${name("scores", "read")} on ${scores};
-create policy ${name("scores", "read")} on ${scores} for select to authenticated
-  using (${ctx.scope.check(s("tenant"), read)});
+${renderPolicy(makePolicy({ table: scores, name: name("scores", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), read) }), { target: scores })}
 `
     : "";
 

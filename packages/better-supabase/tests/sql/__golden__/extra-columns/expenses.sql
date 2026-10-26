@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:a5117eb0e63aa3dbb6f745b857787e565096733b8e6b89d160af43e063431580
+-- @bsb-hash sha256:bca85c642f686cc51b826d44d819aaf123125acc76434c71dfabe1bb0b9b70e5
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,8 @@ revoke all on "better_supabase"."expense_categories" from public, anon, authenti
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
 drop policy if exists "expense_categories_read" on "better_supabase"."expense_categories";
-create policy "expense_categories_read" on "better_supabase"."expense_categories" for select to authenticated
+create policy expense_categories_read on "better_supabase"."expense_categories"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
 create table if not exists "better_supabase"."expense_reports" (
@@ -129,7 +130,8 @@ revoke all on "better_supabase"."expense_reports" from public, anon, authenticat
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
 drop policy if exists "expense_reports_read" on "better_supabase"."expense_reports";
-create policy "expense_reports_read" on "better_supabase"."expense_reports" for select to authenticated
+create policy expense_reports_read on "better_supabase"."expense_reports"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
 create table if not exists "better_supabase"."expense_lines" (
@@ -153,11 +155,10 @@ revoke all on "better_supabase"."expense_lines" from public, anon, authenticated
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
 drop policy if exists "expense_lines_read" on "better_supabase"."expense_lines";
-create policy "expense_lines_read" on "better_supabase"."expense_lines" for select to authenticated
-  using (
-    exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
-    or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read'))
-  );
+create policy expense_lines_read on "better_supabase"."expense_lines"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
 -- Creates or updates the category with this key and its spend policy.
 create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)

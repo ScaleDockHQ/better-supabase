@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:b499976321900a3ce47544cf4b121bea62aa44544c147fa155bbac043778c838
+-- @bsb-hash sha256:fba879be20d1e16c1ed6f2070d658d685791acc0fdba004bad4ead983293dfc0
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,10 +52,12 @@ end;
 $$;
 alter table "public"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "public"."profiles";
-create policy bsb_profiles_read on "public"."profiles" for select to authenticated
+create policy bsb_profiles_read on "public"."profiles"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "public"."profiles";
-create policy bsb_profiles_update on "public"."profiles" for update to authenticated
+create policy bsb_profiles_update on "public"."profiles"
+  for update to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "public"."profiles" to authenticated;

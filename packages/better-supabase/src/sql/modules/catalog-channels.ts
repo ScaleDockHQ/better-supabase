@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { Names } from "./catalog-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, pageSize, userGrant } from "../shared.ts";
 import { SLUG, guard } from "./catalog-functions.ts";
 
@@ -102,9 +103,16 @@ function readPolicy(ctx: BlockSqlContext, names: Names, table: string): string {
   const t = ctx.table(table);
   const policy = `${ctx.tableName(table).name}_read`;
 
-  return `drop policy if exists ${policy} on ${t};
-create policy ${policy} on ${t} for select to authenticated
-using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+  return renderPolicy(
+    makePolicy({
+      table: t,
+      name: policy,
+      command: "select",
+      roles: ["authenticated"],
+      using: `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
+    }),
+    { drop: true, target: t },
+  );
 }
 
 /** The channel, translation and media tables (managed mode). */

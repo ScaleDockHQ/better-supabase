@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -169,12 +170,8 @@ ${line("deals", "closeOn", (c) => `${c} date`)}${line("deals", "closedAt", (c) =
 );
 create index if not exists ${ctx.naming.rename("forecast_snapshot_deals_deal_idx")} on ${t("deals")} (${sd("tenant")}, ${sd("deal")});
 ${lockTable(t("deals"), { read: true })}
-drop policy if exists ${policy("snapshots")} on ${t("snapshots")};
-create policy ${policy("snapshots")} on ${t("snapshots")} for select to authenticated
-using (${ctx.scope.check(s("tenant"), n.read)});
-drop policy if exists ${policy("deals")} on ${t("deals")};
-create policy ${policy("deals")} on ${t("deals")} for select to authenticated
-using (${ctx.scope.check(sd("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("snapshots"), name: policy("snapshots"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { drop: true, target: t("snapshots") })}
+${renderPolicy(makePolicy({ table: t("deals"), name: policy("deals"), command: "select", roles: ["authenticated"], using: ctx.scope.check(sd("tenant"), n.read) }), { drop: true, target: t("deals") })}
 `;
 }
 

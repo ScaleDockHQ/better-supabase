@@ -74,7 +74,7 @@ describe("catalog module", () => {
     });
 
     expect(open).toContain(
-      `create policy products_storefront on "better_supabase"."products" for select to anon, authenticated`,
+      `create policy products_storefront on "better_supabase"."products"\n  for select to anon, authenticated`,
     );
     expect(open).toContain(
       `grant select on "better_supabase"."product_prices" to anon;`,
@@ -230,7 +230,9 @@ describe("catalog module", () => {
       "product_variant_translations",
       "product_media",
     ]) {
-      expect(open).toContain(`"better_supabase"."${table}" for select to anon`);
+      expect(open).toMatch(
+        new RegExp(`"better_supabase"\\."${table}"\\s+for select to anon`),
+      );
     }
   });
 });

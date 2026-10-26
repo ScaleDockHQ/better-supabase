@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:17c0f54390ddfc59fef6bc52879517b2ceb66edce81aa323e2ad8b3c7c82c4bb
+-- @bsb-hash sha256:2d7c52be9c789510adfe971ba34bada7ae5a40d9bd0e184aa1e2405f3e2622de
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,14 +109,16 @@ revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
-create policy "post_boards_read" on "better_supabase"."post_boards" for select to authenticated
+create policy post_boards_read on "better_supabase"."post_boards"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
 revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
-create policy "posts_read" on "better_supabase"."posts" for select to authenticated
+create policy posts_read on "better_supabase"."posts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())
@@ -734,7 +736,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:80b7f8b43224df72470d95a2509a87ec81129dd84378dc366af87ffe848b7c8b
+-- @bsb-hash sha256:eec1d95212569e9d730a3396a175b01a5d74229d670b6fc1382cdf65e9419ee2
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -842,14 +844,16 @@ revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
-create policy "post_boards_read" on "better_supabase"."post_boards" for select to authenticated
+create policy post_boards_read on "better_supabase"."post_boards"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
 revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
-create policy "posts_read" on "better_supabase"."posts" for select to authenticated
+create policy posts_read on "better_supabase"."posts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())
@@ -1517,7 +1521,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:5723148ca22cf685408fdcb9c3884a9a85048b8b561a1d091efe613a16a5139e
+-- @bsb-hash sha256:81e04e72ddabdbe8d8988a7ce5c570c0c6b5416e8bdb614a4f3af7f01297f3db
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1630,14 +1634,16 @@ revoke all on "app_private"."post_boards" from public, anon, authenticated;
 grant select on "app_private"."post_boards" to authenticated;
 grant all on "app_private"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "app_private"."post_boards";
-create policy "post_boards_read" on "app_private"."post_boards" for select to authenticated
+create policy post_boards_read on "app_private"."post_boards"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "app_private"."posts" enable row level security;
 revoke all on "app_private"."posts" from public, anon, authenticated;
 grant select on "app_private"."posts" to authenticated;
 grant all on "app_private"."posts" to service_role;
 drop policy if exists "posts_read" on "app_private"."posts";
-create policy "posts_read" on "app_private"."posts" for select to authenticated
+create policy posts_read on "app_private"."posts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())
@@ -2255,7 +2261,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:3a8d67efbd8ff66c176b23b495c60d17d098be85e1afd57fb3c7038424855e3e
+-- @bsb-hash sha256:8ad4019fc4b0ab5c3fb0a09c9b5b775cb09481dc9bf8f79a1cff63fecb79e464
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2363,14 +2369,16 @@ revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
-create policy "post_boards_read" on "better_supabase"."post_boards" for select to authenticated
+create policy post_boards_read on "better_supabase"."post_boards"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
 revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
-create policy "posts_read" on "better_supabase"."posts" for select to authenticated
+create policy posts_read on "better_supabase"."posts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())
@@ -3100,7 +3108,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:9b5c5295a26d974ed2d67c0042cc26d3c02dcd36c6b707359febcf40df3a8861
+-- @bsb-hash sha256:ad667e481b87a28fea8dc5972cb708be01c63ff1487abdabd4080c928cc07bbb
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3218,13 +3226,15 @@ alter table "better_supabase"."post_boards" enable row level security;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists bsb_post_boards_select on "better_supabase"."post_boards";
-create policy bsb_post_boards_select on "better_supabase"."post_boards" for select to authenticated
+create policy bsb_post_boards_select on "better_supabase"."post_boards"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists bsb_posts_select on "better_supabase"."posts";
-create policy bsb_posts_select on "better_supabase"."posts" for select to authenticated
+create policy bsb_posts_select on "better_supabase"."posts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())
@@ -3842,7 +3852,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:38c732ea11e550986149a3b09c968704fd534d989eb5938fdaa0e90eb3ea0031
+-- @bsb-hash sha256:def87c9b7edeb0d8e094ae26a5ecc78570750238f3bc9b76ec8e39a27e974d7f
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3950,14 +3960,16 @@ revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
-create policy "post_boards_read" on "better_supabase"."post_boards" for select to authenticated
+create policy post_boards_read on "better_supabase"."post_boards"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
 revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
-create policy "posts_read" on "better_supabase"."posts" for select to authenticated
+create policy posts_read on "better_supabase"."posts"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('posts.read')) and (
     "moderation_status" = 'visible'
     or "author_id" = (select auth.uid())

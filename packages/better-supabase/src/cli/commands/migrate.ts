@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
@@ -25,6 +25,26 @@ export type MigrateSchemaFirstArgs = CliArgs<
 /** What `runMigrateSchemaFirst` reads from outside. */
 export interface MigrateDeps {
   readonly paint?: Paint;
+}
+
+/**
+ * The deepest directory that holds both paths. A project in a monorepo keeps
+ * its `supabase` folder above its own root, and the plan may not leave `root`.
+ */
+function commonAncestor(first: string, second: string): string {
+  const left = resolve(first).split(sep);
+  const right = resolve(second).split(sep);
+  const shared: string[] = [];
+
+  for (const [index, part] of left.entries()) {
+    if (part !== right[index]) {
+      break;
+    }
+
+    shared.push(part);
+  }
+
+  return shared.join(sep) || sep;
 }
 
 /**
@@ -67,7 +87,8 @@ export async function runMigrateSchemaFirst(
   const files = splitAppTables(config, source.contents, tables);
 
   const plan: FilePlan = {
-    root: config.root,
+    root: commonAncestor(config.root, dir),
+    base: config.root,
     regenerate: "better-supabase migrate schema-first",
     files: files.map((file) => ({
       path: join(dir, file.path),

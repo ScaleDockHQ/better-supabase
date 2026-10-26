@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -362,8 +363,7 @@ create index if not exists ai_files_chat_idx on ${files} (${f.chat}) where ${f.c
 create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';${addExtraColumns(files, extras)}
 ${lockModuleTable(ctx, "files", { read: true })}
 drop policy if exists ${tablePolicy("files", "ai_files_read")} on ${files};
-create policy ${tablePolicy("files", "ai_files_read")} on ${files} for select to authenticated
-  using (${readable("", f.owner, f.tenant, f.chat)});
+${renderPolicy(makePolicy({ table: files, name: tablePolicy("files", "ai_files_read"), command: "select", roles: ["authenticated"], using: readable("", f.owner, f.tenant, f.chat) }), { target: files })}
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -416,8 +416,7 @@ create index if not exists ${ctx.naming.rename("ai_documents_tenant_idx")} on ${
 create index if not exists ${ctx.naming.rename("ai_documents_chat_idx")} on ${documents} (${d.chat}) where ${d.chat} is not null;
 ${lockModuleTable(ctx, "documents", { read: true })}
 drop policy if exists ${tablePolicy("documents", ctx.naming.rename("ai_documents_read"))} on ${documents};
-create policy ${tablePolicy("documents", ctx.naming.rename("ai_documents_read"))} on ${documents} for select to authenticated
-  using (${readable("", d.owner, d.tenant, d.chat)});
+${renderPolicy(makePolicy({ table: documents, name: tablePolicy("documents", ctx.naming.rename("ai_documents_read")), command: "select", roles: ["authenticated"], using: readable("", d.owner, d.tenant, d.chat) }), { target: documents })}
 
 ${create("versions", [
   [
@@ -443,8 +442,7 @@ ${create("versions", [
 ])}${index("versions", "createdBy", `create index if not exists ${ctx.naming.rename("ai_document_versions_created_by_idx")} on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;`)}
 ${lockModuleTable(ctx, "versions", { read: true })}
 drop policy if exists ${tablePolicy("versions", ctx.naming.rename("ai_document_versions_read"))} on ${versions};
-create policy ${tablePolicy("versions", ctx.naming.rename("ai_document_versions_read"))} on ${versions} for select to authenticated
-  using (exists (select 1 from ${documents} doc where doc.${d.id} = ${v.document}));
+${renderPolicy(makePolicy({ table: versions, name: tablePolicy("versions", ctx.naming.rename("ai_document_versions_read")), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${v.document})` }), { target: versions })}
 
 ${create("suggestions", [
   ["id", `${sg.id} uuid primary key default gen_random_uuid()`],
@@ -467,8 +465,7 @@ ${create("suggestions", [
 create index if not exists ai_suggestions_document_idx on ${suggestions} (${sg.document});${index("suggestions", "createdBy", `create index if not exists ai_suggestions_created_by_idx on ${suggestions} (${sg.createdBy}) where ${sg.createdBy} is not null;`)}
 ${lockModuleTable(ctx, "suggestions", { read: true })}
 drop policy if exists ${tablePolicy("suggestions", "ai_suggestions_read")} on ${suggestions};
-create policy ${tablePolicy("suggestions", "ai_suggestions_read")} on ${suggestions} for select to authenticated
-  using (exists (select 1 from ${documents} doc where doc.${d.id} = ${sg.document}));
+${renderPolicy(makePolicy({ table: suggestions, name: tablePolicy("suggestions", "ai_suggestions_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${sg.document})` }), { target: suggestions })}
 
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a
@@ -498,12 +495,9 @@ ${userGrant(`${fn("ai_file_object_allowed")}(text, text, text)`)}
 drop policy if exists ${policy("insert")} on storage.objects;
 drop policy if exists ${policy("select")} on storage.objects;
 drop policy if exists ${policy("delete")} on storage.objects;
-create policy ${policy("insert")} on storage.objects for insert to authenticated
-  with check (bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'insert'));
-create policy ${policy("select")} on storage.objects for select to authenticated
-  using (bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'select'));
-create policy ${policy("delete")} on storage.objects for delete to authenticated
-  using (bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'delete'));
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("insert"), command: "insert", roles: ["authenticated"], check: `bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'insert')` }), { target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("select"), command: "select", roles: ["authenticated"], using: `bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'select')` }), { target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("delete"), command: "delete", roles: ["authenticated"], using: `bucket_id = ${bucketLiteral} and ${fn("ai_file_object_allowed")}(bucket_id, name, 'delete')` }), { target: "storage.objects" })}
 
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here

@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -134,9 +135,7 @@ function tables(ctx: BlockSqlContext, n: EnrichmentNames): string {
 );
 create index if not exists ${ctx.naming.rename("enrichments_tenant_idx")} on ${t("enrichments")} (${e("tenant")}, ${e("fetchedAt")});
 ${by ? `create index if not exists ${ctx.naming.rename("enrichments_requested_by_idx")} on ${t("enrichments")} (${e("requestedBy")}) where ${e("requestedBy")} is not null;\n` : ""}${keys}${lockTable(t("enrichments"), { read: true })}
-drop policy if exists ${policy} on ${t("enrichments")};
-create policy ${policy} on ${t("enrichments")} for select to authenticated
-using (${ctx.scope.check(e("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("enrichments"), name: policy, command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), n.read) }), { drop: true, target: t("enrichments") })}
 `;
 }
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:fb76589410d21b9cc2c0353c1c770f1c1b84e81da81bed55718aec8f5e538b26
+-- @bsb-hash sha256:d7c75c5607270c735a59948bf4684296de0875e7f61924ef2c3e81a3134f9c3c
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,8 +116,9 @@ revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
-create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+create policy invoices_read on "better_supabase"."invoices"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -775,7 +776,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f8ad4d0404ecfe0fcb9d3108f7afbad1ffbbd1909e9164963067f80a97c5a848
+-- @bsb-hash sha256:a45658e85a37c154b66e0dc080f74f4debd08f03bdfc19d075d3dd35581a6fe7
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -890,8 +891,9 @@ revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
-create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
+create policy invoices_read on "better_supabase"."invoices"
+  for select to authenticated
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -1640,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:da483e7e7abb6647d23fb330554fe43f9db6a470448bb9167542ee021073f143
+-- @bsb-hash sha256:c125e62828a30cf645aa75a1ed866294e4ec55634bd5f35b40dbcc5694848192
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1760,8 +1762,9 @@ revoke all on "app_private"."invoices" from public, anon, authenticated;
 grant select on "app_private"."invoices" to authenticated;
 grant all on "app_private"."invoices" to service_role;
 drop policy if exists invoices_read on "app_private"."invoices";
-create policy invoices_read on "app_private"."invoices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+create policy invoices_read on "app_private"."invoices"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -2419,7 +2422,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:34a01362206f7858b3ade50b7276802eeb37348faaf1f3f1d1aa1db0ff9d0a73
+-- @bsb-hash sha256:40f72491a581a7a4661381f4b80b4c6846a3227214125915763de3d3e6eb821d
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2534,8 +2537,9 @@ revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
-create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+create policy invoices_read on "better_supabase"."invoices"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -3289,7 +3293,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:fee1e41f4df783aa2a13cf706732c404f5dee626846eb19009841cc4866f7d42
+-- @bsb-hash sha256:5dad384c7177a5f3223a6d7e04ccaddbf8df56f85eac5c3d27a6e3feeaf4ff20
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3414,8 +3418,9 @@ alter table "better_supabase"."invoices" enable row level security;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists bsb_invoices_select on "better_supabase"."invoices";
-create policy bsb_invoices_select on "better_supabase"."invoices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+create policy bsb_invoices_select on "better_supabase"."invoices"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and
@@ -4072,7 +4077,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f8d74e724966766fec362bdb096e655e0665e105eeb776a83b3dae64ac3b00ce
+-- @bsb-hash sha256:7102af9b500cab7565c02301a51d45755eb39bdb019720eb2909ae35903d5dab
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4187,8 +4192,9 @@ revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
-create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+create policy invoices_read on "better_supabase"."invoices"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and

@@ -11,6 +11,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { APPLICATION_TO_EMPLOYEE } from "../../blocks/hiring/automations.ts";
 import { sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -461,9 +462,7 @@ create table if not exists ${t("jobs")} (
 );
 create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
 ${lockModuleTable(ctx, "jobs", { read: true })}
-drop policy if exists jobs_read on ${t("jobs")};
-create policy jobs_read on ${t("jobs")} for select to authenticated
-using (${ctx.scope.check(j("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("jobs"), name: "jobs_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(j("tenant"), read) }), { drop: true, target: t("jobs") })}
 
 create table if not exists ${t("applications")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -480,9 +479,7 @@ create table if not exists ${t("applications")} (
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
 create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});
 ${lockModuleTable(ctx, "applications", { read: true })}
-drop policy if exists ${ctx.naming.rename("applications_read")} on ${t("applications")};
-create policy ${ctx.naming.rename("applications_read")} on ${t("applications")} for select to authenticated
-using (${ctx.scope.check(a("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { drop: true, target: t("applications") })}
 
 create table if not exists ${t("scorecards")} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -495,9 +492,7 @@ create table if not exists ${t("scorecards")} (
 );${perApplication ? appUniqueIndex(ctx, "scorecards", ["application", "reviewer"]) : appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
 create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
 ${lockModuleTable(ctx, "scorecards", { read: true })}
-drop policy if exists ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")};
-create policy ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")} for select to authenticated
-using (${ctx.scope.check(s("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("scorecards"), name: ctx.naming.rename("application_scorecards_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), read) }), { drop: true, target: t("scorecards") })}
 ${scoreRows ? scoresTable(ctx, read) : ""}
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -510,20 +505,27 @@ create table if not exists ${t("interviews")} (
 );
 create index if not exists ${ctx.naming.rename("interviews_application_idx")} on ${t("interviews")} (${v("application")}, ${v("startsAt")});
 ${lockModuleTable(ctx, "interviews", { read: true })}${interviewerRows ? interviewersTable(ctx, read) : ""}
-drop policy if exists ${ctx.naming.rename("interviews_read")} on ${t("interviews")};
-create policy ${ctx.naming.rename("interviews_read")} on ${t("interviews")} for select to authenticated
-using (${ctx.scope.check(v("tenant"), read)}${[
-        ...(ctx.has("interviews", "interviewers")
-          ? [`(select auth.uid()) = any (${v("interviewers")})`]
-          : []),
-        ...(interviewerRows
-          ? [
-              `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${t("interviews")}.${v("id")} and z.${iv("user")} = (select auth.uid()))`,
-            ]
-          : []),
-      ]
-        .map((check) => ` or ${check}`)
-        .join("")});
+${renderPolicy(
+  makePolicy({
+    table: t("interviews"),
+    name: ctx.naming.rename("interviews_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(v("tenant"), read)}${[
+      ...(ctx.has("interviews", "interviewers")
+        ? [`(select auth.uid()) = any (${v("interviewers")})`]
+        : []),
+      ...(interviewerRows
+        ? [
+            `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${t("interviews")}.${v("id")} and z.${iv("user")} = (select auth.uid()))`,
+          ]
+        : []),
+    ]
+      .map((check) => ` or ${check}`)
+      .join("")}`,
+  }),
+  { drop: true, target: t("interviews") },
+)}
 `
     : "";
 

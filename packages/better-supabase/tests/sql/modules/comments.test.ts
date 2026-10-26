@@ -34,7 +34,8 @@ describe("comments module", () => {
   it("reads a comment's work item only where the caller reads the message in its tenant", () => {
     const sql = sqlOf(["comments"]);
     expect(sql).toContain(
-      `create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+      `create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));`,
     );
     expect(sql).toContain(

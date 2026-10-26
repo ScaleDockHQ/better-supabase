@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:54fe1a11734c74f47c6dbcec2abd425af487a9ede834c175ccd25550e82982d6
+-- @bsb-hash sha256:b53ccf95bd61d55b953d42338500324a459839a63697e5fa28d4af409ca63248
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -131,8 +131,9 @@ revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy companies_read on "better_supabase"."companies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
@@ -161,8 +162,9 @@ revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy people_read on "better_supabase"."people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."company_people" (
   "tenant_id" uuid not null,
@@ -180,8 +182,9 @@ revoke all on "better_supabase"."company_people" from public, anon, authenticate
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -770,7 +773,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:2a3ec75b46c33c3e019d3321e49036b04699cb2d929f0379eba469d3d56561bb
+-- @bsb-hash sha256:c5979bfd63e621c7ec9c7015868c3da6956f7b8e70045a8da27717bad997e594
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -908,8 +911,9 @@ revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy companies_read on "better_supabase"."companies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
@@ -938,8 +942,9 @@ revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy people_read on "better_supabase"."people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."company_people" (
   "tenant_id" uuid not null,
@@ -957,8 +962,9 @@ revoke all on "better_supabase"."company_people" from public, anon, authenticate
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -1479,8 +1485,9 @@ revoke all on "better_supabase"."person_inbox_contacts" from public, anon, authe
 grant select on "better_supabase"."person_inbox_contacts" to authenticated;
 grant all on "better_supabase"."person_inbox_contacts" to service_role;
 drop policy if exists person_inbox_contacts_read on "better_supabase"."person_inbox_contacts";
-create policy person_inbox_contacts_read on "better_supabase"."person_inbox_contacts" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy person_inbox_contacts_read on "better_supabase"."person_inbox_contacts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Links an inbox contact to a person in the same organization; a contact
 -- linked to someone else moves.
@@ -1717,7 +1724,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:5a9427abacce62b6f4d53278bb7ff0fb14127e088f73100446a5a02480c8f81b
+-- @bsb-hash sha256:07814ab2e8ab56e95d2448592e05dc6b70573d704d534a7bd7adb4f4ac12386b
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1852,8 +1859,9 @@ revoke all on "app_private"."companies" from public, anon, authenticated;
 grant select on "app_private"."companies" to authenticated;
 grant all on "app_private"."companies" to service_role;
 drop policy if exists companies_read on "app_private"."companies";
-create policy companies_read on "app_private"."companies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy companies_read on "app_private"."companies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "app_private"."people" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1882,8 +1890,9 @@ revoke all on "app_private"."people" from public, anon, authenticated;
 grant select on "app_private"."people" to authenticated;
 grant all on "app_private"."people" to service_role;
 drop policy if exists people_read on "app_private"."people";
-create policy people_read on "app_private"."people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy people_read on "app_private"."people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "app_private"."company_people" (
   "tenant_id" uuid not null,
@@ -1901,8 +1910,9 @@ revoke all on "app_private"."company_people" from public, anon, authenticated;
 grant select on "app_private"."company_people" to authenticated;
 grant all on "app_private"."company_people" to service_role;
 drop policy if exists company_people_read on "app_private"."company_people";
-create policy company_people_read on "app_private"."company_people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy company_people_read on "app_private"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -2491,7 +2501,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:3ee8a8fb57cf441d0364243c7d2fe241443a9c6ca6e6ac69ac29013f7ff36696
+-- @bsb-hash sha256:5ef9955a1524a15a4ef73cabf98cc076aeb8c1769eba889aa8de3b6a41f37a7f
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2621,8 +2631,9 @@ revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy companies_read on "better_supabase"."companies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2651,8 +2662,9 @@ revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy people_read on "better_supabase"."people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."company_people" (
   "tenant_id" uuid not null,
@@ -2670,8 +2682,9 @@ revoke all on "better_supabase"."company_people" from public, anon, authenticate
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -3381,7 +3394,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:71f4bf9fc9d67b1317920cd259873cfb3483fdb8b6030f3ab3b4b948d09b1179
+-- @bsb-hash sha256:bc49d3bf0e7b5d2af2686f76891c036acd0c2474e7eb4da5e20b22717dd1fa4d
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3524,8 +3537,9 @@ alter table "better_supabase"."companies" enable row level security;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists bsb_companies_select on "better_supabase"."companies";
-create policy bsb_companies_select on "better_supabase"."companies" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy bsb_companies_select on "better_supabase"."companies"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- better_supabase.people is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."people" add column if not exists "id" uuid default gen_random_uuid();
@@ -3552,8 +3566,9 @@ alter table "better_supabase"."people" enable row level security;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists bsb_people_select on "better_supabase"."people";
-create policy bsb_people_select on "better_supabase"."people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy bsb_people_select on "better_supabase"."people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- better_supabase.company_people is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."company_people" add column if not exists "tenant_id" uuid;
@@ -3569,8 +3584,9 @@ alter table "better_supabase"."company_people" enable row level security;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists bsb_company_people_select on "better_supabase"."company_people";
-create policy bsb_company_people_select on "better_supabase"."company_people" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy bsb_company_people_select on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -4159,7 +4175,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:6bf59a2a179d34736548f366db4cb3635cda8f770d144ae5f1f7e7e51dea1e39
+-- @bsb-hash sha256:cb578b73c856736c31b62d101c0cf7ae212f3dcd8f56a4b4d44b311c2217d8a4
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4289,8 +4305,9 @@ revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy companies_read on "better_supabase"."companies"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4319,8 +4336,9 @@ revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy people_read on "better_supabase"."people"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 create table if not exists "better_supabase"."company_people" (
   "org_id" uuid not null,
@@ -4338,8 +4356,9 @@ revoke all on "better_supabase"."company_people" from public, anon, authenticate
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
+create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('parties.read')));
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.

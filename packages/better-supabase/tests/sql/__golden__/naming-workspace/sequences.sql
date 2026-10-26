@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:1c78a352bac84ba013f72de8dac83c8eb29f09cd424ea6d7cb4d652ea8c3f402
+-- @bsb-hash sha256:fd0483e32a7700e56a87247679bdd775217954440229ec2fc91689f133d01b3a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,14 +129,16 @@ revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
+create policy sequences_read on "better_supabase"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a

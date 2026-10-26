@@ -6,6 +6,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   EQUIVALENT_TRIGGERS,
   schemaPreamble,
@@ -584,13 +585,8 @@ create table if not exists ${t} (
     )}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
-drop policy if exists bsb_profiles_read on ${t};
-create policy bsb_profiles_read on ${t} for select to authenticated
-  using (${read});
-drop policy if exists bsb_profiles_update on ${t};
-create policy bsb_profiles_update on ${t} for update to authenticated
-  using (${c("key")} = (select auth.uid()))
-  with check (${c("key")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_update", command: "update", roles: ["authenticated"], using: `${c("key")} = (select auth.uid())`, check: `${c("key")} = (select auth.uid())` }), { drop: true, target: t })}
 ${selectGrant}
 grant all on ${t} to service_role;
 `;
@@ -654,9 +650,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
 grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
-drop policy if exists bsb_profiles_platform_read on ${t};
-create policy bsb_profiles_platform_read on ${t} for select to authenticated
-  using ((select ${ctx.fn("profiles_platform_readable")}()));
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_platform_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.fn("profiles_platform_readable")}())` }), { drop: true, target: t })}
 `;
 }
 

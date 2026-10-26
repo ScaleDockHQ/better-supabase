@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:d821a40108ab6ec02071c5a828cd5158153ca3dcfc22b5ec03b80777614dd4c3
+-- @bsb-hash sha256:45f8ff1a4820c9012382ee9610e4b8f27bf853676972cd4fcd2bc0cd6f003733
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,8 +80,9 @@ revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.

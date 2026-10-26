@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:2c05b3b11c044874b20c9b6531bf7b2cf93efad4d3cb9c798d6080e00af24be9
+-- @bsb-hash sha256:c9ec5fd33786ced4f62ecda30d4f2e5d77afcbb7667494942e4adf3b3f65baaf
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,18 +170,19 @@ $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists "attachments_read" on "better_supabase"."attachments";
-create policy "attachments_read" on "better_supabase"."attachments" for select to authenticated
+drop policy if exists attachments_read on "better_supabase"."attachments";
+create policy attachments_read on "better_supabase"."attachments"
+  for select to authenticated
   using ((("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("organization_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
-drop policy if exists "attachments_insert" on "better_supabase"."attachments";
-create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
-  with check ((
-    "uploaded_by" = (select auth.uid())
+drop policy if exists attachments_insert on "better_supabase"."attachments";
+create policy attachments_insert on "better_supabase"."attachments"
+  for insert to authenticated
+  with check (("uploaded_by" = (select auth.uid())
     and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', "organization_id", 'crm.read'), false))) or (not coalesce("subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
-  ) and (select centrakit.authz_actor_may_write()));
-drop policy if exists "attachments_delete" on "better_supabase"."attachments";
-create policy "attachments_delete" on "better_supabase"."attachments" for delete to authenticated
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")) and (select centrakit.authz_actor_may_write()));
+drop policy if exists attachments_delete on "better_supabase"."attachments";
+create policy attachments_delete on "better_supabase"."attachments"
+  for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or (("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce("subject_type" in ('project'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage'))))) and (select centrakit.authz_actor_may_write()));
 
 -- The earlier versions of each file, written by replace_attachment() and
@@ -214,8 +215,9 @@ alter table "better_supabase"."attachment_versions" enable row level security;
 revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
-drop policy if exists "attachment_versions_read" on "better_supabase"."attachment_versions";
-create policy "attachment_versions_read" on "better_supabase"."attachment_versions" for select to authenticated
+drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
+create policy attachment_versions_read on "better_supabase"."attachment_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"));
 
 -- Whether the caller may run action (insert, select or delete) on the
@@ -285,11 +287,14 @@ drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
 drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
 drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
 
-create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
+create policy bsb_attachments_insert on storage.objects
+  for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select centrakit.authz_actor_may_write()));
-create policy "bsb_attachments_select" on storage.objects for select to authenticated
+create policy bsb_attachments_select on storage.objects
+  for select to authenticated
   using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select') and "better_supabase"."attachment_object_visible"(bucket_id, name));
-create policy "bsb_attachments_delete" on storage.objects for delete to authenticated
+create policy bsb_attachments_delete on storage.objects
+  for delete to authenticated
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select centrakit.authz_actor_may_write()));
 
 -- The caller's new record, for a signed upload URL to its object_path.

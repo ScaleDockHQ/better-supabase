@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c852ceaf485d0bea299f291f4173eb00d66dd75a724674e3fe151f2a3092e367
+-- @bsb-hash sha256:6734364a60515fe4f6d6196d0dc3280350acee55e666c69598d9f2687d2187d2
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,8 @@ revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -122,7 +123,8 @@ revoke all on "better_supabase"."leave_requests" from public, anon, authenticate
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 

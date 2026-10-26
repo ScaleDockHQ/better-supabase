@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@6 managed
--- @bsb-hash sha256:b10c6046210a8e7f70bcb08f9a0f71e376df7c4aacf0e77f84ba347d360282ac
+-- @bsb-hash sha256:63d5d6b19bc0f9da70537cf0a3d1f3b2f5c8629de3e6ba68dcb6f4cdaa46b262
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,8 +98,9 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists "usage_counters_read" on "better_supabase"."usage_counters";
-create policy "usage_counters_read" on "better_supabase"."usage_counters" for select to authenticated
+drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
+create policy usage_counters_read on "better_supabase"."usage_counters"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
@@ -139,8 +140,9 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists "usage_quotas_read" on "better_supabase"."usage_quotas";
-create policy "usage_quotas_read" on "better_supabase"."usage_quotas" for select to authenticated
+drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
+create policy usage_quotas_read on "better_supabase"."usage_quotas"
+  for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.

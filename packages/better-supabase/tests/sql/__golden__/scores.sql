@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:36b87e8f1fe975d6e630a3e313db711f57546759d8e23a788534dc6bd4321645
+-- @bsb-hash sha256:831ab255cbc520f6a49ea9e29423c04c0b3ab561353c730750ab76741f81d2f3
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,21 +132,24 @@ revoke all on "better_supabase"."score_models" from public, anon, authenticated;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
 drop policy if exists "score_models_read" on "better_supabase"."score_models";
-create policy "score_models_read" on "better_supabase"."score_models" for select to authenticated
+create policy score_models_read on "better_supabase"."score_models"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."score_model_versions" enable row level security;
 revoke all on "better_supabase"."score_model_versions" from public, anon, authenticated;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
 drop policy if exists "score_model_versions_read" on "better_supabase"."score_model_versions";
-create policy "score_model_versions_read" on "better_supabase"."score_model_versions" for select to authenticated
+create policy score_model_versions_read on "better_supabase"."score_model_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."scores" enable row level security;
 revoke all on "better_supabase"."scores" from public, anon, authenticated;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
 drop policy if exists "scores_read" on "better_supabase"."scores";
-create policy "scores_read" on "better_supabase"."scores" for select to authenticated
+create policy scores_read on "better_supabase"."scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,
@@ -652,7 +655,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:416ff3bbfb3df78ba217b95772d14ef820e756265cc64aba2529f3116a8df3d8
+-- @bsb-hash sha256:0bb4084f3106cc2e46d315a382204384fd481dfbfe066994567ceae4f674c0dc
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -783,21 +786,24 @@ revoke all on "better_supabase"."score_models" from public, anon, authenticated;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
 drop policy if exists "score_models_read" on "better_supabase"."score_models";
-create policy "score_models_read" on "better_supabase"."score_models" for select to authenticated
+create policy score_models_read on "better_supabase"."score_models"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."score_model_versions" enable row level security;
 revoke all on "better_supabase"."score_model_versions" from public, anon, authenticated;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
 drop policy if exists "score_model_versions_read" on "better_supabase"."score_model_versions";
-create policy "score_model_versions_read" on "better_supabase"."score_model_versions" for select to authenticated
+create policy score_model_versions_read on "better_supabase"."score_model_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."scores" enable row level security;
 revoke all on "better_supabase"."scores" from public, anon, authenticated;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
 drop policy if exists "scores_read" on "better_supabase"."scores";
-create policy "scores_read" on "better_supabase"."scores" for select to authenticated
+create policy scores_read on "better_supabase"."scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,
@@ -1323,7 +1329,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:5e796736ac3f523de5a1b75f2a861d5cebed4a76d9939c8348e5f1349ab12b7a
+-- @bsb-hash sha256:5517c86882d9fd388ecc2db83aa363bbdb98620d4bb2808083a98e0a5b83efec
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1459,21 +1465,24 @@ revoke all on "app_private"."score_models" from public, anon, authenticated;
 grant select on "app_private"."score_models" to authenticated;
 grant all on "app_private"."score_models" to service_role;
 drop policy if exists "score_models_read" on "app_private"."score_models";
-create policy "score_models_read" on "app_private"."score_models" for select to authenticated
+create policy score_models_read on "app_private"."score_models"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "app_private"."score_model_versions" enable row level security;
 revoke all on "app_private"."score_model_versions" from public, anon, authenticated;
 grant select on "app_private"."score_model_versions" to authenticated;
 grant all on "app_private"."score_model_versions" to service_role;
 drop policy if exists "score_model_versions_read" on "app_private"."score_model_versions";
-create policy "score_model_versions_read" on "app_private"."score_model_versions" for select to authenticated
+create policy score_model_versions_read on "app_private"."score_model_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "app_private"."scores" enable row level security;
 revoke all on "app_private"."scores" from public, anon, authenticated;
 grant select on "app_private"."scores" to authenticated;
 grant all on "app_private"."scores" to service_role;
 drop policy if exists "scores_read" on "app_private"."scores";
-create policy "scores_read" on "app_private"."scores" for select to authenticated
+create policy scores_read on "app_private"."scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,
@@ -1979,7 +1988,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:259a9086e298651634d2f19bfcb12f58d9b7c8bd3fd77de989b212dbdd2e536e
+-- @bsb-hash sha256:72302b254ffd0e516ea12747c0c6eb03cbce10a5c41135f1d0b7a6dbc9cb1885
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2110,21 +2119,24 @@ revoke all on "better_supabase"."score_models" from public, anon, authenticated;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
 drop policy if exists "score_models_read" on "better_supabase"."score_models";
-create policy "score_models_read" on "better_supabase"."score_models" for select to authenticated
+create policy score_models_read on "better_supabase"."score_models"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."score_model_versions" enable row level security;
 revoke all on "better_supabase"."score_model_versions" from public, anon, authenticated;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
 drop policy if exists "score_model_versions_read" on "better_supabase"."score_model_versions";
-create policy "score_model_versions_read" on "better_supabase"."score_model_versions" for select to authenticated
+create policy score_model_versions_read on "better_supabase"."score_model_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."scores" enable row level security;
 revoke all on "better_supabase"."scores" from public, anon, authenticated;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
 drop policy if exists "scores_read" on "better_supabase"."scores";
-create policy "scores_read" on "better_supabase"."scores" for select to authenticated
+create policy scores_read on "better_supabase"."scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,
@@ -2724,7 +2736,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:eaea36dc41afd1d198bbcef7a4d5de1a9fa382b2f9eab48c8f98f83f2b881d00
+-- @bsb-hash sha256:70fa025bf5bc36d980491722249d6ba4ed0812855a4f85d5f26a33508c6d97c6
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2844,19 +2856,22 @@ alter table "better_supabase"."score_models" enable row level security;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
 drop policy if exists bsb_score_models_select on "better_supabase"."score_models";
-create policy bsb_score_models_select on "better_supabase"."score_models" for select to authenticated
+create policy bsb_score_models_select on "better_supabase"."score_models"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."score_model_versions" enable row level security;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
 drop policy if exists bsb_score_model_versions_select on "better_supabase"."score_model_versions";
-create policy bsb_score_model_versions_select on "better_supabase"."score_model_versions" for select to authenticated
+create policy bsb_score_model_versions_select on "better_supabase"."score_model_versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."scores" enable row level security;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
 drop policy if exists bsb_scores_select on "better_supabase"."scores";
-create policy bsb_scores_select on "better_supabase"."scores" for select to authenticated
+create policy bsb_scores_select on "better_supabase"."scores"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,
@@ -3362,7 +3377,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:1a4d5dc4ebdeebdbb357552c62f1c0554e5d28fd5eff9089d8163ecca93db0c6
+-- @bsb-hash sha256:fdee9b846edee7e5dbb5a646a682e8e5d2bbdb7970a776977bbda71561867567
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3493,21 +3508,24 @@ revoke all on "better_supabase"."score_models" from public, anon, authenticated;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
 drop policy if exists "score_models_read" on "better_supabase"."score_models";
-create policy "score_models_read" on "better_supabase"."score_models" for select to authenticated
+create policy score_models_read on "better_supabase"."score_models"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."score_model_versions" enable row level security;
 revoke all on "better_supabase"."score_model_versions" from public, anon, authenticated;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
 drop policy if exists "score_model_versions_read" on "better_supabase"."score_model_versions";
-create policy "score_model_versions_read" on "better_supabase"."score_model_versions" for select to authenticated
+create policy score_model_versions_read on "better_supabase"."score_model_versions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.read')));
 alter table "better_supabase"."scores" enable row level security;
 revoke all on "better_supabase"."scores" from public, anon, authenticated;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
 drop policy if exists "scores_read" on "better_supabase"."scores";
-create policy "scores_read" on "better_supabase"."scores" for select to authenticated
+create policy scores_read on "better_supabase"."scores"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.read')));
 
 -- Creates or changes a score model. model is { id?, version?, key, name,

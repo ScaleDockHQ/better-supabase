@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:2869973a2bcea69e42085ec8e5f84c92b7e25c373ddda2a4dddb0bc02098891f
+-- @bsb-hash sha256:2f89f58ca68ccdae60684b96afafd3a4b5ff5bda3041fe839f3e71d6d58c7113
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,8 +81,9 @@ alter table "better_supabase"."data_exports" enable row level security;
 revoke all on "better_supabase"."data_exports" from public, anon, authenticated;
 grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
-drop policy if exists "data_exports_read" on "better_supabase"."data_exports";
-create policy "data_exports_read" on "better_supabase"."data_exports" for select to authenticated
+drop policy if exists data_exports_read on "better_supabase"."data_exports";
+create policy data_exports_read on "better_supabase"."data_exports"
+  for select to authenticated
   using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
@@ -925,8 +926,9 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bsb_data_exports_select" on storage.objects;
-create policy "bsb_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists bsb_data_exports_select on storage.objects;
+create policy bsb_data_exports_select on storage.objects
+  for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:efd1b9caa78ea70bf7dee8c25487ad7fda0f210a6f07e20d945074eb161a536b
+-- @bsb-hash sha256:bd9c447a4397f51f8ba8d09e5b7e712e2a50a455ce16995c69f04bd3eca4c3de
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,8 @@ revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenti
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks" for select to authenticated
+create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
@@ -116,7 +117,8 @@ revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
+create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Creates (id null) or changes a task. Only the service role sets

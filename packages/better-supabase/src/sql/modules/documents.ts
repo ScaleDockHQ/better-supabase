@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -304,9 +305,7 @@ function build(ctx: BlockSqlContext): string {
 );${unique("documents", "subject", `${c("subjectType")}, ${c("subjectId")}, ${c("name")}`)}
 create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant_idx`)} on ${documents} (${c("tenant")}${ctx.has("documents", "updatedAt") ? `, ${c("updatedAt")} desc` : ""});
 ${lockTable(documents, { read: true })}
-drop policy if exists ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents};
-create policy ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)});
+${renderPolicy(makePolicy({ table: documents, name: sqlIdent(`${ctx.tableName("documents").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: documents })}
 
 create table if not exists ${updates} (
   ${u("seq")} bigint generated always as identity primary key,
@@ -853,18 +852,28 @@ ${versionFunctions}
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${ctx.trigger("documents_receive")} on realtime.messages;
-    create policy ${ctx.trigger("documents_receive")} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension in ('broadcast', 'presence')
-        and ${fn("document_topic_access")}((select realtime.topic()), false)
-      );
-    drop policy if exists ${ctx.trigger("documents_send")} on realtime.messages;
-    create policy ${ctx.trigger("documents_send")} on realtime.messages for insert to authenticated
-      with check (
-        (realtime.messages.extension = 'broadcast' and ${fn("document_topic_access")}((select realtime.topic()), true))
-        or (realtime.messages.extension = 'presence' and ${fn("document_topic_access")}((select realtime.topic()), false))
-      );
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: ctx.trigger("documents_receive"),
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension in ('broadcast', 'presence')
+        and ${fn("document_topic_access")}((select realtime.topic()), false)`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: ctx.trigger("documents_send"),
+            command: "insert",
+            roles: ["authenticated"],
+            check: `(realtime.messages.extension = 'broadcast' and ${fn("document_topic_access")}((select realtime.topic()), true))
+        or (realtime.messages.extension = 'presence' and ${fn("document_topic_access")}((select realtime.topic()), false))`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $do$;

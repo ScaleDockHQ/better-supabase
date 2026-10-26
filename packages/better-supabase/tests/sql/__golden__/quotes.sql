@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:b97d597af80202acca041d7c71e1c1abb11da67bd1038c8af680833933e63c23
+-- @bsb-hash sha256:52460e523fc27a1850ec785dac12393ccbcb4375fc6a21e07551f6dd253500ef
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,8 +113,9 @@ revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -761,7 +762,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:618d06e3575c56d116fde29702de63e29419343f890d4936129a88c4efd27b5f
+-- @bsb-hash sha256:e9232cd2a91792f307996eeba05cf0d2fe93709c596f1e59e8db60905872885e
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -873,8 +874,9 @@ revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -1606,7 +1608,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:38abe1086485567bc606b409a2a08e67dcd0b104e2048d0aa6480f79629ec158
+-- @bsb-hash sha256:d76817e8b8740ca2b4190cdbe010cdafd33dec9c644946bf73cfbc4cd919656d
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1723,8 +1725,9 @@ revoke all on "app_private"."quotes" from public, anon, authenticated;
 grant select on "app_private"."quotes" to authenticated;
 grant all on "app_private"."quotes" to service_role;
 drop policy if exists quotes_read on "app_private"."quotes";
-create policy quotes_read on "app_private"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "app_private"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -2371,7 +2374,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:3a9ff1076d6ab3ea21846fefa342c06893076adb2794f39c4498c38035a59104
+-- @bsb-hash sha256:ebc6eccc4572f1b42a0f606f9240c62e1add3a9f4f8a003b1eaa636a605051c1
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2483,8 +2486,9 @@ revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -3234,7 +3238,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:1503fabdfe8a8187b2a6cc512d88eb04c46dc6bb749671c9b3f64965f942ad90
+-- @bsb-hash sha256:f903c698f0e6bf793d7338c0160942242d65b4a82e9d9acae3c42f96911bf152
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3358,8 +3362,9 @@ alter table "better_supabase"."quotes" enable row level security;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists bsb_quotes_select on "better_supabase"."quotes";
-create policy bsb_quotes_select on "better_supabase"."quotes" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy bsb_quotes_select on "better_supabase"."quotes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -4005,7 +4010,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:34cbf40c11f751b3b322f537548525cdae817d60550467ab925cbb006ca849e0
+-- @bsb-hash sha256:58c62fbde3d9b6b49610847eeed9890c47c8952436304debb153197c0e6bce73
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4117,8 +4122,9 @@ revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
-create policy quotes_read on "better_supabase"."quotes" for select to authenticated
-using ("org_id" in (select better_supabase.tenant_ids_with('quotes.read')));
+create policy quotes_read on "better_supabase"."quotes"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('quotes.read')));
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:d3434fffbd0af3501d181b88b98863e359aa4a7fdf579de55f42cb65ca4abe6c
+-- @bsb-hash sha256:1719c75f374c6b5e2d362daf129131312217bc1b92817de9aedc278c44092ec1
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,11 +149,10 @@ revoke execute on function "better_supabase"."incoming_webhook_subject_readable"
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
-  using (
-    tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
-    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
-  );
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
+  for select to authenticated
+  using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
+    and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant));
 
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
 create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)

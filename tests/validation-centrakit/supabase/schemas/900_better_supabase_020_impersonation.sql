@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:7eb92de40a3f1ff1b25ee6245b9f986c83488ddb5015d300f8bfbaeca0eb29c7
+-- @bsb-hash sha256:797d3dc46a1c78bcedd2cf79448f985cb50d6c91e46856c9f236b05cee57bdd6
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,8 @@ revoke all on "better_supabase"."support_sessions" from public, anon, authentica
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('platform.users.manage')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -120,7 +121,8 @@ revoke all on "better_supabase"."support_requests" from public, anon, authentica
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('platform.users.manage')));
 grant select on "better_supabase"."support_requests" to authenticated;

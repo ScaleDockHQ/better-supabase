@@ -6,6 +6,7 @@ import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
   columnRef,
@@ -466,10 +467,7 @@ grant all on ${m} to service_role;
 
   const policy = ctx.manages
     ? `
-drop policy if exists bsb_memberships_read on ${m};
-create policy bsb_memberships_read on ${m}
-  for select to authenticated
-  using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
+${renderPolicy(makePolicy({ table: m, name: "bsb_memberships_read", command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()})` }), { drop: true, target: m })}
 `
     : "";
 

@@ -1,6 +1,7 @@
 import type { DriveKit } from "./drive-kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   activeMembership,
@@ -324,9 +325,7 @@ revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, aut
 ${
   ctx.manages
     ? `
-drop policy if exists ${ctx.naming.rename("drive_nodes_read")} on ${T};
-create policy ${ctx.naming.rename("drive_nodes_read")} on ${T} for select to authenticated
-  using (${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}()));
+${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { drop: true, target: T })}
 `
     : ""
 }${pathTriggers}

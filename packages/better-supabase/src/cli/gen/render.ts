@@ -118,7 +118,7 @@ export async function render(
   snapshot: Snapshot,
   options: RenderOptions = {},
 ): Promise<Rendered> {
-  const config = withTableTags(declared, snapshot);
+  const config = withTableTags(declared, snapshot.generator.tables);
   const model = buildModel(snapshot, config);
 
   const runtime = options.runtimeImport

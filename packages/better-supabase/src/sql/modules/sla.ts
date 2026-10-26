@@ -12,6 +12,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 import { isRecord } from "../../core/guards.ts";
 import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   fail,
@@ -483,9 +484,7 @@ ${
 );${addExtraColumns(t("policies"), extras)}
 create unique index if not exists ${ctx.naming.rename("sla_policies_match_idx")} on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, ''))${policyHas("archivedAt") ? ` where ${p("archivedAt")} is null` : ""};
 ${lockModuleTable(ctx, "policies", { read: true })}
-drop policy if exists ${ctx.naming.rename("sla_policies_read")} on ${t("policies")};
-create policy ${ctx.naming.rename("sla_policies_read")} on ${t("policies")} for select to authenticated
-using (${ctx.scope.check(p("tenant"), read)});
+${renderPolicy(makePolicy({ table: t("policies"), name: ctx.naming.rename("sla_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { drop: true, target: t("policies") })}
 
 create table if not exists ${t("clocks")} (
   ${k("id")} uuid primary key default gen_random_uuid(),
@@ -506,9 +505,7 @@ create unique index if not exists sla_clocks_open_idx on ${t("clocks")} (${k("su
 create index if not exists sla_clocks_due_idx on ${t("clocks")} (${k("dueAt")}) where ${k("metAt")} is null and ${k("pausedAt")} is null;
 create index if not exists sla_clocks_policy_idx on ${t("clocks")} (${k("policy")});
 ${lockModuleTable(ctx, "clocks", { read: true })}
-drop policy if exists sla_clocks_read on ${t("clocks")};
-create policy sla_clocks_read on ${t("clocks")} for select to authenticated
-using (${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read'));
+${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read')` }), { drop: true, target: t("clocks") })}
 `
     : ""
 }

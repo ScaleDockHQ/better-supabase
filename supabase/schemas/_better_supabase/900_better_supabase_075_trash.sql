@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:739f46b849338813efe29fefd7a169be1d5e14fe0a23e604c1e32f14fbc502ef
+-- @bsb-hash sha256:317a9b484d4cec952dd8eb4dc8f76b92330503bb0f27c05b4dd532354fd26c96
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,8 +74,9 @@ alter table "better_supabase"."trash_items" enable row level security;
 revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
-drop policy if exists "trash_items_read" on "better_supabase"."trash_items";
-create policy "trash_items_read" on "better_supabase"."trash_items" for select to authenticated
+drop policy if exists trash_items_read on "better_supabase"."trash_items";
+create policy trash_items_read on "better_supabase"."trash_items"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')));
 
 -- Marks one subject row trashed, records it, then trashes the rows the

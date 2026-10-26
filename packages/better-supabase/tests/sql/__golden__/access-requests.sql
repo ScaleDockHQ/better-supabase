@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:c40a0fe0f21357de890154e97524d0c7ea1accd3a01ba0bf9b31331531cb8bd5
+-- @bsb-hash sha256:2ee38667acb96fe884bb80f728955de4e586e27982bb727d56e697fac2bb1b45
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,8 @@ revoke all on "better_supabase"."access_requests" from public, anon, authenticat
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
+create policy access_requests_read on "better_supabase"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -421,7 +422,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:e0d18d0e06d76c2ef8a8db59a1684bbdf218ba644e0e45d21609900e669a7bdb
+-- @bsb-hash sha256:58b7af641dfcbc23d53cf78720595f40acb66ed495e76d5fc8ea76a26b006b5c
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -498,7 +499,8 @@ revoke all on "better_supabase"."access_requests" from public, anon, authenticat
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
+create policy access_requests_read on "better_supabase"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -873,7 +875,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:48db75471bede30334fd2fb10b7f0eaaeda4b36068d0c3287ae52355992b7dbb
+-- @bsb-hash sha256:db9c22e78a5821eb4e90cc7147e482d26e05c5ff29a055a4a4fb4c6e8478b42e
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -955,7 +957,8 @@ revoke all on "app_private"."access_requests" from public, anon, authenticated;
 grant select on "app_private"."access_requests" to authenticated;
 grant all on "app_private"."access_requests" to service_role;
 drop policy if exists access_requests_read on "app_private"."access_requests";
-create policy access_requests_read on "app_private"."access_requests" for select to authenticated
+create policy access_requests_read on "app_private"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -1298,7 +1301,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:52855d60c98160be020824f26eedeab2da0e0a257634a112dca9ade7635b253f
+-- @bsb-hash sha256:0f401a83653780d519a5505a88f7645ce184f9c33179921f00e9078fb470e4b1
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1375,7 +1378,8 @@ revoke all on "better_supabase"."access_requests" from public, anon, authenticat
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
+create policy access_requests_read on "better_supabase"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -1787,7 +1791,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:6e87afd7f15193a298aa85f6dd127be450b4bb2ed0826da86608de0cd47c683f
+-- @bsb-hash sha256:da70f8e5c58c0cc21c583a2a81bce1cf33e61967504dacd9a1f15f694fc75e58
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1862,7 +1866,8 @@ alter table "better_supabase"."access_requests" enable row level security;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists bsb_access_requests_select on "better_supabase"."access_requests";
-create policy bsb_access_requests_select on "better_supabase"."access_requests" for select to authenticated
+create policy bsb_access_requests_select on "better_supabase"."access_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -2205,7 +2210,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:04f35e6505c1f4e0db3e44a8c6a10e5f7d7ece6aa80a3881e8223864e2949d3e
+-- @bsb-hash sha256:ba8d35debbb224c358fb3016a3360aa9ec01d3e11d3c1cea58c2605c99862b81
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2282,7 +2287,8 @@ revoke all on "better_supabase"."access_requests" from public, anon, authenticat
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
+create policy access_requests_read on "better_supabase"."access_requests"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;

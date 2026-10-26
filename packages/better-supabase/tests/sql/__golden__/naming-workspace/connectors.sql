@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:1d4844867faff730c219caefef546caf52ddd00fc8b04d1136e9e7bc5a113726
+-- @bsb-hash sha256:fea4dd92b3c860e2fa153b96df1b9bd86d21413bd58e1b4873ac9ca74c647392
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,8 @@ revoke all on "better_supabase"."connector_servers" from public, anon, authentic
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
 drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
-create policy connector_servers_read on "better_supabase"."connector_servers" for select to authenticated
+create policy connector_servers_read on "better_supabase"."connector_servers"
+  for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('ai.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
@@ -114,7 +115,8 @@ revoke all on "better_supabase"."connector_grants" from public, anon, authentica
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
 drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
-create policy connector_grants_read on "better_supabase"."connector_grants" for select to authenticated
+create policy connector_grants_read on "better_supabase"."connector_grants"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
@@ -136,7 +138,8 @@ revoke all on "better_supabase"."connector_sessions" from public, anon, authenti
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
 drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
-create policy connector_sessions_read on "better_supabase"."connector_sessions" for select to authenticated
+create policy connector_sessions_read on "better_supabase"."connector_sessions"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
@@ -157,7 +160,8 @@ revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon,
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
 drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints" for select to authenticated
+create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('ai.admin').

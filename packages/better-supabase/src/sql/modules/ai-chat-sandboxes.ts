@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { raise, serviceGrant, userGrant, revokeTable } from "../shared.ts";
 import {
   appKey,
@@ -97,9 +98,7 @@ alter table ${sandboxes} enable row level security;
 ${revokeTable(sandboxes)}
 grant select on ${sandboxes} to authenticated;
 grant all on ${sandboxes} to service_role;
-drop policy if exists ai_sandboxes_read on ${sandboxes};
-create policy ai_sandboxes_read on ${sandboxes} for select to authenticated
-  using (${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)});`;
+${renderPolicy(makePolicy({ table: sandboxes, name: "ai_sandboxes_read", command: "select", roles: ["authenticated"], using: `${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)}` }), { drop: true, target: sandboxes })}`;
 }
 
 /** The running sandbox id of a harness session, as a SQL expression. */

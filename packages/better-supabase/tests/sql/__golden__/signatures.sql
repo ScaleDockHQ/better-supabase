@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:12624d5b2f6f245254cb81dacad30d28a0f1d609898f4ced1a79b86596d52742
+-- @bsb-hash sha256:86b107dae02094ecca7f85290d65d1ef75f1ba51e8ac0985bf34e07eec441409
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,8 @@ revoke all on "better_supabase"."signature_requests" from public, anon, authenti
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -112,7 +113,8 @@ revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -549,7 +551,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:f93dcb977db99bc292131c1b81cb5fda0e483243b9adeba7e498a161eb95829e
+-- @bsb-hash sha256:4aa8bfc489d02ba6c84a031a43c8ed015699c8b746e9858d574a3642c0e5b849
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -636,7 +638,8 @@ revoke all on "better_supabase"."signature_requests" from public, anon, authenti
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -660,7 +663,8 @@ revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -1147,7 +1151,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:bac5ec0ab170996d102eac9556357230e8a1db544ed8e8d8f6dd4bcdc864dfea
+-- @bsb-hash sha256:14235f7a3b8f4477691feaae7cdb48ef469e9c03dbb738926acc958da8042711
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1239,7 +1243,8 @@ revoke all on "app_private"."signature_requests" from public, anon, authenticate
 grant select on "app_private"."signature_requests" to authenticated;
 grant all on "app_private"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "app_private"."signature_requests";
-create policy signature_requests_read on "app_private"."signature_requests" for select to authenticated
+create policy signature_requests_read on "app_private"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "app_private"."signatures" (
@@ -1263,7 +1268,8 @@ revoke all on "app_private"."signatures" from public, anon, authenticated;
 grant select on "app_private"."signatures" to authenticated;
 grant all on "app_private"."signatures" to service_role;
 drop policy if exists signatures_read on "app_private"."signatures";
-create policy signatures_read on "app_private"."signatures" for select to authenticated
+create policy signatures_read on "app_private"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -1700,7 +1706,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:347e5d38f1120108ac9fccee56afe88e2daa5d10bf6c01c1189be112e7f6ea6e
+-- @bsb-hash sha256:47a2d6a92194996478d2873b29da9119bf00f9d1fff2c001592a17ff1f8e5737
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1787,7 +1793,8 @@ revoke all on "better_supabase"."signature_requests" from public, anon, authenti
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -1811,7 +1818,8 @@ revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -2326,7 +2334,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:58cf3bcc615484d4514570fe67d7bd64e1c6f69bf842ad54c53edd1fbf32463f
+-- @bsb-hash sha256:79ac4a8f037e8e62fdbf507630bd084227c66ca56499ffba13671e7e936cdf08
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2411,7 +2419,8 @@ alter table "better_supabase"."signature_requests" enable row level security;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists bsb_signature_requests_select on "better_supabase"."signature_requests";
-create policy bsb_signature_requests_select on "better_supabase"."signature_requests" for select to authenticated
+create policy bsb_signature_requests_select on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 -- better_supabase.signatures is the app's table: this block adds only the columns it needs.
@@ -2430,7 +2439,8 @@ alter table "better_supabase"."signatures" enable row level security;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists bsb_signatures_select on "better_supabase"."signatures";
-create policy bsb_signatures_select on "better_supabase"."signatures" for select to authenticated
+create policy bsb_signatures_select on "better_supabase"."signatures"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -2867,7 +2877,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:2fede239d8dce376e374743667cdc9cab45268ae62dfdde7ed132a96afabb728
+-- @bsb-hash sha256:57474eea6b0a8f85ee75839bfce71fab3038a92d3987409da63299c96b52cdbe
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2954,7 +2964,8 @@ revoke all on "better_supabase"."signature_requests" from public, anon, authenti
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
-create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
+create policy signature_requests_read on "better_supabase"."signature_requests"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -2978,7 +2989,8 @@ revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
-create policy signatures_read on "better_supabase"."signatures" for select to authenticated
+create policy signatures_read on "better_supabase"."signatures"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:08f1b745fd803072a5f9ee59f5fdaaf8865d8dc40f0330f4bb25fca1ebb510d2
+-- @bsb-hash sha256:6080422bb414e172bbe0ba22d54a948739ba6f2d1a55e7f41ecb2bb82c3b1dee
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,8 +104,9 @@ revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
-create policy pipelines_read on "better_supabase"."pipelines" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
+create policy pipelines_read on "better_supabase"."pipelines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
 create table if not exists "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -132,8 +133,9 @@ revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticat
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
-create policy pipeline_stages_read on "better_supabase"."pipeline_stages" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
+create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
 create table if not exists "better_supabase"."pipeline_transitions" (
   "tenant_id" uuid not null,
@@ -149,8 +151,9 @@ revoke all on "better_supabase"."pipeline_transitions" from public, anon, authen
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
-create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
+create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
 create table if not exists "better_supabase"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
@@ -178,8 +181,9 @@ grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 drop policy if exists pipeline_stage_history_read on "better_supabase"."pipeline_stage_history";
-create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.

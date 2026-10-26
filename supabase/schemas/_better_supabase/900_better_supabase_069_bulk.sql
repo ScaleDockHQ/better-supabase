@@ -1,6 +1,6 @@
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:27246c913191e6763bb3beb8ded03887ce3a59595f36651fac8bd16dae48ddf6
+-- @bsb-hash sha256:6eafaba2e071e3dee288892f25b38c62bf77d35ec25d65e23dc52205a4a9de90
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,8 @@ revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
-create policy bulk_runs_read on "better_supabase"."bulk_runs" for select to authenticated
+create policy bulk_runs_read on "better_supabase"."bulk_runs"
+  for select to authenticated
   using ("created_by" = (select auth.uid()));
 
 create or replace function "better_supabase"."bulk_row"(tenant uuid, subject_type text, subject_id text, action text, args jsonb)

@@ -6,6 +6,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ActivitySourceName } from "./timeline-reads.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -126,9 +127,7 @@ create table if not exists ${activity} (
 create index if not exists ${ctx.naming.rename("activity_entries_feed_idx")} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
 create index if not exists ${ctx.naming.rename("activity_entries_subject_idx")} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
 ${ctx.has("activity", "actor") ? `create index if not exists ${ctx.naming.rename("activity_entries_actor_idx")} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
-${reads.readable}drop policy if exists ${ctx.naming.rename("activity_entries_read")} on ${activity};
-create policy ${ctx.naming.rename("activity_entries_read")} on ${activity} for select to authenticated
-  using (${ctx.scope.check(a("tenant"), read)}${reads.rowCheck});${reads.dropReadable}${reads.helpers}
+${reads.readable}${renderPolicy(makePolicy({ table: activity, name: ctx.naming.rename("activity_entries_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { drop: true, target: activity })}${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:ac35cb4433bdc18aceb4fb086783c703bc94592f3279b9f9685d1b3e68afb2ab
+-- @bsb-hash sha256:4cfcb5971eb9b23d7b322fb37d44c0452051701a25fd9c81fb967ed8c0971d5c
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -128,7 +129,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 

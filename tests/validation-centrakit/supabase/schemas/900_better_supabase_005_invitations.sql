@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:f0e7b4854a4d8191b1c470c491879c3990b34ac755c8558738b9356bf34cbd52
+-- @bsb-hash sha256:d86fa6e5b9c1b1ed744635daa77d2138220dc45704aeb5e22a96fbdb16aae092
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,8 @@ $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
 drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
-create policy bsb_invitations_read on "centrakit"."organization_invitations" for select to authenticated
+create policy bsb_invitations_read on "centrakit"."organization_invitations"
+  for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- Invitations to a platform role (the catalog model's platform assignments).
@@ -129,7 +130,8 @@ grant execute on function "better_supabase"."platform_invitations_readable"() to
 -- Tenant and platform invitations share "centrakit"."organization_invitations", so one policy reads both.
 drop policy if exists bsb_platform_invitations_read on "centrakit"."organization_invitations";
 drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
-create policy bsb_invitations_read on "centrakit"."organization_invitations" for select to authenticated
+create policy bsb_invitations_read on "centrakit"."organization_invitations"
+  for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));
 
 -- blocks.invitations.options.platformRoles.through.where names the

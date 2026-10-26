@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:888874f08db69f8cde49ea8226bcfb71d7151744639dd30365eb02eab96cb129
+-- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,10 +81,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -390,7 +392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:888874f08db69f8cde49ea8226bcfb71d7151744639dd30365eb02eab96cb129
+-- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -470,10 +472,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -779,7 +783,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:a8f0558209c8ee9714c56acef2e23db6d7d10344d9ae15cc87f5e7c7f31092e3
+-- @bsb-hash sha256:a9a542307b35a233bd4181665d7e9f70da387cb884e7234d211d5bfa0e58b457
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -864,10 +868,12 @@ end;
 $$;
 alter table "app_private"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "app_private"."profiles";
-create policy bsb_profiles_read on "app_private"."profiles" for select to authenticated
+create policy bsb_profiles_read on "app_private"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "app_private"."profiles";
-create policy bsb_profiles_update on "app_private"."profiles" for update to authenticated
+create policy bsb_profiles_update on "app_private"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "app_private"."profiles" to authenticated;
@@ -1173,7 +1179,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:89f9359a6a50db6fadc42f4a70aa57c32b596afc8b54b8978c2452ef24e39d9a
+-- @bsb-hash sha256:62d21367ead2c08230d5e1c7fd483e48cc3e7ab33a55646a985654475fdb1671
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1253,10 +1259,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -1631,7 +1639,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:7fe5eeba8e90fe742aa38f0e3426f4b933573de82ec48f7c1eb17333fa8a4058
+-- @bsb-hash sha256:607560ad9f08ff524f52ee8ff09722cdf73d38e3f5705c4ffb03d204071da1d5
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1696,10 +1704,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
