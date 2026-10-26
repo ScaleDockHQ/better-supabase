@@ -123,7 +123,7 @@ jobs:
   # Runs next to verify, not after it: Integration is the longest job, so waiting for verify would
   # add its whole runtime to the critical path. Each shard starts its own stack.
   stack:
-    name: Integration (${{ matrix.shard }}/3)
+    name: Integration (${{ matrix.name }})
     needs: affected
     # `affected` is skipped on push, and a skipped need skips this job unless `!cancelled()`.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
@@ -134,8 +134,18 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
+      # Vitest shards by file count, not duration. The pg-delta round trip takes about two
+      # minutes on its own (the other files take seconds), so it gets its own job.
       matrix:
-        shard: [1, 2, 3]
+        include:
+          - name: 1/3
+            args: --shard=1/3 --exclude=tests/integration/pgdelta-roundtrip.integration.test.ts
+          - name: 2/3
+            args: --shard=2/3 --exclude=tests/integration/pgdelta-roundtrip.integration.test.ts
+          - name: 3/3
+            args: --shard=3/3 --exclude=tests/integration/pgdelta-roundtrip.integration.test.ts
+          - name: pg-delta round trip
+            args: tests/integration/pgdelta-roundtrip.integration.test.ts
     steps:
       - uses: actions/checkout@v7
         with:
@@ -149,21 +159,22 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase dev keys --cwd .
+          pnpm better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
 
       - name: Integration
         env:
-          SHARD: ${{ matrix.shard }}
+          ARGS: ${{ matrix.args }}
         run: >-
           pnpm exec dotenv -e .env.development.local --
-          pnpm --filter better-supabase exec vitest run --project integration --shard="$SHARD/3"
+          pnpm --filter better-supabase exec vitest run --project integration $ARGS
 
-  # Its own job, so it runs next to the shards instead of after one of them.
+  # Its own jobs, so they run next to the shards instead of after one of them. CentraKit takes
+  # about as long as the other three suites together.
   validation:
-    name: Integration (validation projects)
+    name: Integration (${{ matrix.name }})
     needs: affected
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
     runs-on: ubuntu-latest
@@ -171,6 +182,17 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: CentraKit
+            filters: --filter @better-supabase/validation-centrakit
+          - name: validation projects
+            filters: >-
+              --filter @better-supabase/validation-recipes
+              --filter @better-supabase/validation-presets
+              --filter @better-supabase/validation-request-context
     steps:
       - uses: actions/checkout@v7
         with:
@@ -181,18 +203,18 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase dev keys --cwd .
+          pnpm better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
 
+      # --workspace-concurrency=1: the suites share the stack's database.
       - name: Validation projects on the stack
+        env:
+          FILTERS: ${{ matrix.filters }}
         run: >-
-          pnpm exec dotenv -e .env.development.local -- sh -c
-          'pnpm --filter @better-supabase/validation-centrakit test
-          && pnpm --filter @better-supabase/validation-recipes test
-          && pnpm --filter @better-supabase/validation-presets test
-          && pnpm --filter @better-supabase/validation-request-context test'
+          pnpm exec dotenv -e .env.development.local --
+          pnpm --workspace-concurrency=1 $FILTERS test
 
   # As of CLI 2.121.0 the stack engine's Realtime denies private channel joins
   # that the Docker stack allows, so these suites also run on the legacy engine.
@@ -217,7 +239,7 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase dev keys --cwd .
+          pnpm better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack

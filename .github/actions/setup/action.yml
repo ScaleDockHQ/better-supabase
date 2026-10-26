@@ -7,9 +7,10 @@ inputs:
     default: "true"
   save-cache:
     description: >-
-      Save the pnpm store after the job. Only the default branch saves it, so pull requests restore
-      that entry instead of uploading near-identical stores against the 10 GB repository limit.
-    default: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+      Save the pnpm store after the job. Only verify's `static` job sets it, on the default branch:
+      pull requests restore that entry instead of uploading near-identical stores against the
+      10 GB repository limit, and the other jobs don't archive a store that one key already holds.
+    default: "false"
   install:
     description: Run `pnpm install`. Jobs that need only the pnpm binary set this to false.
     default: "true"
