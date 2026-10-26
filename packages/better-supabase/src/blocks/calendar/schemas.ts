@@ -30,6 +30,12 @@ export const calendarEventInputSchema: EntitySchema<CalendarEventInput> =
         description: "An RFC 5545 `RRULE` value; `null` ends the recurrence.",
       },
       exdates: { kind: "instant", optional: true, array: true },
+      rdates: { kind: "instant", optional: true, array: true },
+      visibility: {
+        kind: "enum",
+        values: ["public", "private"],
+        optional: true,
+      },
       subjectType: { kind: "string", optional: true, nullable: true },
       subjectId: { kind: "string", optional: true, nullable: true },
       color: { kind: "string", optional: true, nullable: true },

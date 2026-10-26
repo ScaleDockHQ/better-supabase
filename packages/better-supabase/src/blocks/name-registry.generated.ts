@@ -287,17 +287,20 @@ export interface BlockNameRegistry {
   };
   readonly "calendar": {
     readonly tables: {
-      readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt";
-      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response";
+      readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt" | "visibility" | "description" | "rank" | "isDefault";
+      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt" | "visibility" | "owner" | "rdates";
+      readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response" | "subjectType" | "subjectId" | "organizer" | "optional";
       readonly "workingHours": "id" | "tenant" | "user" | "weekday" | "startsAt" | "endsAt" | "tz";
+      readonly "grants": "id" | "tenant" | "calendar" | "user" | "role" | "createdAt";
+      readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";
+      readonly "recurrenceDates": "id" | "tenant" | "event" | "kind" | "at";
     };
     readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
     readonly actions: "manage" | "write" | "read";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {
-      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at";
-      readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at";
+      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at" | "visibility" | "owner_id" | "rdates";
+      readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at" | "visibility" | "description" | "rank" | "is_default";
     };
     readonly primary: "calendar_event";
   };

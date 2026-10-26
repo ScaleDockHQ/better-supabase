@@ -1916,7 +1916,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "autoDecline": "auto_decline",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "visibility": "visibility",
+              "owner": "owner_id",
+              "rdates": "rdates"
             }
           },
           "calendars": {
@@ -1929,7 +1932,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "color": "color",
               "ownerType": "owner_type",
               "ownerId": "owner_id",
-              "createdAt": "created_at"
+              "createdAt": "created_at",
+              "visibility": "visibility",
+              "description": "description",
+              "rank": "rank",
+              "isDefault": "is_default"
             }
           }
         },
@@ -7663,6 +7670,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarAttendee"
         },
         {
+          "name": "CalendarAttendeeInput"
+        },
+        {
+          "name": "CalendarAttributes"
+        },
+        {
           "name": "CalendarController"
         },
         {
@@ -7684,6 +7697,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventStatus"
         },
         {
+          "name": "CalendarGrant"
+        },
+        {
+          "name": "CalendarGrantRole"
+        },
+        {
           "name": "CalendarImport"
         },
         {
@@ -7700,6 +7719,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarTransparency"
+        },
+        {
+          "name": "CalendarVisibility"
         },
         {
           "name": "EventCalendarEvent"
@@ -7770,6 +7792,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "instant",
                 "optional": true,
                 "array": true
+              },
+              "rdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
               },
               "subjectType": {
                 "kind": "string",
@@ -7872,6 +7907,20 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "type": "string",
                     "format": "date-time"
                   }
+                },
+                "rdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
                 },
                 "subjectType": {
                   "type": [
@@ -7974,6 +8023,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "array": true
               },
+              "rdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
               "subjectType": {
                 "kind": "string",
                 "optional": true,
@@ -8076,6 +8138,20 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "format": "date-time"
                   }
                 },
+                "rdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
                 "subjectType": {
                   "type": [
                     "string",
@@ -8128,6 +8204,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "CalendarEvents",
         "types": [
           "calendar.created",
+          "calendar.updated",
           "calendar_event.created",
           "calendar_event.updated",
           "calendar_event.deleted"

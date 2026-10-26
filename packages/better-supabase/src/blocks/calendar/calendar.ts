@@ -81,6 +81,40 @@ export interface CalendarInfo {
   readonly ownerId?: string;
   /** With `options.calendarExtraColumns`: the calendar's own columns. */
   readonly fields?: Readonly<Record<string, unknown>>;
+  readonly visibility?: CalendarVisibility;
+  readonly description?: string;
+  readonly rank?: string;
+  readonly isDefault?: boolean;
+}
+
+export type CalendarVisibility = "shared" | "private";
+
+export type CalendarGrantRole = "viewer" | "editor";
+
+export interface CalendarGrant {
+  readonly userId: string;
+  readonly role: CalendarGrantRole;
+}
+
+export interface CalendarAttributes {
+  readonly name?: string;
+  readonly tz?: string;
+  readonly color?: string | null;
+  readonly visibility?: CalendarVisibility;
+  readonly description?: string | null;
+  readonly rank?: string | null;
+  readonly isDefault?: boolean;
+}
+
+export interface CalendarAttendeeInput {
+  readonly email?: string;
+  readonly name?: string;
+  readonly userId?: string;
+  readonly role?: AttendeeRole;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly organizer?: boolean;
+  readonly optional?: boolean;
 }
 
 /** The fields of an event to write. Fields left out keep their value on update. */
@@ -96,6 +130,8 @@ export interface CalendarEventInput {
   /** An RFC 5545 `RRULE` value, or `null` to end the recurrence. */
   readonly rrule?: string | null;
   readonly exdates?: readonly Temporal.Instant[];
+  readonly rdates?: readonly Temporal.Instant[];
+  readonly visibility?: "public" | "private";
   readonly subjectType?: string | null;
   readonly subjectId?: string | null;
   readonly color?: string | null;
@@ -136,8 +172,12 @@ export interface Calendar<F extends object = Record<never, never>> {
       readonly ownerId?: string;
       /** With `options.calendarExtraColumns`: values for those columns. */
       readonly fields?: Readonly<Record<string, unknown>>;
-    },
+    } & Omit<CalendarAttributes, "name" | "tz">,
   ): AsyncResult<{ readonly id: string }>;
+  updateCalendar(
+    id: string,
+    attributes: CalendarAttributes,
+  ): AsyncResult<boolean>;
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
   /**
@@ -177,14 +217,17 @@ export interface Calendar<F extends object = Record<never, never>> {
   cancelOccurrence(occurrence: CalendarOccurrence): AsyncResult<boolean>;
   setAttendee(
     eventId: string,
-    attendee: {
-      readonly email: string;
-      readonly name?: string;
-      readonly userId?: string;
-      readonly role?: AttendeeRole;
-    },
+    attendee: CalendarAttendeeInput,
   ): AsyncResult<boolean>;
   removeAttendee(eventId: string, email: string): AsyncResult<boolean>;
+  removeAttendeeById(attendeeId: string): AsyncResult<boolean>;
+  setGrant(
+    calendarId: string,
+    userId: string,
+    role: CalendarGrantRole,
+  ): AsyncResult<boolean>;
+  removeGrant(calendarId: string, userId: string): AsyncResult<boolean>;
+  grants(calendarId: string): AsyncResult<CalendarGrant[]>;
   /** The signed-in user answers an invitation. */
   respond(eventId: string, response: AttendeeResponse): AsyncResult<boolean>;
   /** Upserts the events of an iCalendar file by UID. */
@@ -199,6 +242,7 @@ export interface Calendar<F extends object = Record<never, never>> {
    * "calendar"`), or `null` when the token is unknown, revoked or expired.
    */
   feed(token: string): AsyncResult<string | null>;
+  userFeed(token: string): AsyncResult<string | null>;
   /** Replaces a member's weekly working hours. Returns how many stretches. */
   setWorkingHours(
     organizationId: string,
@@ -243,15 +287,26 @@ const STATUSES: readonly CalendarEventStatus[] = [
 ];
 
 function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
-  const name = optionalText(value["name"]);
-  const userId = optionalText(value["userId"]);
+  const text = (key: string) => {
+    const found = optionalText(value[key]);
+
+    return found === undefined ? {} : { [key]: found };
+  };
+
+  const flag = (key: string) =>
+    typeof value[key] === "boolean" ? { [key]: value[key] } : {};
 
   return {
-    email: textOf(value["email"]),
-    ...(name === undefined ? {} : { name }),
-    ...(userId === undefined ? {} : { userId }),
+    email: optionalText(value["email"]) ?? "",
+    ...text("name"),
+    ...text("userId"),
     role: oneOf(value["role"], ROLES, "required"),
     response: oneOf(value["response"], RESPONSES, "needs-action"),
+    ...text("id"),
+    ...text("subjectType"),
+    ...text("subjectId"),
+    ...flag("organizer"),
+    ...flag("optional"),
   };
 }
 
@@ -268,6 +323,7 @@ export function calendarEventOf(value: unknown): CalendarEvent {
   const originalStart = optionalInstant(row["originalStart"]);
   const updatedAt = optionalInstant(row["updatedAt"]);
   const exdates = Array.isArray(row["exdates"]) ? row["exdates"] : [];
+  const rdates = Array.isArray(row["rdates"]) ? row["rdates"] : undefined;
 
   return {
     id: textOf(row["id"]),
@@ -305,6 +361,19 @@ export function calendarEventOf(value: unknown): CalendarEvent {
       : {}),
     attendees: recordsOf(row["attendees"], "attendees").map(attendeeOf),
     ...(updatedAt === undefined ? {} : { updatedAt }),
+    ...(rdates === undefined
+      ? {}
+      : { rdates: rdates.map((date) => requiredInstant(date, "rdate")) }),
+    ...(row["visibility"] === undefined
+      ? {}
+      : {
+          visibility: oneOf(
+            row["visibility"],
+            ["public", "private"] as const,
+            "public",
+          ),
+        }),
+    ...text("ownerId"),
   };
 }
 
@@ -323,7 +392,7 @@ function itemOf(
       continue;
     }
 
-    if (key === "exdates" && Array.isArray(value)) {
+    if ((key === "exdates" || key === "rdates") && Array.isArray(value)) {
       item[key] = value.map(String);
     } else if (
       key === "startsAt" ||
@@ -353,6 +422,7 @@ function importItem(event: IcsEvent): Record<string, unknown> {
     status: event.status,
     rrule: event.rrule ?? null,
     exdates: event.exdates,
+    ...(event.rdates === undefined ? {} : { rdates: event.rdates }),
     ...(event.originalStart === undefined
       ? {}
       : { originalStart: event.originalStart }),
@@ -385,10 +455,31 @@ function copyOf(event: CalendarEvent): CalendarEventInput {
     ...(event.autoDecline === undefined
       ? {}
       : { autoDecline: event.autoDecline }),
+    ...(event.visibility === undefined ? {} : { visibility: event.visibility }),
   };
 }
 
 const INFINITE = { from: "-infinity", until: "infinity" } as const;
+
+function attributesOf(
+  input: Omit<CalendarAttributes, "name" | "tz">,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {};
+
+  for (const key of [
+    "color",
+    "visibility",
+    "description",
+    "rank",
+    "isDefault",
+  ] as const) {
+    if (input[key] !== undefined) {
+      attrs[key] = input[key];
+    }
+  }
+
+  return attrs;
+}
 
 /** The keys of an event write the block types itself. */
 const EVENT_INPUT: ReadonlySet<string> = new Set([
@@ -403,6 +494,8 @@ const EVENT_INPUT: ReadonlySet<string> = new Set([
   "status",
   "rrule",
   "exdates",
+  "rdates",
+  "visibility",
   "subjectType",
   "subjectId",
   "color",
@@ -466,8 +559,10 @@ export function createCalendar<
     ).andThen((rows) => allWithFields(fields, rows));
 
   const client: Calendar<F> = {
-    createCalendar: (organizationId, name, extra = {}) =>
-      call(
+    createCalendar: (organizationId, name, extra = {}) => {
+      const attrs = attributesOf(extra);
+
+      return call(
         "create_calendar",
         {
           tenant: organizationId,
@@ -476,8 +571,23 @@ export function createCalendar<
           owner_type: extra.ownerType ?? null,
           owner_id: extra.ownerId ?? null,
           ...(extra.fields === undefined ? {} : { fields: extra.fields }),
+          ...(Object.keys(attrs).length === 0 ? {} : { attrs }),
         },
         (value) => ({ id: textOf(recordOf(value, "create_calendar")["id"]) }),
+      );
+    },
+    updateCalendar: (id, attributes) =>
+      call(
+        "update_calendar",
+        {
+          calendar_id: id,
+          attrs: {
+            ...attributesOf(attributes),
+            ...(attributes.name === undefined ? {} : { name: attributes.name }),
+            ...(attributes.tz === undefined ? {} : { tz: attributes.tz }),
+          },
+        },
+        (value) => value === true,
       ),
     deleteCalendar: (id) =>
       call("delete_calendar", { calendar_id: id }, (value) => value === true),
@@ -486,7 +596,13 @@ export function createCalendar<
         recordsOf(value, "list_calendars").map((row) => {
           const extra: Record<string, string> = {};
 
-          for (const key of ["color", "ownerType", "ownerId"]) {
+          for (const key of [
+            "color",
+            "ownerType",
+            "ownerId",
+            "description",
+            "rank",
+          ]) {
             const found = optionalText(row[key]);
 
             if (found !== undefined) {
@@ -499,6 +615,18 @@ export function createCalendar<
             name: textOf(row["name"]),
             tz: optionalText(row["tz"]) ?? "UTC",
             ...extra,
+            ...(row["visibility"] === undefined
+              ? {}
+              : {
+                  visibility: oneOf(
+                    row["visibility"],
+                    ["shared", "private"] as const,
+                    "shared",
+                  ),
+                }),
+            ...(typeof row["isDefault"] === "boolean"
+              ? { isDefault: row["isDefault"] }
+              : {}),
             ...(isRecord(row["fields"])
               ? { fields: { ...row["fields"] } }
               : {}),
@@ -541,6 +669,7 @@ export function createCalendar<
         ...changes,
         rrule: null,
         exdates: [],
+        ...(series.rdates === undefined ? {} : { rdates: [] }),
         recurrenceId: series.id,
         originalStart: occurrence.originalStart,
       });
@@ -623,22 +752,57 @@ export function createCalendar<
       );
     },
     setAttendee: (eventId, attendee) =>
-      call(
-        "set_calendar_attendee",
-        {
-          event_id: eventId,
-          email: attendee.email,
-          name: attendee.name ?? null,
-          user_id: attendee.userId ?? null,
-          role: attendee.role ?? "required",
-        },
-        (value) => value === true,
-      ),
+      attendee.email === undefined ||
+      attendee.subjectType !== undefined ||
+      attendee.subjectId !== undefined ||
+      attendee.organizer !== undefined ||
+      attendee.optional !== undefined
+        ? call(
+            "set_calendar_attendee",
+            { event_id: eventId, attendee: { ...attendee } },
+            (value) => isRecord(value) && typeof value["id"] === "string",
+          )
+        : call(
+            "set_calendar_attendee",
+            {
+              event_id: eventId,
+              email: attendee.email,
+              name: attendee.name ?? null,
+              user_id: attendee.userId ?? null,
+              role: attendee.role ?? "required",
+            },
+            (value) => value === true,
+          ),
     removeAttendee: (eventId, email) =>
       call(
         "remove_calendar_attendee",
         { event_id: eventId, email },
         (value) => value === true,
+      ),
+    removeAttendeeById: (attendeeId) =>
+      call(
+        "remove_calendar_attendee",
+        { attendee_id: attendeeId },
+        (value) => value === true,
+      ),
+    setGrant: (calendarId, userId, role) =>
+      call(
+        "set_calendar_grant",
+        { calendar_id: calendarId, user_id: userId, role },
+        (value) => value === true,
+      ),
+    removeGrant: (calendarId, userId) =>
+      call(
+        "remove_calendar_grant",
+        { calendar_id: calendarId, user_id: userId },
+        (value) => value === true,
+      ),
+    grants: (calendarId) =>
+      call("list_calendar_grants", { calendar_id: calendarId }, (value) =>
+        recordsOf(value, "list_calendar_grants").map((row) => ({
+          userId: textOf(row["userId"]),
+          role: oneOf(row["role"], ["viewer", "editor"] as const, "viewer"),
+        })),
       ),
     respond: (eventId, response) =>
       call(
@@ -682,6 +846,18 @@ export function createCalendar<
         return toIcs(
           recordsOf(row["events"], "calendar_feed").map(calendarEventOf),
           { name: textOf(info["name"]), tz: optionalText(info["tz"]) ?? "UTC" },
+        );
+      }),
+    userFeed: (token) =>
+      call("calendar_user_feed", { token }, (value) => {
+        if (value === null || value === undefined) {
+          return null;
+        }
+
+        const row = recordOf(value, "calendar_user_feed");
+
+        return toIcs(
+          recordsOf(row["events"], "calendar_user_feed").map(calendarEventOf),
         );
       }),
     setWorkingHours: (organizationId, input) =>

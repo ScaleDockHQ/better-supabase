@@ -24,6 +24,11 @@ export interface CalendarAttendee {
   readonly userId?: string;
   readonly role: AttendeeRole;
   readonly response: AttendeeResponse;
+  readonly id?: string;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly organizer?: boolean;
+  readonly optional?: boolean;
 }
 
 /** One `VEVENT`, ready for `importIcs` or `upsert`. */
@@ -41,6 +46,7 @@ export interface IcsEvent {
   readonly status: CalendarEventStatus;
   readonly rrule?: string;
   readonly exdates: readonly Temporal.Instant[];
+  readonly rdates?: readonly Temporal.Instant[];
   /** `RECURRENCE-ID`: the occurrence of the series this event overrides. */
   readonly originalStart?: Temporal.Instant;
   readonly attendees: readonly CalendarAttendee[];
@@ -260,6 +266,7 @@ function eventOf(
   let rrule: string | undefined;
   let originalStart: Temporal.Instant | undefined;
   const exdates: Temporal.Instant[] = [];
+  const rdates: Temporal.Instant[] = [];
   const attendees: CalendarAttendee[] = [];
 
   for (const line of lines) {
@@ -332,6 +339,20 @@ function eventOf(
         break;
       }
 
+      case "RDATE": {
+        for (const value of line.value.split(",")) {
+          const date = value.includes("/")
+            ? undefined
+            : dateValue(value.trim(), line.params, fallback);
+
+          if (date !== undefined) {
+            rdates.push(date.instant);
+          }
+        }
+
+        break;
+      }
+
       case "RECURRENCE-ID": {
         originalStart = dateValue(line.value, line.params, fallback)?.instant;
         break;
@@ -379,6 +400,7 @@ function eventOf(
     status,
     ...(rrule === undefined ? {} : { rrule }),
     exdates,
+    ...(rdates.length === 0 ? {} : { rdates }),
     ...(originalStart === undefined ? {} : { originalStart }),
     attendees,
     ...(transparent ? { transparency: "transparent" as const } : {}),
@@ -461,6 +483,7 @@ export interface IcsSource {
   readonly status: CalendarEventStatus;
   readonly rrule?: string;
   readonly exdates: readonly Temporal.Instant[];
+  readonly rdates?: readonly Temporal.Instant[];
   readonly originalStart?: Temporal.Instant;
   readonly attendees?: readonly CalendarAttendee[];
   readonly updatedAt?: Temporal.Instant;
@@ -641,6 +664,10 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
     lines.push(timeProperty("EXDATE", exdate, event));
   }
 
+  for (const rdate of event.rdates ?? []) {
+    lines.push(timeProperty("RDATE", rdate, event));
+  }
+
   lines.push(`SUMMARY:${escapeText(event.title)}`);
 
   if (event.description !== undefined) {
@@ -658,6 +685,10 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
   }
 
   for (const attendee of event.attendees ?? []) {
+    if (attendee.email === "") {
+      continue;
+    }
+
     const cn =
       attendee.name === undefined ? "" : `;CN=${paramValue(attendee.name)}`;
 
@@ -696,7 +727,7 @@ export function toIcs(
     const from = event.startsAt.subtract({ hours: 24 });
 
     const until =
-      event.rrule === undefined
+      event.rrule === undefined && (event.rdates ?? []).length === 0
         ? event.endsAt.add({ hours: 24 })
         : event.startsAt.add({ hours: 24 * 366 * 3 });
 

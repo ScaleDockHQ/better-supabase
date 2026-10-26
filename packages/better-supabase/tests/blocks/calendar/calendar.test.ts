@@ -469,3 +469,190 @@ describe("calendar client", () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe("calendar adoption options", () => {
+  it("creates and updates calendars with details and visibility", async () => {
+    const { calls, calendar } = recorder({
+      create_calendar: { id: "c2" },
+      update_calendar: true,
+      list_calendars: [
+        {
+          id: "c2",
+          name: "Mine",
+          tz: "UTC",
+          visibility: "private",
+          description: "Personal",
+          rank: "a0",
+          isDefault: true,
+        },
+      ],
+    });
+
+    await calendar
+      .createCalendar("org", "Mine", {
+        ownerType: "user",
+        ownerId: "u1",
+        visibility: "private",
+        isDefault: true,
+      })
+      .orThrow();
+    expect(calls[0]?.args["attrs"]).toEqual({
+      visibility: "private",
+      isDefault: true,
+    });
+    expect(
+      await calendar
+        .updateCalendar("c2", { name: "Mine (old)", rank: null })
+        .orThrow(),
+    ).toBe(true);
+    expect(calls[1]).toEqual({
+      fn: "update_calendar",
+      args: { calendar_id: "c2", attrs: { rank: null, name: "Mine (old)" } },
+    });
+    expect(await calendar.listCalendars("org").orThrow()).toEqual([
+      {
+        id: "c2",
+        name: "Mine",
+        tz: "UTC",
+        visibility: "private",
+        description: "Personal",
+        rank: "a0",
+        isDefault: true,
+      },
+    ]);
+  });
+
+  it("keys attendees by subject and removes one by id", async () => {
+    const { calls, calendar } = recorder({
+      set_calendar_attendee: { id: "a1", created: true },
+      remove_calendar_attendee: true,
+      list_calendar_events: [
+        {
+          ...SERIES,
+          attendees: [
+            {
+              id: "a1",
+              email: null,
+              name: "Ada",
+              userId: null,
+              role: "optional",
+              response: "needs-action",
+              subjectType: "contact",
+              subjectId: "c-1",
+              organizer: false,
+              optional: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      await calendar
+        .setAttendee("e1", {
+          subjectType: "contact",
+          subjectId: "c-1",
+          optional: true,
+        })
+        .orThrow(),
+    ).toBe(true);
+    expect(calls[0]?.args).toEqual({
+      event_id: "e1",
+      attendee: { subjectType: "contact", subjectId: "c-1", optional: true },
+    });
+    expect(await calendar.removeAttendeeById("a1").orThrow()).toBe(true);
+    expect(calls[1]?.args).toEqual({ attendee_id: "a1" });
+
+    const [event] = await calendar.events(["c1"], range).orThrow();
+
+    expect(event?.attendees).toEqual([
+      {
+        id: "a1",
+        email: "",
+        name: "Ada",
+        role: "optional",
+        response: "needs-action",
+        subjectType: "contact",
+        subjectId: "c-1",
+        organizer: false,
+        optional: true,
+      },
+    ]);
+  });
+
+  it("grants access to a calendar and lists the grants", async () => {
+    const { calls, calendar } = recorder({
+      set_calendar_grant: true,
+      remove_calendar_grant: true,
+      list_calendar_grants: [{ userId: "u2", role: "editor" }],
+    });
+
+    expect(await calendar.setGrant("c1", "u2", "editor").orThrow()).toBe(true);
+    expect(await calendar.grants("c1").orThrow()).toEqual([
+      { userId: "u2", role: "editor" },
+    ]);
+    expect(await calendar.removeGrant("c1", "u2").orThrow()).toBe(true);
+    expect(calls.map((call) => call.fn)).toEqual([
+      "set_calendar_grant",
+      "list_calendar_grants",
+      "remove_calendar_grant",
+    ]);
+  });
+
+  it("expands RDATEs and serves a user's feed with them", async () => {
+    const withDates = {
+      ...SERIES,
+      rrule: "FREQ=WEEKLY;BYDAY=MO;COUNT=2",
+      rdates: ["2026-03-25T08:00:00+00:00"],
+      visibility: "private",
+      ownerId: "u1",
+    };
+
+    const { calendar } = recorder({
+      list_calendar_events: [withDates],
+      calendar_user_feed: { userId: "u1", calendars: [], events: [withDates] },
+    });
+
+    const found = await calendar.occurrences(["c1"], range).orThrow();
+
+    expect(found.map((item) => item.start.toString())).toEqual([
+      "2026-03-23T08:00:00Z",
+      "2026-03-25T08:00:00Z",
+      "2026-03-30T07:00:00Z",
+    ]);
+    expect(found[0]?.event).toMatchObject({
+      visibility: "private",
+      ownerId: "u1",
+    });
+
+    const ics = await calendar.userFeed("t".repeat(40)).orThrow();
+
+    expect(ics).toContain("RDATE;TZID=Europe/Amsterdam:20260325T090000\r\n");
+  });
+
+  it("reads RDATEs from an iCalendar file", async () => {
+    const { calls, calendar } = recorder({
+      import_calendar_events: { created: 1, updated: 0, skipped: 0 },
+    });
+
+    await calendar
+      .importIcs(
+        "c1",
+        [
+          "BEGIN:VCALENDAR",
+          "BEGIN:VEVENT",
+          "UID:x1",
+          "DTSTART:20260302T090000Z",
+          "DTEND:20260302T100000Z",
+          "RDATE:20260305T090000Z,20260306T090000Z/20260306T100000Z",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      )
+      .orThrow();
+
+    expect(calls[0]?.args["source"]).toMatchObject({
+      events: [{ uid: "x1", rdates: ["2026-03-05T09:00:00Z"] }],
+    });
+  });
+});

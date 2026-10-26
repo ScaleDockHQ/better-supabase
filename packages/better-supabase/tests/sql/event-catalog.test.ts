@@ -59,6 +59,7 @@ const OPTIONAL = new Set([
   "timesheet.rejected",
   "object.uploaded",
   "pipeline.stage_changed",
+  "calendar.updated",
 ]);
 
 const declared = (module: string): string[] =>
