@@ -7616,6 +7616,7 @@
       "customContracts",
       "dataExportPlan",
       "declaredColumnTypes",
+      "declaredIndexes",
       "declaredPolicies",
       "declaredTableColumns",
       "declaredTables",

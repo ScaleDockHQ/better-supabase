@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   declaredColumnTypes,
   declaredEnums,
+  declaredIndexes,
   declaredTableColumns,
   declaredTables,
   declaredViews,
@@ -243,5 +244,42 @@ drop policy "notes_read" on notes;`,
     expect(policyGrants(files, ["public"])).toEqual([
       { table: "public.notes", role: "authenticated", privileges: ["update"] },
     ]);
+  });
+});
+
+describe("declaredIndexes", () => {
+  it("collects the leading columns of full btree indexes and key constraints", () => {
+    const indexes = declaredIndexes(
+      [
+        {
+          text: `create table public.members (
+  id uuid primary key,
+  team_id uuid not null,
+  user_id uuid not null,
+  organization_id uuid not null,
+  email text unique,
+  constraint members_pair unique (team_id, user_id),
+  check (id is not null)
+);
+-- create index ignored_idx on public.members (email);
+create index members_org_idx on public.members (organization_id, "user_id" desc nulls last);
+create index if not exists on public.members (lower(email), user_id);
+create unique index concurrently members_one on only members using btree (user_id);
+create index members_partial on public.members (team_id) where team_id is not null;
+create index members_gin on public.members using gin (email);
+create index other_idx on private.things (id);`,
+        },
+      ],
+      ["public"],
+    );
+
+    expect(indexes.get("public.members")).toEqual([
+      ["organization_id", "user_id"],
+      ["user_id"],
+      ["id"],
+      ["email"],
+      ["team_id", "user_id"],
+    ]);
+    expect(indexes.has("private.things")).toBe(false);
   });
 });

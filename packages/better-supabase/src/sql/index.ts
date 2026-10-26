@@ -111,6 +111,7 @@ export type { AuditedTable } from "./audit-registrations.ts";
 
 export {
   declaredColumnTypes,
+  declaredIndexes,
   declaredTableColumns,
   declaredTables,
   declaredUpdatedAtTriggers,

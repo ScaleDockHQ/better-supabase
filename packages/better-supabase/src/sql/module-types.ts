@@ -334,6 +334,13 @@ export interface BlockSqlLayout {
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**
+   * The leading columns of each full btree index on a table in `ownTables`, by
+   * `schema.table`. A block adds no plain index that one of them covers.
+   */
+  readonly ownIndexes?: Readonly<
+    Record<string, readonly (readonly string[])[]>
+  >;
+  /**
    * The entries of `ownTables` that are views or materialized views, by
    * `schema.view`, and whether Postgres can write through each one. A block
    * writes no DDL over a view, only the functions that read it.

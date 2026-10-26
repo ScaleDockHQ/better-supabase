@@ -16,6 +16,7 @@ import type { CatalogPolicy } from "./introspect/types.ts";
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  declaredIndexes,
   declaredTableColumns,
   declaredTables,
   declaredViews,
@@ -230,6 +231,7 @@ async function ownLayout(
     | "ownColumns"
     | "ownUpdatedAtTriggers"
     | "ownPolicies"
+    | "ownIndexes"
   >
 > {
   const database = await databaseTables(config);
@@ -263,7 +265,26 @@ async function ownLayout(
       ...database.policies,
       ...declaredPolicies(own, config.schemas),
     },
+    ownIndexes: mergeIndexes(
+      database.indexes,
+      declaredIndexes(own, config.schemas),
+    ),
   };
+}
+
+function mergeIndexes(
+  database: Readonly<Record<string, readonly (readonly string[])[]>>,
+  declared: ReadonlyMap<string, readonly (readonly string[])[]>,
+): Readonly<Record<string, readonly (readonly string[])[]>> {
+  const merged: Record<string, readonly (readonly string[])[]> = {
+    ...database,
+  };
+
+  for (const [table, indexes] of declared) {
+    merged[table] = [...(merged[table] ?? []), ...indexes];
+  }
+
+  return merged;
 }
 
 /** A trigger function named like one that keeps `updated_at` current. */
@@ -305,6 +326,7 @@ async function databaseTables(
   readonly columns: Readonly<Record<string, readonly string[]>>;
   readonly updatedAtTriggers: Readonly<Record<string, string>>;
   readonly policies: Readonly<Record<string, readonly CatalogPolicy[]>>;
+  readonly indexes: Readonly<Record<string, readonly (readonly string[])[]>>;
 }> {
   const none = {
     tables: {},
@@ -312,6 +334,7 @@ async function databaseTables(
     columns: {},
     updatedAtTriggers: {},
     policies: {},
+    indexes: {},
   };
 
   const path = config.source.snapshot;
@@ -347,6 +370,7 @@ async function databaseTables(
   const columns: Record<string, readonly string[]> = {};
   const updatedAtTriggers: Record<string, string> = {};
   const policies: Record<string, readonly CatalogPolicy[]> = {};
+  const indexes: Record<string, readonly (readonly string[])[]> = {};
 
   for (const table of toCatalog(snapshot).tables) {
     const name = `${table.schema}.${table.name}`;
@@ -373,10 +397,16 @@ async function databaseTables(
       policies[name] = table.policies.filter(
         (policy) => !policy.name.startsWith("bsb_"),
       );
+
+      indexes[name] = table.indexes
+        .filter(
+          (index) => !index.partial && (index.method ?? "btree") === "btree",
+        )
+        .map((index) => index.columns);
     }
   }
 
-  return { tables, views, columns, updatedAtTriggers, policies };
+  return { tables, views, columns, updatedAtTriggers, policies, indexes };
 }
 
 /**
