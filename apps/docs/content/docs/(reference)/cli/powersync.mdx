@@ -10,8 +10,15 @@ Set `gen.powersync` and `gen` runs it as the `powersync` task.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: { memberships: {}, notifications: {}, attachments: {} },
-  gen: { powersync: { instances: ["notifications", "attachments"] } },
+  blocks: {
+    memberships: {},
+    organizations: {},
+    notifications: {},
+    attachments: {},
+  },
+  gen: {
+    powersync: { instances: ["notifications", "attachments", "memberships"] },
+  },
 });
 ```
 
@@ -48,14 +55,26 @@ pnpm better-supabase powersync streams --check   # exit 1 when a file is out of 
 
 Each block syncs only the rows the user can read:
 
-| Block           | Tables                                           | Rows                                                   |
-| --------------- | ------------------------------------------------ | ------------------------------------------------------ |
-| `notifications` | `notification_recipients`, `notification_events` | The user's recipients and the events they point at     |
-| `attachments`   | `attachments`                                    | The files of the organizations the user is a member of |
+| Block           | Tables                                           | Rows                                                                     |
+| --------------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `notifications` | `notification_recipients`, `notification_events` | The user's recipients and the events they point at                       |
+| `attachments`   | `attachments`                                    | The files of the organizations the user is a member of                   |
+| `memberships`   | `memberships`, `organizations`                   | The user's memberships, and the id, name and slug of those organizations |
+| `teams`         | `teams`, `team_members`                          | The teams the user belongs to and their members                          |
+| `profiles`      | `profiles`                                       | The user's own profile                                                   |
 
 `attachments` reads the user's organizations from the `memberships` block, so
-the config needs it. Other blocks can't sync yet; the command names the
-instance it refuses.
+the config needs it. `memberships` adds the `organizations` table when the
+config has the organizations block, so the organization switcher can show the
+names offline. Other blocks can't sync yet; the command names the instance it
+refuses.
+
+PowerSync replicates past the column grants and RLS policies, so each stream
+selects only what the block lets the user read: the organizations stream lists
+its columns instead of `*`, teams sync only for their members, and profiles
+sync only the user's own row. Rows without an `id` column (`memberships`,
+`team_members`) get one that joins both keys, `<organization>:<user>` and
+`<team>:<user>`; the upload routes read it back.
 
 The migration is written once. A later run compares the newest
 `*_powersync_publication.sql` with what it would write and adds a new

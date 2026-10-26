@@ -6,9 +6,10 @@ import {
 } from "@powersync/react-native";
 
 /**
- * The synced columns of `public.customers` and the notification tables
- * (`better-supabase powersync streams --instance notifications` writes them);
- * PowerSync adds the text `id`.
+ * The synced columns of `public.customers`, the notification tables and the
+ * user's memberships with their organizations (`better-supabase powersync
+ * streams --instance notifications,memberships` writes them); PowerSync adds
+ * the text `id`, `<organization>:<user>` for a membership.
  */
 const schema = new Schema({
   customers: new Table({
@@ -42,6 +43,18 @@ const schema = new Schema({
     resolved_at: column.text,
     resolution: column.text,
     dismissed_at: column.text,
+  }),
+  memberships: new Table({
+    organization_id: column.text,
+    user_id: column.text,
+    role: column.text,
+    created_at: column.text,
+  }),
+  organizations: new Table({
+    name: column.text,
+    slug: column.text,
+    disabled_at: column.text,
+    deleted_at: column.text,
   }),
 });
 

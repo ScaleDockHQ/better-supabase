@@ -16,7 +16,7 @@ export default defineConfig({
     tasks: ["types"],
     // The instances the PowerSync database serves on native. `gen` marks the
     // other block instances as needing the network.
-    powersync: { instances: ["notifications"] },
+    powersync: { instances: ["notifications", "memberships"] },
   },
   blocks: {
     memberships: {

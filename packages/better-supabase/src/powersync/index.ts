@@ -91,3 +91,34 @@ export type {
   NotificationRecipientWrites,
   PowerSyncNotificationsOptions,
 } from "./notifications.ts";
+
+export {
+  membershipsRoute,
+  powersyncMembershipsTransport,
+} from "./memberships.ts";
+
+export type {
+  LocalMembershipFunction,
+  MembershipWrites,
+  PowerSyncMembershipsOptions,
+} from "./memberships.ts";
+
+export {
+  powersyncTeamsTransport,
+  teamMembersRoute,
+  teamsRoute,
+} from "./teams.ts";
+
+export type {
+  LocalTeamFunction,
+  PowerSyncTeamsOptions,
+  TeamWrites,
+} from "./teams.ts";
+
+export { powersyncProfilesTransport, profilesRoute } from "./profiles.ts";
+
+export type {
+  LocalProfileFunction,
+  PowerSyncProfilesOptions,
+  ProfileWrites,
+} from "./profiles.ts";

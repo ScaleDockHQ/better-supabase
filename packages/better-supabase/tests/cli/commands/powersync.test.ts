@@ -14,7 +14,12 @@ import { configuredTasks } from "../../../src/cli/commands/gen-pipeline.ts";
 import { runPowerSync } from "../../../src/cli/commands/powersync.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
-const BLOCKS = { memberships: {}, notifications: {}, attachments: {} };
+const BLOCKS = {
+  memberships: {},
+  organizations: {},
+  notifications: {},
+  attachments: {},
+};
 
 describe("powersync streams", () => {
   let root: string;
@@ -55,9 +60,11 @@ describe("powersync streams", () => {
   });
 
   it("refuses a block that can't sync and an unknown key", async () => {
-    expect(await runPowerSync(config(["memberships"]), {}, now)).toMatchObject({
+    expect(
+      await runPowerSync(config(["organizations"]), {}, now),
+    ).toMatchObject({
       code: 1,
-      error: expect.stringContaining("memberships installs memberships"),
+      error: expect.stringContaining("organizations installs organizations"),
     });
 
     expect(await runPowerSync(config(["inbox"]), {}, now)).toMatchObject({

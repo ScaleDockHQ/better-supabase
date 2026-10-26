@@ -62,7 +62,7 @@ function instancesOf(
     }
 
     if (!isPowerSyncBlock(block)) {
-      return `${key} installs ${block}, which can't sync yet. PowerSync syncs ${POWERSYNC_BLOCKS.join(" and ")}.`;
+      return `${key} installs ${block}, which can't sync yet. PowerSync syncs ${POWERSYNC_BLOCKS.slice(0, -1).join(", ")} and ${POWERSYNC_BLOCKS.at(-1)}.`;
     }
 
     instances.push({ key, block });

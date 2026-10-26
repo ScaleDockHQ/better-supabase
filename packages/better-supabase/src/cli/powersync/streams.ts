@@ -4,7 +4,13 @@ import { SPEC_PINS } from "../../index.ts";
 import { declaredColumnTypes } from "../../sql/index.ts";
 
 /** The blocks `gen.powersync` can sync. */
-export const POWERSYNC_BLOCKS = ["notifications", "attachments"] as const;
+export const POWERSYNC_BLOCKS = [
+  "notifications",
+  "attachments",
+  "memberships",
+  "teams",
+  "profiles",
+] as const;
 
 export type PowerSyncBlock = (typeof POWERSYNC_BLOCKS)[number];
 
@@ -164,6 +170,152 @@ function notificationTables(
   ];
 }
 
+/** The memberships table: the one with `user_id` and `role`. */
+function membershipsTable(
+  input: PowerSyncInput,
+  key: string,
+): readonly [string, ReadonlyMap<string, string>] | undefined {
+  return [...tablesOf(input, key)].find(
+    ([, declared]) => declared.has("user_id") && declared.has("role"),
+  );
+}
+
+/** The tenant column of the memberships table: its `*_id` besides `user_id`. */
+function membershipTenant(
+  columns: ReadonlyMap<string, string>,
+  what: string,
+): string {
+  const tenant = [...columns.keys()].find(
+    (column) => column.endsWith("_id") && column !== "user_id",
+  );
+
+  if (tenant === undefined) {
+    throw new Error(`gen.powersync: ${what} has no organization column`);
+  }
+
+  return tenant;
+}
+
+/**
+ * Only `names` of `columns`, for a stream that selects them. PowerSync
+ * replicates past the column grants, so a stream lists what it may expose.
+ */
+function only(
+  columns: ReadonlyMap<string, string>,
+  names: readonly string[],
+): ReadonlyMap<string, string> {
+  return new Map([...columns].filter(([column]) => names.includes(column)));
+}
+
+function membershipTables(
+  input: PowerSyncInput,
+  instance: PowerSyncInstance,
+): SyncedTable[] {
+  const found = membershipsTable(input, instance.key);
+
+  if (found === undefined) {
+    throw new Error(
+      `gen.powersync: found no ${instance.key} memberships table`,
+    );
+  }
+
+  const [memberships, columns] = found;
+  const tenant = membershipTenant(columns, `${instance.key} memberships`);
+  const mine = `SELECT ${ident(tenant)} FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`;
+
+  const synced: SyncedTable[] = [
+    {
+      qualified: memberships,
+      name: baseName(memberships),
+      stream: `${instance.key}_memberships`,
+      query: `SELECT ${ident(tenant)} || ':' || user_id AS id, * FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`,
+      columns,
+    },
+  ];
+
+  const organizations = [...tablesOf(input, "organizations")].find(
+    ([, declared]) =>
+      declared.has("id") && declared.has("name") && !declared.has("user_id"),
+  );
+
+  if (organizations !== undefined) {
+    const [table, declared] = organizations;
+
+    const selected = ["id", "name", "slug", "disabled_at", "deleted_at"].filter(
+      (column) => declared.has(column),
+    );
+
+    synced.push({
+      qualified: table,
+      name: baseName(table),
+      stream: `${instance.key}_organizations`,
+      query: `SELECT ${selected.map(ident).join(", ")} FROM ${qualifiedIdent(table)} WHERE id IN (${mine})`,
+      columns: only(declared, selected),
+    });
+  }
+
+  return synced;
+}
+
+function teamTables(
+  input: PowerSyncInput,
+  instance: PowerSyncInstance,
+): SyncedTable[] {
+  const tables = tablesOf(input, instance.key);
+
+  const [members, memberColumns] = tableWith(
+    tables,
+    ["team_id", "user_id"],
+    `${instance.key} team members`,
+  );
+
+  const [teams, teamColumns] = tableWith(
+    tables,
+    ["id", "name", "slug", "status"],
+    `${instance.key} teams`,
+  );
+
+  const myTeams = `SELECT team_id FROM ${qualifiedIdent(members)} WHERE user_id = auth.user_id()`;
+
+  return [
+    {
+      qualified: teams,
+      name: baseName(teams),
+      stream: `${instance.key}_teams`,
+      query: `SELECT * FROM ${qualifiedIdent(teams)} WHERE id IN (${myTeams})`,
+      columns: teamColumns,
+    },
+    {
+      qualified: members,
+      name: baseName(members),
+      stream: `${instance.key}_members`,
+      query: `SELECT team_id || ':' || user_id AS id, * FROM ${qualifiedIdent(members)} WHERE team_id IN (${myTeams})`,
+      columns: memberColumns,
+    },
+  ];
+}
+
+function profileTables(
+  input: PowerSyncInput,
+  instance: PowerSyncInstance,
+): SyncedTable[] {
+  const [profiles, columns] = tableWith(
+    tablesOf(input, instance.key),
+    ["id"],
+    `${instance.key} profiles`,
+  );
+
+  return [
+    {
+      qualified: profiles,
+      name: baseName(profiles),
+      stream: instance.key,
+      query: `SELECT * FROM ${qualifiedIdent(profiles)} WHERE id = auth.user_id()`,
+      columns,
+    },
+  ];
+}
+
 function attachmentTables(
   input: PowerSyncInput,
   instance: PowerSyncInstance,
@@ -174,9 +326,7 @@ function attachmentTables(
     `${instance.key} attachments`,
   );
 
-  const memberships = [...tablesOf(input, "memberships")].find(
-    ([, declared]) => declared.has("user_id") && declared.has("role"),
-  );
+  const memberships = membershipsTable(input, "memberships");
 
   if (memberships === undefined) {
     throw new Error(
@@ -221,6 +371,18 @@ function syncedTables(
 
     case "attachments": {
       return attachmentTables(input, instance);
+    }
+
+    case "memberships": {
+      return membershipTables(input, instance);
+    }
+
+    case "teams": {
+      return teamTables(input, instance);
+    }
+
+    case "profiles": {
+      return profileTables(input, instance);
     }
 
     default: {
