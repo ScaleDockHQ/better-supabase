@@ -316,6 +316,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     const exchanged = await bsb.exchangeCode({ code, next: "/projects" });
 
+    expect(exchanged.error).toBeNull();
     expect(exchanged).toMatchObject({
       ok: true,
       data: { redirectTo: "/projects", session: { userId: user.id } },
