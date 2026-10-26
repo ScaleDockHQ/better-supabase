@@ -16,6 +16,7 @@ const UNLISTED = new Set([
   "index",
   "other",
   // Next.js guides, reached from the Next.js page.
+  "next-auth",
   "next-cache-components",
   "next-islands",
   // A guide for running Hono and Next.js on one server, reached from both pages.

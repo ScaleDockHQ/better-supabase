@@ -302,15 +302,40 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     expect(mocks.jar.has(verifier)).toBe(true);
 
-    const challenge = new URL(authorize).searchParams.get("code_challenge");
-    const code = crypto.randomUUID();
+    const target = new URL(authorize);
 
-    await pool.query(
-      `insert into auth.flow_state (id, user_id, auth_code, code_challenge_method, code_challenge,
-         provider_type, authentication_method, auth_code_issued_at, created_at, updated_at)
-       values ($1, $2, $3, 's256', $4, 'github', 'oauth', now(), now(), now())`,
-      [crypto.randomUUID(), user.id, code, challenge],
+    const sent = await fetch(`${url}/auth/v1/otp`, {
+      method: "POST",
+      headers: { apikey: publishableKey, "content-type": "application/json" },
+      body: JSON.stringify({
+        email: user.email,
+        create_user: false,
+        code_challenge: target.searchParams.get("code_challenge"),
+        code_challenge_method: "s256",
+      }),
+    });
+
+    expect(sent.status).toBe(200);
+
+    const { rows } = await pool.query<{ token_hash: string }>(
+      "select token_hash from auth.one_time_tokens where user_id = $1",
+      [user.id],
     );
+
+    const link = new URL(`${url}/auth/v1/verify`);
+    link.searchParams.set("token", rows[0]?.token_hash ?? "");
+    link.searchParams.set("type", "magiclink");
+    link.searchParams.set(
+      "redirect_to",
+      target.searchParams.get("redirect_to") ?? "",
+    );
+
+    const landed = await fetch(link, { redirect: "manual" });
+    const location = new URL(landed.headers.get("location") ?? "", url);
+    const code = location.searchParams.get("code") ?? "";
+
+    expect(code).not.toBe("");
+    expect(location.searchParams.get("next")).toBe("/projects");
 
     nextRequest();
 
