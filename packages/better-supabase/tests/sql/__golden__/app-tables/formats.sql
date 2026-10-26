@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:36f3a6947291116e79dacadfae16ea57fcf552c48e5d7040486d48029639ef0b
+-- @bsb-hash sha256:9c9f1d43691b401236c508e8b156bc6e63aefeae6289dc498d0888e745ddc217
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -70,7 +70,7 @@ alter table "public"."contacts" add column if not exists "price_currency" text;
 alter table "public"."notes" add column if not exists "contact_id" bigint;
 
 alter table "public"."contacts" enable row level security;
-revoke all on "public"."contacts" from anon, authenticated;
+revoke all on "public"."contacts" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."contacts" to authenticated;
 grant all on "public"."contacts" to service_role;
 drop policy if exists "contacts_select" on "public"."contacts";
@@ -126,7 +126,7 @@ create trigger "bsb_updated_at" before update on "public"."contacts"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."notes" enable row level security;
-revoke all on "public"."notes" from anon, authenticated;
+revoke all on "public"."notes" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."notes" to authenticated;
 grant all on "public"."notes" to service_role;
 drop policy if exists "notes_select" on "public"."notes";

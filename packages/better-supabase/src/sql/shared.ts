@@ -161,6 +161,12 @@ export function extraFieldsArg(
   };
 }
 
+/** Takes the default grants on later objects in a schema from every client role. */
+export const revokeDefaults = (schema: string): string =>
+  `alter default privileges in schema ${schema} revoke all on tables from public, anon, authenticated;
+alter default privileges in schema ${schema} revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema ${schema} revoke all on functions from public, anon, authenticated;`;
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
@@ -207,7 +213,8 @@ export function schemaPreamble(ctx: BlockSqlContext): string {
 
   return `${SCHEMA}
 create schema if not exists ${ctx.schema};
-grant usage on schema ${ctx.schema} to anon, authenticated, service_role;`;
+grant usage on schema ${ctx.schema} to anon, authenticated, service_role;
+${revokeDefaults(ctx.schema)}`;
 }
 
 /** A claim from the top level of the token, then `app_metadata`. */
@@ -888,7 +895,7 @@ ${statements.join("\n\n")}\n`;
 
 /** SQL that takes every privilege on a table from `anon` and `authenticated`. */
 export const revokeTable = (table: string): string =>
-  `revoke all on ${table} from anon, authenticated;`;
+  `revoke all on ${table} from public, anon, authenticated;`;
 
 /**
  * One policy per command for rows `authenticated` owns. A permissive `for all`
@@ -985,7 +992,7 @@ begin
       continue;
     end;
     execute format('alter table %I.%I enable row level security', v_schema, v_part);
-    execute format('revoke all on %I.%I from anon, authenticated', v_schema, v_part);
+    execute format('revoke all on %I.%I from public, anon, authenticated', v_schema, v_part);
     v_made := v_made + 1;
   end loop;
   return v_made;
@@ -1060,7 +1067,7 @@ begin
   if (select c.relkind from pg_catalog.pg_class c where c.oid = ${sqlString(table)}::regclass) = 'p' then
     create table if not exists ${fallback} partition of ${table} default;
     alter table ${fallback} enable row level security;
-    revoke all on ${fallback} from anon, authenticated;
+    revoke all on ${fallback} from public, anon, authenticated;
   end if;
 end;
 $$;`;

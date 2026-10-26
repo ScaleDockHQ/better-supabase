@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:ebcaa8c019f8c67e719897d9d18a191cb0d527df7ae2b240276b6ee1f2272373
+-- @bsb-hash sha256:474faf76d5a1f22917c9f46b58fe5c6396a0f7e4156eecb2de2def4d3e30cb65
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create index if not exists support_sessions_admin_idx on "better_supabase"."supp
 create index if not exists support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
 create unique index if not exists support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
 alter table "better_supabase"."support_sessions" enable row level security;
-revoke all on "better_supabase"."support_sessions" from anon, authenticated;
+revoke all on "better_supabase"."support_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
@@ -117,7 +117,7 @@ create index if not exists support_requests_admin_idx on "better_supabase"."supp
 create index if not exists support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
 create index if not exists support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
 alter table "better_supabase"."support_requests" enable row level security;
-revoke all on "better_supabase"."support_requests" from anon, authenticated;
+revoke all on "better_supabase"."support_requests" from public, anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
@@ -829,7 +829,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_020_impersonation.sql

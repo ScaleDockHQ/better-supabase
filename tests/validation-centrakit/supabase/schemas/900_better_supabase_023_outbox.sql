@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:4e5e3f2a2bcf27c638dd5b5e54540be50d22b2942c87cce40c5100b4a0e7d5b1
+-- @bsb-hash sha256:cc42c8223080e7e14ca023418a10ad357ebeda6502eff9bda090288fcbae3aea
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ alter table "better_supabase"."outbox_consumers" add column if not exists "attem
 alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
 alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
-revoke all on "better_supabase"."outbox_consumers" from anon, authenticated;
+revoke all on "better_supabase"."outbox_consumers" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
@@ -59,7 +59,7 @@ create table if not exists "better_supabase"."outbox_dead_letters" (
 );
 create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
-revoke all on "better_supabase"."outbox_dead_letters" from anon, authenticated;
+revoke all on "better_supabase"."outbox_dead_letters" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
@@ -487,5 +487,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

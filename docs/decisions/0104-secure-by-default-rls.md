@@ -43,3 +43,10 @@ migration note.
   code (`context.ts`, `orders-shared.ts`, `mail-sync-functions.ts`, `app-table-seal.ts`), so a check
   that reads the `role` setting first rejects the library's own calls (the integration suite showed
   it). A request can't set that claim: PostgREST sets it per request and `set_config` is not exposed.
+- Done: every `revoke all` on a table or sequence a block creates also revokes from `PUBLIC`, and a
+  block instance schema revokes default privileges for later objects (`revokeDefaults`).
+- Not done, by decision: `alter default privileges ... revoke all` in `public` and in
+  `better_supabase`. Hosted projects grant new `public` tables to the API roles through default
+  privileges, and revoking them would silently break the user's own tables; the `grants` block and
+  `expose` are the opt-in. In `better_supabase` no default grant exists to revoke, and the
+  statement made pg-delta's declarative shadow load stuck on the attachments and catalog files.

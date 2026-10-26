@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
--- @bsb-hash sha256:41fa2de8e6238c475546bed5f60dd13380366e4e3edb57bb1940aaf693ff6caa
+-- @bsb-hash sha256:10d3e3dcfbcb0b32b177d21f8c624a96dff8550c807738cc9de88f852cc8fdc1
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,7 +110,7 @@ create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("ori
 create index if not exists quotes_supersedes_idx on "better_supabase"."quotes" ("supersedes_id");
 alter table "better_supabase"."quotes" add column if not exists "app_note" text;
 alter table "better_supabase"."quotes" enable row level security;
-revoke all on "better_supabase"."quotes" from anon, authenticated;
+revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
 drop policy if exists quotes_read on "better_supabase"."quotes";
@@ -256,7 +256,7 @@ create table if not exists "better_supabase"."quote_lines" (
 );
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
-revoke all on "better_supabase"."quote_lines" from anon, authenticated;
+revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
 drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
@@ -751,7 +751,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_097_quotes.sql

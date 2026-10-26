@@ -337,7 +337,7 @@ ${
   primary key (${hc("id")}, ${hc("recordedAt")})
 ) partition by range (${hc("recordedAt")});
 ${defaultPartition(history, defaultPartitionName(ctx.tableName("history")))}
-revoke all on sequence ${historySequence} from anon, authenticated;
+revoke all on sequence ${historySequence} from public, anon, authenticated;
 grant usage on sequence ${historySequence} to service_role;`
       : `
 );`

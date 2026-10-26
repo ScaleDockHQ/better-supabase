@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:4e8ad518c2cf77ea70b9219ca32079d9fff4c670c2231ef118f229b8479f4f6f
+-- @bsb-hash sha256:71f85fd4dc9bce4e7fc88344d73b82b99b2114c06943aaf30f905e6c425abd60
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create table if not exists "better_supabase"."user_settings" (
 );
 create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
-revoke all on "better_supabase"."user_settings" from anon, authenticated;
+revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
@@ -91,7 +91,7 @@ create table if not exists "better_supabase"."organization_settings" (
 );
 create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
-revoke all on "better_supabase"."organization_settings" from anon, authenticated;
+revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
@@ -119,7 +119,7 @@ create table if not exists "better_supabase"."platform_settings" (
 );
 create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
-revoke all on "better_supabase"."platform_settings" from anon, authenticated;
+revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
@@ -342,7 +342,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
@@ -362,7 +362,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:30bcad7aa0d8516e3174b33a6b89444585eb17e524a76df32f37c632469b60f3
+-- @bsb-hash sha256:5259e11e4f00ab2db391c6bb7a1da4d8a081a826150d6ec8cf5ee1c3b43205c5
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -429,7 +429,7 @@ create table if not exists "better_supabase"."user_settings" (
 );
 create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
-revoke all on "better_supabase"."user_settings" from anon, authenticated;
+revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
@@ -452,7 +452,7 @@ create table if not exists "better_supabase"."organization_settings" (
 );
 create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
-revoke all on "better_supabase"."organization_settings" from anon, authenticated;
+revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
@@ -480,7 +480,7 @@ create table if not exists "better_supabase"."platform_settings" (
 );
 create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
-revoke all on "better_supabase"."platform_settings" from anon, authenticated;
+revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
@@ -775,7 +775,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
@@ -795,7 +795,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:50593b2cd1adaa9b314ac710d0d9c2a96b53bddd6666bd90238fa91061ac6baf
+-- @bsb-hash sha256:0a8076ab87f1f73f3bb2050e51f61e7bfe4118509a4a78f574ea34bee7106986
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -852,6 +852,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table if not exists "app_private"."user_settings" (
@@ -864,7 +867,7 @@ create table if not exists "app_private"."user_settings" (
 );
 create index if not exists user_settings_updated_by_idx on "app_private"."user_settings" ("updated_by");
 alter table "app_private"."user_settings" enable row level security;
-revoke all on "app_private"."user_settings" from anon, authenticated;
+revoke all on "app_private"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "app_private"."user_settings" to authenticated;
 grant all on "app_private"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "app_private"."user_settings";
@@ -887,7 +890,7 @@ create table if not exists "app_private"."organization_settings" (
 );
 create index if not exists organization_settings_updated_by_idx on "app_private"."organization_settings" ("updated_by");
 alter table "app_private"."organization_settings" enable row level security;
-revoke all on "app_private"."organization_settings" from anon, authenticated;
+revoke all on "app_private"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "app_private"."organization_settings" to authenticated;
 grant all on "app_private"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "app_private"."organization_settings";
@@ -915,7 +918,7 @@ create table if not exists "app_private"."platform_settings" (
 );
 create index if not exists platform_settings_updated_by_idx on "app_private"."platform_settings" ("updated_by");
 alter table "app_private"."platform_settings" enable row level security;
-revoke all on "app_private"."platform_settings" from anon, authenticated;
+revoke all on "app_private"."platform_settings" from public, anon, authenticated;
 grant select on "app_private"."platform_settings" to anon;
 grant select, insert, update, delete on "app_private"."platform_settings" to authenticated;
 grant all on "app_private"."platform_settings" to service_role;
@@ -1138,7 +1141,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
@@ -1158,7 +1161,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:0e608b98975ea42a0fea2c4d99bf0d778046af424377d144657d9857efc8dac2
+-- @bsb-hash sha256:dfe7bf7382eb2704b872a9cad7c5c7b1c9108abc4279474fd257b516062cc3d6
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1225,7 +1228,7 @@ create table if not exists "better_supabase"."user_settings" (
 );
 create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
-revoke all on "better_supabase"."user_settings" from anon, authenticated;
+revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
@@ -1248,7 +1251,7 @@ create table if not exists "better_supabase"."organization_settings" (
 );
 create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
-revoke all on "better_supabase"."organization_settings" from anon, authenticated;
+revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
@@ -1276,7 +1279,7 @@ create table if not exists "better_supabase"."platform_settings" (
 );
 create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
-revoke all on "better_supabase"."platform_settings" from anon, authenticated;
+revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
@@ -1602,7 +1605,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
@@ -1622,7 +1625,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:7f407b050cfa0dc7a2b4a56df367e84d99579960e7a7d03ad7681c1620d5750b
+-- @bsb-hash sha256:aa30ce0f690f44190f45f6753dfbe17792523c999c4fd36c60ef48336d3cc54d
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1957,7 +1960,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
@@ -1977,7 +1980,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:e1359de799b38d744fafd07fb3b4a7b95f5876fd777158ab49cad518281c9cea
+-- @bsb-hash sha256:976468302c37a45433b44f4c52a4fd9f4b253c01fe62b646aedffe6d35c91906
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2044,7 +2047,7 @@ create table if not exists "better_supabase"."user_settings" (
 );
 create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
-revoke all on "better_supabase"."user_settings" from anon, authenticated;
+revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
@@ -2067,7 +2070,7 @@ create table if not exists "better_supabase"."organization_settings" (
 );
 create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
-revoke all on "better_supabase"."organization_settings" from anon, authenticated;
+revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
@@ -2095,7 +2098,7 @@ create table if not exists "better_supabase"."platform_settings" (
 );
 create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
-revoke all on "better_supabase"."platform_settings" from anon, authenticated;
+revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
@@ -2318,7 +2321,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_029_settings.sql

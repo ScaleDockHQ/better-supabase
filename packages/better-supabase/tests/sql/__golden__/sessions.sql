@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:d1a2f9e34d8d76fb37c34252f8c0511d66b0e975a4a93c9f8e697ac6787fb0a2
+-- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_026_sessions.sql
@@ -184,7 +184,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:d1a2f9e34d8d76fb37c34252f8c0511d66b0e975a4a93c9f8e697ac6787fb0a2
+-- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,7 +347,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_026_sessions.sql
@@ -367,7 +367,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:d1a2f9e34d8d76fb37c34252f8c0511d66b0e975a4a93c9f8e697ac6787fb0a2
+-- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,7 +530,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_026_sessions.sql
@@ -550,7 +550,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:affe9cd7237461b648d927ae500f6be7eb779d5aed20f24c66ae52dc2048b766
+-- @bsb-hash sha256:292ef5e3677b8544ab25bbfc5ebff937aa0cbedf767df316b7a0de2a410870b7
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -765,7 +765,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_026_sessions.sql

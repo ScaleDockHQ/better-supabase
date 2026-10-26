@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:81fa1d4d6eddc40ea6e92b6f991b3efea5bead0ceb96012fdd66779ead9c65b0
+-- @bsb-hash sha256:020312e8ee27f13b2c8a4769ff4ea6e491ed188d6240c5e342b7cad2a870586a
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create index if not exists "content_entries_author_idx" on "better_supabase"."co
 create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
-revoke all on "better_supabase"."content_entries" from anon, authenticated;
+revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
 drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
@@ -689,7 +689,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_142_content.sql
@@ -709,7 +709,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:e2ebad7de43dcac7221d851804305584f3c1b27dd1b0efb35542b5db744b1887
+-- @bsb-hash sha256:04d6c9000ec21d0b1e7e040926b20f024b2299c6e9ab6512c6b81527335d4ee9
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -800,7 +800,7 @@ create index if not exists "content_entries_author_idx" on "better_supabase"."co
 create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
-revoke all on "better_supabase"."content_entries" from anon, authenticated;
+revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
 drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
@@ -1461,7 +1461,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_142_content.sql
@@ -1481,7 +1481,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:dbd52b2feebc4a801f9d5d2d12b295469388961c954c130f9b7016a9a4c2de2b
+-- @bsb-hash sha256:dfd1f53514633e31ff4560d66993b336b9e0581e86385d900b36ebdf96912f26
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1538,6 +1538,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Content entries per organization: typed, localized pages and posts with a
 -- slug, drafted, scheduled and published, readable by anyone once published.
 create table if not exists "app_private"."content_entries" (
@@ -1574,7 +1577,7 @@ create index if not exists "content_entries_author_idx" on "app_private"."conten
 create index if not exists "content_entries_cover_idx" on "app_private"."content_entries" ("cover_attachment_id");
 
 alter table "app_private"."content_entries" enable row level security;
-revoke all on "app_private"."content_entries" from anon, authenticated;
+revoke all on "app_private"."content_entries" from public, anon, authenticated;
 grant select on "app_private"."content_entries" to authenticated;
 grant all on "app_private"."content_entries" to service_role;
 drop policy if exists "content_entries_read" on "app_private"."content_entries";
@@ -2171,7 +2174,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_142_content.sql
@@ -2191,7 +2194,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:d42336020a92d6001deb42eecc9485c0c148448bfa0db81b6b398d1ddc8ea335
+-- @bsb-hash sha256:03884c3bb56daf351439655f8d2bbca8693eabc9abb7f921ec6e33ab60c524aa
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2282,7 +2285,7 @@ create index if not exists "content_entries_author_idx" on "better_supabase"."co
 create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
-revoke all on "better_supabase"."content_entries" from anon, authenticated;
+revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
 drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
@@ -2991,7 +2994,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_142_content.sql
@@ -3011,7 +3014,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:750105439b812b8963050918a23fee34fe6b4dbc85ed66a75ebb1b313c2e83c7
+-- @bsb-hash sha256:b2b2ee7460022c31435f62fb174a48a03f1053163c55b515f707e8c093236fb1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3726,7 +3729,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_142_content.sql
@@ -3746,7 +3749,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:e8f5054cc7bd44f5c3e4cb3bbab72518a9367c23f01cd10c71cf83da30766bb7
+-- @bsb-hash sha256:7646c1784016b4ef0bbb1e8bd30457f21e4928482a1116da427096bef60395f1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3837,7 +3840,7 @@ create index if not exists "content_entries_author_idx" on "better_supabase"."co
 create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
-revoke all on "better_supabase"."content_entries" from anon, authenticated;
+revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
 drop policy if exists "content_entries_read" on "better_supabase"."content_entries";
@@ -4434,7 +4437,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_142_content.sql

@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:dee909e876ef0fad76888c9fabc3a17209d991dacd6b21859da9481b647067c3
+-- @bsb-hash sha256:3ba2ebfec6940eed9ea4b519c5e065f0fb2ffa443cad3b488ed4053efb470984
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create table if not exists "better_supabase"."number_sequences" (
   primary key ("tenant_id", "entity", "period")
 );
 alter table "better_supabase"."number_sequences" enable row level security;
-revoke all on "better_supabase"."number_sequences" from anon, authenticated;
+revoke all on "better_supabase"."number_sequences" from public, anon, authenticated;
 grant all on "better_supabase"."number_sequences" to service_role;
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)
@@ -339,5 +339,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

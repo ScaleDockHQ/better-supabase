@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:492bebc8bb3e3703a26d41a65f04718a3f86e8d05a962a00e2d185cfe127e1b8
+-- @bsb-hash sha256:8a639a933a0353f34597150b1bcf96a5d2023f1f8138803873176386b2f8f917
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create unique index if not exists organization_hostnames_verified_idx on "better
 create unique index if not exists organization_hostnames_primary_idx on "better_supabase"."organization_hostnames" ("organization_id") where "is_primary";
 create index if not exists organization_hostnames_created_by_idx on "better_supabase"."organization_hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."organization_hostnames" enable row level security;
-revoke all on "better_supabase"."organization_hostnames" from anon, authenticated;
+revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."organization_hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
@@ -296,7 +296,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_107_domains.sql
@@ -316,7 +316,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:5804789165309870bea1950e470d3a64b8c08e49fbcd1c9300e27c05cca50d4c
+-- @bsb-hash sha256:a023abcf93a868c63007b252d794f8025a3abc5ad0eef75d22cb6709629d8a74
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -392,7 +392,7 @@ create unique index if not exists organization_hostnames_verified_idx on "better
 create unique index if not exists organization_hostnames_primary_idx on "better_supabase"."organization_hostnames" ("organization_id") where "is_primary";
 create index if not exists organization_hostnames_created_by_idx on "better_supabase"."organization_hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."organization_hostnames" enable row level security;
-revoke all on "better_supabase"."organization_hostnames" from anon, authenticated;
+revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."organization_hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
@@ -661,7 +661,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_107_domains.sql
@@ -681,7 +681,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:f474b482763212a3ce18abdfd875923326d20a952ad2fe506c68f07b695e12a7
+-- @bsb-hash sha256:ba0ab9f67b5a735c305b7520c34bca1adff1ee70a181fa17c9d0961c75a55f83
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,6 +738,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Hostnames an organization serves its app on: its own domains, verified by a
 -- DNS TXT record _better-supabase.<hostname>, and subdomains of
 -- blocks.domains.options.platformDomain (unset), verified when added. One organization holds
@@ -759,7 +762,7 @@ create unique index if not exists organization_hostnames_verified_idx on "app_pr
 create unique index if not exists organization_hostnames_primary_idx on "app_private"."organization_hostnames" ("organization_id") where "is_primary";
 create index if not exists organization_hostnames_created_by_idx on "app_private"."organization_hostnames" ("created_by") where "created_by" is not null;
 alter table "app_private"."organization_hostnames" enable row level security;
-revoke all on "app_private"."organization_hostnames" from anon, authenticated;
+revoke all on "app_private"."organization_hostnames" from public, anon, authenticated;
 grant all on "app_private"."organization_hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
@@ -978,7 +981,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_107_domains.sql
@@ -998,7 +1001,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:4b581193afb7e09a443dad954c9507c8f9049986903752d9b5d43b226f2022cc
+-- @bsb-hash sha256:2da88678a17dba437104e44dff80c6c4afcf6adfa47d067399fe0a857a4f4ed5
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1074,7 +1077,7 @@ create unique index if not exists organization_hostnames_verified_idx on "better
 create unique index if not exists organization_hostnames_primary_idx on "better_supabase"."organization_hostnames" ("organization_id") where "is_primary";
 create index if not exists organization_hostnames_created_by_idx on "better_supabase"."organization_hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."organization_hostnames" enable row level security;
-revoke all on "better_supabase"."organization_hostnames" from anon, authenticated;
+revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."organization_hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
@@ -1378,7 +1381,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_107_domains.sql
@@ -1398,7 +1401,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:8d0801ed1989b8afe62efcfd5705020812b987445cc52c15e2a0a3c4d29972a4
+-- @bsb-hash sha256:bd48d52fc323089fb74ea82700cb3a2ebbd76e85c11fafb0ebc3323f43587398
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1705,7 +1708,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_107_domains.sql
@@ -1725,7 +1728,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:862e1a28e891d98bfd62447445d66d4fe86855d81a2656f49f2cb9e07054f684
+-- @bsb-hash sha256:d4baa59b2b45c407d0b315368fb5eb422d37a6893efe13111b749ef3999c2d5f
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1801,7 +1804,7 @@ create unique index if not exists organization_hostnames_verified_idx on "better
 create unique index if not exists organization_hostnames_primary_idx on "better_supabase"."organization_hostnames" ("org_id") where "is_primary";
 create index if not exists organization_hostnames_created_by_idx on "better_supabase"."organization_hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."organization_hostnames" enable row level security;
-revoke all on "better_supabase"."organization_hostnames" from anon, authenticated;
+revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."organization_hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
@@ -2020,7 +2023,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_107_domains.sql

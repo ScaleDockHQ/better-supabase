@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:6bca112c08d263cedc882eedb529a97a705e35ddbc02983f92ac6afd62713483
+-- @bsb-hash sha256:0c55d2555883a76f4e5c9801ed1af1611bc23e19775d7707d6488763e1032e79
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create table if not exists "better_supabase"."teams" (
   unique ("tenant_id", "slug")
 );
 alter table "better_supabase"."teams" enable row level security;
-revoke all on "better_supabase"."teams" from anon, authenticated;
+revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
@@ -94,7 +94,7 @@ create table if not exists "better_supabase"."team_members" (
 create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
-revoke all on "better_supabase"."team_members" from anon, authenticated;
+revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
@@ -592,5 +592,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

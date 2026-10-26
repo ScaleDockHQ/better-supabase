@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:e74bab600513a63360dea309dd0458418a16099534b738d4482c5f0d527fc166
+-- @bsb-hash sha256:18b399756fb7b1c4c77d24d13d35cfcba53546ae9c4264afc5f79835549e615f
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ create index if not exists activity_entries_feed_idx on "better_supabase"."activ
 create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("organization_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
 alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from anon, authenticated;
+revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
@@ -171,7 +171,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
@@ -191,7 +191,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:e74bab600513a63360dea309dd0458418a16099534b738d4482c5f0d527fc166
+-- @bsb-hash sha256:18b399756fb7b1c4c77d24d13d35cfcba53546ae9c4264afc5f79835549e615f
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,7 +229,7 @@ create index if not exists activity_entries_feed_idx on "better_supabase"."activ
 create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("organization_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
 alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from anon, authenticated;
+revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
@@ -361,7 +361,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
@@ -381,7 +381,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:f1947fd1cfad07ad87114e0edbe2bd7d9f27de707609ee196f021740e9329fdf
+-- @bsb-hash sha256:8f8d785105470832603d455b7f65e6500f6aa38c9f9fb19988b0bec816dcb4d7
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,6 +404,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists "app_private"."activity_entries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -421,7 +424,7 @@ create index if not exists activity_entries_feed_idx on "app_private"."activity_
 create index if not exists activity_entries_subject_idx on "app_private"."activity_entries" ("organization_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "app_private"."activity_entries" ("actor_id");
 alter table "app_private"."activity_entries" enable row level security;
-revoke all on "app_private"."activity_entries" from anon, authenticated;
+revoke all on "app_private"."activity_entries" from public, anon, authenticated;
 grant select on "app_private"."activity_entries" to authenticated;
 grant all on "app_private"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "app_private"."activity_entries";
@@ -553,7 +556,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
@@ -573,7 +576,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:ac9373b89add76afea81e1b5783a30b5de210630630ddb68999a5a429215835b
+-- @bsb-hash sha256:e3bfaf00e82b181f9dde610fc7ce301ae12e8e0ff842e65e1175d3a24177f008
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -611,7 +614,7 @@ create index if not exists activity_entries_feed_idx on "better_supabase"."activ
 create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("organization_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
 alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from anon, authenticated;
+revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
@@ -765,7 +768,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
@@ -785,7 +788,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:d665a204c9080999e89bbc1693ffd13f7822b7b393c8375d3bdf76b01311429c
+-- @bsb-hash sha256:3c83ba6edd0b141c1605254f5b379a6ba5a2d87140ca24aa69a598d333e7e41e
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -954,7 +957,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
@@ -974,7 +977,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:5a228cf950660019a3b1c4ce599eec1ea24ad7a88058caf8d0d8ff0dd05748c7
+-- @bsb-hash sha256:2af4fa97e217103551d8aadfb2c48931b7dee63599d1556f71f5d16311098870
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1012,7 +1015,7 @@ create index if not exists activity_entries_feed_idx on "better_supabase"."activ
 create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("org_id", "subject_type", "subject_id");
 create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
 alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from anon, authenticated;
+revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
@@ -1144,7 +1147,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:0c6d74e2ebfa035a01f5315729b429b97d239c2636727afaf74220f1e03094f7
+-- @bsb-hash sha256:9b53ad77a1cb03d068b46ee7853b618aefa60fda348f576d7aad5b9d0ee84289
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
-revoke all on "better_supabase"."donation_funds" from anon, authenticated;
+revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
@@ -137,7 +137,7 @@ create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" (
 create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
-revoke all on "better_supabase"."pledges" from anon, authenticated;
+revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
@@ -165,7 +165,7 @@ create index if not exists "donation_receipts_donor_idx" on "better_supabase"."d
 create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
-revoke all on "better_supabase"."donation_receipts" from anon, authenticated;
+revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
@@ -207,7 +207,7 @@ create index if not exists "donations_refund_idx" on "better_supabase"."donation
 create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
-revoke all on "better_supabase"."donations" from anon, authenticated;
+revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
@@ -1071,7 +1071,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
@@ -1091,7 +1091,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:3b8b438bc169c7a5367e4dfc0dacbaf2facb039ef96cb0ac6c4dc6e186d1d917
+-- @bsb-hash sha256:58c3a9eb9ba3030b92741f6e2b84554afb649253e9d2b59e9f7abd72793e4350
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1193,7 +1193,7 @@ create table if not exists "better_supabase"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
-revoke all on "better_supabase"."donation_funds" from anon, authenticated;
+revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
@@ -1227,7 +1227,7 @@ create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" (
 create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
-revoke all on "better_supabase"."pledges" from anon, authenticated;
+revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
@@ -1255,7 +1255,7 @@ create index if not exists "donation_receipts_donor_idx" on "better_supabase"."d
 create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
-revoke all on "better_supabase"."donation_receipts" from anon, authenticated;
+revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
@@ -1297,7 +1297,7 @@ create index if not exists "donations_refund_idx" on "better_supabase"."donation
 create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
-revoke all on "better_supabase"."donations" from anon, authenticated;
+revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
@@ -2236,7 +2236,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
@@ -2256,7 +2256,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:1ba265cb9fe53d6c050b644a9506ae654aeb57292fb2bb375dc9fab8215e9c11
+-- @bsb-hash sha256:d85fd863c2c1d80b7458d73f04537b15a9495f52a659ec4bc2066111902f34f6
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2337,6 +2337,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Donations: gifts and pledges from donors (registered subjects) to funds
 -- and campaigns, each posted gift on the ledger, and numbered tax receipts.
 
@@ -2360,7 +2363,7 @@ create table if not exists "app_private"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "app_private"."donation_funds" enable row level security;
-revoke all on "app_private"."donation_funds" from anon, authenticated;
+revoke all on "app_private"."donation_funds" from public, anon, authenticated;
 grant select on "app_private"."donation_funds" to authenticated;
 grant all on "app_private"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "app_private"."donation_funds";
@@ -2394,7 +2397,7 @@ create index if not exists "pledges_tenant_idx" on "app_private"."pledges" ("ten
 create index if not exists "pledges_donor_idx" on "app_private"."pledges" ("tenant_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "app_private"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "app_private"."pledges" enable row level security;
-revoke all on "app_private"."pledges" from anon, authenticated;
+revoke all on "app_private"."pledges" from public, anon, authenticated;
 grant select on "app_private"."pledges" to authenticated;
 grant all on "app_private"."pledges" to service_role;
 drop policy if exists "pledges_read" on "app_private"."pledges";
@@ -2422,7 +2425,7 @@ create index if not exists "donation_receipts_donor_idx" on "app_private"."donat
 create unique index if not exists "donation_receipts_yearly_key" on "app_private"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "app_private"."donation_receipts" enable row level security;
-revoke all on "app_private"."donation_receipts" from anon, authenticated;
+revoke all on "app_private"."donation_receipts" from public, anon, authenticated;
 grant select on "app_private"."donation_receipts" to authenticated;
 grant all on "app_private"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "app_private"."donation_receipts";
@@ -2464,7 +2467,7 @@ create index if not exists "donations_refund_idx" on "app_private"."donations" (
 create unique index if not exists "donations_payment_key" on "app_private"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "app_private"."donations" enable row level security;
-revoke all on "app_private"."donations" from anon, authenticated;
+revoke all on "app_private"."donations" from public, anon, authenticated;
 grant select on "app_private"."donations" to authenticated;
 grant all on "app_private"."donations" to service_role;
 drop policy if exists "donations_read" on "app_private"."donations";
@@ -3328,7 +3331,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
@@ -3348,7 +3351,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:0ecc425e31e529796655821691dc3ec3dc47ec477fb434a33ec7584bcfe8f975
+-- @bsb-hash sha256:1fca45c2ad06342cb9eb06b2266919f0dca992fe829b017376de9e7413dd30a8
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3450,7 +3453,7 @@ create table if not exists "better_supabase"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
-revoke all on "better_supabase"."donation_funds" from anon, authenticated;
+revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
@@ -3484,7 +3487,7 @@ create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" (
 create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
-revoke all on "better_supabase"."pledges" from anon, authenticated;
+revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
@@ -3512,7 +3515,7 @@ create index if not exists "donation_receipts_donor_idx" on "better_supabase"."d
 create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
-revoke all on "better_supabase"."donation_receipts" from anon, authenticated;
+revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
@@ -3554,7 +3557,7 @@ create index if not exists "donations_refund_idx" on "better_supabase"."donation
 create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
-revoke all on "better_supabase"."donations" from anon, authenticated;
+revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
@@ -4596,7 +4599,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
@@ -4616,7 +4619,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:9885bdb59a5e51195ed05bfe07ce01420f36839274129a01ffd286e75188f43d
+-- @bsb-hash sha256:f429e3270f29c2c2a6d7fe7c56a6eeb267ed0c2f6e436f47b1a0b8a424f12bce
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5687,7 +5690,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
@@ -5707,7 +5710,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:baa95bfb83e92a9ce16704b2add013029f89712cc481ded5382205ac9720ab62
+-- @bsb-hash sha256:5663c96b20fa4b42d7550b6533f7a31c243929f7b6ecbe38a8210b25072754ae
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5809,7 +5812,7 @@ create table if not exists "better_supabase"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
-revoke all on "better_supabase"."donation_funds" from anon, authenticated;
+revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
@@ -5843,7 +5846,7 @@ create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" (
 create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("org_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("org_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
-revoke all on "better_supabase"."pledges" from anon, authenticated;
+revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
@@ -5871,7 +5874,7 @@ create index if not exists "donation_receipts_donor_idx" on "better_supabase"."d
 create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("org_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
-revoke all on "better_supabase"."donation_receipts" from anon, authenticated;
+revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
@@ -5913,7 +5916,7 @@ create index if not exists "donations_refund_idx" on "better_supabase"."donation
 create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
-revoke all on "better_supabase"."donations" from anon, authenticated;
+revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
@@ -6777,7 +6780,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_122_donations.sql

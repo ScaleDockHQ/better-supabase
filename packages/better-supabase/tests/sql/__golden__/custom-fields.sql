@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:e73ad2168868d251dbf03abcbe57ae7c7eff576aabd679759224bac0c90a999e
+-- @bsb-hash sha256:3f9b1f8d3c3d5ccf27b6bae11e9156b0a04de587b333bcceaf0df78e475bac30
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."field_definitions" enable row level security;
-revoke all on "better_supabase"."field_definitions" from anon, authenticated;
+revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
 create table if not exists "better_supabase"."field_values" (
@@ -112,7 +112,7 @@ create table if not exists "better_supabase"."field_values" (
   , unique ("tenant_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "better_supabase"."field_values" enable row level security;
-revoke all on "better_supabase"."field_values" from anon, authenticated;
+revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
@@ -351,7 +351,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql
@@ -371,7 +371,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:e15fbdf51a8623b8a741e2f66b1ee7cfe38a12f480dec964155021e673c93ddc
+-- @bsb-hash sha256:de939ccbd6278401648733a20568beedfe6287d537e9fe4630ef391bfdbce859
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -464,7 +464,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."field_definitions" enable row level security;
-revoke all on "better_supabase"."field_definitions" from anon, authenticated;
+revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
 create table if not exists "better_supabase"."field_values" (
@@ -482,7 +482,7 @@ create table if not exists "better_supabase"."field_values" (
   , unique ("tenant_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "better_supabase"."field_values" enable row level security;
-revoke all on "better_supabase"."field_values" from anon, authenticated;
+revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
@@ -760,7 +760,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql
@@ -780,7 +780,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:9980f4e7a6d143b464fd6629dcc45e5bff6a09cd7fa62b6bdea4617e68ced483
+-- @bsb-hash sha256:18dab395434622148ce241ed43459ba869c884b7c610ef2f2dee3abd937e6603
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -845,6 +845,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "app_private"."field_definitions" (
@@ -875,7 +878,7 @@ begin
 end;
 $$;
 alter table "app_private"."field_definitions" enable row level security;
-revoke all on "app_private"."field_definitions" from anon, authenticated;
+revoke all on "app_private"."field_definitions" from public, anon, authenticated;
 grant select on "app_private"."field_definitions" to authenticated;
 grant all on "app_private"."field_definitions" to service_role;
 create table if not exists "app_private"."field_values" (
@@ -893,7 +896,7 @@ create table if not exists "app_private"."field_values" (
   , unique ("tenant_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "app_private"."field_values" enable row level security;
-revoke all on "app_private"."field_values" from anon, authenticated;
+revoke all on "app_private"."field_values" from public, anon, authenticated;
 grant select on "app_private"."field_values" to authenticated;
 grant all on "app_private"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "app_private"."field_values" ("definition_id");
@@ -1132,7 +1135,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql
@@ -1152,7 +1155,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:72c2b90ba5e161850435a50386cd385a3e938cfbe2591eabb0639d54cb1e10d2
+-- @bsb-hash sha256:e6dbc53b4205bda04944209a59d4ee85206e51f432da44119620dce924c232ab
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1245,7 +1248,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."field_definitions" enable row level security;
-revoke all on "better_supabase"."field_definitions" from anon, authenticated;
+revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
 create table if not exists "better_supabase"."field_values" (
@@ -1263,7 +1266,7 @@ create table if not exists "better_supabase"."field_values" (
   , unique ("tenant_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "better_supabase"."field_values" enable row level security;
-revoke all on "better_supabase"."field_values" from anon, authenticated;
+revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
@@ -1578,7 +1581,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql
@@ -1598,7 +1601,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:c46112ca676e3798275488288f6748deb2777d8901e4228de2534e5cbdddd03b
+-- @bsb-hash sha256:eaf3b44012f38bf515480c8b61feb747aa3fc7e73728bdc07b84f6d7ee18116b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1929,7 +1932,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql
@@ -1949,7 +1952,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:88abc936284f78f95b3b01c2df01aa18917cdc12e28bd28a1d4ef2d0584309e9
+-- @bsb-hash sha256:16d6b39ac25d9fbbc82f92f34f34edaf343fa595559ace8e158395351b04aa5f
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2042,7 +2045,7 @@ begin
 end;
 $$;
 alter table "better_supabase"."field_definitions" enable row level security;
-revoke all on "better_supabase"."field_definitions" from anon, authenticated;
+revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
 create table if not exists "better_supabase"."field_values" (
@@ -2060,7 +2063,7 @@ create table if not exists "better_supabase"."field_values" (
   , unique ("org_id", "subject_type", "subject_id", "definition_id")
 );
 alter table "better_supabase"."field_values" enable row level security;
-revoke all on "better_supabase"."field_values" from anon, authenticated;
+revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
@@ -2299,7 +2302,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_061_custom_fields.sql

@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:fbf0f3070af6a6b9ba2a6cafd2118d89a5cf2a17e78c26fe0f2fd5cd2437a58c
+-- @bsb-hash sha256:466f488c982778073e952b0fc546616a6f49ac7ddb088c16aebda99f7d96b1f2
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -212,7 +212,7 @@ create table if not exists "better_supabase"."notification_suppressions" (
 );
 create index if not exists notification_suppressions_user_idx on "better_supabase"."notification_suppressions" ("user_id");
 alter table "better_supabase"."notification_suppressions" enable row level security;
-revoke all on "better_supabase"."notification_suppressions" from anon, authenticated;
+revoke all on "better_supabase"."notification_suppressions" from public, anon, authenticated;
 grant select on "better_supabase"."notification_suppressions" to authenticated;
 grant all on "better_supabase"."notification_suppressions" to service_role;
 drop policy if exists "bsb_notification_suppressions_read" on "better_supabase"."notification_suppressions";
@@ -236,7 +236,7 @@ create table if not exists "better_supabase"."notification_delivery_events" (
 );
 create index if not exists notification_delivery_events_delivery_idx on "better_supabase"."notification_delivery_events" ("delivery_id", "occurred_at");
 alter table "better_supabase"."notification_delivery_events" enable row level security;
-revoke all on "better_supabase"."notification_delivery_events" from anon, authenticated;
+revoke all on "better_supabase"."notification_delivery_events" from public, anon, authenticated;
 grant select on "better_supabase"."notification_delivery_events" to authenticated;
 grant all on "better_supabase"."notification_delivery_events" to service_role;
 drop policy if exists "bsb_notification_delivery_events_read" on "better_supabase"."notification_delivery_events";
@@ -1499,5 +1499,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

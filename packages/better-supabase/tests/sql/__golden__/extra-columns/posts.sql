@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:77263ce1af9c2aa78a45b0c9296824f0afed7ddb2cb8df43ccfbcf8dc9d5056f
+-- @bsb-hash sha256:a9a421da87d188eba7c73a5908319733990384458357144cd7d57c19820f857f
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,14 +106,14 @@ create index if not exists "posts_author_idx" on "better_supabase"."posts" ("aut
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
 alter table "better_supabase"."post_boards" enable row level security;
-revoke all on "better_supabase"."post_boards" from anon, authenticated;
+revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
 create policy "post_boards_read" on "better_supabase"."post_boards" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
-revoke all on "better_supabase"."posts" from anon, authenticated;
+revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
@@ -723,7 +723,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_140_posts.sql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:3389eb592dcafc3ab2a9732d482250324dfd50643721778fea0a5a9230cfb379
+-- @bsb-hash sha256:db9e9df43468a0cb6bab8f71d71a31dc49e61ec16e5f6e2131326fc3ff549919
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -34,7 +34,7 @@ create table if not exists "better_supabase"."metric_points" (
   primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
-revoke all on "better_supabase"."metric_points" from anon, authenticated;
+revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
 create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
@@ -151,7 +151,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
@@ -171,7 +171,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:3389eb592dcafc3ab2a9732d482250324dfd50643721778fea0a5a9230cfb379
+-- @bsb-hash sha256:db9e9df43468a0cb6bab8f71d71a31dc49e61ec16e5f6e2131326fc3ff549919
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -204,7 +204,7 @@ create table if not exists "better_supabase"."metric_points" (
   primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
-revoke all on "better_supabase"."metric_points" from anon, authenticated;
+revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
 create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
@@ -321,7 +321,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
@@ -341,7 +341,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:0aafd6f6df4f4a9cb156c6eb2cd170e78587c68e1e27dce0c9976cecc427a256
+-- @bsb-hash sha256:dd15de58944b88f61b3a2ec4e2782cd14ac9d8f5403b7d27dcc59c5559a04aae
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -364,6 +364,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
@@ -376,7 +379,7 @@ create table if not exists "app_private"."metric_points" (
   primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
 );
 alter table "app_private"."metric_points" enable row level security;
-revoke all on "app_private"."metric_points" from anon, authenticated;
+revoke all on "app_private"."metric_points" from public, anon, authenticated;
 grant all on "app_private"."metric_points" to service_role;
 create index if not exists metric_points_rollup_idx on "app_private"."metric_points" ("metric", "grain", "bucket_start");
 
@@ -493,7 +496,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
@@ -513,7 +516,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:6c89d463697c16099aa43004badfe679744ad651cc0596d137dc2befda2b80d5
+-- @bsb-hash sha256:fba25c8123c14c14666230c1f722b8bd3aef06efec0ce92039560148d1fccd69
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -546,7 +549,7 @@ create table if not exists "better_supabase"."metric_points" (
   primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
-revoke all on "better_supabase"."metric_points" from anon, authenticated;
+revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
 create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
@@ -703,7 +706,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
@@ -723,7 +726,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:551d9d1d76a94e42782a55ab0b485c96f87bcd5ebc97c48d56449a4e68f3cc1b
+-- @bsb-hash sha256:e23d5d956b4ccead1a926dad35eb752b9ca500eb09635f7f31c74dec6df9a514
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -870,7 +873,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql
@@ -890,7 +893,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:f7742f466540cf8261d231a0c48742744c97d1e0b80ba5350902043b40bb3a51
+-- @bsb-hash sha256:04f39e4413e581b04e99ed408edb9e7cdbcf6dc5174a571186ddd01e1fc50748
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -923,7 +926,7 @@ create table if not exists "better_supabase"."metric_points" (
   primary key ("org_id", "metric", "grain", "bucket_start", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
-revoke all on "better_supabase"."metric_points" from anon, authenticated;
+revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
 create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
@@ -1040,7 +1043,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_071_metrics.sql

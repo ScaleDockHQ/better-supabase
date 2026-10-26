@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:53ae625bc4aaeef6ce063cf37c0eabc7f8d5c190206cedbad5c66b3d9e0b1046
+-- @bsb-hash sha256:a963ef0e63ebfc4fad475756ac3fee5de15b37036e871095d541ca5c4a4dd6ac
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."webhook_endpoints";
 create trigger bsb_updated_at before update on "better_supabase"."webhook_endpoints"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."webhook_endpoints" enable row level security;
-revoke all on "better_supabase"."webhook_endpoints" from anon, authenticated;
+revoke all on "better_supabase"."webhook_endpoints" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_endpoints" to service_role;
 grant select, insert, update, delete on "better_supabase"."webhook_endpoints" to authenticated;
 drop policy if exists "bsb_webhook_endpoints_read" on "better_supabase"."webhook_endpoints";
@@ -127,7 +127,7 @@ create table if not exists "better_supabase"."webhook_endpoint_secrets" (
 );
 create index if not exists webhook_endpoint_secrets_endpoint_idx on "better_supabase"."webhook_endpoint_secrets" ("endpoint_id");
 alter table "better_supabase"."webhook_endpoint_secrets" enable row level security;
-revoke all on "better_supabase"."webhook_endpoint_secrets" from anon, authenticated;
+revoke all on "better_supabase"."webhook_endpoint_secrets" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_endpoint_secrets" to service_role;
 
 create table if not exists "better_supabase"."webhook_deliveries" (
@@ -159,7 +159,7 @@ create index if not exists webhook_deliveries_finished_idx on "better_supabase".
 create index if not exists webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("organization_id", "created_at" desc);
 create unique index if not exists webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
 alter table "better_supabase"."webhook_deliveries" enable row level security;
-revoke all on "better_supabase"."webhook_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."webhook_deliveries" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_deliveries" to service_role;
 grant select on "better_supabase"."webhook_deliveries" to authenticated;
 drop policy if exists "bsb_webhook_deliveries_read" on "better_supabase"."webhook_deliveries";
@@ -849,5 +849,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

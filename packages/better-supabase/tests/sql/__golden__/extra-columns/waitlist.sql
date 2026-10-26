@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:189a7f65751cd0dcdf17684edc23ac4fc1a41c3384ac20880f7f7ee812ee626f
+-- @bsb-hash sha256:97cd3a0ff33508aa994d3b7f971c2205c2e9a4b5392d1cf60afb13c016776ba8
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create index if not exists waitlist_entries_status_idx on "better_supabase"."wai
 create index if not exists waitlist_entries_user_idx on "better_supabase"."waitlist_entries" ("user_id");
 create index if not exists waitlist_entries_decided_by_idx on "better_supabase"."waitlist_entries" ("decided_by");
 alter table "better_supabase"."waitlist_entries" enable row level security;
-revoke all on "better_supabase"."waitlist_entries" from anon, authenticated;
+revoke all on "better_supabase"."waitlist_entries" from public, anon, authenticated;
 grant all on "better_supabase"."waitlist_entries" to service_role;
 
 -- Invite codes, stored as the SHA-256 of the upper-cased code. One with an
@@ -98,7 +98,7 @@ create table if not exists "better_supabase"."invite_codes" (
 create index if not exists invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
 create index if not exists invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
-revoke all on "better_supabase"."invite_codes" from anon, authenticated;
+revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
 grant all on "better_supabase"."invite_codes" to service_role;
 
 create table if not exists "better_supabase"."invite_code_redemptions" (
@@ -109,7 +109,7 @@ create table if not exists "better_supabase"."invite_code_redemptions" (
 );
 create index if not exists invite_code_redemptions_user_idx on "better_supabase"."invite_code_redemptions" ("user_id");
 alter table "better_supabase"."invite_code_redemptions" enable row level security;
-revoke all on "better_supabase"."invite_code_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."invite_code_redemptions" from public, anon, authenticated;
 grant all on "better_supabase"."invite_code_redemptions" to service_role;
 
 -- { position, status } for an address; adding it again changes nothing.
@@ -463,7 +463,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_038_waitlist.sql

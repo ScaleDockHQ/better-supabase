@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:f9bb7338b64ae9a3106b8aaf6c8e8e50e72a1db49f69f09f2752bdd562211de5
+-- @bsb-hash sha256:b950ec2a2ad1ad60f52109a64ee9005afc211d4878df579c91fda2a90c2eb1c8
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" 
 create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
 create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
-revoke all on "better_supabase"."reviews" from anon, authenticated;
+revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
 create table if not exists "better_supabase"."review_stats" (
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."review_stats" (
   primary key ("tenant_id", "subject_type", "subject_id")
 );
 alter table "better_supabase"."review_stats" enable row level security;
-revoke all on "better_supabase"."review_stats" from anon, authenticated;
+revoke all on "better_supabase"."review_stats" from public, anon, authenticated;
 grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
@@ -543,7 +543,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_109_reviews.sql

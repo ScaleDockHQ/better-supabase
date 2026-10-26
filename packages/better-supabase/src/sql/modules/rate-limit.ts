@@ -116,8 +116,8 @@ alter table ${counters} add column if not exists ${c("period")} interval;
 
 alter table ${rules} enable row level security;
 alter table ${counters} enable row level security;
-revoke all on table ${rules} from anon, authenticated;
-revoke all on table ${counters} from anon, authenticated;
+revoke all on table ${rules} from public, anon, authenticated;
+revoke all on table ${counters} from public, anon, authenticated;
 
 -- select better_supabase.set_rate_limit('/rpc/send_invite', 5, interval '1 minute');
 -- A null max_requests removes the rule.

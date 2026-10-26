@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:2af08954ab952ca90e4685e10f2b4a3f99e5bc9fa9daf6707eac3ddd463ba9fb
+-- @bsb-hash sha256:7f597180879ae94b8b011a349e69797da3a58f646a57aacc9acdf6479f788839
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create table if not exists "better_supabase"."agents" (
 create index if not exists agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
-revoke all on "better_supabase"."agents" from anon, authenticated;
+revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "organization_id");
 alter table "better_supabase"."agent_installs" enable row level security;
-revoke all on "better_supabase"."agent_installs" from anon, authenticated;
+revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "better_supabase"."agent_installs";
@@ -125,7 +125,7 @@ create table if not exists "better_supabase"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
-revoke all on "better_supabase"."agent_ratings" from anon, authenticated;
+revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "better_supabase"."agent_ratings";
@@ -142,7 +142,7 @@ create table if not exists "better_supabase"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
-revoke all on "better_supabase"."agent_skills" from anon, authenticated;
+revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "better_supabase"."agent_skills";
@@ -507,7 +507,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:23d74daf9d90dcd0cc3b2772211c2abf0d91e4c8dd077f825334579d38b4412d
+-- @bsb-hash sha256:99707f69e0751afae1593527a2b8812b7efd84622105de13649f676b1df56a1d
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -618,7 +618,7 @@ create table if not exists "better_supabase"."agents" (
 create index if not exists agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
-revoke all on "better_supabase"."agents" from anon, authenticated;
+revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
@@ -634,7 +634,7 @@ create table if not exists "better_supabase"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "organization_id");
 alter table "better_supabase"."agent_installs" enable row level security;
-revoke all on "better_supabase"."agent_installs" from anon, authenticated;
+revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "better_supabase"."agent_installs";
@@ -651,7 +651,7 @@ create table if not exists "better_supabase"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
-revoke all on "better_supabase"."agent_ratings" from anon, authenticated;
+revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "better_supabase"."agent_ratings";
@@ -668,7 +668,7 @@ create table if not exists "better_supabase"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
-revoke all on "better_supabase"."agent_skills" from anon, authenticated;
+revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "better_supabase"."agent_skills";
@@ -1076,7 +1076,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
@@ -1096,7 +1096,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:14b741fa9b83d107d74e63f8537211a9286ac32a2dff9e50f5b87d281f8c3c67
+-- @bsb-hash sha256:fb669927fd5ab43588409646aee55806494412a7583c001d0f029a1ced04759c
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1161,6 +1161,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Custom assistants: instructions, a model, the tools and connectors they may
 -- use and the knowledge they search. An owner keeps an agent private until a
 -- member with 'ai.share' publishes it to the organization or the public store.
@@ -1189,7 +1192,7 @@ create table if not exists "app_private"."agents" (
 create index if not exists agents_owner_idx on "app_private"."agents" ("owner_id");
 create index if not exists agents_published_idx on "app_private"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "app_private"."agents" enable row level security;
-revoke all on "app_private"."agents" from anon, authenticated;
+revoke all on "app_private"."agents" from public, anon, authenticated;
 grant select on "app_private"."agents" to authenticated;
 grant all on "app_private"."agents" to service_role;
 drop policy if exists agents_read on "app_private"."agents";
@@ -1205,7 +1208,7 @@ create table if not exists "app_private"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "app_private"."agent_installs" ("user_id", "organization_id");
 alter table "app_private"."agent_installs" enable row level security;
-revoke all on "app_private"."agent_installs" from anon, authenticated;
+revoke all on "app_private"."agent_installs" from public, anon, authenticated;
 grant select on "app_private"."agent_installs" to authenticated;
 grant all on "app_private"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "app_private"."agent_installs";
@@ -1222,7 +1225,7 @@ create table if not exists "app_private"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "app_private"."agent_ratings" ("user_id");
 alter table "app_private"."agent_ratings" enable row level security;
-revoke all on "app_private"."agent_ratings" from anon, authenticated;
+revoke all on "app_private"."agent_ratings" from public, anon, authenticated;
 grant select on "app_private"."agent_ratings" to authenticated;
 grant all on "app_private"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "app_private"."agent_ratings";
@@ -1239,7 +1242,7 @@ create table if not exists "app_private"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "app_private"."agent_skills" ("agent_id");
 alter table "app_private"."agent_skills" enable row level security;
-revoke all on "app_private"."agent_skills" from anon, authenticated;
+revoke all on "app_private"."agent_skills" from public, anon, authenticated;
 grant select on "app_private"."agent_skills" to authenticated;
 grant all on "app_private"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "app_private"."agent_skills";
@@ -1604,7 +1607,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
@@ -1624,7 +1627,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:9877dac57249fdf205a72517b1acfe741463f739ce5103d70982ec5b94fa1bf0
+-- @bsb-hash sha256:d10d4d6528c7252fc8415ba456c148b2efa8bd66411cd2c493c9e25959cd1cd3
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,7 +1718,7 @@ create table if not exists "better_supabase"."agents" (
 create index if not exists agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
-revoke all on "better_supabase"."agents" from anon, authenticated;
+revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
@@ -1731,7 +1734,7 @@ create table if not exists "better_supabase"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "organization_id");
 alter table "better_supabase"."agent_installs" enable row level security;
-revoke all on "better_supabase"."agent_installs" from anon, authenticated;
+revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "better_supabase"."agent_installs";
@@ -1748,7 +1751,7 @@ create table if not exists "better_supabase"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
-revoke all on "better_supabase"."agent_ratings" from anon, authenticated;
+revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "better_supabase"."agent_ratings";
@@ -1765,7 +1768,7 @@ create table if not exists "better_supabase"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
-revoke all on "better_supabase"."agent_skills" from anon, authenticated;
+revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "better_supabase"."agent_skills";
@@ -2224,7 +2227,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
@@ -2244,7 +2247,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:58bd4459fb3d9a24f210706e0c0265b2ddfdd573ea4d72b82c76fac793a612e8
+-- @bsb-hash sha256:6f84c3be355dd2b61c0fb909bd8f82d80ea2e1ea7f81dad6640351fe6882af14
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2756,7 +2759,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
@@ -2776,7 +2779,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:6a5950ae7916dc12eeee4b88b16c63d1f7ffaa23800fe2f9fc34de3e20839a4f
+-- @bsb-hash sha256:ef2c069c0e2314b1c6cfecba17b2a163af24fb2d3def4ac4ca0497de52c0431f
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2867,7 +2870,7 @@ create table if not exists "better_supabase"."agents" (
 create index if not exists agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
-revoke all on "better_supabase"."agents" from anon, authenticated;
+revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 drop policy if exists agents_read on "better_supabase"."agents";
@@ -2883,7 +2886,7 @@ create table if not exists "better_supabase"."agent_installs" (
 );
 create index if not exists agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "org_id");
 alter table "better_supabase"."agent_installs" enable row level security;
-revoke all on "better_supabase"."agent_installs" from anon, authenticated;
+revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
 drop policy if exists agent_installs_read on "better_supabase"."agent_installs";
@@ -2900,7 +2903,7 @@ create table if not exists "better_supabase"."agent_ratings" (
 );
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
-revoke all on "better_supabase"."agent_ratings" from anon, authenticated;
+revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
 drop policy if exists agent_ratings_read on "better_supabase"."agent_ratings";
@@ -2917,7 +2920,7 @@ create table if not exists "better_supabase"."agent_skills" (
 );
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
-revoke all on "better_supabase"."agent_skills" from anon, authenticated;
+revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
 drop policy if exists agent_skills_read on "better_supabase"."agent_skills";
@@ -3282,7 +3285,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_051_agents.sql

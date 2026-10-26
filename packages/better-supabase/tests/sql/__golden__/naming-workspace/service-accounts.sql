@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:ef83a2815f80a7a4a5edc2a7e8b2a89da581347acb5ee110639f77db5393b2c3
+-- @bsb-hash sha256:9eb3c27555b3f3c404bf7412da213d6438f01bfae36beee89e89c3105fd57e71
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,7 @@ create index if not exists service_principals_created_by_idx on "better_supabase
 create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
-revoke all on "better_supabase"."service_principals" from anon, authenticated;
+revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
@@ -256,7 +256,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:8775ec4e742aac6865c150d6dd0ce72be02b648cf4874fa9ae597b58d8c890b9
+-- @bsb-hash sha256:d13b97fa1a01a6718b9931b1627970471c1f3ee79ba41cc7ace96e1e2b7b42bd
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,7 +128,7 @@ create index if not exists companies_owner_idx on "better_supabase"."companies" 
 create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 alter table "better_supabase"."companies" add column if not exists "app_note" text;
 alter table "better_supabase"."companies" enable row level security;
-revoke all on "better_supabase"."companies" from anon, authenticated;
+revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
 drop policy if exists companies_read on "better_supabase"."companies";
@@ -158,7 +158,7 @@ create index if not exists people_owner_idx on "better_supabase"."people" ("owne
 create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
 create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
 alter table "better_supabase"."people" enable row level security;
-revoke all on "better_supabase"."people" from anon, authenticated;
+revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
 drop policy if exists people_read on "better_supabase"."people";
@@ -177,7 +177,7 @@ create table if not exists "better_supabase"."company_people" (
 create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
 create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
-revoke all on "better_supabase"."company_people" from anon, authenticated;
+revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
@@ -752,7 +752,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_093_contacts.sql

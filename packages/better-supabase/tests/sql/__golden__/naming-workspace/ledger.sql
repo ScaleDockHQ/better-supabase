@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:b5e096c240b8490fa4a119b647c57b9eda521648b60a9dfb0ffbbf4733a3dbd1
+-- @bsb-hash sha256:fb8d18c3617b9b886266116a81e803cb4b7a47a1c7695679a779ba7aac554cbb
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,7 @@ create index if not exists "ledger_holds_transaction_idx" on "better_supabase"."
 create index if not exists "ledger_holds_expiry_idx" on "better_supabase"."ledger_holds" ("expires_at") where "status" = 'active' and "expires_at" is not null;
 
 alter table "better_supabase"."ledger_accounts" enable row level security;
-revoke all on "better_supabase"."ledger_accounts" from anon, authenticated;
+revoke all on "better_supabase"."ledger_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_accounts" to authenticated;
 grant all on "better_supabase"."ledger_accounts" to service_role;
 create index if not exists "ledger_accounts_read_permission_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "read_permission") where "read_permission" is not null;
@@ -211,7 +211,7 @@ create policy "ledger_accounts_read" on "better_supabase"."ledger_accounts" for 
     or "owner_id" = (select auth.uid())
     or ("tenant_id", "read_permission") in (select g.tenant, g.permission from "better_supabase"."ledger_read_grants"() g));
 alter table "better_supabase"."ledger_transactions" enable row level security;
-revoke all on "better_supabase"."ledger_transactions" from anon, authenticated;
+revoke all on "better_supabase"."ledger_transactions" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_transactions" to authenticated;
 grant all on "better_supabase"."ledger_transactions" to service_role;
 drop policy if exists "ledger_transactions_read" on "better_supabase"."ledger_transactions";
@@ -219,21 +219,21 @@ create policy "ledger_transactions_read" on "better_supabase"."ledger_transactio
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
     or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
-revoke all on "better_supabase"."ledger_entries" from anon, authenticated;
+revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
 grant all on "better_supabase"."ledger_entries" to service_role;
 drop policy if exists "ledger_entries_read" on "better_supabase"."ledger_entries";
 create policy "ledger_entries_read" on "better_supabase"."ledger_entries" for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_balances" enable row level security;
-revoke all on "better_supabase"."ledger_balances" from anon, authenticated;
+revoke all on "better_supabase"."ledger_balances" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_balances" to authenticated;
 grant all on "better_supabase"."ledger_balances" to service_role;
 drop policy if exists "ledger_balances_read" on "better_supabase"."ledger_balances";
 create policy "ledger_balances_read" on "better_supabase"."ledger_balances" for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_holds" enable row level security;
-revoke all on "better_supabase"."ledger_holds" from anon, authenticated;
+revoke all on "better_supabase"."ledger_holds" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_holds" to authenticated;
 grant all on "better_supabase"."ledger_holds" to service_role;
 drop policy if exists "ledger_holds_read" on "better_supabase"."ledger_holds";
@@ -1033,7 +1033,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_080_ledger.sql

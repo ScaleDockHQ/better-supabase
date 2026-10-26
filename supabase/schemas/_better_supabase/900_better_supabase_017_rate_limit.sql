@@ -1,6 +1,6 @@
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@1 managed
--- @bsb-hash sha256:72f7cd2bc5acabcfc91aa64a3440eb9dd48db5c42d2b5422ef76501e1588f79d
+-- @bsb-hash sha256:f5bd5b81ef18d3bb85a2d0ec80544952ac28da4ed430ecde7a7e687edf5127f9
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,8 +32,8 @@ alter table "better_supabase"."rate_limits" add column if not exists "period" in
 
 alter table "better_supabase"."rate_limit_rules" enable row level security;
 alter table "better_supabase"."rate_limits" enable row level security;
-revoke all on table "better_supabase"."rate_limit_rules" from anon, authenticated;
-revoke all on table "better_supabase"."rate_limits" from anon, authenticated;
+revoke all on table "better_supabase"."rate_limit_rules" from public, anon, authenticated;
+revoke all on table "better_supabase"."rate_limits" from public, anon, authenticated;
 
 -- select better_supabase.set_rate_limit('/rpc/send_invite', 5, interval '1 minute');
 -- A null max_requests removes the rule.
@@ -362,5 +362,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
