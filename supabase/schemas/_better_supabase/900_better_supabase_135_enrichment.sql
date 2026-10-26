@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:d2e5cbbcaad9ef1715459adabda4cfe45fb018f8df9ed601e9b67a3cb2a80f8b
+-- @bsb-hash sha256:3680e89cdf16e927d421fcb211fd2b3973126c09c49f93fc020ab4be9c5058e0
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,8 +79,9 @@ revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
 drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
+create policy enrichments_read on "better_supabase"."enrichments"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
 -- What a provider looks up for one company or person: its name and the
 -- domain, website or email it can be matched by. Needs enrichment.run.

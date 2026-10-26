@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:8a910d0ee360fed51b79e64cec9fffab2f7b56bf6301d161e99cb176dcb3a7e6
+-- @bsb-hash sha256:dd9d16f2c97c143c46667e2e95bf18edd8fe0de57302b94fdfb9212fca1b6117
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,7 +109,8 @@ $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
 drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
-create policy bsb_invitations_read on "better_supabase"."invitations" for select to authenticated
+create policy bsb_invitations_read on "better_supabase"."invitations"
+  for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an

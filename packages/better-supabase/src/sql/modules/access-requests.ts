@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -280,9 +281,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
 ${lockTable(requests, { read: true })}
-drop policy if exists ${ctx.naming.rename("access_requests_read")} on ${requests};
-create policy ${ctx.naming.rename("access_requests_read")} on ${requests} for select to authenticated
-  using (${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("access_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid())` }), { drop: true, target: requests })}
 `
     : "";
 

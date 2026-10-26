@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:bad7591762154d12858a5417b65ff259ba912d5a214f0ed6984d562f4e277861
+-- @bsb-hash sha256:ae5c5f24f00bf6f63f09a8e2c3da913ea943c163cff682668e6a0242fdcf456b
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -127,7 +128,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 

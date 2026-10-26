@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:c7248778441264e8e99678e4b4811aec62461c26b0c9d01ef5b10e33a4172c24
+-- @bsb-hash sha256:11c86e8435e7057a403cc776ec15700e218125eb5f24ae39f5bdb1f23332548f
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -128,7 +129,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 
@@ -651,7 +653,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:d11c6511a48a67ff467895d2cb5d1308caafe015c0ad99a9e013e4836be42a33
+-- @bsb-hash sha256:b0f970307053046c2f8a3b002d154b53b4cf8a8bc8101cdea445d2cd8e63eb69
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -754,7 +756,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -778,7 +781,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 
@@ -1360,7 +1364,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:d11dcecbf114e337d68a18ceaea660e33c7ff06f39d6dc60ac088de6dc04b88c
+-- @bsb-hash sha256:601e4200e98f83bddd8ed23c377f722a55feb6dbc27f98b1602f0ff3b5315d54
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1468,7 +1472,8 @@ revoke all on "app_private"."lease_agreements" from public, anon, authenticated;
 grant select on "app_private"."lease_agreements" to authenticated;
 grant all on "app_private"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "app_private"."lease_agreements";
-create policy "lease_agreements_read" on "app_private"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "app_private"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -1492,7 +1497,8 @@ revoke all on "app_private"."lease_charges" from public, anon, authenticated;
 grant select on "app_private"."lease_charges" to authenticated;
 grant all on "app_private"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "app_private"."lease_charges";
-create policy "lease_charges_read" on "app_private"."lease_charges" for select to authenticated
+create policy lease_charges_read on "app_private"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 
@@ -2015,7 +2021,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:3e1392d41161a77aba4dd7c6c85a74561065061e3d231d3f376297a42a312655
+-- @bsb-hash sha256:e0a2ad59db68b866addb4edbcc06b20e6668c3c8dfb9b2a92f4f245e31ad05f9
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2118,7 +2124,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -2142,7 +2149,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 
@@ -2770,7 +2778,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:f7f4f7af875606c00fe9de5aecd73a224fa04ab67ccb1ac1f612b9068e53de98
+-- @bsb-hash sha256:8a66267d9249a5c9a96402949c6bd0da4f89cda5abc94eee46a2390d054e1322
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2882,7 +2890,8 @@ alter table "better_supabase"."lease_agreements" enable row level security;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists bsb_lease_agreements_select on "better_supabase"."lease_agreements";
-create policy bsb_lease_agreements_select on "better_supabase"."lease_agreements" for select to authenticated
+create policy bsb_lease_agreements_select on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -2903,7 +2912,8 @@ alter table "better_supabase"."lease_charges" enable row level security;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists bsb_lease_charges_select on "better_supabase"."lease_charges";
-create policy bsb_lease_charges_select on "better_supabase"."lease_charges" for select to authenticated
+create policy bsb_lease_charges_select on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 
@@ -3426,7 +3436,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:8189bdd077fc5a14c7570343107a0298ecce5bcd6561383ab65cebdb318c796a
+-- @bsb-hash sha256:2f3e322fa9d894971568a68d0d10623887fcb2a64c7063fd5f5dc960f7d00103
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3529,7 +3539,8 @@ revoke all on "better_supabase"."lease_agreements" from public, anon, authentica
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy "lease_agreements_read" on "better_supabase"."lease_agreements" for select to authenticated
+create policy lease_agreements_read on "better_supabase"."lease_agreements"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
@@ -3553,7 +3564,8 @@ revoke all on "better_supabase"."lease_charges" from public, anon, authenticated
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
-create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
+create policy lease_charges_read on "better_supabase"."lease_charges"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 

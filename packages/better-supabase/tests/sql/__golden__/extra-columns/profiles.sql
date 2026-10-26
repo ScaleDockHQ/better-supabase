@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:b07045ba401c972040f986f0faefe0c57db6d5bd34bdee23a77801c4ea773759
+-- @bsb-hash sha256:a10c327905cf60f71929dd608dc5ef80b4d07a3254811a2a061801c9b014c86d
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,10 +82,12 @@ end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
-create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
   using ("id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
-create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;

@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { accessModel, roleNames } from "./permissions-model.ts";
 
 const WHERE = "blocks.memberships.options.roles";
@@ -195,10 +196,7 @@ export function membershipRolesPolicy(tenant: BlockSqlContext): string {
   const u = tenant.col("memberships", "user");
 
   return `
-drop policy if exists bsb_membership_roles_read on ${mr};
-create policy bsb_membership_roles_read on ${mr}
-  for select to authenticated
-  using (${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()}));
+${renderPolicy(makePolicy({ table: mr, name: "bsb_membership_roles_read", command: "select", roles: ["authenticated"], using: `${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()})` }), { drop: true, target: mr })}
 `;
 }
 

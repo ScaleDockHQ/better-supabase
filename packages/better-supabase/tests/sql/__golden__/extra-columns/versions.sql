@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:f4a95f1d740220e8c011a27ee400aa2df7233032e2711737c53a93f97cfe3ac6
+-- @bsb-hash sha256:14091f7ddd04b2a0125bd5ee134091cf1b3d7c4d7708f8abccdb5e4c4bd68970
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,8 @@ revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions" for select to authenticated
+create policy versions_read on "better_supabase"."versions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose

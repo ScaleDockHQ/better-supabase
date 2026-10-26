@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:d7b492d4842a33a04327c76244f457cc082971c9207bd9d7ba590ae0d77e63fc
+-- @bsb-hash sha256:61ff3368b5c4143606c525a56f2bfc1d80159a0987becf8164a0fb0245d51208
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,7 +109,8 @@ revoke all on "better_supabase"."contracts" from public, anon, authenticated;
 grant select on "better_supabase"."contracts" to authenticated;
 grant all on "better_supabase"."contracts" to service_role;
 drop policy if exists "contracts_read" on "better_supabase"."contracts";
-create policy "contracts_read" on "better_supabase"."contracts" for select to authenticated
+create policy contracts_read on "better_supabase"."contracts"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 
 create table if not exists "better_supabase"."contract_obligations" (
@@ -135,7 +136,8 @@ revoke all on "better_supabase"."contract_obligations" from public, anon, authen
 grant select on "better_supabase"."contract_obligations" to authenticated;
 grant all on "better_supabase"."contract_obligations" to service_role;
 drop policy if exists "contract_obligations_read" on "better_supabase"."contract_obligations";
-create policy "contract_obligations_read" on "better_supabase"."contract_obligations" for select to authenticated
+create policy contract_obligations_read on "better_supabase"."contract_obligations"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 
 -- Keeps the contract's renewal reminder in step with its terms: while it is

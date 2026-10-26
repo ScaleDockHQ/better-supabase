@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:88d2c50985f85777dbf35e63158c6a79a283890a6888f36704c4191cd6db0105
+-- @bsb-hash sha256:70043819e4c795821dcf31b2eac9de739fbe538ad93aa056b382fbc7765cecda
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,8 @@ revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -121,7 +122,8 @@ revoke all on "better_supabase"."leave_requests" from public, anon, authenticate
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -830,7 +832,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:2f9bb1d1fb7273409284bb00be60605e0eb5f79208fd02c467653304730f83d2
+-- @bsb-hash sha256:3c8eed2c6efa3c92676ab09cfe190b25cbeb358cf86bbf3dee0c0b44d8143185
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -918,7 +920,8 @@ revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -950,7 +953,8 @@ revoke all on "better_supabase"."leave_requests" from public, anon, authenticate
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -1743,7 +1747,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:bf3e3890acf6e6ba1766fff51fc3de9bc5ff790d7f6dc5659dd5c43ff92882da
+-- @bsb-hash sha256:14b8a2c22f58d3e96411dd6fc0fbec94ed24b81d2574ba4bfdbe58f862c45d45
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1836,7 +1840,8 @@ revoke all on "app_private"."leave_types" from public, anon, authenticated;
 grant select on "app_private"."leave_types" to authenticated;
 grant all on "app_private"."leave_types" to service_role;
 drop policy if exists leave_types_read on "app_private"."leave_types";
-create policy leave_types_read on "app_private"."leave_types" for select to authenticated
+create policy leave_types_read on "app_private"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "app_private"."leave_requests" (
@@ -1868,7 +1873,8 @@ revoke all on "app_private"."leave_requests" from public, anon, authenticated;
 grant select on "app_private"."leave_requests" to authenticated;
 grant all on "app_private"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "app_private"."leave_requests";
-create policy leave_requests_read on "app_private"."leave_requests" for select to authenticated
+create policy leave_requests_read on "app_private"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -2577,7 +2583,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:37a9b56755fa67a87778a166db9dfbb6d97ea312fefbee40314591eec1767f80
+-- @bsb-hash sha256:bb34733a84396945bba49a34db5ed42268177cda22e88ed175773f744248ba35
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2665,7 +2671,8 @@ revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -2697,7 +2704,8 @@ revoke all on "better_supabase"."leave_requests" from public, anon, authenticate
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -3538,7 +3546,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4edafb09d508e5b69a800eb5c4d5eadca2187eccb69f22f571fe7715f2a48ab7
+-- @bsb-hash sha256:798b9408e04b4d119ad58c6eaa8d239734d178c87f759f78718da28d3b9745af
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3637,7 +3645,8 @@ alter table "better_supabase"."leave_types" enable row level security;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists bsb_leave_types_select on "better_supabase"."leave_types";
-create policy bsb_leave_types_select on "better_supabase"."leave_types" for select to authenticated
+create policy bsb_leave_types_select on "better_supabase"."leave_types"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 -- better_supabase.leave_requests is the app's table: this block adds only the columns it needs.
@@ -3664,7 +3673,8 @@ alter table "better_supabase"."leave_requests" enable row level security;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists bsb_leave_requests_select on "better_supabase"."leave_requests";
-create policy bsb_leave_requests_select on "better_supabase"."leave_requests" for select to authenticated
+create policy bsb_leave_requests_select on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -4373,7 +4383,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:cb6e9338d20dbfe1419103021ba40ab92362211c651bf03d3794636018889498
+-- @bsb-hash sha256:32af30c88ebc9f8778caa13134f5e27aa61cb542d1dbb9233377b3bf4e34c8ea
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4461,7 +4471,8 @@ revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
-create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
+create policy leave_types_read on "better_supabase"."leave_types"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('leave.request')) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -4493,7 +4504,8 @@ revoke all on "better_supabase"."leave_requests" from public, anon, authenticate
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
-create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
+create policy leave_requests_read on "better_supabase"."leave_requests"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 

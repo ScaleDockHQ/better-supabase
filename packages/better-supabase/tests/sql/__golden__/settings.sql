@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:71f85fd4dc9bce4e7fc88344d73b82b99b2114c06943aaf30f905e6c425abd60
+-- @bsb-hash sha256:10db871522f38e196cbc54f5ef590bf8b059ce8601d3dc88f66c0315864de2ba
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,18 +94,22 @@ alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
-create policy "organization_settings_read" on "better_supabase"."organization_settings" for select to authenticated
+drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
+create policy organization_settings_read on "better_supabase"."organization_settings"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
-create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
+drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
+create policy organization_settings_insert on "better_supabase"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
-create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
+drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
+create policy organization_settings_update on "better_supabase"."organization_settings"
+  for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
-create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
+drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
+create policy organization_settings_delete on "better_supabase"."organization_settings"
+  for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -123,21 +127,26 @@ revoke all on "better_supabase"."platform_settings" from public, anon, authentic
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists "platform_settings_read" on "better_supabase"."platform_settings";
-create policy "platform_settings_read" on "better_supabase"."platform_settings" for select to authenticated
+drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
+create policy platform_settings_read on "better_supabase"."platform_settings"
+  for select to authenticated
   using (true);
-drop policy if exists "platform_settings_read_public" on "better_supabase"."platform_settings";
-create policy "platform_settings_read_public" on "better_supabase"."platform_settings" for select to anon
+drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
+create policy platform_settings_read_public on "better_supabase"."platform_settings"
+  for select to anon
   using (false);
-drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
-create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
+drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
+create policy platform_settings_insert on "better_supabase"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
-create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
+drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
+create policy platform_settings_update on "better_supabase"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
-create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
+drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
+create policy platform_settings_delete on "better_supabase"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
@@ -362,7 +371,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5259e11e4f00ab2db391c6bb7a1da4d8a081a826150d6ec8cf5ee1c3b43205c5
+-- @bsb-hash sha256:11c3a51b9594cbc505aab14cc1818f5a77f4063c471ae8523a86b188da0d99ac
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,18 +464,22 @@ alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
-create policy "organization_settings_read" on "better_supabase"."organization_settings" for select to authenticated
+drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
+create policy organization_settings_read on "better_supabase"."organization_settings"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
-create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
+drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
+create policy organization_settings_insert on "better_supabase"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
-create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
+drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
+create policy organization_settings_update on "better_supabase"."organization_settings"
+  for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
-create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
+drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
+create policy organization_settings_delete on "better_supabase"."organization_settings"
+  for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -484,21 +497,26 @@ revoke all on "better_supabase"."platform_settings" from public, anon, authentic
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists "platform_settings_read" on "better_supabase"."platform_settings";
-create policy "platform_settings_read" on "better_supabase"."platform_settings" for select to authenticated
+drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
+create policy platform_settings_read on "better_supabase"."platform_settings"
+  for select to authenticated
   using (true);
-drop policy if exists "platform_settings_read_public" on "better_supabase"."platform_settings";
-create policy "platform_settings_read_public" on "better_supabase"."platform_settings" for select to anon
+drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
+create policy platform_settings_read_public on "better_supabase"."platform_settings"
+  for select to anon
   using (false);
-drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
-create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
+drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
+create policy platform_settings_insert on "better_supabase"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
-create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
+drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
+create policy platform_settings_update on "better_supabase"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
-create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
+drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
+create policy platform_settings_delete on "better_supabase"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
@@ -795,7 +813,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:0a8076ab87f1f73f3bb2050e51f61e7bfe4118509a4a78f574ea34bee7106986
+-- @bsb-hash sha256:53b00be765dfb4ba8a47007f7f68c7b4897cc485867c6d6179ac43a29fdadcc1
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -893,18 +911,22 @@ alter table "app_private"."organization_settings" enable row level security;
 revoke all on "app_private"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "app_private"."organization_settings" to authenticated;
 grant all on "app_private"."organization_settings" to service_role;
-drop policy if exists "organization_settings_read" on "app_private"."organization_settings";
-create policy "organization_settings_read" on "app_private"."organization_settings" for select to authenticated
+drop policy if exists organization_settings_read on "app_private"."organization_settings";
+create policy organization_settings_read on "app_private"."organization_settings"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists "organization_settings_insert" on "app_private"."organization_settings";
-create policy "organization_settings_insert" on "app_private"."organization_settings" for insert to authenticated
+drop policy if exists organization_settings_insert on "app_private"."organization_settings";
+create policy organization_settings_insert on "app_private"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_update" on "app_private"."organization_settings";
-create policy "organization_settings_update" on "app_private"."organization_settings" for update to authenticated
+drop policy if exists organization_settings_update on "app_private"."organization_settings";
+create policy organization_settings_update on "app_private"."organization_settings"
+  for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_delete" on "app_private"."organization_settings";
-create policy "organization_settings_delete" on "app_private"."organization_settings" for delete to authenticated
+drop policy if exists organization_settings_delete on "app_private"."organization_settings";
+create policy organization_settings_delete on "app_private"."organization_settings"
+  for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -922,21 +944,26 @@ revoke all on "app_private"."platform_settings" from public, anon, authenticated
 grant select on "app_private"."platform_settings" to anon;
 grant select, insert, update, delete on "app_private"."platform_settings" to authenticated;
 grant all on "app_private"."platform_settings" to service_role;
-drop policy if exists "platform_settings_read" on "app_private"."platform_settings";
-create policy "platform_settings_read" on "app_private"."platform_settings" for select to authenticated
+drop policy if exists platform_settings_read on "app_private"."platform_settings";
+create policy platform_settings_read on "app_private"."platform_settings"
+  for select to authenticated
   using (true);
-drop policy if exists "platform_settings_read_public" on "app_private"."platform_settings";
-create policy "platform_settings_read_public" on "app_private"."platform_settings" for select to anon
+drop policy if exists platform_settings_read_public on "app_private"."platform_settings";
+create policy platform_settings_read_public on "app_private"."platform_settings"
+  for select to anon
   using (false);
-drop policy if exists "platform_settings_insert" on "app_private"."platform_settings";
-create policy "platform_settings_insert" on "app_private"."platform_settings" for insert to authenticated
+drop policy if exists platform_settings_insert on "app_private"."platform_settings";
+create policy platform_settings_insert on "app_private"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_update" on "app_private"."platform_settings";
-create policy "platform_settings_update" on "app_private"."platform_settings" for update to authenticated
+drop policy if exists platform_settings_update on "app_private"."platform_settings";
+create policy platform_settings_update on "app_private"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_delete" on "app_private"."platform_settings";
-create policy "platform_settings_delete" on "app_private"."platform_settings" for delete to authenticated
+drop policy if exists platform_settings_delete on "app_private"."platform_settings";
+create policy platform_settings_delete on "app_private"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
@@ -1161,7 +1188,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:dfe7bf7382eb2704b872a9cad7c5c7b1c9108abc4279474fd257b516062cc3d6
+-- @bsb-hash sha256:c2cd9e2a584a5e5c1ad91d0c09f9e2fd8f2c9631dcd64fb685a7a74bca9fca12
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1254,18 +1281,22 @@ alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
-create policy "organization_settings_read" on "better_supabase"."organization_settings" for select to authenticated
+drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
+create policy organization_settings_read on "better_supabase"."organization_settings"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
-create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
+drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
+create policy organization_settings_insert on "better_supabase"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
-create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
+drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
+create policy organization_settings_update on "better_supabase"."organization_settings"
+  for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
-create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
+drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
+create policy organization_settings_delete on "better_supabase"."organization_settings"
+  for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -1283,21 +1314,26 @@ revoke all on "better_supabase"."platform_settings" from public, anon, authentic
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists "platform_settings_read" on "better_supabase"."platform_settings";
-create policy "platform_settings_read" on "better_supabase"."platform_settings" for select to authenticated
+drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
+create policy platform_settings_read on "better_supabase"."platform_settings"
+  for select to authenticated
   using (true);
-drop policy if exists "platform_settings_read_public" on "better_supabase"."platform_settings";
-create policy "platform_settings_read_public" on "better_supabase"."platform_settings" for select to anon
+drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
+create policy platform_settings_read_public on "better_supabase"."platform_settings"
+  for select to anon
   using (false);
-drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
-create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
+drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
+create policy platform_settings_insert on "better_supabase"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
-create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
+drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
+create policy platform_settings_update on "better_supabase"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
-create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
+drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
+create policy platform_settings_delete on "better_supabase"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
@@ -1625,7 +1661,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:aa30ce0f690f44190f45f6753dfbe17792523c999c4fd36c60ef48336d3cc54d
+-- @bsb-hash sha256:b21ebde03a117098cedaf6eadb99807cd09646d0c40e07fb78fe2b54e853a18d
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1714,17 +1750,21 @@ alter table "better_supabase"."organization_settings" enable row level security;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists bsb_organization_settings_select on "better_supabase"."organization_settings";
-create policy bsb_organization_settings_select on "better_supabase"."organization_settings" for select to authenticated
+create policy bsb_organization_settings_select on "better_supabase"."organization_settings"
+  for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists bsb_organization_settings_insert on "better_supabase"."organization_settings";
-create policy bsb_organization_settings_insert on "better_supabase"."organization_settings" for insert to authenticated
+create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_organization_settings_update on "better_supabase"."organization_settings";
-create policy bsb_organization_settings_update on "better_supabase"."organization_settings" for update to authenticated
+create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
+  for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_organization_settings_delete on "better_supabase"."organization_settings";
-create policy bsb_organization_settings_delete on "better_supabase"."organization_settings" for delete to authenticated
+create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
+  for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -1742,20 +1782,25 @@ grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
 drop policy if exists bsb_platform_settings_select_read on "better_supabase"."platform_settings";
-create policy bsb_platform_settings_select_read on "better_supabase"."platform_settings" for select to authenticated
+create policy bsb_platform_settings_select_read on "better_supabase"."platform_settings"
+  for select to authenticated
   using (true);
 drop policy if exists bsb_platform_settings_select_read_public on "better_supabase"."platform_settings";
-create policy bsb_platform_settings_select_read_public on "better_supabase"."platform_settings" for select to anon
+create policy bsb_platform_settings_select_read_public on "better_supabase"."platform_settings"
+  for select to anon
   using (false);
 drop policy if exists bsb_platform_settings_insert on "better_supabase"."platform_settings";
-create policy bsb_platform_settings_insert on "better_supabase"."platform_settings" for insert to authenticated
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_platform_settings_update on "better_supabase"."platform_settings";
-create policy bsb_platform_settings_update on "better_supabase"."platform_settings" for update to authenticated
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists bsb_platform_settings_delete on "better_supabase"."platform_settings";
-create policy bsb_platform_settings_delete on "better_supabase"."platform_settings" for delete to authenticated
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
@@ -1980,7 +2025,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:976468302c37a45433b44f4c52a4fd9f4b253c01fe62b646aedffe6d35c91906
+-- @bsb-hash sha256:80ae499615b46399a70163c09054159fad42198863375e1e2a4879fd08b1474f
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2073,18 +2118,22 @@ alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
-create policy "organization_settings_read" on "better_supabase"."organization_settings" for select to authenticated
+drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
+create policy organization_settings_read on "better_supabase"."organization_settings"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
-create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
+drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
+create policy organization_settings_insert on "better_supabase"."organization_settings"
+  for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
-create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
+drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
+create policy organization_settings_update on "better_supabase"."organization_settings"
+  for update to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
-create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
+drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
+create policy organization_settings_delete on "better_supabase"."organization_settings"
+  for delete to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
@@ -2102,21 +2151,26 @@ revoke all on "better_supabase"."platform_settings" from public, anon, authentic
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists "platform_settings_read" on "better_supabase"."platform_settings";
-create policy "platform_settings_read" on "better_supabase"."platform_settings" for select to authenticated
+drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
+create policy platform_settings_read on "better_supabase"."platform_settings"
+  for select to authenticated
   using (true);
-drop policy if exists "platform_settings_read_public" on "better_supabase"."platform_settings";
-create policy "platform_settings_read_public" on "better_supabase"."platform_settings" for select to anon
+drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
+create policy platform_settings_read_public on "better_supabase"."platform_settings"
+  for select to anon
   using (false);
-drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
-create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
+drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
+create policy platform_settings_insert on "better_supabase"."platform_settings"
+  for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
-create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
+drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
+create policy platform_settings_update on "better_supabase"."platform_settings"
+  for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
-create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
+drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
+create policy platform_settings_delete on "better_supabase"."platform_settings"
+  for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*

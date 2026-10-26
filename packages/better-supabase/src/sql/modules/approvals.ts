@@ -4,6 +4,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -450,9 +451,7 @@ ${indent}end if;`;
 create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 ${lockModuleTable(ctx, "requests", { read: true })}
-drop policy if exists ${ctx.naming.rename("approval_requests_read")} on ${requests};
-create policy ${ctx.naming.rename("approval_requests_read")} on ${requests} for select to authenticated
-  using (${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("approval_requests_read"), command: "select", roles: ["authenticated"], using: `${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid())` }), { drop: true, target: requests })}
 
 create table if not exists ${decisions} (
   ${d("id")} uuid primary key default gen_random_uuid(),
@@ -465,9 +464,7 @@ create table if not exists ${decisions} (
   unique (${d("request")}, ${d("step")}, ${d("approver")})
 );${appUniqueIndex(ctx, "decisions", ["request", "step", "approver"])}${delegation ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("decisions").name}_delegate_idx`)} on ${decisions} (${d("delegateTo")}) where ${d("delegateTo")} is not null;` : ""}
 ${lockModuleTable(ctx, "decisions", { read: true })}
-drop policy if exists ${ctx.naming.rename("approval_decisions_read")} on ${decisions};
-create policy ${ctx.naming.rename("approval_decisions_read")} on ${decisions} for select to authenticated
-  using (${ctx.scope.check(d("tenant"), read)});
+${renderPolicy(makePolicy({ table: decisions, name: ctx.naming.rename("approval_decisions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), read) }), { drop: true, target: decisions })}
 `
     : "";
 

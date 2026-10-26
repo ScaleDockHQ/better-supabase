@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -329,15 +330,20 @@ create index if not exists ${ctx.naming.rename("engagement_subjects_subject_idx"
 ${lockTable(t("links"), { read: true })}
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
-drop policy if exists ${ctx.tableName("links").name}_read on ${t("links")};
-create policy ${ctx.tableName("links").name}_read on ${t("links")} for select to authenticated
-using (${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read'));
-drop policy if exists ${ctx.tableName("engagements").name}_read on ${t("engagements")};
-create policy ${ctx.tableName("engagements").name}_read on ${t("engagements")} for select to authenticated
-using (${ctx.scope.check(e("tenant"), read)} and (
+${renderPolicy(makePolicy({ table: t("links"), name: `${ctx.tableName("links").name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read')` }), { drop: true, target: t("links") })}
+${renderPolicy(
+  makePolicy({
+    table: t("engagements"),
+    name: `${ctx.tableName("engagements").name}_read`,
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(e("tenant"), read)} and (
   not exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")})
   or exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")} and ${canSubject}(x.${l("subjectType")}, x.${l("subjectId")}, 'read'))
-));
+)`,
+  }),
+  { drop: true, target: t("engagements") },
+)}
 `
     : ""
 }

@@ -1,6 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
@@ -235,9 +236,7 @@ create table if not exists ${t("recordings")} (
 create index if not exists ${ctx.naming.rename("engagement_recordings_file_idx")} on ${t("recordings")} (${r("file")});
 create index if not exists ${ctx.naming.rename("engagement_recordings_pending_idx")} on ${t("recordings")} (${r("createdAt")}) where ${r("status")} = 'pending';
 ${lockTable(t("recordings"), { read: true })}
-drop policy if exists ${ctx.tableName("recordings").name}_read on ${t("recordings")};
-create policy ${ctx.tableName("recordings").name}_read on ${t("recordings")} for select to authenticated
-using (${engagementVisible(r("engagement"))});
+${renderPolicy(makePolicy({ table: t("recordings"), name: `${ctx.tableName("recordings").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(r("engagement")) }), { drop: true, target: t("recordings") })}
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
@@ -252,9 +251,7 @@ create table if not exists ${t("segments")} (
   check (${s("endsMs")} >= ${s("startsMs")})
 );
 ${lockTable(t("segments"), { read: true })}
-drop policy if exists ${ctx.tableName("segments").name}_read on ${t("segments")};
-create policy ${ctx.tableName("segments").name}_read on ${t("segments")} for select to authenticated
-using (exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")}));
+${renderPolicy(makePolicy({ table: t("segments"), name: `${ctx.tableName("segments").name}_read`, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")})` }), { drop: true, target: t("segments") })}
 
 -- Notes on an engagement: a summary and action items, written by an AI
 -- note taker or a member. One row per engagement; saving replaces it.
@@ -276,9 +273,7 @@ create table if not exists ${t("notes")} (
     .join("")}
 );${key("notes", "engagement_key", n("engagement"))}
 ${lockTable(t("notes"), { read: true })}
-drop policy if exists ${ctx.tableName("notes").name}_read on ${t("notes")};
-create policy ${ctx.tableName("notes").name}_read on ${t("notes")} for select to authenticated
-using (${engagementVisible(n("engagement"))});
+${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(n("engagement")) }), { drop: true, target: t("notes") })}
 `
     : "";
 

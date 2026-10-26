@@ -21,7 +21,12 @@ import {
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import { TENANT_SCOPE_NAMES, tenantScopePolicy } from "../tenant-scope.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import {
+  authenticatedPolicy,
+  TENANT_SCOPE_NAMES,
+  tenantScopePolicy,
+} from "../tenant-scope.ts";
 import {
   columnAccessChecks,
   columnAccessRefusals,
@@ -531,22 +536,21 @@ function policiesSql(table: AppTable): string {
   const target = qualified(table.name);
   const own = ownRows(table);
 
-  const policy = (command: (typeof COMMANDS)[number], body: string): string => {
-    const name = sqlIdent(scopePolicyName(table, command));
-
-    return `drop policy if exists ${name} on ${target};
-create policy ${name} on ${target} for ${command} to authenticated ${body};`;
-  };
+  const policy = (
+    command: (typeof COMMANDS)[number],
+    spec: { using?: string; check?: string },
+  ): string =>
+    authenticatedPolicy(target, scopePolicyName(table, command), command, spec);
 
   if (own === undefined) {
-    return policy("select", `using (${table.ctx.scope.check("id", "null")})`);
+    return policy("select", { using: table.ctx.scope.check("id", "null") });
   }
 
   return [
-    policy("select", `using (${own})`),
-    policy("insert", `with check (${own})`),
-    policy("update", `using (${own}) with check (${own})`),
-    policy("delete", `using (${own})`),
+    policy("select", { using: own }),
+    policy("insert", { check: own }),
+    policy("update", { using: own, check: own }),
+    policy("delete", { using: own }),
     ...(tenantScoped(table)
       ? [
           tenantScopePolicy({
@@ -1108,7 +1112,7 @@ function testSql(table: AppTable): string {
   ];
 
   return `${[...checks, ...(seededSql === undefined ? emitted : [])].join("\n")}
-${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}${tenantScoped(table) ? `\n-- An app's own permissive policy can't widen the tenant scope.\ncreate policy bsb_test_app_widens on ${qualified(table.name)} for all to authenticated using (true) with check (true);\n` : ""}
+${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}${tenantScoped(table) ? `\n-- An app's own permissive policy can't widen the tenant scope.\n${renderPolicy(makePolicy({ name: "bsb_test_app_widens", table: qualified(table.name), roles: ["authenticated"], using: "true", check: "true" }), { target: qualified(table.name) })}\n` : ""}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 ${[...behaviour, ...sealed.behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined), ...(table.exposed ? [] : columnAccessRefusals(access))].join("\n")}

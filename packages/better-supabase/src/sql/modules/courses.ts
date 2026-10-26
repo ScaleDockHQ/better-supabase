@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { courseAuthoringFunctions } from "./courses-authoring.ts";
 import { courseLearningFunctions } from "./courses-learning.ts";
@@ -306,24 +307,19 @@ create index if not exists ${name("certificates", "user_idx")} on ${certificates
 
 ${lockTable(courses, { read: true })}
 drop policy if exists ${name("courses", "read")} on ${courses};
-create policy ${name("courses", "read")} on ${courses} for select to authenticated
-  using ((${c("status")} = 'published' and ${ctx.scope.check(c("tenant"), read)}) or ${ctx.scope.check(c("tenant"), manage)});
+${renderPolicy(makePolicy({ table: courses, name: name("courses", "read"), command: "select", roles: ["authenticated"], using: `(${c("status")} = 'published' and ${ctx.scope.check(c("tenant"), read)}) or ${ctx.scope.check(c("tenant"), manage)}` }), { target: courses })}
 ${lockTable(modules, { read: true })}
 drop policy if exists ${name("modules", "read")} on ${modules};
-create policy ${name("modules", "read")} on ${modules} for select to authenticated
-  using (exists (select 1 from ${courses} x where x.${c("id")} = ${modules}.${m("course")}));
+${renderPolicy(makePolicy({ table: modules, name: name("modules", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${courses} x where x.${c("id")} = ${modules}.${m("course")})` }), { target: modules })}
 ${lockTable(lessons, { read: true })}
 drop policy if exists ${name("lessons", "read")} on ${lessons};
-create policy ${name("lessons", "read")} on ${lessons} for select to authenticated
-  using (${ctx.scope.check(l("tenant"), manage)});
+${renderPolicy(makePolicy({ table: lessons, name: name("lessons", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), manage) }), { target: lessons })}
 ${lockTable(progress, { read: true })}
 drop policy if exists ${name("progress", "read")} on ${progress};
-create policy ${name("progress", "read")} on ${progress} for select to authenticated
-  using (${p("user")} = (select auth.uid()) or ${ctx.scope.check(p("tenant"), enroll)} or ${ctx.scope.check(p("tenant"), manage)});
+${renderPolicy(makePolicy({ table: progress, name: name("progress", "read"), command: "select", roles: ["authenticated"], using: `${p("user")} = (select auth.uid()) or ${ctx.scope.check(p("tenant"), enroll)} or ${ctx.scope.check(p("tenant"), manage)}` }), { target: progress })}
 ${lockTable(certificates, { read: true })}
 drop policy if exists ${name("certificates", "read")} on ${certificates};
-create policy ${name("certificates", "read")} on ${certificates} for select to authenticated
-  using (${k("user")} = (select auth.uid()) or ${ctx.scope.check(k("tenant"), enroll)} or ${ctx.scope.check(k("tenant"), manage)});
+${renderPolicy(makePolicy({ table: certificates, name: name("certificates", "read"), command: "select", roles: ["authenticated"], using: `${k("user")} = (select auth.uid()) or ${ctx.scope.check(k("tenant"), enroll)} or ${ctx.scope.check(k("tenant"), manage)}` }), { target: certificates })}
 `;
 }
 

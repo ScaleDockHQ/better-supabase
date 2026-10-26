@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { contentFunctions } from "./content-functions.ts";
 import { contentPublishFunctions } from "./content-publish.ts";
@@ -125,9 +126,7 @@ create index if not exists ${name("updated_idx")} on ${entries} (${e("tenant")},
 create index if not exists ${name("author_idx")} on ${entries} (${e("author")});
 ${has("cover") ? `create index if not exists ${name("cover_idx")} on ${entries} (${e("cover")});\n` : ""}
 ${lockTable(entries, { read: true })}
-drop policy if exists ${name("read")} on ${entries};
-create policy ${name("read")} on ${entries} for select to authenticated
-  using (${ctx.scope.check(e("tenant"), q.read)});
+${renderPolicy(makePolicy({ table: entries, name: name("read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), q.read) }), { drop: true, target: entries })}
 `;
 }
 

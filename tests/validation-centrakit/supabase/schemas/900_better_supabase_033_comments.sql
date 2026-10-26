@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:5d9cbce04171f7fce4d3b20eb7ac235eea04cb47258cf3230500658d9263b54f
+-- @bsb-hash sha256:5041ac4574f5c5118d9e191655a457765fa35293176a714e0defb8d6fac75088
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,11 +98,13 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists "comment_tasks_read" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_read" on "better_supabase"."comment_tasks" for select to authenticated
+drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
+create policy comment_tasks_read on "better_supabase"."comment_tasks"
+  for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-drop policy if exists "comment_tasks_insert" on "better_supabase"."comment_tasks";
-create policy "comment_tasks_insert" on "better_supabase"."comment_tasks" for insert to authenticated
+drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
+create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select centrakit.authz_actor_may_write()));
 
 -- A record's conversation, or null before its first comment.

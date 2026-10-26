@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:e34ff3af42a4b85779f69f8d99ebf862e9d9df521d26f912f7f4f9f1f2495363
+-- @bsb-hash sha256:f36b72b28aca50f28501665c7932a105cc3c612f40a45b041f112d58bcda6d91
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,23 +244,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
-create policy mail_accounts_read on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
-create policy mail_threads_read on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy mail_threads_read on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "better_supabase"."mail_messages";
-create policy mail_messages_read on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
-create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
-create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,

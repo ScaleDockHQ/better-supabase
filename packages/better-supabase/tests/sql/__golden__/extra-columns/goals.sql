@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:e299c48fce93c7271a12f8eb3a9240edd471625797b08eb31e741d5c60b63aa7
+-- @bsb-hash sha256:70ce9125d9c668b834cd4539284049db6bc10f4dbe5295db09b98e3257602ebc
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,8 +82,9 @@ revoke all on "better_supabase"."targets" from public, anon, authenticated;
 grant select on "better_supabase"."targets" to authenticated;
 grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+create policy targets_read on "better_supabase"."targets"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no

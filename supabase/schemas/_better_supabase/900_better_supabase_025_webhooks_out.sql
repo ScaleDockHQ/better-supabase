@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:a963ef0e63ebfc4fad475756ac3fee5de15b37036e871095d541ca5c4a4dd6ac
+-- @bsb-hash sha256:962b1b7763f8b8fccf7064c9b1bbc0a2fa65cc9c976f5d90eb24d6aa153b3604
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,15 +107,24 @@ alter table "better_supabase"."webhook_endpoints" enable row level security;
 revoke all on "better_supabase"."webhook_endpoints" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_endpoints" to service_role;
 grant select, insert, update, delete on "better_supabase"."webhook_endpoints" to authenticated;
-drop policy if exists "bsb_webhook_endpoints_read" on "better_supabase"."webhook_endpoints";
-create policy "bsb_webhook_endpoints_read" on "better_supabase"."webhook_endpoints" for select to authenticated using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
+drop policy if exists bsb_webhook_endpoints_read on "better_supabase"."webhook_endpoints";
+create policy bsb_webhook_endpoints_read on "better_supabase"."webhook_endpoints"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
 drop policy if exists bsb_webhook_endpoints_write on "better_supabase"."webhook_endpoints";
-drop policy if exists "bsb_webhook_endpoints_insert" on "better_supabase"."webhook_endpoints";
-create policy "bsb_webhook_endpoints_insert" on "better_supabase"."webhook_endpoints" for insert to authenticated with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_webhook_endpoints_update" on "better_supabase"."webhook_endpoints";
-create policy "bsb_webhook_endpoints_update" on "better_supabase"."webhook_endpoints" for update to authenticated using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write())) with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
-drop policy if exists "bsb_webhook_endpoints_delete" on "better_supabase"."webhook_endpoints";
-create policy "bsb_webhook_endpoints_delete" on "better_supabase"."webhook_endpoints" for delete to authenticated using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_webhook_endpoints_insert on "better_supabase"."webhook_endpoints";
+create policy bsb_webhook_endpoints_insert on "better_supabase"."webhook_endpoints"
+  for insert to authenticated
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_webhook_endpoints_update on "better_supabase"."webhook_endpoints";
+create policy bsb_webhook_endpoints_update on "better_supabase"."webhook_endpoints"
+  for update to authenticated
+  using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))
+  with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+drop policy if exists bsb_webhook_endpoints_delete on "better_supabase"."webhook_endpoints";
+create policy bsb_webhook_endpoints_delete on "better_supabase"."webhook_endpoints"
+  for delete to authenticated
+  using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."webhook_endpoint_secrets" (
   "id" uuid primary key default gen_random_uuid(),
@@ -162,8 +171,10 @@ alter table "better_supabase"."webhook_deliveries" enable row level security;
 revoke all on "better_supabase"."webhook_deliveries" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_deliveries" to service_role;
 grant select on "better_supabase"."webhook_deliveries" to authenticated;
-drop policy if exists "bsb_webhook_deliveries_read" on "better_supabase"."webhook_deliveries";
-create policy "bsb_webhook_deliveries_read" on "better_supabase"."webhook_deliveries" for select to authenticated using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
+drop policy if exists bsb_webhook_deliveries_read on "better_supabase"."webhook_deliveries";
+create policy bsb_webhook_deliveries_read on "better_supabase"."webhook_deliveries"
+  for select to authenticated
+  using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
 
 create or replace function "better_supabase"."reset_webhook_endpoint"()
 returns trigger

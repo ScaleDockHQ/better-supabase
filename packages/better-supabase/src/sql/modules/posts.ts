@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { postFunctions } from "./posts-functions.ts";
@@ -174,16 +175,23 @@ create index if not exists ${name("posts", "merged_idx")} on ${posts} (${p("merg
 
 ${lockModuleTable(ctx, "boards", { read: true })}
 drop policy if exists ${name("boards", "read")} on ${boards};
-create policy ${name("boards", "read")} on ${boards} for select to authenticated
-  using (${ctx.scope.check(b("tenant"), read)});
+${renderPolicy(makePolicy({ table: boards, name: name("boards", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(b("tenant"), read) }), { target: boards })}
 ${lockModuleTable(ctx, "posts", { read: true })}
 drop policy if exists ${name("posts", "read")} on ${posts};
-create policy ${name("posts", "read")} on ${posts} for select to authenticated
-  using (${ctx.scope.check(p("tenant"), read)} and (
+${renderPolicy(
+  makePolicy({
+    table: posts,
+    name: name("posts", "read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(p("tenant"), read)} and (
     ${p("moderation")} = 'visible'
     or ${p("author")} = (select auth.uid())
     or ${ctx.scope.check(p("tenant"), moderate)}
-  ));
+  )`,
+  }),
+  { target: posts },
+)}
 `;
 }
 

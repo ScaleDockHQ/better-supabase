@@ -15,6 +15,7 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -175,9 +176,7 @@ create table if not exists ${t("quotes")} (
 create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}
-drop policy if exists ${ctx.naming.rename("quotes_read")} on ${t("quotes")};
-create policy ${ctx.naming.rename("quotes_read")} on ${t("quotes")} for select to authenticated
-using (${ctx.scope.check(q("tenant"), n.read)});
+${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(q("tenant"), n.read) }), { drop: true, target: t("quotes") })}
 `;
 }
 

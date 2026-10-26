@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:474faf76d5a1f22917c9f46b58fe5c6396a0f7e4156eecb2de2def4d3e30cb65
+-- @bsb-hash sha256:f38412eda811c25fa547f77fb79f58bd1c8a3c14adb76582a85ad1cfba910c6f
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,8 @@ revoke all on "better_supabase"."support_sessions" from public, anon, authentica
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
-create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
+create policy bsb_support_read on "better_supabase"."support_sessions"
+  for select to authenticated
   using ((select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -121,7 +122,8 @@ revoke all on "better_supabase"."support_requests" from public, anon, authentica
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
 drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
-create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+create policy bsb_support_requests_read on "better_supabase"."support_requests"
+  for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('support.read')));
 grant select on "better_supabase"."support_requests" to authenticated;

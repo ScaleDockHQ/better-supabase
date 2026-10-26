@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./pipelines-bindings.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -198,11 +199,17 @@ function tables(ctx: BlockSqlContext, names: Names): string {
       ? ""
       : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(table).name}_${suffix}`)} on ${t(table)} (${columns})${nulls};`;
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: ctx.scope.check(c(table, "tenant"), names.read),
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const transitions = ctx.hasTable("transitions")
     ? `
@@ -274,9 +281,7 @@ create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_
 create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-drop policy if exists ${ctx.naming.rename("pipeline_stage_history_read")} on ${t("history")};
-create policy ${ctx.naming.rename("pipeline_stage_history_read")} on ${t("history")} for select to authenticated
-using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read'));
+${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { drop: true, target: t("history") })}
 `;
 }
 

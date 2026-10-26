@@ -11,6 +11,7 @@ import type { Subject } from "../subjects.ts";
 import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -253,28 +254,56 @@ function policies(ctx: BlockSqlContext, names: CollectionNames): string {
 -- tenant. An entry is visible when its collection is and the caller can
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
-drop policy if exists ${ctx.naming.rename("subject_collections_read")} on ${t("collections")};
-create policy ${ctx.naming.rename("subject_collections_read")} on ${t("collections")} for select to authenticated
-using (${names.scope.check(co("tenant"), names.read)} and (
+${renderPolicy(
+  makePolicy({
+    table: t("collections"),
+    name: ctx.naming.rename("subject_collections_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${names.scope.check(co("tenant"), names.read)} and (
   (${co("scope")} = 'user' and ${co("owner")} = (select auth.uid()))
   or (${co("scope")} = 'team' and ${names.inTeam(co("team"))})
   or ${co("scope")} = 'tenant'
-));
-drop policy if exists ${ctx.naming.rename("subject_collection_entries_read")} on ${t("entries")};
-create policy ${ctx.naming.rename("subject_collection_entries_read")} on ${t("entries")} for select to authenticated
-using (${names.scope.check(en("tenant"), names.read)}
+)`,
+  }),
+  { drop: true, target: t("collections") },
+)}
+${renderPolicy(
+  makePolicy({
+    table: t("entries"),
+    name: ctx.naming.rename("subject_collection_entries_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${names.scope.check(en("tenant"), names.read)}
   and exists (select 1 from ${t("collections")} c where c.${co("id")} = ${en("collection")})
-  and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read'));
-drop policy if exists favorites_read on ${t("favorites")};
-create policy favorites_read on ${t("favorites")} for select to authenticated
-using (${fa("user")} = (select auth.uid())
+  and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read')`,
+  }),
+  { drop: true, target: t("entries") },
+)}
+${renderPolicy(
+  makePolicy({
+    table: t("favorites"),
+    name: "favorites_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `${fa("user")} = (select auth.uid())
   and ${names.scope.check(fa("tenant"), names.read)}
-  and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read'));
-drop policy if exists saved_items_read on ${t("savedItems")};
-create policy saved_items_read on ${t("savedItems")} for select to authenticated
-using (${sv("user")} = (select auth.uid())
+  and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read')`,
+  }),
+  { drop: true, target: t("favorites") },
+)}
+${renderPolicy(
+  makePolicy({
+    table: t("savedItems"),
+    name: "saved_items_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `${sv("user")} = (select auth.uid())
   and ${names.scope.check(sv("tenant"), names.read)}
-  and ${canSubject}(${sv("subjectType")}, ${sv("subjectId")}, 'read'));
+  and ${canSubject}(${sv("subjectType")}, ${sv("subjectId")}, 'read')`,
+  }),
+  { drop: true, target: t("savedItems") },
+)}
 `;
 }
 

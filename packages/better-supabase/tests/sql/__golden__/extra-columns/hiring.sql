@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:b0f991ccc1c3d062499663d0a4b074daf63794ef4f494b51a695b66efe79ad6e
+-- @bsb-hash sha256:3453e69309791e30ea192563029c0ec02a314059a40f04041ee53c81bdbb64cd
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,8 +105,9 @@ revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
 drop policy if exists jobs_read on "better_supabase"."job_openings";
-create policy jobs_read on "better_supabase"."job_openings" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
+create policy jobs_read on "better_supabase"."job_openings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."applications" (
   "id" uuid primary key default gen_random_uuid(),
@@ -134,8 +135,9 @@ revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
 drop policy if exists applications_read on "better_supabase"."applications";
-create policy applications_read on "better_supabase"."applications" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
+create policy applications_read on "better_supabase"."applications"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."application_scorecards" (
   "id" uuid primary key default gen_random_uuid(),
@@ -155,8 +157,9 @@ revoke all on "better_supabase"."application_scorecards" from public, anon, auth
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
 drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
-create policy application_scorecards_read on "better_supabase"."application_scorecards" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
+create policy application_scorecards_read on "better_supabase"."application_scorecards"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."interviews" (
   "id" uuid primary key default gen_random_uuid(),
@@ -177,8 +180,9 @@ revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
 drop policy if exists interviews_read on "better_supabase"."interviews";
-create policy interviews_read on "better_supabase"."interviews" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"));
+create policy interviews_read on "better_supabase"."interviews"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"));
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.

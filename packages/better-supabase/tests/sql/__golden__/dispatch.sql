@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:458a11be32687a0107a2d14379d956a4b491f5b8600d1fef074b9670966e81fa
+-- @bsb-hash sha256:b59534f9b04b987b1d2a81f21f7d73434c682b8b3fa43b73b18b4443680155d6
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,7 +130,8 @@ revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy "work_orders_read" on "better_supabase"."work_orders" for select to authenticated
+create policy work_orders_read on "better_supabase"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -150,7 +151,8 @@ revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticat
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy "dispatch_routes_read" on "better_supabase"."dispatch_routes" for select to authenticated
+create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
@@ -167,7 +169,8 @@ revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authen
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops" for select to authenticated
+create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -193,7 +196,8 @@ revoke all on "better_supabase"."work_order_parts" from public, anon, authentica
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy "work_order_parts_read" on "better_supabase"."work_order_parts" for select to authenticated
+create policy work_order_parts_read on "better_supabase"."work_order_parts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 
@@ -922,7 +926,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:39103710f4d23d1f0f1fd6a219dfd0350ef1dc2000bb5fa065ad782202f59719
+-- @bsb-hash sha256:7aa808cdcb0fc0c1ef0ef38200144a5bcccf0bcdda76fa1bc4fa1c7abc9e62d1
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1051,7 +1055,8 @@ revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy "work_orders_read" on "better_supabase"."work_orders" for select to authenticated
+create policy work_orders_read on "better_supabase"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -1071,7 +1076,8 @@ revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticat
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy "dispatch_routes_read" on "better_supabase"."dispatch_routes" for select to authenticated
+create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1088,7 +1094,8 @@ revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authen
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops" for select to authenticated
+create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -1114,7 +1121,8 @@ revoke all on "better_supabase"."work_order_parts" from public, anon, authentica
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy "work_order_parts_read" on "better_supabase"."work_order_parts" for select to authenticated
+create policy work_order_parts_read on "better_supabase"."work_order_parts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 do $$
 begin
@@ -2040,7 +2048,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:097988584a04dcd8bacf1a79d2bade04881ee8abb31b06f569c2ecb7d72faa23
+-- @bsb-hash sha256:3d69cef1293d67911d4ed39e6bb61d28b61987924a94b00b536d902c8c7f739f
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2174,7 +2182,8 @@ revoke all on "app_private"."work_orders" from public, anon, authenticated;
 grant select on "app_private"."work_orders" to authenticated;
 grant all on "app_private"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "app_private"."work_orders";
-create policy "work_orders_read" on "app_private"."work_orders" for select to authenticated
+create policy work_orders_read on "app_private"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -2194,7 +2203,8 @@ revoke all on "app_private"."dispatch_routes" from public, anon, authenticated;
 grant select on "app_private"."dispatch_routes" to authenticated;
 grant all on "app_private"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "app_private"."dispatch_routes";
-create policy "dispatch_routes_read" on "app_private"."dispatch_routes" for select to authenticated
+create policy dispatch_routes_read on "app_private"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "app_private"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2211,7 +2221,8 @@ revoke all on "app_private"."dispatch_route_stops" from public, anon, authentica
 grant select on "app_private"."dispatch_route_stops" to authenticated;
 grant all on "app_private"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "app_private"."dispatch_route_stops";
-create policy "dispatch_route_stops_read" on "app_private"."dispatch_route_stops" for select to authenticated
+create policy dispatch_route_stops_read on "app_private"."dispatch_route_stops"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -2237,7 +2248,8 @@ revoke all on "app_private"."work_order_parts" from public, anon, authenticated;
 grant select on "app_private"."work_order_parts" to authenticated;
 grant all on "app_private"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "app_private"."work_order_parts";
-create policy "work_order_parts_read" on "app_private"."work_order_parts" for select to authenticated
+create policy work_order_parts_read on "app_private"."work_order_parts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 
@@ -2966,7 +2978,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:1f407d3e3f9c31e02a603a9e0d70cabb3d36e19d99fab075405ca81dfc56cc22
+-- @bsb-hash sha256:d36af9bcfbecda06da769629cbdeb57bad1942a6c3a8d65a18c044e2d626cc86
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3095,7 +3107,8 @@ revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy "work_orders_read" on "better_supabase"."work_orders" for select to authenticated
+create policy work_orders_read on "better_supabase"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -3115,7 +3128,8 @@ revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticat
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy "dispatch_routes_read" on "better_supabase"."dispatch_routes" for select to authenticated
+create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3132,7 +3146,8 @@ revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authen
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops" for select to authenticated
+create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -3158,7 +3173,8 @@ revoke all on "better_supabase"."work_order_parts" from public, anon, authentica
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy "work_order_parts_read" on "better_supabase"."work_order_parts" for select to authenticated
+create policy work_order_parts_read on "better_supabase"."work_order_parts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 
@@ -4029,7 +4045,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:8ecfbf55234423993915345161cd55cad5ae230188eb34f40a01acf4929e2b5e
+-- @bsb-hash sha256:e3b672eb72618a51f3f1d69f8e56a236e53a917ba3f7ee33746e999dcdbed9c5
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4168,7 +4184,8 @@ alter table "better_supabase"."work_orders" enable row level security;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists bsb_work_orders_select on "better_supabase"."work_orders";
-create policy bsb_work_orders_select on "better_supabase"."work_orders" for select to authenticated
+create policy bsb_work_orders_select on "better_supabase"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -4186,7 +4203,8 @@ alter table "better_supabase"."dispatch_routes" enable row level security;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists bsb_dispatch_routes_select on "better_supabase"."dispatch_routes";
-create policy bsb_dispatch_routes_select on "better_supabase"."dispatch_routes" for select to authenticated
+create policy bsb_dispatch_routes_select on "better_supabase"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- better_supabase.dispatch_route_stops is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."dispatch_route_stops" add column if not exists "id" uuid default gen_random_uuid();
@@ -4199,7 +4217,8 @@ alter table "better_supabase"."dispatch_route_stops" enable row level security;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists bsb_dispatch_route_stops_select on "better_supabase"."dispatch_route_stops";
-create policy bsb_dispatch_route_stops_select on "better_supabase"."dispatch_route_stops" for select to authenticated
+create policy bsb_dispatch_route_stops_select on "better_supabase"."dispatch_route_stops"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -4223,7 +4242,8 @@ alter table "better_supabase"."work_order_parts" enable row level security;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists bsb_work_order_parts_select on "better_supabase"."work_order_parts";
-create policy bsb_work_order_parts_select on "better_supabase"."work_order_parts" for select to authenticated
+create policy bsb_work_order_parts_select on "better_supabase"."work_order_parts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 
@@ -4952,7 +4972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:15d48cbb487231d376249024ff3025a715cbcf044301fe2686cd16ee9ea86256
+-- @bsb-hash sha256:3f7b24b83fac4c11c01644afa4a573d865c88af7fc307e1421304b700828dd50
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5081,7 +5101,8 @@ revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy "work_orders_read" on "better_supabase"."work_orders" for select to authenticated
+create policy work_orders_read on "better_supabase"."work_orders"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
@@ -5101,7 +5122,8 @@ revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticat
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy "dispatch_routes_read" on "better_supabase"."dispatch_routes" for select to authenticated
+create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+  for select to authenticated
   using ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5118,7 +5140,8 @@ revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authen
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops" for select to authenticated
+create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
@@ -5144,7 +5167,8 @@ revoke all on "better_supabase"."work_order_parts" from public, anon, authentica
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy "work_order_parts_read" on "better_supabase"."work_order_parts" for select to authenticated
+create policy work_order_parts_read on "better_supabase"."work_order_parts"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 

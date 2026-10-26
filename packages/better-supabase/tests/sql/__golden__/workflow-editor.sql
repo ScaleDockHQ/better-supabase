@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:4d5e79a878d2288bc609943d544d26261d7d702e13061d8c21e238cf74b2c761
+-- @bsb-hash sha256:1b1d1a000d6c474e1c08bbe879a6315feee49881ebf2a4253208aee6b4f10162
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,7 +132,8 @@ revoke all on "better_supabase"."workflow_definitions" from public, anon, authen
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
-create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -151,7 +152,8 @@ revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authentic
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
-create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -173,7 +175,8 @@ revoke all on "better_supabase"."workflow_definition_grants" from public, anon, 
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
-create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
@@ -208,7 +211,8 @@ revoke all on "better_supabase"."workflow_versions" from public, anon, authentic
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
-create policy workflow_versions_read on "better_supabase"."workflow_versions" for select to authenticated
+create policy workflow_versions_read on "better_supabase"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -231,7 +235,8 @@ revoke all on "better_supabase"."workflow_triggers" from public, anon, authentic
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers" for select to authenticated
+create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_webhook_tokens" (
@@ -263,7 +268,8 @@ revoke all on "better_supabase"."workflow_credentials" from public, anon, authen
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials" for select to authenticated
+create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -284,7 +290,9 @@ revoke all on "better_supabase"."workflow_step_library" from public, anon, authe
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
@@ -303,7 +311,8 @@ revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenti
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
-create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" for select to authenticated
+create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -326,7 +335,8 @@ revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticat
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts" for select to authenticated
+create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_alert_fires" (
@@ -2049,7 +2059,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:cb3108be684acbb06f469db64ab0ef81b2b488f11d5d3b14c6665df3809ea019
+-- @bsb-hash sha256:f228b28c877ff847a4498ac3172343435157753877a1e3eeab7b9ea94cd09dd7
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2180,7 +2190,8 @@ revoke all on "better_supabase"."workflow_definitions" from public, anon, authen
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
-create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -2199,7 +2210,8 @@ revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authentic
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
-create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -2221,7 +2233,8 @@ revoke all on "better_supabase"."workflow_definition_grants" from public, anon, 
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
-create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
@@ -2256,7 +2269,8 @@ revoke all on "better_supabase"."workflow_versions" from public, anon, authentic
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
-create policy workflow_versions_read on "better_supabase"."workflow_versions" for select to authenticated
+create policy workflow_versions_read on "better_supabase"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -2279,7 +2293,8 @@ revoke all on "better_supabase"."workflow_triggers" from public, anon, authentic
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers" for select to authenticated
+create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_webhook_tokens" (
@@ -2311,7 +2326,8 @@ revoke all on "better_supabase"."workflow_credentials" from public, anon, authen
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials" for select to authenticated
+create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -2332,7 +2348,9 @@ revoke all on "better_supabase"."workflow_step_library" from public, anon, authe
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
@@ -2351,7 +2369,8 @@ revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenti
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
-create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" for select to authenticated
+create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -2374,7 +2393,8 @@ revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticat
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts" for select to authenticated
+create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_alert_fires" (
@@ -4135,7 +4155,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:39407f5af2464120fdff74fe9bf9bda39de8d521a222bdd7bf5e1fecf3c03afd
+-- @bsb-hash sha256:0cbba9e83544ecb3095701af6704315a9c2c9394a4a640e653022f9cc5174ef6
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4271,7 +4291,8 @@ revoke all on "app_private"."workflow_definitions" from public, anon, authentica
 grant select on "app_private"."workflow_definitions" to authenticated;
 grant all on "app_private"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "app_private"."workflow_definitions";
-create policy workflow_definitions_read on "app_private"."workflow_definitions" for select to authenticated
+create policy workflow_definitions_read on "app_private"."workflow_definitions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -4290,7 +4311,8 @@ revoke all on "app_private"."workflow_opt_outs" from public, anon, authenticated
 grant select on "app_private"."workflow_opt_outs" to authenticated;
 grant all on "app_private"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "app_private"."workflow_opt_outs";
-create policy workflow_opt_outs_read on "app_private"."workflow_opt_outs" for select to authenticated
+create policy workflow_opt_outs_read on "app_private"."workflow_opt_outs"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -4312,7 +4334,8 @@ revoke all on "app_private"."workflow_definition_grants" from public, anon, auth
 grant select on "app_private"."workflow_definition_grants" to authenticated;
 grant all on "app_private"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "app_private"."workflow_definition_grants";
-create policy workflow_definition_grants_read on "app_private"."workflow_definition_grants" for select to authenticated
+create policy workflow_definition_grants_read on "app_private"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 create table if not exists "app_private"."workflow_versions" (
@@ -4347,7 +4370,8 @@ revoke all on "app_private"."workflow_versions" from public, anon, authenticated
 grant select on "app_private"."workflow_versions" to authenticated;
 grant all on "app_private"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "app_private"."workflow_versions";
-create policy workflow_versions_read on "app_private"."workflow_versions" for select to authenticated
+create policy workflow_versions_read on "app_private"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -4370,7 +4394,8 @@ revoke all on "app_private"."workflow_triggers" from public, anon, authenticated
 grant select on "app_private"."workflow_triggers" to authenticated;
 grant all on "app_private"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "app_private"."workflow_triggers";
-create policy workflow_triggers_read on "app_private"."workflow_triggers" for select to authenticated
+create policy workflow_triggers_read on "app_private"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 create table if not exists "app_private"."workflow_webhook_tokens" (
@@ -4402,7 +4427,8 @@ revoke all on "app_private"."workflow_credentials" from public, anon, authentica
 grant select on "app_private"."workflow_credentials" to authenticated;
 grant all on "app_private"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "app_private"."workflow_credentials";
-create policy workflow_credentials_read on "app_private"."workflow_credentials" for select to authenticated
+create policy workflow_credentials_read on "app_private"."workflow_credentials"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -4423,7 +4449,9 @@ revoke all on "app_private"."workflow_step_library" from public, anon, authentic
 grant select on "app_private"."workflow_step_library" to authenticated;
 grant all on "app_private"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "app_private"."workflow_step_library";
-create policy workflow_step_library_read on "app_private"."workflow_step_library" for select to authenticated using (true);
+create policy workflow_step_library_read on "app_private"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "app_private"."workflow_node_runs" (
@@ -4442,7 +4470,8 @@ revoke all on "app_private"."workflow_node_runs" from public, anon, authenticate
 grant select on "app_private"."workflow_node_runs" to authenticated;
 grant all on "app_private"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "app_private"."workflow_node_runs";
-create policy workflow_node_runs_read on "app_private"."workflow_node_runs" for select to authenticated
+create policy workflow_node_runs_read on "app_private"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -4465,7 +4494,8 @@ revoke all on "app_private"."workflow_alerts" from public, anon, authenticated;
 grant select on "app_private"."workflow_alerts" to authenticated;
 grant all on "app_private"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "app_private"."workflow_alerts";
-create policy workflow_alerts_read on "app_private"."workflow_alerts" for select to authenticated
+create policy workflow_alerts_read on "app_private"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 create table if not exists "app_private"."workflow_alert_fires" (
@@ -6188,7 +6218,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:300cbd0fed701e6d21efa02e6baa34291cec68c43959884fea11eaf1a25344b7
+-- @bsb-hash sha256:fd37e9b1040d73e756b2f1b3a8251a610f9919d153c056c23ff60435d57c3cd8
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6319,7 +6349,8 @@ revoke all on "better_supabase"."workflow_definitions" from public, anon, authen
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
-create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -6338,7 +6369,8 @@ revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authentic
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
-create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -6360,7 +6392,8 @@ revoke all on "better_supabase"."workflow_definition_grants" from public, anon, 
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
-create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
@@ -6395,7 +6428,8 @@ revoke all on "better_supabase"."workflow_versions" from public, anon, authentic
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
-create policy workflow_versions_read on "better_supabase"."workflow_versions" for select to authenticated
+create policy workflow_versions_read on "better_supabase"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -6418,7 +6452,8 @@ revoke all on "better_supabase"."workflow_triggers" from public, anon, authentic
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers" for select to authenticated
+create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_webhook_tokens" (
@@ -6450,7 +6485,8 @@ revoke all on "better_supabase"."workflow_credentials" from public, anon, authen
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials" for select to authenticated
+create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -6471,7 +6507,9 @@ revoke all on "better_supabase"."workflow_step_library" from public, anon, authe
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
@@ -6490,7 +6528,8 @@ revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenti
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
-create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" for select to authenticated
+create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -6513,7 +6552,8 @@ revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticat
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts" for select to authenticated
+create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_alert_fires" (
@@ -8580,7 +8620,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:32e9ca363dcc60b20c7f90e0d0f6fc9bc6aa25e0db95de674a08e45e1bc4de9a
+-- @bsb-hash sha256:b8d30eaa72f428d5d9c6c8ae367d09d84ba20ef732dba45922492d23f580def7
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8700,7 +8740,8 @@ alter table "better_supabase"."workflow_definitions" enable row level security;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists bsb_workflow_definitions_select on "better_supabase"."workflow_definitions";
-create policy bsb_workflow_definitions_select on "better_supabase"."workflow_definitions" for select to authenticated
+create policy bsb_workflow_definitions_select on "better_supabase"."workflow_definitions"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -8717,7 +8758,8 @@ alter table "better_supabase"."workflow_opt_outs" enable row level security;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists bsb_workflow_opt_outs_select on "better_supabase"."workflow_opt_outs";
-create policy bsb_workflow_opt_outs_select on "better_supabase"."workflow_opt_outs" for select to authenticated
+create policy bsb_workflow_opt_outs_select on "better_supabase"."workflow_opt_outs"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -8737,7 +8779,8 @@ alter table "better_supabase"."workflow_definition_grants" enable row level secu
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists bsb_workflow_definition_grants_select on "better_supabase"."workflow_definition_grants";
-create policy bsb_workflow_definition_grants_select on "better_supabase"."workflow_definition_grants" for select to authenticated
+create policy bsb_workflow_definition_grants_select on "better_supabase"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- better_supabase.workflow_versions is the app's table: this block adds only the columns it needs.
@@ -8769,7 +8812,8 @@ alter table "better_supabase"."workflow_versions" enable row level security;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists bsb_workflow_versions_select on "better_supabase"."workflow_versions";
-create policy bsb_workflow_versions_select on "better_supabase"."workflow_versions" for select to authenticated
+create policy bsb_workflow_versions_select on "better_supabase"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -8788,7 +8832,8 @@ alter table "better_supabase"."workflow_triggers" enable row level security;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists bsb_workflow_triggers_select on "better_supabase"."workflow_triggers";
-create policy bsb_workflow_triggers_select on "better_supabase"."workflow_triggers" for select to authenticated
+create policy bsb_workflow_triggers_select on "better_supabase"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- better_supabase.workflow_webhook_tokens is the app's table: this block adds only the columns it needs.
@@ -8816,7 +8861,8 @@ alter table "better_supabase"."workflow_credentials" enable row level security;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists bsb_workflow_credentials_select on "better_supabase"."workflow_credentials";
-create policy bsb_workflow_credentials_select on "better_supabase"."workflow_credentials" for select to authenticated
+create policy bsb_workflow_credentials_select on "better_supabase"."workflow_credentials"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -8836,7 +8882,9 @@ alter table "better_supabase"."workflow_step_library" enable row level security;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists bsb_workflow_step_library_select on "better_supabase"."workflow_step_library";
-create policy bsb_workflow_step_library_select on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+create policy bsb_workflow_step_library_select on "better_supabase"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 -- better_supabase.workflow_node_runs is the app's table: this block adds only the columns it needs.
@@ -8853,7 +8901,8 @@ alter table "better_supabase"."workflow_node_runs" enable row level security;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists bsb_workflow_node_runs_select on "better_supabase"."workflow_node_runs";
-create policy bsb_workflow_node_runs_select on "better_supabase"."workflow_node_runs" for select to authenticated
+create policy bsb_workflow_node_runs_select on "better_supabase"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -8873,7 +8922,8 @@ alter table "better_supabase"."workflow_alerts" enable row level security;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists bsb_workflow_alerts_select on "better_supabase"."workflow_alerts";
-create policy bsb_workflow_alerts_select on "better_supabase"."workflow_alerts" for select to authenticated
+create policy bsb_workflow_alerts_select on "better_supabase"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- better_supabase.workflow_alert_fires is the app's table: this block adds only the columns it needs.
@@ -10594,7 +10644,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@3 managed
--- @bsb-hash sha256:394bc008d09921173985a20921b8de7cf9fcb2aea846e56b825dfa260cbb1521
+-- @bsb-hash sha256:73aef40caf81b3d4d4fd9c647346b62ecbf503d92047a7b3ecdd0aff2ad35473
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10725,7 +10775,8 @@ revoke all on "better_supabase"."workflow_definitions" from public, anon, authen
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
-create policy workflow_definitions_read on "better_supabase"."workflow_definitions" for select to authenticated
+create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -10744,7 +10795,8 @@ revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authentic
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
-create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs" for select to authenticated
+create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
@@ -10766,7 +10818,8 @@ revoke all on "better_supabase"."workflow_definition_grants" from public, anon, 
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
 drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
-create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants" for select to authenticated
+create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_versions" (
@@ -10801,7 +10854,8 @@ revoke all on "better_supabase"."workflow_versions" from public, anon, authentic
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
 drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
-create policy workflow_versions_read on "better_supabase"."workflow_versions" for select to authenticated
+create policy workflow_versions_read on "better_supabase"."workflow_versions"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
@@ -10824,7 +10878,8 @@ revoke all on "better_supabase"."workflow_triggers" from public, anon, authentic
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
 drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers" for select to authenticated
+create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_webhook_tokens" (
@@ -10856,7 +10911,8 @@ revoke all on "better_supabase"."workflow_credentials" from public, anon, authen
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials" for select to authenticated
+create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
@@ -10877,7 +10933,9 @@ revoke all on "better_supabase"."workflow_step_library" from public, anon, authe
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
 drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library" for select to authenticated using (true);
+create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
+  for select to authenticated
+  using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
@@ -10896,7 +10954,8 @@ revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenti
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
 drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
-create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" for select to authenticated
+create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
+  for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
@@ -10919,7 +10978,8 @@ revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticat
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
 drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts" for select to authenticated
+create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
+  for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 create table if not exists "better_supabase"."workflow_alert_fires" (

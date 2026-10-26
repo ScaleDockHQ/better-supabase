@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
   EXPENSE_REPORT_RESERVED,
@@ -201,8 +202,7 @@ create table if not exists ${categories} (
 );${appUniqueIndex(ctx, "categories", ["tenant", "key"])}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
 ${lockModuleTable(ctx, "categories", { read: true })}
 drop policy if exists ${index("categories", "read")} on ${categories};
-create policy ${index("categories", "read")} on ${categories} for select to authenticated
-  using (${ctx.scope.check(k("tenant"), read)});
+${renderPolicy(makePolicy({ table: categories, name: index("categories", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), read) }), { target: categories })}
 
 create table if not exists ${reports} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -223,8 +223,7 @@ create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("u
 create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}
 ${lockModuleTable(ctx, "reports", { read: true })}
 drop policy if exists ${index("reports", "read")} on ${reports};
-create policy ${index("reports", "read")} on ${reports} for select to authenticated
-  using (${r("user")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)});
+${renderPolicy(makePolicy({ table: reports, name: index("reports", "read"), command: "select", roles: ["authenticated"], using: `${r("user")} = (select auth.uid()) or ${ctx.scope.check(r("tenant"), read)}` }), { target: reports })}
 
 create table if not exists ${lines} (
   ${x("id")} uuid primary key default gen_random_uuid(),
@@ -243,11 +242,17 @@ create index if not exists ${index("lines", "report_idx")} on ${lines} (${x("rep
 create index if not exists ${index("lines", "category_idx")} on ${lines} (${x("tenant")}, ${x("category")});
 ${lockModuleTable(ctx, "lines", { read: true })}
 drop policy if exists ${index("lines", "read")} on ${lines};
-create policy ${index("lines", "read")} on ${lines} for select to authenticated
-  using (
-    exists (select 1 from ${reports} p where p.${r("id")} = ${x("report")} and p.${r("user")} = (select auth.uid()))
-    or ${ctx.scope.check(x("tenant"), read)}
-  );
+${renderPolicy(
+  makePolicy({
+    table: lines,
+    name: index("lines", "read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (select 1 from ${reports} p where p.${r("id")} = ${x("report")} and p.${r("user")} = (select auth.uid()))
+    or ${ctx.scope.check(x("tenant"), read)}`,
+  }),
+  { target: lines },
+)}
 `;
 }
 

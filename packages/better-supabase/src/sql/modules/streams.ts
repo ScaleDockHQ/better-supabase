@@ -6,6 +6,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
@@ -126,9 +127,7 @@ alter table ${s} enable row level security;
 ${revokeTable(s)}
 grant select on ${s} to authenticated;
 grant all on ${s} to service_role;
-drop policy if exists streams_owner_read on ${s};
-create policy streams_owner_read on ${s} for select to authenticated
-  using (${cs("owner")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: s, name: "streams_owner_read", command: "select", roles: ["authenticated"], using: `${cs("owner")} = (select auth.uid())` }), { drop: true, target: s })}
 
 create table if not exists ${c} (
   ${cc("stream")} text not null references ${s} (${cs("id")}) on delete cascade,
@@ -140,12 +139,19 @@ alter table ${c} enable row level security;
 ${revokeTable(c)}
 grant select on ${c} to authenticated;
 grant all on ${c} to service_role;
-drop policy if exists stream_chunks_owner_read on ${c};
-create policy stream_chunks_owner_read on ${c} for select to authenticated
-  using (exists (
+${renderPolicy(
+  makePolicy({
+    table: c,
+    name: "stream_chunks_owner_read",
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (
     select 1 from ${s} st
     where st.${cs("id")} = ${cc("stream")} and st.${cs("owner")} = (select auth.uid())
-  ));
+  )`,
+  }),
+  { drop: true, target: c },
+)}
 
 -- Opens a stream; true when it was created, false when it already existed.
 -- wake = false skips the Realtime ping after each batch, for apps near the
@@ -349,17 +355,22 @@ ${serviceOnly(`${fn("purge_streams")}(interval, integer)`)}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: receive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${prefix}:%`)}
         and exists (
           select 1 from ${s} st
           where st.${cs("id")} = substr((select realtime.topic()), ${String(prefix.length + 2)})
             and st.${cs("owner")} = (select auth.uid())
-        )
-      );
+        )`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $$;`;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:037276e341c9fef5721efce64a7755b01dc7200e94889b2ee95eea28cdd998b7
+-- @bsb-hash sha256:580c7dc2fb43ab47a34ffc6c0cd62fbbd78c5535dc4a4e22e3a367d45e3d7e9f
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -129,7 +130,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authe
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.
@@ -1026,7 +1028,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:9b82084d1a717586a9ba23ed2c834c351bffa860f88c459d1f01fd9741a17299
+-- @bsb-hash sha256:9238bb667bd5829af4364689481133873615a750655048a46bcaec5231c5570d
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1132,7 +1134,8 @@ revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -1154,7 +1157,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authe
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.
@@ -2054,7 +2058,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:434dd2ea6c173ae9e7de943ebdbe313c01c7dbc47b051b509a7413bebb23cb20
+-- @bsb-hash sha256:d942271cd832459eb223beb385655634ad7dc8967ac758f45654dae3c3c94f81
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2165,7 +2169,8 @@ revoke all on "app_private"."memories" from public, anon, authenticated;
 grant select on "app_private"."memories" to authenticated;
 grant all on "app_private"."memories" to service_role;
 drop policy if exists memories_read on "app_private"."memories";
-create policy memories_read on "app_private"."memories" for select to authenticated
+create policy memories_read on "app_private"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -2187,7 +2192,8 @@ revoke all on "app_private"."ai_message_embeddings" from public, anon, authentic
 grant select on "app_private"."ai_message_embeddings" to authenticated;
 grant all on "app_private"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "app_private"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "app_private"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "app_private"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.
@@ -3084,7 +3090,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:b00f906f325445781ca0d239307d8898f2b74e1ba731734724b4a19b23d19346
+-- @bsb-hash sha256:59b049819d8c70673ec10dc499661fd6a9e72c91d1a450f9c08daa5afb51e8a2
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3190,7 +3196,8 @@ revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -3212,7 +3219,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authe
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.
@@ -4295,7 +4303,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:f4a7babb1678dd2a090d147f76070549034c06f3302e416354165f2c689efd5a
+-- @bsb-hash sha256:95e926b0dfef98d013bf4af0466e02282069baf4447ccc662c76b6846e62d190
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4413,7 +4421,8 @@ alter table "better_supabase"."memories" enable row level security;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists bsb_memories_select on "better_supabase"."memories";
-create policy bsb_memories_select on "better_supabase"."memories" for select to authenticated
+create policy bsb_memories_select on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -4433,7 +4442,8 @@ alter table "better_supabase"."ai_message_embeddings" enable row level security;
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists bsb_ai_message_embeddings_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_ai_message_embeddings_select on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy bsb_ai_message_embeddings_select on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.
@@ -5328,7 +5338,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:8e23bfffb04528dfceda3d836dd1d1387adf03e97195c1d3bed99bde487da9a9
+-- @bsb-hash sha256:ceeb00f613dbf40f7dea6a34d21b3a642f9b3f7c28c9608eff992f8b0af28da7
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5434,7 +5444,8 @@ revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -5456,7 +5467,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authe
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.

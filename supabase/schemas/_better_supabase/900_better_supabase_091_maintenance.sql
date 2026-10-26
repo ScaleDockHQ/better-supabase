@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:6da350af2af3e01cc8d83208ebe862d0ede38313a3e989209004df32c42be644
+-- @bsb-hash sha256:a0519657aafee3bbf4497e9ca7ca06233a8ed70ed5a1dbf82cc53bbfdc84be0e
 -- @bsb-names maintenance work_item=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -119,8 +119,9 @@ revoke all on "better_supabase"."maintenance_requests" from public, anon, authen
 grant select on "better_supabase"."maintenance_requests" to authenticated;
 grant all on "better_supabase"."maintenance_requests" to service_role;
 drop policy if exists maintenance_requests_read on "better_supabase"."maintenance_requests";
-create policy maintenance_requests_read on "better_supabase"."maintenance_requests" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+create policy maintenance_requests_read on "better_supabase"."maintenance_requests"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
 
 create table if not exists "better_supabase"."maintenance_request_assignees" (
   "tenant_id" uuid not null,
@@ -135,8 +136,9 @@ revoke all on "better_supabase"."maintenance_request_assignees" from public, ano
 grant select on "better_supabase"."maintenance_request_assignees" to authenticated;
 grant all on "better_supabase"."maintenance_request_assignees" to service_role;
 drop policy if exists maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees";
-create policy maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+create policy maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
 
 alter table "better_supabase"."maintenance_requests" add column if not exists "recurs_from" uuid references "better_supabase"."maintenance_requests" ("id") on delete set null;
 create unique index if not exists maintenance_requests_recurs_from_idx on "better_supabase"."maintenance_requests" ("recurs_from");
@@ -159,8 +161,9 @@ revoke all on "better_supabase"."maintenance_request_checklist_items" from publi
 grant select on "better_supabase"."maintenance_request_checklist_items" to authenticated;
 grant all on "better_supabase"."maintenance_request_checklist_items" to service_role;
 drop policy if exists maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items";
-create policy maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
+create policy maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance_requests.read')));
 
 create or replace function better_supabase.bsb_maintenance_request_guard()
 returns trigger

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:08e4142e972b8f772cacae67383253580119f5a8ea324550c0216f36430789f2
+-- @bsb-hash sha256:b3983189a217383b22efadc6b68f625e2414688bda5379fcb77e31ce4fb876e8
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,14 +129,16 @@ revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
+create policy sequences_read on "better_supabase"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a
@@ -974,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:ad911325b3eb0728b337e713fb13462672b3dab67b8029559a15e01821abd306
+-- @bsb-hash sha256:82c79e6add7ce2418d0b268dfe9b3bef14288edd2af27151f2da714eefed35f2
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1102,14 +1104,16 @@ revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
+create policy sequences_read on "better_supabase"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a
@@ -2080,7 +2084,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:13145951923215052197a38a43f54ca7f56203a57c785cc0c633402f2ca4d267
+-- @bsb-hash sha256:e50d40435369b921f663362bf94f854fbbabf91f1d3cc938459b2cb1bfd2693b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2213,14 +2217,16 @@ revoke all on "app_private"."sequences" from public, anon, authenticated;
 grant select on "app_private"."sequences" to authenticated;
 grant all on "app_private"."sequences" to service_role;
 drop policy if exists "sequences_read" on "app_private"."sequences";
-create policy "sequences_read" on "app_private"."sequences" for select to authenticated
+create policy sequences_read on "app_private"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "app_private"."sequence_enrollments" enable row level security;
 revoke all on "app_private"."sequence_enrollments" from public, anon, authenticated;
 grant select on "app_private"."sequence_enrollments" to authenticated;
 grant all on "app_private"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "app_private"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "app_private"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "app_private"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a
@@ -3058,7 +3064,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:b1514c718609be16c0673ea75b16419e98305bcbd3e16cfc71697bc1dca40a9c
+-- @bsb-hash sha256:b066873515c21c4ad56e268faddfb9134d42931fc56df9b6374fc35b58e1951a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3186,14 +3192,16 @@ revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
+create policy sequences_read on "better_supabase"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a
@@ -4143,7 +4151,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:39538233d5a47e5a7f85464e0e45adf490aaefd5ea0695f92fe02bffac44e753
+-- @bsb-hash sha256:c5d7229b99767b740cc54e60c506d26fc9a7a017def994a1020c17899e870a28
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4275,13 +4283,15 @@ alter table "better_supabase"."sequences" enable row level security;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists bsb_sequences_select on "better_supabase"."sequences";
-create policy bsb_sequences_select on "better_supabase"."sequences" for select to authenticated
+create policy bsb_sequences_select on "better_supabase"."sequences"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists bsb_sequence_enrollments_select on "better_supabase"."sequence_enrollments";
-create policy bsb_sequence_enrollments_select on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy bsb_sequence_enrollments_select on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a
@@ -5119,7 +5129,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:0f8ea16edfb30552fb4c633ff76d0b75ab388011b1f32fb56fb5fad0c9ae2c94
+-- @bsb-hash sha256:8f7345402213817ddaf6c723be97924028a5707214aae949eb0785b0aaa72436
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5247,14 +5257,16 @@ revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
 drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy "sequences_read" on "better_supabase"."sequences" for select to authenticated
+create policy sequences_read on "better_supabase"."sequences"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 alter table "better_supabase"."sequence_enrollments" enable row level security;
 revoke all on "better_supabase"."sequence_enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."sequence_enrollments" to authenticated;
 grant all on "better_supabase"."sequence_enrollments" to service_role;
 drop policy if exists "sequence_enrollments_read" on "better_supabase"."sequence_enrollments";
-create policy "sequence_enrollments_read" on "better_supabase"."sequence_enrollments" for select to authenticated
+create policy sequence_enrollments_read on "better_supabase"."sequence_enrollments"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
 -- Checks a steps array: [{ id, kind, ... }] where an email step has a

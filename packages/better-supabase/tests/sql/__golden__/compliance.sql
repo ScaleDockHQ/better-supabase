@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:dd604c67c0ddb26b6f952eb6c3545fea7ae6d075a32e22afe30cf171ae98fd37
+-- @bsb-hash sha256:7542bc77dfaf0e5f31807694f5acc8f89792425c3705fc09c4cd05f6f7045e70
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -115,8 +115,9 @@ alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists "control_frameworks_read" on "better_supabase"."control_frameworks";
-create policy "control_frameworks_read" on "better_supabase"."control_frameworks" for select to authenticated
+drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
+create policy control_frameworks_read on "better_supabase"."control_frameworks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."controls" (
@@ -141,8 +142,9 @@ alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists "controls_read" on "better_supabase"."controls";
-create policy "controls_read" on "better_supabase"."controls" for select to authenticated
+drop policy if exists controls_read on "better_supabase"."controls";
+create policy controls_read on "better_supabase"."controls"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
@@ -169,8 +171,9 @@ alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists "evidence_tasks_read" on "better_supabase"."evidence_tasks";
-create policy "evidence_tasks_read" on "better_supabase"."evidence_tasks" for select to authenticated
+drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
+create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
@@ -195,8 +198,9 @@ alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists "control_evidence_read" on "better_supabase"."control_evidence";
-create policy "control_evidence_read" on "better_supabase"."control_evidence" for select to authenticated
+drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
+create policy control_evidence_read on "better_supabase"."control_evidence"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."policies" (
@@ -221,8 +225,9 @@ alter table "better_supabase"."policies" enable row level security;
 revoke all on "better_supabase"."policies" from public, anon, authenticated;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
-drop policy if exists "policies_read" on "better_supabase"."policies";
-create policy "policies_read" on "better_supabase"."policies" for select to authenticated
+drop policy if exists policies_read on "better_supabase"."policies";
+create policy policies_read on "better_supabase"."policies"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
@@ -242,8 +247,9 @@ alter table "better_supabase"."policy_acknowledgements" enable row level securit
 revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
-create policy "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements" for select to authenticated
+drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
+create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
@@ -1031,7 +1037,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:b813080c0b563d2237f79600bf0925b5f9e09a1e680f184a7a61a9e63a16065d
+-- @bsb-hash sha256:2abe7594fbcda3c286ac8729c02d95c16a96c0eccfc3103cf6ea8e44508ea382
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1145,8 +1151,9 @@ alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists "control_frameworks_read" on "better_supabase"."control_frameworks";
-create policy "control_frameworks_read" on "better_supabase"."control_frameworks" for select to authenticated
+drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
+create policy control_frameworks_read on "better_supabase"."control_frameworks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."controls" (
@@ -1171,8 +1178,9 @@ alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists "controls_read" on "better_supabase"."controls";
-create policy "controls_read" on "better_supabase"."controls" for select to authenticated
+drop policy if exists controls_read on "better_supabase"."controls";
+create policy controls_read on "better_supabase"."controls"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
@@ -1199,8 +1207,9 @@ alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists "evidence_tasks_read" on "better_supabase"."evidence_tasks";
-create policy "evidence_tasks_read" on "better_supabase"."evidence_tasks" for select to authenticated
+drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
+create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
@@ -1225,8 +1234,9 @@ alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists "control_evidence_read" on "better_supabase"."control_evidence";
-create policy "control_evidence_read" on "better_supabase"."control_evidence" for select to authenticated
+drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
+create policy control_evidence_read on "better_supabase"."control_evidence"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."policies" (
@@ -1251,8 +1261,9 @@ alter table "better_supabase"."policies" enable row level security;
 revoke all on "better_supabase"."policies" from public, anon, authenticated;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
-drop policy if exists "policies_read" on "better_supabase"."policies";
-create policy "policies_read" on "better_supabase"."policies" for select to authenticated
+drop policy if exists policies_read on "better_supabase"."policies";
+create policy policies_read on "better_supabase"."policies"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
@@ -1272,8 +1283,9 @@ alter table "better_supabase"."policy_acknowledgements" enable row level securit
 revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
-create policy "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements" for select to authenticated
+drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
+create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
@@ -2125,7 +2137,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:80662e26745ed2e3eb0faac7ad3e15f14925e615bcc8fb6b239e6eee24e67905
+-- @bsb-hash sha256:dc37e9d119aebbe367998d220bdb9e08e5d4f1c8bc001121c547011e1b286e91
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2244,8 +2256,9 @@ alter table "app_private"."control_frameworks" enable row level security;
 revoke all on "app_private"."control_frameworks" from public, anon, authenticated;
 grant select on "app_private"."control_frameworks" to authenticated;
 grant all on "app_private"."control_frameworks" to service_role;
-drop policy if exists "control_frameworks_read" on "app_private"."control_frameworks";
-create policy "control_frameworks_read" on "app_private"."control_frameworks" for select to authenticated
+drop policy if exists control_frameworks_read on "app_private"."control_frameworks";
+create policy control_frameworks_read on "app_private"."control_frameworks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "app_private"."controls" (
@@ -2270,8 +2283,9 @@ alter table "app_private"."controls" enable row level security;
 revoke all on "app_private"."controls" from public, anon, authenticated;
 grant select on "app_private"."controls" to authenticated;
 grant all on "app_private"."controls" to service_role;
-drop policy if exists "controls_read" on "app_private"."controls";
-create policy "controls_read" on "app_private"."controls" for select to authenticated
+drop policy if exists controls_read on "app_private"."controls";
+create policy controls_read on "app_private"."controls"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "app_private"."evidence_tasks" (
@@ -2298,8 +2312,9 @@ alter table "app_private"."evidence_tasks" enable row level security;
 revoke all on "app_private"."evidence_tasks" from public, anon, authenticated;
 grant select on "app_private"."evidence_tasks" to authenticated;
 grant all on "app_private"."evidence_tasks" to service_role;
-drop policy if exists "evidence_tasks_read" on "app_private"."evidence_tasks";
-create policy "evidence_tasks_read" on "app_private"."evidence_tasks" for select to authenticated
+drop policy if exists evidence_tasks_read on "app_private"."evidence_tasks";
+create policy evidence_tasks_read on "app_private"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "app_private"."control_evidence" (
@@ -2324,8 +2339,9 @@ alter table "app_private"."control_evidence" enable row level security;
 revoke all on "app_private"."control_evidence" from public, anon, authenticated;
 grant select on "app_private"."control_evidence" to authenticated;
 grant all on "app_private"."control_evidence" to service_role;
-drop policy if exists "control_evidence_read" on "app_private"."control_evidence";
-create policy "control_evidence_read" on "app_private"."control_evidence" for select to authenticated
+drop policy if exists control_evidence_read on "app_private"."control_evidence";
+create policy control_evidence_read on "app_private"."control_evidence"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "app_private"."policies" (
@@ -2350,8 +2366,9 @@ alter table "app_private"."policies" enable row level security;
 revoke all on "app_private"."policies" from public, anon, authenticated;
 grant select on "app_private"."policies" to authenticated;
 grant all on "app_private"."policies" to service_role;
-drop policy if exists "policies_read" on "app_private"."policies";
-create policy "policies_read" on "app_private"."policies" for select to authenticated
+drop policy if exists policies_read on "app_private"."policies";
+create policy policies_read on "app_private"."policies"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 create table if not exists "app_private"."policy_acknowledgements" (
@@ -2371,8 +2388,9 @@ alter table "app_private"."policy_acknowledgements" enable row level security;
 revoke all on "app_private"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "app_private"."policy_acknowledgements" to authenticated;
 grant all on "app_private"."policy_acknowledgements" to service_role;
-drop policy if exists "policy_acknowledgements_read" on "app_private"."policy_acknowledgements";
-create policy "policy_acknowledgements_read" on "app_private"."policy_acknowledgements" for select to authenticated
+drop policy if exists policy_acknowledgements_read on "app_private"."policy_acknowledgements";
+create policy policy_acknowledgements_read on "app_private"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
@@ -3160,7 +3178,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:3eede7b57920603828a76c9585de100521c6bc8a238b3b41bd3c820ef55fdb73
+-- @bsb-hash sha256:995af1b3aecf39e5523b63027a44facee92651b2cad620c6c8df91f67b2840df
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3274,8 +3292,9 @@ alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists "control_frameworks_read" on "better_supabase"."control_frameworks";
-create policy "control_frameworks_read" on "better_supabase"."control_frameworks" for select to authenticated
+drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
+create policy control_frameworks_read on "better_supabase"."control_frameworks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."controls" (
@@ -3300,8 +3319,9 @@ alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists "controls_read" on "better_supabase"."controls";
-create policy "controls_read" on "better_supabase"."controls" for select to authenticated
+drop policy if exists controls_read on "better_supabase"."controls";
+create policy controls_read on "better_supabase"."controls"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
@@ -3328,8 +3348,9 @@ alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists "evidence_tasks_read" on "better_supabase"."evidence_tasks";
-create policy "evidence_tasks_read" on "better_supabase"."evidence_tasks" for select to authenticated
+drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
+create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
@@ -3354,8 +3375,9 @@ alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists "control_evidence_read" on "better_supabase"."control_evidence";
-create policy "control_evidence_read" on "better_supabase"."control_evidence" for select to authenticated
+drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
+create policy control_evidence_read on "better_supabase"."control_evidence"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."policies" (
@@ -3380,8 +3402,9 @@ alter table "better_supabase"."policies" enable row level security;
 revoke all on "better_supabase"."policies" from public, anon, authenticated;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
-drop policy if exists "policies_read" on "better_supabase"."policies";
-create policy "policies_read" on "better_supabase"."policies" for select to authenticated
+drop policy if exists policies_read on "better_supabase"."policies";
+create policy policies_read on "better_supabase"."policies"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
@@ -3401,8 +3424,9 @@ alter table "better_supabase"."policy_acknowledgements" enable row level securit
 revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
-create policy "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements" for select to authenticated
+drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
+create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
@@ -4367,7 +4391,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:579048ec223443324bd48a679a94a20eed419e8a02b00cf8a48fd0dc34f5a90f
+-- @bsb-hash sha256:19bb66674f1529f4cd9802184bd4d7f3affa53b46690b484ed5bf6135df15efd
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4479,8 +4503,9 @@ create unique index if not exists "bsb_control_frameworks_tenant_id_key" on "bet
 alter table "better_supabase"."control_frameworks" enable row level security;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists "bsb_control_frameworks_read" on "better_supabase"."control_frameworks";
-create policy "bsb_control_frameworks_read" on "better_supabase"."control_frameworks" for select to authenticated
+drop policy if exists bsb_control_frameworks_read on "better_supabase"."control_frameworks";
+create policy bsb_control_frameworks_read on "better_supabase"."control_frameworks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- better_supabase.controls is the app's table: this block adds only the columns it needs.
@@ -4501,8 +4526,9 @@ create index if not exists "controls_owner_idx" on "better_supabase"."controls" 
 alter table "better_supabase"."controls" enable row level security;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists "bsb_controls_read" on "better_supabase"."controls";
-create policy "bsb_controls_read" on "better_supabase"."controls" for select to authenticated
+drop policy if exists bsb_controls_read on "better_supabase"."controls";
+create policy bsb_controls_read on "better_supabase"."controls"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- better_supabase.evidence_tasks is the app's table: this block adds only the columns it needs.
@@ -4524,8 +4550,9 @@ create index if not exists "evidence_tasks_due_idx" on "better_supabase"."eviden
 alter table "better_supabase"."evidence_tasks" enable row level security;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists "bsb_evidence_tasks_read" on "better_supabase"."evidence_tasks";
-create policy "bsb_evidence_tasks_read" on "better_supabase"."evidence_tasks" for select to authenticated
+drop policy if exists bsb_evidence_tasks_read on "better_supabase"."evidence_tasks";
+create policy bsb_evidence_tasks_read on "better_supabase"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- better_supabase.control_evidence is the app's table: this block adds only the columns it needs.
@@ -4544,8 +4571,9 @@ create index if not exists "control_evidence_attachment_idx" on "better_supabase
 alter table "better_supabase"."control_evidence" enable row level security;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists "bsb_control_evidence_read" on "better_supabase"."control_evidence";
-create policy "bsb_control_evidence_read" on "better_supabase"."control_evidence" for select to authenticated
+drop policy if exists bsb_control_evidence_read on "better_supabase"."control_evidence";
+create policy bsb_control_evidence_read on "better_supabase"."control_evidence"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- better_supabase.policies is the app's table: this block adds only the columns it needs.
@@ -4567,8 +4595,9 @@ create index if not exists "policies_version_idx" on "better_supabase"."policies
 alter table "better_supabase"."policies" enable row level security;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
-drop policy if exists "bsb_policies_read" on "better_supabase"."policies";
-create policy "bsb_policies_read" on "better_supabase"."policies" for select to authenticated
+drop policy if exists bsb_policies_read on "better_supabase"."policies";
+create policy bsb_policies_read on "better_supabase"."policies"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('controls.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 -- better_supabase.policy_acknowledgements is the app's table: this block adds only the columns it needs.
@@ -4585,8 +4614,9 @@ create index if not exists "policy_acknowledgements_version_idx" on "better_supa
 alter table "better_supabase"."policy_acknowledgements" enable row level security;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists "bsb_policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
-create policy "bsb_policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements" for select to authenticated
+drop policy if exists bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
+create policy bsb_policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
@@ -5374,7 +5404,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:d6fda93974a9aa54fa3b8297dee16a0c2a1635ea72018ef0b26b4dff85e02c81
+-- @bsb-hash sha256:e6a81d1a62484e77bcd4ea9c10447787f42e71dabeae1bf8bf52cda7d1062889
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5488,8 +5518,9 @@ alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists "control_frameworks_read" on "better_supabase"."control_frameworks";
-create policy "control_frameworks_read" on "better_supabase"."control_frameworks" for select to authenticated
+drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
+create policy control_frameworks_read on "better_supabase"."control_frameworks"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."controls" (
@@ -5514,8 +5545,9 @@ alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists "controls_read" on "better_supabase"."controls";
-create policy "controls_read" on "better_supabase"."controls" for select to authenticated
+drop policy if exists controls_read on "better_supabase"."controls";
+create policy controls_read on "better_supabase"."controls"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."evidence_tasks" (
@@ -5542,8 +5574,9 @@ alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists "evidence_tasks_read" on "better_supabase"."evidence_tasks";
-create policy "evidence_tasks_read" on "better_supabase"."evidence_tasks" for select to authenticated
+drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
+create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+  for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."control_evidence" (
@@ -5568,8 +5601,9 @@ alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists "control_evidence_read" on "better_supabase"."control_evidence";
-create policy "control_evidence_read" on "better_supabase"."control_evidence" for select to authenticated
+drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
+create policy control_evidence_read on "better_supabase"."control_evidence"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 create table if not exists "better_supabase"."policies" (
@@ -5594,8 +5628,9 @@ alter table "better_supabase"."policies" enable row level security;
 revoke all on "better_supabase"."policies" from public, anon, authenticated;
 grant select on "better_supabase"."policies" to authenticated;
 grant all on "better_supabase"."policies" to service_role;
-drop policy if exists "policies_read" on "better_supabase"."policies";
-create policy "policies_read" on "better_supabase"."policies" for select to authenticated
+drop policy if exists policies_read on "better_supabase"."policies";
+create policy policies_read on "better_supabase"."policies"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('controls.read')) or "org_id" in (select better_supabase.tenant_ids_with('controls.acknowledge')));
 
 create table if not exists "better_supabase"."policy_acknowledgements" (
@@ -5615,8 +5650,9 @@ alter table "better_supabase"."policy_acknowledgements" enable row level securit
 revoke all on "better_supabase"."policy_acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."policy_acknowledgements" to authenticated;
 grant all on "better_supabase"."policy_acknowledgements" to service_role;
-drop policy if exists "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements";
-create policy "policy_acknowledgements_read" on "better_supabase"."policy_acknowledgements" for select to authenticated
+drop policy if exists policy_acknowledgements_read on "better_supabase"."policy_acknowledgements";
+create policy policy_acknowledgements_read on "better_supabase"."policy_acknowledgements"
+  for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.

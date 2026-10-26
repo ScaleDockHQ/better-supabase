@@ -8,6 +8,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   withExtraFields,
@@ -356,9 +357,7 @@ alter table ${agents} enable row level security;
 ${revokeTable(agents)}
 grant select on ${agents} to authenticated;
 grant all on ${agents} to service_role;
-drop policy if exists ${ctx.naming.rename("agents_read")} on ${agents};
-create policy ${ctx.naming.rename("agents_read")} on ${agents} for select to authenticated
-  using ${readable(agents)};
+${renderPolicy(makePolicy({ name: ctx.naming.rename("agents_read"), table: agents, command: "select", roles: ["authenticated"], using: readable(agents) }), { drop: true, target: agents })}
 
 create table if not exists ${installs} (
   ${i.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
@@ -371,9 +370,7 @@ alter table ${installs} enable row level security;
 ${revokeTable(installs)}
 grant select on ${installs} to authenticated;
 grant all on ${installs} to service_role;
-drop policy if exists ${ctx.naming.rename("agent_installs_read")} on ${installs};
-create policy ${ctx.naming.rename("agent_installs_read")} on ${installs} for select to authenticated
-  using (${i.user} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: installs, name: ctx.naming.rename("agent_installs_read"), command: "select", roles: ["authenticated"], using: `${i.user} = (select auth.uid())` }), { drop: true, target: installs })}
 
 create table if not exists ${ratings} (
   ${r.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
@@ -386,9 +383,7 @@ alter table ${ratings} enable row level security;
 ${revokeTable(ratings)}
 grant select on ${ratings} to authenticated;
 grant all on ${ratings} to service_role;
-drop policy if exists ${ctx.naming.rename("agent_ratings_read")} on ${ratings};
-create policy ${ctx.naming.rename("agent_ratings_read")} on ${ratings} for select to authenticated
-  using (exists (select 1 from ${agents} x where x.${a.id} = ${r.agent}));
+${renderPolicy(makePolicy({ table: ratings, name: ctx.naming.rename("agent_ratings_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${r.agent})` }), { drop: true, target: ratings })}
 
 -- Skills an agent loads from a provider (a reference such as a skill id).
 create table if not exists ${skills} (
@@ -402,9 +397,7 @@ alter table ${skills} enable row level security;
 ${revokeTable(skills)}
 grant select on ${skills} to authenticated;
 grant all on ${skills} to service_role;
-drop policy if exists ${ctx.naming.rename("agent_skills_read")} on ${skills};
-create policy ${ctx.naming.rename("agent_skills_read")} on ${skills} for select to authenticated
-  using (exists (select 1 from ${agents} x where x.${a.id} = ${s.agent}));
+${renderPolicy(makePolicy({ table: skills, name: ctx.naming.rename("agent_skills_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${s.agent})` }), { drop: true, target: skills })}
 
 -- Creates an agent (id null, needs ${create}) or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and

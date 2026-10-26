@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { enrollmentsFunctions } from "./enrollments-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -205,16 +206,13 @@ create table if not exists ${steps} (
 
 ${lockTable(programs, { read: true })}
 drop policy if exists ${name("programs", "read")} on ${programs};
-create policy ${name("programs", "read")} on ${programs} for select to authenticated
-  using (${ctx.scope.check(p("tenant"), read)});
+${renderPolicy(makePolicy({ table: programs, name: name("programs", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { target: programs })}
 ${lockTable(enrollments, { read: true })}
 drop policy if exists ${name("enrollments", "read")} on ${enrollments};
-create policy ${name("enrollments", "read")} on ${enrollments} for select to authenticated
-  using (${e("user")} = (select auth.uid()) or ${ctx.scope.check(e("tenant"), read)});
+${renderPolicy(makePolicy({ table: enrollments, name: name("enrollments", "read"), command: "select", roles: ["authenticated"], using: `${e("user")} = (select auth.uid()) or ${ctx.scope.check(e("tenant"), read)}` }), { target: enrollments })}
 ${lockTable(steps, { read: true })}
 drop policy if exists ${name("steps", "read")} on ${steps};
-create policy ${name("steps", "read")} on ${steps} for select to authenticated
-  using (exists (select 1 from ${enrollments} x where x.${e("id")} = ${steps}.${s("enrollment")}));
+${renderPolicy(makePolicy({ table: steps, name: name("steps", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${enrollments} x where x.${e("id")} = ${steps}.${s("enrollment")})` }), { target: steps })}
 `;
 }
 

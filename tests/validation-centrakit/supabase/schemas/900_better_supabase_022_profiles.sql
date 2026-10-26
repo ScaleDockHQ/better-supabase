@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:da21bb3201401c1140dce0be5229e53095ca86eb42c1a283af19a79cc0b8cf3b
+-- @bsb-hash sha256:2eb5efc624d4789141fc2a54d9d5d572431ca926d06d46ea10c1c96ebee1c9f8
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,10 +52,12 @@ end;
 $$;
 alter table "centrakit"."profiles" enable row level security;
 drop policy if exists bsb_profiles_read on "centrakit"."profiles";
-create policy bsb_profiles_read on "centrakit"."profiles" for select to authenticated
+create policy bsb_profiles_read on "centrakit"."profiles"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 drop policy if exists bsb_profiles_update on "centrakit"."profiles";
-create policy bsb_profiles_update on "centrakit"."profiles" for update to authenticated
+create policy bsb_profiles_update on "centrakit"."profiles"
+  for update to authenticated
   using (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()))
   with check (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()));
 grant select on "centrakit"."profiles" to authenticated;

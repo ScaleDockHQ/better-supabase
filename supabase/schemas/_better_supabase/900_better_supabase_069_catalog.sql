@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:e94ef239c09486fc50ac80af18287f62f30a3d16b0649091331f68920bb67c09
+-- @bsb-hash sha256:d4113e4529659afbb8d67f64b637a9d9ccb17afb4cb2aa3b09f032c64dad3b55
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,8 +215,9 @@ revoke all on "better_supabase"."products" from public, anon, authenticated;
 grant select on "better_supabase"."products" to authenticated;
 grant all on "better_supabase"."products" to service_role;
 drop policy if exists products_read on "better_supabase"."products";
-create policy products_read on "better_supabase"."products" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy products_read on "better_supabase"."products"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
@@ -231,8 +232,9 @@ revoke all on "better_supabase"."product_options" from public, anon, authenticat
 grant select on "better_supabase"."product_options" to authenticated;
 grant all on "better_supabase"."product_options" to service_role;
 drop policy if exists product_options_read on "better_supabase"."product_options";
-create policy product_options_read on "better_supabase"."product_options" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_options_read on "better_supabase"."product_options"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
@@ -247,8 +249,9 @@ revoke all on "better_supabase"."product_option_values" from public, anon, authe
 grant select on "better_supabase"."product_option_values" to authenticated;
 grant all on "better_supabase"."product_option_values" to service_role;
 drop policy if exists product_option_values_read on "better_supabase"."product_option_values";
-create policy product_option_values_read on "better_supabase"."product_option_values" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_option_values_read on "better_supabase"."product_option_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
@@ -271,8 +274,9 @@ revoke all on "better_supabase"."product_variants" from public, anon, authentica
 grant select on "better_supabase"."product_variants" to authenticated;
 grant all on "better_supabase"."product_variants" to service_role;
 drop policy if exists product_variants_read on "better_supabase"."product_variants";
-create policy product_variants_read on "better_supabase"."product_variants" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_variants_read on "better_supabase"."product_variants"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_variant_values" (
   "tenant_id" uuid not null,
@@ -286,8 +290,9 @@ revoke all on "better_supabase"."product_variant_values" from public, anon, auth
 grant select on "better_supabase"."product_variant_values" to authenticated;
 grant all on "better_supabase"."product_variant_values" to service_role;
 drop policy if exists product_variant_values_read on "better_supabase"."product_variant_values";
-create policy product_variant_values_read on "better_supabase"."product_variant_values" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_variant_values_read on "better_supabase"."product_variant_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."price_lists" (
   "id" uuid primary key default gen_random_uuid(),
@@ -302,8 +307,9 @@ revoke all on "better_supabase"."price_lists" from public, anon, authenticated;
 grant select on "better_supabase"."price_lists" to authenticated;
 grant all on "better_supabase"."price_lists" to service_role;
 drop policy if exists price_lists_read on "better_supabase"."price_lists";
-create policy price_lists_read on "better_supabase"."price_lists" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy price_lists_read on "better_supabase"."price_lists"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_prices" (
   "id" uuid primary key default gen_random_uuid(),
@@ -325,8 +331,9 @@ revoke all on "better_supabase"."product_prices" from public, anon, authenticate
 grant select on "better_supabase"."product_prices" to authenticated;
 grant all on "better_supabase"."product_prices" to service_role;
 drop policy if exists product_prices_read on "better_supabase"."product_prices";
-create policy product_prices_read on "better_supabase"."product_prices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_prices_read on "better_supabase"."product_prices"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."categories" (
   "id" uuid primary key default gen_random_uuid(),
@@ -346,8 +353,9 @@ revoke all on "better_supabase"."categories" from public, anon, authenticated;
 grant select on "better_supabase"."categories" to authenticated;
 grant all on "better_supabase"."categories" to service_role;
 drop policy if exists categories_read on "better_supabase"."categories";
-create policy categories_read on "better_supabase"."categories" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy categories_read on "better_supabase"."categories"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_categories" (
   "tenant_id" uuid not null,
@@ -361,8 +369,9 @@ revoke all on "better_supabase"."product_categories" from public, anon, authenti
 grant select on "better_supabase"."product_categories" to authenticated;
 grant all on "better_supabase"."product_categories" to service_role;
 drop policy if exists product_categories_read on "better_supabase"."product_categories";
-create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_categories_read on "better_supabase"."product_categories"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -381,8 +390,9 @@ revoke all on "better_supabase"."product_collections" from public, anon, authent
 grant select on "better_supabase"."product_collections" to authenticated;
 grant all on "better_supabase"."product_collections" to service_role;
 drop policy if exists product_collections_read on "better_supabase"."product_collections";
-create policy product_collections_read on "better_supabase"."product_collections" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_collections_read on "better_supabase"."product_collections"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."collection_products" (
   "tenant_id" uuid not null,
@@ -397,8 +407,9 @@ revoke all on "better_supabase"."collection_products" from public, anon, authent
 grant select on "better_supabase"."collection_products" to authenticated;
 grant all on "better_supabase"."collection_products" to service_role;
 drop policy if exists collection_products_read on "better_supabase"."collection_products";
-create policy collection_products_read on "better_supabase"."collection_products" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy collection_products_read on "better_supabase"."collection_products"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."storefronts" (
   "tenant_id" uuid primary key,
@@ -409,8 +420,9 @@ revoke all on "better_supabase"."storefronts" from public, anon, authenticated;
 grant select on "better_supabase"."storefronts" to authenticated;
 grant all on "better_supabase"."storefronts" to service_role;
 drop policy if exists storefronts_read on "better_supabase"."storefronts";
-create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy storefronts_read on "better_supabase"."storefronts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
@@ -430,8 +442,9 @@ revoke all on "better_supabase"."catalog_channels" from public, anon, authentica
 grant select on "better_supabase"."catalog_channels" to authenticated;
 grant all on "better_supabase"."catalog_channels" to service_role;
 drop policy if exists catalog_channels_read on "better_supabase"."catalog_channels";
-create policy catalog_channels_read on "better_supabase"."catalog_channels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy catalog_channels_read on "better_supabase"."catalog_channels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."catalog_channel_products" (
   "tenant_id" uuid not null,
@@ -446,8 +459,9 @@ revoke all on "better_supabase"."catalog_channel_products" from public, anon, au
 grant select on "better_supabase"."catalog_channel_products" to authenticated;
 grant all on "better_supabase"."catalog_channel_products" to service_role;
 drop policy if exists catalog_channel_products_read on "better_supabase"."catalog_channel_products";
-create policy catalog_channel_products_read on "better_supabase"."catalog_channel_products" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy catalog_channel_products_read on "better_supabase"."catalog_channel_products"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_translations" (
   "tenant_id" uuid not null,
@@ -463,8 +477,9 @@ revoke all on "better_supabase"."product_translations" from public, anon, authen
 grant select on "better_supabase"."product_translations" to authenticated;
 grant all on "better_supabase"."product_translations" to service_role;
 drop policy if exists product_translations_read on "better_supabase"."product_translations";
-create policy product_translations_read on "better_supabase"."product_translations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_translations_read on "better_supabase"."product_translations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_variant_translations" (
   "tenant_id" uuid not null,
@@ -479,8 +494,9 @@ revoke all on "better_supabase"."product_variant_translations" from public, anon
 grant select on "better_supabase"."product_variant_translations" to authenticated;
 grant all on "better_supabase"."product_variant_translations" to service_role;
 drop policy if exists product_variant_translations_read on "better_supabase"."product_variant_translations";
-create policy product_variant_translations_read on "better_supabase"."product_variant_translations" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_variant_translations_read on "better_supabase"."product_variant_translations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."product_media" (
   "id" uuid primary key default gen_random_uuid(),
@@ -501,8 +517,9 @@ revoke all on "better_supabase"."product_media" from public, anon, authenticated
 grant select on "better_supabase"."product_media" to authenticated;
 grant all on "better_supabase"."product_media" to service_role;
 drop policy if exists product_media_read on "better_supabase"."product_media";
-create policy product_media_read on "better_supabase"."product_media" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+create policy product_media_read on "better_supabase"."product_media"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
 drop function if exists "better_supabase"."save_product"(uuid, uuid, text, text, text, text, jsonb);

@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
@@ -229,8 +230,7 @@ function tables(ctx: BlockSqlContext): string {
   const policy = (logical: string, table: string, tenant: string): string => `
 ${lockModuleTable(ctx, logical, { read: true })}
 drop policy if exists ${index(logical, "read")} on ${table};
-create policy ${index(logical, "read")} on ${table} for select to authenticated
-  using (${ctx.scope.check(tenant, read)});`;
+${renderPolicy(makePolicy({ table, name: index(logical, "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(tenant, read) }), { target: table })}`;
 
   return `
 -- A fund or campaign gifts go to; goal is in minor units of currency.

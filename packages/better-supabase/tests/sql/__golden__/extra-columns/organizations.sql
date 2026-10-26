@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:5fb46b0b92f80e28c2d99ae5787616a2b4c38480c8b57d2d5b3f5ff8921e62e8
+-- @bsb-hash sha256:3679fcf6e8af2cbaf3a020a22aced1c20229417222916e7f711b73c213a8a57f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,7 +64,8 @@ revoke all on "better_supabase"."organizations" from public, anon, authenticated
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
-create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
+create policy bsb_organizations_read on "better_supabase"."organizations"
+  for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$

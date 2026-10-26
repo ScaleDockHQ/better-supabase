@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   withExtraFields,
@@ -407,9 +408,7 @@ create trigger ${trigger} after insert or update or delete on ${a}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${receive} on realtime.messages;
-    create policy ${receive} on realtime.messages for select to authenticated
-      using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = ${sqlString(topic)});
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = ${sqlString(topic)}` }), { drop: true, target: "realtime.messages" })}
   end if;
 end;
 $$;

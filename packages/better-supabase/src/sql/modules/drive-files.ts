@@ -1,5 +1,6 @@
 import type { DriveKit } from "./drive-kit.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   pageSize,
@@ -270,27 +271,13 @@ ${userGrant(`${fn("drive_attachment_allowed")}(text, text, boolean)`)}
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-drop policy if exists ${ctx.trigger("drive_attachments_read")} on ${A};
-create policy ${ctx.trigger("drive_attachments_read")} on ${A} as restrictive for select to authenticated
-  using (${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, false));
-drop policy if exists ${ctx.trigger("drive_attachments_insert")} on ${A};
-create policy ${ctx.trigger("drive_attachments_insert")} on ${A} as restrictive for insert to authenticated
-  with check (${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true));
-drop policy if exists ${ctx.trigger("drive_attachments_delete")} on ${A};
-create policy ${ctx.trigger("drive_attachments_delete")} on ${A} as restrictive for delete to authenticated
-  using (${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true));
-drop policy if exists ${ctx.trigger("drive_objects_read")} on storage.objects;
-create policy ${ctx.trigger("drive_objects_read")} on storage.objects as restrictive for select to authenticated
-  using (${fn("drive_object_allowed")}(bucket_id, name, 'select'));
-drop policy if exists ${ctx.trigger("drive_objects_insert")} on storage.objects;
-create policy ${ctx.trigger("drive_objects_insert")} on storage.objects as restrictive for insert to authenticated
-  with check (${fn("drive_object_allowed")}(bucket_id, name, 'insert'));
-drop policy if exists ${ctx.trigger("drive_objects_update")} on storage.objects;
-create policy ${ctx.trigger("drive_objects_update")} on storage.objects as restrictive for update to authenticated
-  using (${fn("drive_object_allowed")}(bucket_id, name, 'update'));
-drop policy if exists ${ctx.trigger("drive_objects_delete")} on storage.objects;
-create policy ${ctx.trigger("drive_objects_delete")} on storage.objects as restrictive for delete to authenticated
-  using (${fn("drive_object_allowed")}(bucket_id, name, 'delete'));
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, false)` }), { drop: true, target: A })}
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { drop: true, target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_object_allowed")}(bucket_id, name, 'insert')` }), { drop: true, target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_update"), command: "update", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'update')` }), { drop: true, target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'delete')` }), { drop: true, target: "storage.objects" })}
 
 -- Attachments of nodes that are not the current content and not a saved
 -- revision, older than a day so an upload in flight stays. Deletes their

@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { partyFunctions } from "./contacts-functions.ts";
 import { partiesInboxSql } from "./contacts-inbox.ts";
@@ -180,11 +181,17 @@ function tables(ctx: BlockSqlContext, names: PartyNames): string {
 
   const { t, c } = names;
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: ctx.scope.check(c(table, "tenant"), names.read),
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const co = (column: string): string => c("companies", column);
   const pe = (column: string): string => c("people", column);

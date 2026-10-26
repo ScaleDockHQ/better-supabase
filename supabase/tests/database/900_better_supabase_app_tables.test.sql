@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:ef898bb1f095f6e0b6f1b211b03d7fa3aa6a23a2b080bc3ef2a6f9be0732daaf
+-- @bsb-hash sha256:7699bf07526645329573dea260ac17fe9fb2c80b756570a890693a981e2792b5
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -31,7 +31,10 @@ select extensions.has_trigger('public'::name, 'projects'::name, 'bsb_versions_pr
 select extensions.ok(exists (select 1 from "better_supabase"."versions" v where v."subject_type" = 'project'), 'an insert into public.projects snapshots a project version');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."projects" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."projects"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -60,7 +63,10 @@ select extensions.table_privs_are('public', 'tasks_view', 'authenticated', array
 select extensions.has_trigger('public'::name, 'tasks'::name, 'bsb_emit_event'::name, 'public.tasks emits outbox events');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."tasks" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."tasks"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -101,7 +107,10 @@ select extensions.ok((select bool_and(left("birth_date", 5) = 'bsf1:' and "birth
 select extensions.is((select r."birth_date"::text from "public"."client_notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), ('2026-01-01'::date)::text, 'the service role reveals public.client_notes.birth_date');
 
 -- An app's own permissive policy can't widen the tenant scope.
-create policy bsb_test_app_widens on "public"."client_notes" for all to authenticated using (true) with check (true);
+create policy bsb_test_app_widens on "public"."client_notes"
+  for all to authenticated
+  using (true)
+  with check (true);
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

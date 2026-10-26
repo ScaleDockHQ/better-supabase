@@ -1,6 +1,6 @@
 -- better-supabase module: memory
 -- @bsb-block memory@2 managed
--- @bsb-hash sha256:1f9ea669728623222907414400d65e6de50b450aba42d7d208f8b0d80b3cc2f4
+-- @bsb-hash sha256:c42e0d622afec1f5217b1b9a91d255f91d3b16b6853a33c5fe1bbaee07b35c2e
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,7 +106,8 @@ revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 drop policy if exists memories_read on "better_supabase"."memories";
-create policy memories_read on "better_supabase"."memories" for select to authenticated
+create policy memories_read on "better_supabase"."memories"
+  for select to authenticated
   using ("owner_id" = (select auth.uid()) or ("scope" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -128,7 +129,8 @@ revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authe
 grant select on "better_supabase"."ai_message_embeddings" to authenticated;
 grant all on "better_supabase"."ai_message_embeddings" to service_role;
 drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings" for select to authenticated
+create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+  for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A core memory file, or the files under a directory, or null.

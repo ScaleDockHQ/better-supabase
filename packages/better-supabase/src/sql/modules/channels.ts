@@ -3,6 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ChannelsSql } from "./channels-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SERVICE_CALLER,
   fail,
@@ -94,9 +95,7 @@ ${lockTable(t("channels"), { read: true })}
 
 -- A channel is visible when its conversation is: a public one to the tenant,
 -- a private one to its members.
-drop policy if exists ${policy} on ${t("channels")};
-create policy ${policy} on ${t("channels")} for select to authenticated
-using (exists (select 1 from ${conversations} c where c.${cv("id")} = ${t("channels")}.${ch("id")}));
+${renderPolicy(makePolicy({ table: t("channels"), name: policy, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${conversations} c where c.${cv("id")} = ${t("channels")}.${ch("id")})` }), { drop: true, target: t("channels") })}
 `;
 }
 

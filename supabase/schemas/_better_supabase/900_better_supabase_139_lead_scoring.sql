@@ -1,6 +1,6 @@
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:adcccf1349febb9b3f883ed93c3c74e7e5178e2a170d3f9d1bee7d93ba4a1a57
+-- @bsb-hash sha256:c6dbf6bc2c65956f94a82b9562ab126d2e671a4f5ed3dc86e0bf2ee914a9e005
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,8 +71,9 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists "lead_score_checks_read" on "better_supabase"."lead_score_checks";
-create policy "lead_score_checks_read" on "better_supabase"."lead_score_checks" for select to authenticated
+drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
+create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
 -- The values a lead model's rules and metrics read for one record: its

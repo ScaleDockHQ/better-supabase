@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:9b53ad77a1cb03d068b46ee7853b618aefa60fda348f576d7aad5b9d0ee84289
+-- @bsb-hash sha256:dd17815795c8a7c215bfe0b69f56083487c114fb80230c1bf67a0dffbd9efa56
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,8 @@ revoke all on "better_supabase"."donation_funds" from public, anon, authenticate
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
-create policy "donation_funds_read" on "better_supabase"."donation_funds" for select to authenticated
+create policy donation_funds_read on "better_supabase"."donation_funds"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -141,7 +142,8 @@ revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
-create policy "pledges_read" on "better_supabase"."pledges" for select to authenticated
+create policy pledges_read on "better_supabase"."pledges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -169,7 +171,8 @@ revoke all on "better_supabase"."donation_receipts" from public, anon, authentic
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
-create policy "donation_receipts_read" on "better_supabase"."donation_receipts" for select to authenticated
+create policy donation_receipts_read on "better_supabase"."donation_receipts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 create table if not exists "better_supabase"."donations" (
@@ -211,7 +214,8 @@ revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
-create policy "donations_read" on "better_supabase"."donations" for select to authenticated
+create policy donations_read on "better_supabase"."donations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
@@ -1091,7 +1095,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:58c3a9eb9ba3030b92741f6e2b84554afb649253e9d2b59e9f7abd72793e4350
+-- @bsb-hash sha256:caa59695bc1e1902f01c394b79617e1d3ba53e8bce316869e4cd1beb5f3d2cf9
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1197,7 +1201,8 @@ revoke all on "better_supabase"."donation_funds" from public, anon, authenticate
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
-create policy "donation_funds_read" on "better_supabase"."donation_funds" for select to authenticated
+create policy donation_funds_read on "better_supabase"."donation_funds"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -1231,7 +1236,8 @@ revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
-create policy "pledges_read" on "better_supabase"."pledges" for select to authenticated
+create policy pledges_read on "better_supabase"."pledges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -1259,7 +1265,8 @@ revoke all on "better_supabase"."donation_receipts" from public, anon, authentic
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
-create policy "donation_receipts_read" on "better_supabase"."donation_receipts" for select to authenticated
+create policy donation_receipts_read on "better_supabase"."donation_receipts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 create table if not exists "better_supabase"."donations" (
@@ -1301,7 +1308,8 @@ revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
-create policy "donations_read" on "better_supabase"."donations" for select to authenticated
+create policy donations_read on "better_supabase"."donations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
@@ -2256,7 +2264,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:d85fd863c2c1d80b7458d73f04537b15a9495f52a659ec4bc2066111902f34f6
+-- @bsb-hash sha256:cc2fbb126e856420c80cb0701afdb00246dad02b400fffa5aea8e7f09d9151fa
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2367,7 +2375,8 @@ revoke all on "app_private"."donation_funds" from public, anon, authenticated;
 grant select on "app_private"."donation_funds" to authenticated;
 grant all on "app_private"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "app_private"."donation_funds";
-create policy "donation_funds_read" on "app_private"."donation_funds" for select to authenticated
+create policy donation_funds_read on "app_private"."donation_funds"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -2401,7 +2410,8 @@ revoke all on "app_private"."pledges" from public, anon, authenticated;
 grant select on "app_private"."pledges" to authenticated;
 grant all on "app_private"."pledges" to service_role;
 drop policy if exists "pledges_read" on "app_private"."pledges";
-create policy "pledges_read" on "app_private"."pledges" for select to authenticated
+create policy pledges_read on "app_private"."pledges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -2429,7 +2439,8 @@ revoke all on "app_private"."donation_receipts" from public, anon, authenticated
 grant select on "app_private"."donation_receipts" to authenticated;
 grant all on "app_private"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "app_private"."donation_receipts";
-create policy "donation_receipts_read" on "app_private"."donation_receipts" for select to authenticated
+create policy donation_receipts_read on "app_private"."donation_receipts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 create table if not exists "app_private"."donations" (
@@ -2471,7 +2482,8 @@ revoke all on "app_private"."donations" from public, anon, authenticated;
 grant select on "app_private"."donations" to authenticated;
 grant all on "app_private"."donations" to service_role;
 drop policy if exists "donations_read" on "app_private"."donations";
-create policy "donations_read" on "app_private"."donations" for select to authenticated
+create policy donations_read on "app_private"."donations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
@@ -3351,7 +3363,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:1fca45c2ad06342cb9eb06b2266919f0dca992fe829b017376de9e7413dd30a8
+-- @bsb-hash sha256:2374e099e738721a5e6db2255e76568397522cc76e378e5db15df45fe67a3618
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3457,7 +3469,8 @@ revoke all on "better_supabase"."donation_funds" from public, anon, authenticate
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
-create policy "donation_funds_read" on "better_supabase"."donation_funds" for select to authenticated
+create policy donation_funds_read on "better_supabase"."donation_funds"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -3491,7 +3504,8 @@ revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
-create policy "pledges_read" on "better_supabase"."pledges" for select to authenticated
+create policy pledges_read on "better_supabase"."pledges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -3519,7 +3533,8 @@ revoke all on "better_supabase"."donation_receipts" from public, anon, authentic
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
-create policy "donation_receipts_read" on "better_supabase"."donation_receipts" for select to authenticated
+create policy donation_receipts_read on "better_supabase"."donation_receipts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 create table if not exists "better_supabase"."donations" (
@@ -3561,7 +3576,8 @@ revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
-create policy "donations_read" on "better_supabase"."donations" for select to authenticated
+create policy donations_read on "better_supabase"."donations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
@@ -4619,7 +4635,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f429e3270f29c2c2a6d7fe7c56a6eeb267ed0c2f6e436f47b1a0b8a424f12bce
+-- @bsb-hash sha256:eddb0ee8867552dbd0453d111ccb842fc9dc02d17d5b25e808e3cc63f44c0549
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4737,7 +4753,8 @@ alter table "better_supabase"."donation_funds" enable row level security;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists bsb_donation_funds_select on "better_supabase"."donation_funds";
-create policy bsb_donation_funds_select on "better_supabase"."donation_funds" for select to authenticated
+create policy bsb_donation_funds_select on "better_supabase"."donation_funds"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -4767,7 +4784,8 @@ alter table "better_supabase"."pledges" enable row level security;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists bsb_pledges_select on "better_supabase"."pledges";
-create policy bsb_pledges_select on "better_supabase"."pledges" for select to authenticated
+create policy bsb_pledges_select on "better_supabase"."pledges"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -4792,7 +4810,8 @@ alter table "better_supabase"."donation_receipts" enable row level security;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists bsb_donation_receipts_select on "better_supabase"."donation_receipts";
-create policy bsb_donation_receipts_select on "better_supabase"."donation_receipts" for select to authenticated
+create policy bsb_donation_receipts_select on "better_supabase"."donation_receipts"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- better_supabase.donations is the app's table: this block adds only the columns it needs.
@@ -4830,7 +4849,8 @@ alter table "better_supabase"."donations" enable row level security;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists bsb_donations_select on "better_supabase"."donations";
-create policy bsb_donations_select on "better_supabase"."donations" for select to authenticated
+create policy bsb_donations_select on "better_supabase"."donations"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
@@ -5710,7 +5730,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:5663c96b20fa4b42d7550b6533f7a31c243929f7b6ecbe38a8210b25072754ae
+-- @bsb-hash sha256:f19416894fea09e3fe205755a900ce2e22f4e679b4e66337d3630b58ca3fe21f
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5816,7 +5836,8 @@ revoke all on "better_supabase"."donation_funds" from public, anon, authenticate
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
-create policy "donation_funds_read" on "better_supabase"."donation_funds" for select to authenticated
+create policy donation_funds_read on "better_supabase"."donation_funds"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
@@ -5850,7 +5871,8 @@ revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
-create policy "pledges_read" on "better_supabase"."pledges" for select to authenticated
+create policy pledges_read on "better_supabase"."pledges"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
@@ -5878,7 +5900,8 @@ revoke all on "better_supabase"."donation_receipts" from public, anon, authentic
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
-create policy "donation_receipts_read" on "better_supabase"."donation_receipts" for select to authenticated
+create policy donation_receipts_read on "better_supabase"."donation_receipts"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 create table if not exists "better_supabase"."donations" (
@@ -5920,7 +5943,8 @@ revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
-create policy "donations_read" on "better_supabase"."donations" for select to authenticated
+create policy donations_read on "better_supabase"."donations"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.

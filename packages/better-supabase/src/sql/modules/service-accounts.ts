@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   columnsObject,
@@ -150,9 +151,7 @@ ${lockTable(t, { read: true })}
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
 ${tables}
-drop policy if exists service_principals_read on ${t};
-create policy service_principals_read on ${t} for select to authenticated
-using (${c("tenant")} in (select ${ctx.scope.ids(read)}));
+${renderPolicy(makePolicy({ table: t, name: "service_principals_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: t })}
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry

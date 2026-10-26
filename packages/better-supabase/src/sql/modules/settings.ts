@@ -11,6 +11,7 @@ import type { JsonSchemaCheck } from "../shared.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   recordTrigger,
   jsonSchemaChecks,
@@ -461,19 +462,10 @@ alter table ${o} enable row level security;
 ${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
-drop policy if exists "${ctx.naming.rename("organization_settings_read")}" on ${o};
-create policy "${ctx.naming.rename("organization_settings_read")}" on ${o} for select to authenticated
-  using (${member(oc("tenant"), "read")});
-drop policy if exists "${ctx.naming.rename("organization_settings_insert")}" on ${o};
-create policy "${ctx.naming.rename("organization_settings_insert")}" on ${o} for insert to authenticated
-  with check (${can(oc("tenant"), "update")});
-drop policy if exists "${ctx.naming.rename("organization_settings_update")}" on ${o};
-create policy "${ctx.naming.rename("organization_settings_update")}" on ${o} for update to authenticated
-  using (${member(oc("tenant"), "update")})
-  with check (${member(oc("tenant"), "update")});
-drop policy if exists "${ctx.naming.rename("organization_settings_delete")}" on ${o};
-create policy "${ctx.naming.rename("organization_settings_delete")}" on ${o} for delete to authenticated
-  using (${member(oc("tenant"), "update")});
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_read"), table: o, command: "select", roles: ["authenticated"], using: member(oc("tenant"), "read") }), { drop: true, target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_insert"), table: o, command: "insert", roles: ["authenticated"], check: can(oc("tenant"), "update") }), { drop: true, target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_update"), table: o, command: "update", roles: ["authenticated"], using: member(oc("tenant"), "update"), check: member(oc("tenant"), "update") }), { drop: true, target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_delete"), table: o, command: "delete", roles: ["authenticated"], using: member(oc("tenant"), "update") }), { drop: true, target: o })}
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -487,22 +479,11 @@ ${revokeTable(p)}
 grant select on ${p} to anon;
 grant select, insert, update, delete on ${p} to authenticated;
 grant all on ${p} to service_role;
-drop policy if exists "platform_settings_read" on ${p};
-create policy "platform_settings_read" on ${p} for select to authenticated
-  using (${authenticatedRead});
-drop policy if exists "platform_settings_read_public" on ${p};
-create policy "platform_settings_read_public" on ${p} for select to anon
-  using (${anonRead});
-drop policy if exists "platform_settings_insert" on ${p};
-create policy "platform_settings_insert" on ${p} for insert to authenticated
-  with check (${writeCheck});
-drop policy if exists "platform_settings_update" on ${p};
-create policy "platform_settings_update" on ${p} for update to authenticated
-  using (${writeCheck})
-  with check (${writeCheck});
-drop policy if exists "platform_settings_delete" on ${p};
-create policy "platform_settings_delete" on ${p} for delete to authenticated
-  using (${writeCheck});
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_read", command: "select", roles: ["authenticated"], using: authenticatedRead }), { drop: true, target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_read_public", command: "select", roles: ["anon"], using: anonRead }), { drop: true, target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_insert", command: "insert", roles: ["authenticated"], check: writeCheck }), { drop: true, target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_update", command: "update", roles: ["authenticated"], using: writeCheck, check: writeCheck }), { drop: true, target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_delete", command: "delete", roles: ["authenticated"], using: writeCheck }), { drop: true, target: p })}
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and

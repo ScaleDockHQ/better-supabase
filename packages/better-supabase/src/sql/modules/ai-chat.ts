@@ -9,6 +9,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { schemaPreamble } from "../shared.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { aiChatFunctions, upgradeRunStates } from "./ai-chat-functions.ts";
@@ -602,20 +603,30 @@ function realtime(ctx: BlockSqlContext, names: AiChatNames): string {
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists ${chatReceive} on realtime.messages;
-    create policy ${chatReceive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: chatReceive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like ${sqlString(`${prefix}%`)}
         and substr((select realtime.topic()), ${String(prefix.length + 1)}) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        and ${ctx.fn("ai_chat_can_read")}(substr((select realtime.topic()), ${String(prefix.length + 1)})::uuid)
-      );
-    drop policy if exists ${listReceive} on realtime.messages;
-    create policy ${listReceive} on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension = 'broadcast'
-        and (select realtime.topic()) = ${sqlString(`${names.listTopic}:`)} || (select auth.uid())::text
-      );
+        and ${ctx.fn("ai_chat_can_read")}(substr((select realtime.topic()), ${String(prefix.length + 1)})::uuid)`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
+        ${renderPolicy(
+          makePolicy({
+            table: "realtime.messages",
+            name: listReceive,
+            command: "select",
+            roles: ["authenticated"],
+            using: `realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) = ${sqlString(`${names.listTopic}:`)} || (select auth.uid())::text`,
+          }),
+          { drop: true, target: "realtime.messages" },
+        )}
   end if;
 end;
 $$;`;

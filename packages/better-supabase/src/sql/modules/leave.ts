@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -326,9 +327,7 @@ function build(ctx: BlockSqlContext): string {
   unique (${ty("tenant")}, ${ty("id")})
 );${appUniqueIndex(ctx, "types", ["tenant", "key"])}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
 ${lockModuleTable(ctx, "types", { read: true })}
-drop policy if exists ${ctx.naming.rename("leave_types_read")} on ${types};
-create policy ${ctx.naming.rename("leave_types_read")} on ${types} for select to authenticated
-  using (${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)});
+${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)}` }), { drop: true, target: types })}
 
 create table if not exists ${requests} (
   ${q("id")} uuid primary key default gen_random_uuid(),
@@ -353,9 +352,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_i
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}
-drop policy if exists ${ctx.naming.rename("leave_requests_read")} on ${requests};
-create policy ${ctx.naming.rename("leave_requests_read")} on ${requests} for select to authenticated
-  using (${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)});
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)}` }), { drop: true, target: requests })}
 
 `
     : "";

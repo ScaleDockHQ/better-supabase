@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -181,12 +182,8 @@ alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
 grant all on ${d} to service_role;
-drop policy if exists "push_devices_own_read" on ${d};
-create policy "push_devices_own_read" on ${d} for select to authenticated
-  using (${c("user")} = (select auth.uid()));
-drop policy if exists "push_devices_own_delete" on ${d};
-create policy "push_devices_own_delete" on ${d} for delete to authenticated
-  using (${c("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_read", command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_delete", command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
 
 -- Registers the caller's device, or refreshes it; returns the device id.
 ${extraFieldsArg(extras).drop(fn("register_push_device"), "text, text, text, text, text")}

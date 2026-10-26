@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:e7d12734163864238514b9dd9670fe0eb029682e6bcb9e10c28ec3a4a5b9db88
+-- @bsb-hash sha256:56c01b75ee4f644c1bcad87289323d7e10343f94b46a2fc0c01bb4157ab6fca8
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,23 +244,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
-create policy mail_accounts_read on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
-create policy mail_threads_read on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy mail_threads_read on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "better_supabase"."mail_messages";
-create policy mail_messages_read on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
-create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
-create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
@@ -1038,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:14ff3d81ed21bd4a448c1940763202688c0a4a870be727ff370aeeac01168753
+-- @bsb-hash sha256:a6a93e145f3a0ef7a83adabc0951265862e22189772c28298039e57556d3d971
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1281,23 +1287,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
-create policy mail_accounts_read on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
-create policy mail_threads_read on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy mail_threads_read on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "better_supabase"."mail_messages";
-create policy mail_messages_read on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
-create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
-create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
@@ -2181,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:cf672d66438b02cc85eb3644a44dc1db49d4f0dbd68fe6c19fd309ef1f475b75
+-- @bsb-hash sha256:b4062cc56675cf253b2f1ae93f8f2fe636561db1fd7bac001825ade78f75bc16
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2429,23 +2441,29 @@ revoke execute on function "app_private"."mail_thread_visible"(uuid) from public
 grant execute on function "app_private"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "app_private"."mail_accounts";
-create policy mail_accounts_read on "app_private"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "app_private"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "app_private"."mail_threads";
-create policy mail_threads_read on "app_private"."mail_threads" for select to authenticated
-using ("app_private"."mail_thread_visible"("id"));
+create policy mail_threads_read on "app_private"."mail_threads"
+  for select to authenticated
+  using ("app_private"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "app_private"."mail_messages";
-create policy mail_messages_read on "app_private"."mail_messages" for select to authenticated
-using ("app_private"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "app_private"."mail_messages"
+  for select to authenticated
+  using ("app_private"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "app_private"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "app_private"."mail_thread_subjects" for select to authenticated
-using ("app_private"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "app_private"."mail_thread_subjects"
+  for select to authenticated
+  using ("app_private"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "app_private"."mail_tracked_links";
-create policy mail_tracked_links_read on "app_private"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "app_private"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "app_private"."mail_tracking_events";
-create policy mail_tracking_events_read on "app_private"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "app_private"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
@@ -3223,7 +3241,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:b1dc6a2b130cd667b6f2093f31857ea1421c70d525db4b819e932ed17efd4c68
+-- @bsb-hash sha256:1b483f6de3945be78ee6bbbcac6af08b44b360895408f636d687fdf2b6f0349d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3466,23 +3484,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
-create policy mail_accounts_read on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
-create policy mail_threads_read on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy mail_threads_read on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "better_supabase"."mail_messages";
-create policy mail_messages_read on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
-create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
-create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
@@ -4435,7 +4459,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:afec975231a152afa23564ce51c89c7912a5111de8a8000f9fc5bf5edd25c60a
+-- @bsb-hash sha256:79406fb8d4416ae75568a83d56dc6bb5b4ae39f0aa4528e2792708996a2e5551
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4680,23 +4704,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists bsb_mail_accounts_select on "better_supabase"."mail_accounts";
-create policy bsb_mail_accounts_select on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy bsb_mail_accounts_select on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists bsb_mail_threads_select on "better_supabase"."mail_threads";
-create policy bsb_mail_threads_select on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy bsb_mail_threads_select on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists bsb_mail_messages_select on "better_supabase"."mail_messages";
-create policy bsb_mail_messages_select on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy bsb_mail_messages_select on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists bsb_mail_thread_subjects_select on "better_supabase"."mail_thread_subjects";
-create policy bsb_mail_thread_subjects_select on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy bsb_mail_thread_subjects_select on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists bsb_mail_tracked_links_select on "better_supabase"."mail_tracked_links";
-create policy bsb_mail_tracked_links_select on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy bsb_mail_tracked_links_select on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists bsb_mail_tracking_events_select on "better_supabase"."mail_tracking_events";
-create policy bsb_mail_tracking_events_select on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy bsb_mail_tracking_events_select on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
@@ -5474,7 +5504,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:9a00159644fd42cbb228db4b34544d31dabb2158585d1c43a9a43a4f39b544b9
+-- @bsb-hash sha256:916d759b83e6d357ffd3ccf6490bfa07a6024a3f5c60e0e4bd908c08a02375cf
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5717,23 +5747,29 @@ revoke execute on function "better_supabase"."mail_thread_visible"(uuid) from pu
 grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authenticated, service_role;
 
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
-create policy mail_accounts_read on "better_supabase"."mail_accounts" for select to authenticated
-using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+create policy mail_accounts_read on "better_supabase"."mail_accounts"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
-create policy mail_threads_read on "better_supabase"."mail_threads" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("id"));
+create policy mail_threads_read on "better_supabase"."mail_threads"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("id"));
 drop policy if exists mail_messages_read on "better_supabase"."mail_messages";
-create policy mail_messages_read on "better_supabase"."mail_messages" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_messages_read on "better_supabase"."mail_messages"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
-create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
-using ("better_supabase"."mail_thread_visible"("thread_id"));
+create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects"
+  for select to authenticated
+  using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
-create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
-create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
-using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,

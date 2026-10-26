@@ -29,11 +29,20 @@ export interface PolicyInput {
   readonly check?: string | null;
 }
 
-/** A policy with the defaults Postgres uses: `for all to public`, permissive. */
+/** `name` as the policy is called: modules may pass it already quoted. */
+const bareName = (name: string): string =>
+  name.length > 1 && name.startsWith('"') && name.endsWith('"')
+    ? name.slice(1, -1).replaceAll('""', '"')
+    : name;
+
+/**
+ * A policy with the defaults Postgres uses: `for all to public`, permissive. A
+ * `name` in double quotes is unquoted, so `sqlIdent(name)` works as a name.
+ */
 export function policy(input: PolicyInput): Policy {
   return {
     table: qualifiedName(input.table),
-    name: input.name,
+    name: bareName(input.name),
     command: input.command ?? "all",
     roles: input.roles ?? ["public"],
     permissive: input.permissive ?? true,

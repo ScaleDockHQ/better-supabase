@@ -10,6 +10,7 @@ import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   addForeignKey,
@@ -295,9 +296,7 @@ create unique index if not exists ${ctx.naming.rename("employees_origin_idx")} o
 create index if not exists ${ctx.naming.rename("employees_tenant_status_idx")} on ${t("employees")} (${e("tenant")}, ${e("status")});
 create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
 ${lockTable(t("employees"), { read: true })}
-drop policy if exists ${ctx.naming.rename("employees_read")} on ${t("employees")};
-create policy ${ctx.naming.rename("employees_read")} on ${t("employees")} for select to authenticated
-using (${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid()));
+${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { drop: true, target: t("employees") })}
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
@@ -323,14 +322,21 @@ ${ctx.has("privateDetails", "address") ? `  ${p("address")} jsonb check (${p("ad
   ${p("updatedBy")} uuid
 );${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
 ${ctx.has("privateDetails", "user") ? `create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;\n` : ""}${lockTable(t("privateDetails"), { read: true })}
-drop policy if exists ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")};
-create policy ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")} for select to authenticated
-using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${
-    ctx.has("privateDetails", "user")
-      ? `${p("user")} = (select auth.uid())`
-      : `exists (
+${renderPolicy(
+  makePolicy({
+    table: t("privateDetails"),
+    name: ctx.naming.rename("employee_private_details_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(p("tenant"), n.sensitive)} or ${
+      ctx.has("privateDetails", "user")
+        ? `${p("user")} = (select auth.uid())`
+        : `exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${p("employee")} and x.${e("user")} = (select auth.uid()))`
-  });
+    }`,
+  }),
+  { drop: true, target: t("privateDetails") },
+)}
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -352,10 +358,17 @@ create table if not exists ${t("contracts")} (
 );${addExtraColumns(t("contracts"), ctx.extraColumns("contracts", [], "contractExtraColumns"))}
 create index if not exists ${ctx.naming.rename("employee_contracts_employee_idx")} on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
 ${lockTable(t("contracts"), { read: true })}
-drop policy if exists ${ctx.naming.rename("employee_contracts_read")} on ${t("contracts")};
-create policy ${ctx.naming.rename("employee_contracts_read")} on ${t("contracts")} for select to authenticated
-using (${ctx.scope.check(k("tenant"), n.contractsRead)} or exists (
-  select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid())));
+${renderPolicy(
+  makePolicy({
+    table: t("contracts"),
+    name: ctx.naming.rename("employee_contracts_read"),
+    command: "select",
+    roles: ["authenticated"],
+    using: `${ctx.scope.check(k("tenant"), n.contractsRead)} or exists (
+  select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid()))`,
+  }),
+  { drop: true, target: t("contracts") },
+)}
 `;
 }
 

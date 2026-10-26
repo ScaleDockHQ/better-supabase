@@ -9,6 +9,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
+import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import {
   purchaseOrderFunctions,
@@ -268,11 +269,17 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
   const variants = `${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete cascade`;
   const t = (name: string): string => ctx.table(name);
 
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+  const read = (table: string): string =>
+    renderPolicy(
+      makePolicy({
+        table: t(table),
+        name: `${ctx.tableName(table).name}_read`,
+        command: "select",
+        roles: ["authenticated"],
+        using: `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
+      }),
+      { drop: true, target: t(table) },
+    );
 
   const loc = locationsOf(ctx);
   const lv = columns(ctx, "levels");

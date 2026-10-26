@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:5389c86c4f29b176eb8a9d0b9475876b15894be4a5c87dcc37631e3bbb8bb62c
+-- @bsb-hash sha256:96b27487444e5b3191c097c257f2e5e1166526460e293562465d2ae6c2f6e4e3
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,8 @@ revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
-create policy templates_read on "better_supabase"."templates" for select to authenticated
+create policy templates_read on "better_supabase"."templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -121,7 +122,8 @@ revoke all on "better_supabase"."template_versions" from public, anon, authentic
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
-create policy template_versions_read on "better_supabase"."template_versions" for select to authenticated
+create policy template_versions_read on "better_supabase"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -145,7 +147,8 @@ revoke all on "better_supabase"."template_applications" from public, anon, authe
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
-create policy template_applications_read on "better_supabase"."template_applications" for select to authenticated
+create policy template_applications_read on "better_supabase"."template_applications"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- Creates a template (template_id null) or renames it and replaces its
@@ -908,7 +911,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:aeedc10f754728654435be138f5ab89b127e80e474c210db5ddfe84cb9bdde48
+-- @bsb-hash sha256:f44e295efe248f613003645579ae940f3d17fee10b825755d187ec4d6fcab3da
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,7 +1007,8 @@ revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
-create policy templates_read on "better_supabase"."templates" for select to authenticated
+create policy templates_read on "better_supabase"."templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -1028,7 +1032,8 @@ revoke all on "better_supabase"."template_versions" from public, anon, authentic
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
-create policy template_versions_read on "better_supabase"."template_versions" for select to authenticated
+create policy template_versions_read on "better_supabase"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -1052,7 +1057,8 @@ revoke all on "better_supabase"."template_applications" from public, anon, authe
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
-create policy template_applications_read on "better_supabase"."template_applications" for select to authenticated
+create policy template_applications_read on "better_supabase"."template_applications"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- The workflow definitions a template starts on each record it creates, with
@@ -1074,7 +1080,8 @@ revoke all on "better_supabase"."template_workflows" from public, anon, authenti
 grant select on "better_supabase"."template_workflows" to authenticated;
 grant all on "better_supabase"."template_workflows" to service_role;
 drop policy if exists template_workflows_read on "better_supabase"."template_workflows";
-create policy template_workflows_read on "better_supabase"."template_workflows" for select to authenticated
+create policy template_workflows_read on "better_supabase"."template_workflows"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Why inputs don't match the input_schema of definition's published version:
@@ -2012,7 +2019,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:a95b1da69c540c76d608af493f9b6066d3bed483e0b5da2f5ecff648801a6c88
+-- @bsb-hash sha256:d3bd8b71d5c36f8dc9acdb03a726bde0253bcabcbb5db28ea9c1a7d5096ddf6e
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2113,7 +2120,8 @@ revoke all on "app_private"."templates" from public, anon, authenticated;
 grant select on "app_private"."templates" to authenticated;
 grant all on "app_private"."templates" to service_role;
 drop policy if exists templates_read on "app_private"."templates";
-create policy templates_read on "app_private"."templates" for select to authenticated
+create policy templates_read on "app_private"."templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -2137,7 +2145,8 @@ revoke all on "app_private"."template_versions" from public, anon, authenticated
 grant select on "app_private"."template_versions" to authenticated;
 grant all on "app_private"."template_versions" to service_role;
 drop policy if exists template_versions_read on "app_private"."template_versions";
-create policy template_versions_read on "app_private"."template_versions" for select to authenticated
+create policy template_versions_read on "app_private"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "app_private"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -2161,7 +2170,8 @@ revoke all on "app_private"."template_applications" from public, anon, authentic
 grant select on "app_private"."template_applications" to authenticated;
 grant all on "app_private"."template_applications" to service_role;
 drop policy if exists template_applications_read on "app_private"."template_applications";
-create policy template_applications_read on "app_private"."template_applications" for select to authenticated
+create policy template_applications_read on "app_private"."template_applications"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- Creates a template (template_id null) or renames it and replaces its
@@ -2924,7 +2934,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:dc8884513fbb7f272036ee577d5795633a8201c3e6882a44ad0c2e3cefed33b5
+-- @bsb-hash sha256:b34bebf58a8d75546fbaf0a3a640a6b2d53ea5926577d683723ed66d08505a7a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3020,7 +3030,8 @@ revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
-create policy templates_read on "better_supabase"."templates" for select to authenticated
+create policy templates_read on "better_supabase"."templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -3044,7 +3055,8 @@ revoke all on "better_supabase"."template_versions" from public, anon, authentic
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
-create policy template_versions_read on "better_supabase"."template_versions" for select to authenticated
+create policy template_versions_read on "better_supabase"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -3068,7 +3080,8 @@ revoke all on "better_supabase"."template_applications" from public, anon, authe
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
-create policy template_applications_read on "better_supabase"."template_applications" for select to authenticated
+create policy template_applications_read on "better_supabase"."template_applications"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- Creates a template (template_id null) or renames it and replaces its
@@ -3972,7 +3985,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:4c3554558c2912e33f053ac2d0e6376c99b55358c330578dbfd23bc58c8c1ff6
+-- @bsb-hash sha256:01584329c0559be193a2dd3ced6d3bfc3250e363af982c5c382e7acb3dc6b50d
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4080,7 +4093,8 @@ alter table "better_supabase"."templates" enable row level security;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists bsb_templates_select on "better_supabase"."templates";
-create policy bsb_templates_select on "better_supabase"."templates" for select to authenticated
+create policy bsb_templates_select on "better_supabase"."templates"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -4102,7 +4116,8 @@ alter table "better_supabase"."template_versions" enable row level security;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists bsb_template_versions_select on "better_supabase"."template_versions";
-create policy bsb_template_versions_select on "better_supabase"."template_versions" for select to authenticated
+create policy bsb_template_versions_select on "better_supabase"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -4124,7 +4139,8 @@ alter table "better_supabase"."template_applications" enable row level security;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists bsb_template_applications_select on "better_supabase"."template_applications";
-create policy bsb_template_applications_select on "better_supabase"."template_applications" for select to authenticated
+create policy bsb_template_applications_select on "better_supabase"."template_applications"
+  for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- Creates a template (template_id null) or renames it and replaces its
@@ -4887,7 +4903,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:e2e90a1d678d7bd5d51bca5af738a1fa2fe3d5d7b4ab54aece04af1b1b6b844f
+-- @bsb-hash sha256:20a235c219b5a343f5ba67df72d880b8aee20bf276c18e5054391cc71d02e1c2
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4983,7 +4999,8 @@ revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
-create policy templates_read on "better_supabase"."templates" for select to authenticated
+create policy templates_read on "better_supabase"."templates"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
 
@@ -5007,7 +5024,8 @@ revoke all on "better_supabase"."template_versions" from public, anon, authentic
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
-create policy template_versions_read on "better_supabase"."template_versions" for select to authenticated
+create policy template_versions_read on "better_supabase"."template_versions"
+  for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
@@ -5031,7 +5049,8 @@ revoke all on "better_supabase"."template_applications" from public, anon, authe
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
-create policy template_applications_read on "better_supabase"."template_applications" for select to authenticated
+create policy template_applications_read on "better_supabase"."template_applications"
+  for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- Creates a template (template_id null) or renames it and replaces its

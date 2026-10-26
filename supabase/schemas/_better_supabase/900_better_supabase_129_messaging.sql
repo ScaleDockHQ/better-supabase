@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:554569372830e8d2f07ba7c3083b945a7a417f403c93d326d63f96ec14952ed3
+-- @bsb-hash sha256:49f5726e3e4f39b7c6f97051d6cb668e446f03f8ed29a1cd9a6ed5c5b03169d5
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,8 +167,9 @@ revoke execute on function "better_supabase"."is_conversation_member"(uuid) from
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
 
 drop policy if exists conversations_read on "better_supabase"."conversations";
-create policy conversations_read on "better_supabase"."conversations" for select to authenticated
-using ((case when "better_supabase"."conversations"."kind" = 'inbox'
+create policy conversations_read on "better_supabase"."conversations"
+  for select to authenticated
+  using ((case when "better_supabase"."conversations"."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"("better_supabase"."conversations"."id"::text)
     else ("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
     and case "better_supabase"."conversations"."access"
@@ -180,11 +181,10 @@ using ((case when "better_supabase"."conversations"."kind" = 'inbox'
     or ("better_supabase"."conversations"."kind" = 'subject' and (("better_supabase"."conversations"."tenant_id")::text, ("better_supabase"."conversations"."subject_type")::text, ("better_supabase"."conversations"."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end));
 
 drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
-create policy conversation_members_read on "better_supabase"."conversation_members" for select to authenticated
-using (
-  "user_id" = (select auth.uid())
-  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
-);
+create policy conversation_members_read on "better_supabase"."conversation_members"
+  for select to authenticated
+  using ("user_id" = (select auth.uid())
+  or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
 create table if not exists "better_supabase"."messages" (
   "id" uuid primary key default gen_random_uuid(),
@@ -229,12 +229,11 @@ grant all on "better_supabase"."messages" to service_role;
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
 drop policy if exists messages_read on "better_supabase"."messages";
-create policy messages_read on "better_supabase"."messages" for select to authenticated
-using (
-  ("sent_at" is not null or "author_id" = (select auth.uid()))
+create policy messages_read on "better_supabase"."messages"
+  for select to authenticated
+  using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
-  and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id"))
-);
+  and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id")));
 
 create table if not exists "better_supabase"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
@@ -252,8 +251,9 @@ grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
 
 drop policy if exists message_edits_read on "better_supabase"."message_edits";
-create policy message_edits_read on "better_supabase"."message_edits" for select to authenticated
-using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
+create policy message_edits_read on "better_supabase"."message_edits"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
@@ -274,8 +274,9 @@ grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
 
 drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
-create policy thread_reads_read on "better_supabase"."thread_reads" for select to authenticated
-using ("user_id" = (select auth.uid()));
+create policy thread_reads_read on "better_supabase"."thread_reads"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
@@ -296,8 +297,9 @@ grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
 
 drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
-create policy message_record_mentions_read on "better_supabase"."message_record_mentions" for select to authenticated
-using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
+create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
@@ -321,8 +323,9 @@ grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
 
 drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
-create policy thread_summaries_read on "better_supabase"."thread_summaries" for select to authenticated
-using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
+create policy thread_summaries_read on "better_supabase"."thread_summaries"
+  for select to authenticated
+  using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.
@@ -1825,20 +1828,18 @@ create trigger "bsb_messaging_message_broadcast" after insert or update on "bett
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bsb_messaging_receive" on realtime.messages;
-    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
-      using (
-        realtime.messages.extension in ('broadcast', 'presence')
+        drop policy if exists bsb_messaging_receive on realtime.messages;
+create policy bsb_messaging_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
-        and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
-      );
-    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
-    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
-      with check ((
-        realtime.messages.extension in ('broadcast', 'presence')
+        and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
+        drop policy if exists bsb_messaging_broadcast on realtime.messages;
+create policy bsb_messaging_broadcast on realtime.messages
+  for insert to authenticated
+  with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
-        and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
-      ) and (select better_supabase.actor_may_write()));
+        and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
   end if;
 end;
 $$;
@@ -1855,13 +1856,12 @@ alter table "better_supabase"."inbox_message_details" add constraint "inbox_mess
 drop trigger if exists "bsb_messaging_inbox_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."inbox_message_broadcast"();
-drop policy if exists "messages_moderation" on "better_supabase"."messages";
-create policy "messages_moderation" on "better_supabase"."messages" as restrictive for select to authenticated
-  using (
-    "author_id" = (select auth.uid())
+drop policy if exists messages_moderation on "better_supabase"."messages";
+create policy messages_moderation on "better_supabase"."messages" as restrictive
+  for select to authenticated
+  using ("author_id" = (select auth.uid())
     or not "better_supabase"."moderation_hidden"('message', "better_supabase"."messages"."id"::text)
-    or "better_supabase"."messages"."tenant_id" in (select better_supabase.tenant_ids_with('moderation.read'))
-  );
+    or "better_supabase"."messages"."tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
 -- Refuses messages from members banned in the organization.
 create or replace function "better_supabase"."messages_moderation_guard"()
