@@ -43,3 +43,7 @@ baseline to drop as a module moves to `renderPolicy`.
 ## Update: every block module emits `Policy` values
 
 The raw `create policy` statements in block modules now go through `policy()` and `renderPolicy()`, and the ratchet baseline is gone: `tests/sql/raw-policies.test.ts` allows none. The installed SQL changes layout only (one clause per line); the set of `drop policy` statements is the same.
+
+## Update: a lint rule enforces it
+
+The `block-policies/no-raw-policy` oxlint rule (`scripts/oxlint/block-policies.mjs`) fails on `create policy` text in `src/sql/modules`, replacing `tests/sql/raw-policies.test.ts`. Comment lines are ignored.
