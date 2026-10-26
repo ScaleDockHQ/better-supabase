@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:d1832a53366462349ea97d6b6d5108308ad00e3f0008338aa70ef8cbcc873226
+-- @bsb-hash sha256:21e42fd87adcda7340dc78bfc9f09f7020a89d309c224543f72eadd25d95e836
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
