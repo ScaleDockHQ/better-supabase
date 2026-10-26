@@ -19,6 +19,45 @@ Signing in and out from Server Actions (password, email links and codes,
 OAuth, MFA and sign-out) is on the [Next.js auth](/docs/frameworks/next-auth)
 page.
 
+## Next.js config
+
+The [Next.js example](/docs/examples#the-nextjs-saas-app) runs on this
+config:
+
+```ts title="next.config.ts"
+import type { NextConfig } from "next";
+
+export default {
+  reactStrictMode: true,
+  reactCompiler: true,
+  typedRoutes: true,
+  cacheComponents: true,
+  partialPrefetching: true,
+  experimental: {
+    authInterrupts: true,
+    globalNotFound: true,
+    typedEnv: true,
+    useOffline: true,
+    optimisticRouting: true,
+    prefetchInlining: true,
+  },
+} satisfies NextConfig;
+```
+
+| Flag                                    | What it does with better-supabase                                                                                                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cacheComponents`, `partialPrefetching` | `bsb.cached()` reads in `"use cache: private"` render into the prefetched page; see [Cache Components](/docs/frameworks/next-cache-components)                                                                                  |
+| `authInterrupts`                        | `forbidden()` and `unauthorized()` render `forbidden.tsx` and `unauthorized.tsx` when a guard refuses the caller                                                                                                                |
+| `typedRoutes`                           | `href` and `redirect()` take only routes the app has. next-intl's `Link` takes any string, so wrap it with `Route` hrefs                                                                                                        |
+| `globalNotFound`                        | a URL no route matches renders `app/global-not-found.tsx` with its own `<html>`. A dynamic root segment (`[locale]`) matches every URL, so answer unknown `/api` paths from an `app/api/[...rest]` route with `problemResponse` |
+| `typedEnv`                              | `next dev` types `process.env` from the env files; validate the keys at runtime as well                                                                                                                                         |
+| `useOffline`                            | a navigation, prefetch or Server Action that fails offline is retried when the network returns                                                                                                                                  |
+| `optimisticRouting`, `prefetchInlining` | on by default in Next 16.4; set so a default change shows up in your config diff                                                                                                                                                |
+
+TypeScript 7 works in `next build`: Next runs the project's own `tsc`, so
+set `typescript.ignoreBuildErrors` to `false` and the build checks types with
+the native compiler.
+
 ## Proxy
 
 ```ts title="src/proxy.ts"
@@ -350,6 +389,47 @@ cookie (off by default, because the proxy refreshes the routes it matches).
 `authorizer` passed to `createNext`. See [Resources](/docs/specs/resources)
 for hooks, actions and permissions, and [API documents](/docs/specs) to
 serve the matching OpenAPI document.
+
+### The OpenAPI document
+
+Keep the map in its own module, so the routes and the document read the same
+object and can't drift. `satisfies` checks the map against `bsb.resources`
+without widening it:
+
+```ts title="src/features/api/api-resources.ts"
+import type { bsb } from "@/lib/supabase/server";
+
+export const API_BASE_PATH = "/api/v1";
+
+export const apiResources = {
+  customers: { operations: ["list", "get", "update", "delete"] },
+  projects: { operations: ["list", "get", "create", "update", "delete"] },
+} satisfies Parameters<typeof bsb.resources>[0];
+```
+
+```ts title="src/app/api/v1/openapi.json/route.ts"
+import { createOpenApi } from "better-supabase/spec";
+import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
+import { betterSupabase } from "@/lib/supabase";
+
+const document = createOpenApi(betterSupabase, {
+  info: { title: "My API", version: "1.0.0" },
+  basePath: API_BASE_PATH,
+  resources: apiResources,
+});
+
+export function GET(): Response {
+  return Response.json(document);
+}
+```
+
+A static segment wins over the catch-all, so `/api/v1/openapi.json` sits next
+to `/api/v1/[...path]`. The document describes every column of a model,
+including ones `select` leaves out of the responses.
+
+An action's `data` is typed from its `input` schema when you build it with
+`defineAction`. With an explicit database type, pass all three type
+arguments: `defineAction<Db, string, typeof Input>({ ... })`.
 
 ## Bearer callers
 

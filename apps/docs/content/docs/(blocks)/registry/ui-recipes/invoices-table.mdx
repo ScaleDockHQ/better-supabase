@@ -26,18 +26,19 @@ async function retry() {
  * billing page still shows the plan.
  */
 export async function InvoicesTable() {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "invoices.read")) {
-    return null;
-  }
-
-  const [list, t, format, locale] = await Promise.all([
+  // One round trip: the invoices read starts with the permission read, and RLS
+  // limits it to what the caller may see either way.
+  const [permissions, list, t, format, locale] = await Promise.all([
+    getPermissions(),
     getInvoices(),
     getExtracted("billing"),
     getFormatter(),
     getLocale(),
   ]);
+
+  if (!can(permissions, "invoices.read")) {
+    return null;
+  }
 
   if (list.kind === "no-organization") {
     return null;

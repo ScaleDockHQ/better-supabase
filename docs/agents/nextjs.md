@@ -18,7 +18,10 @@ flag.
   (`apps/docs/components/chat-panel.tsx`) does; `ask-ai.tsx` loads it with
   `next/dynamic` and `ssr: false`, so its client code stays out of the page.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
-  `<html>`, fonts and `metadataBase`.
+  `<html>`, fonts and `metadataBase`. Next serves it only when routing
+  matches nothing; a `notFound()` in a root layout renders Next's built-in
+  404 instead. In the example, `[locale]` matches every path, so unknown
+  `/api` paths answer from `app/api/[...rest]/route.ts`.
 - Outside a Vercel production build, `BSB_BUILD_SCOPE` is `minimal` and every
   `generateStaticParams` in docs and marketing returns its first 3 entries
   through `scopeStaticParams` (ADR 0109). Wrap a new one the same way, and
@@ -106,6 +109,67 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   Style the link with `buttonVariants()` instead.
 - `Math.random()` during render fails the prerender, including skeleton
   widths; use a fixed list.
+- next-intl's `Link` and `useRouter` take a plain string, so they bypass
+  `typedRoutes`. The example wraps them in `src/i18n/navigation.tsx` with
+  `Route` hrefs; import navigation from there, never from `next-intl`.
+- `typedEnv` writes `.next/dev/types/env.d.ts` only in `next dev`, and it
+  declares only the keys in local env files. Once it exists, Oxlint's
+  `dot-notation` flags `process.env["KEY"]` for those keys, while a clean
+  checkout flags nothing. Destructure `process.env` (`env.ts`,
+  `playwright.config.ts`) so both pass.
+- Turbopack constant-folds `const s = "pkg"; import(s)` into a static
+  import and tries to resolve the package, even inside code that never
+  runs in the app (the testing entry through `instrumentation.ts`).
+  Library code loads optional peers through `importOptionalPeer`
+  (`src/core/optional-peer.ts`).
+- data-grid cells must be top-level components. Pass handlers through a
+  context whose value is `useMemo` over `useCallback`s, and put per-row
+  flags (`removable`, `busy`) in the row data
+  (`features/members/components/member-table.tsx`). Inline cell renderers,
+  context values built in render and fresh functions in deps all fail
+  Oxlint.
+- The commit hook runs `ultracite fix` on the staged files, and it fails
+  with "No files found" when every staged file is lint-ignored (generated
+  clients alone). Commit generated files with the change that needs them.
+- After `git mv`, stage the edited file again: the hook lints the staged
+  content, not the working tree.
+- Permissions with overrides live in the database, not in the token, so a
+  proxy check costs one round trip before the first byte of every gated page.
+  The example redirects from `PermissionRedirect` instead, which runs after
+  the shell on the permissions `AppNav` already reads.
+- Start a private read together with `getPermissions()` instead of after it.
+  Two reads in a row keep the response open for two round trips, and Chrome
+  holds a reload of the same URL until that response ends (its HTTP cache
+  lock), so a reload looks slow even when the server answers at once.
+- Don't source `.env.development.local` into the shell that runs
+  `pnpm test:e2e`: the Playwright config prefers `process.env` over the stack
+  status, so a stale `NEXT_PUBLIC_SUPABASE_URL` breaks every browser call.
+
+## API and MCP in the example
+
+- `src/features/api/api-resources.ts` is the one resource map: `/api/v1`
+  serves it (`bsb.resources`) and `/api/v1/openapi.json` renders it
+  (`createOpenApi`). Check the map with `satisfies Parameters<typeof
+  bsb.resources>[0]`; a resource with only `select` then fails TypeScript's
+  weak-type check against the spec's `ResourceDescription`, so give it
+  `operations`.
+- `bsb.resources` serves models only. Block tables in `better_supabase`
+  (teams, catalog roles) are actions on `organizations`, and an action sees
+  only `{ id }` from the path.
+- Type an action's `data` with `defineAction` from `better-supabase/next`.
+  With an explicit `Db` type argument, pass the input schema's type as well
+  (`defineAction<Db, string, typeof Input>`); TypeScript doesn't infer the
+  rest.
+- The OpenAPI document ignores `select` and describes every column, and a
+  tag's description is the raw table comment, `@bsb` tags included.
+- The permissions block ships no `Authorizer`, so an MCP tool or action
+  `permission` is hidden and refused. The example's override tool relies on
+  `set_permission_override`, which refuses without `roles.manage`; the tool
+  returns that as a tool error.
+- An MCP tool that returns an array gets no `structuredContent`; clients
+  read the JSON from `content[0].text`.
+- The proxy matcher skips `/.well-known/oauth-protected-resource`, or
+  next-intl prefixes it with a locale and the metadata route answers 404.
 
 ## Routes and env
 

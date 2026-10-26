@@ -244,6 +244,30 @@ snapshot (`vitest run tests/exports.test.ts -u`, then review
   `tests/integration/block-session.ts`).
 - A changeset.
 
+## Blocks under an app
+
+The Next.js example runs the permissions catalog, teams and the other
+blocks next to its own tables. Things it ran into:
+
+- A block that reads permissions works with both modes of `permissions`:
+  role tables and the catalog. Check a new one against the fixture, which
+  runs the catalog (approvals didn't, until it was fixed).
+- The catalog has no wildcard. A role lists each key, so a new key needs a
+  line in every role that should have it.
+- `teams` leaves `patch` and `restore` off. An app that edits a slug or
+  restores an archived team sets `options: { patch: true, restore: true }`.
+- `teams` has no unique `(id, tenant_id)` key, so an app table can't use a
+  composite foreign key to keep its team in the same tenant. The example
+  checks it in a trigger (`customers_owner_team_check`).
+- `db.permissions.roles()` returns permission keys as `string`, while
+  `setOverride` takes the catalog's key union. Narrow the key at the edge
+  (the MCP tool in the example casts it with a `SAFETY:` comment).
+- Roles act on the active tenant only. A route that takes an organization
+  id in its path compares it to `context.tenant` itself
+  (`otherOrganization` in `api-resources.ts`).
+- The permissions block ships no `Authorizer` for `createMcp` and
+  `bsb.resources`, so their `permission` option can't use the catalog yet.
+
 ## Presets and instances
 
 - A named preset in `src/preset/presets.ts` lists `blocks` and, for nouns or
