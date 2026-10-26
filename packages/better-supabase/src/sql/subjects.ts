@@ -286,6 +286,43 @@ export function subjectsOption(
 }
 
 /**
+ * The record types `blocks.<instance>.on` allows, checked against
+ * `config.records`, or `undefined` when `on` is unset and every registered type
+ * is allowed.
+ */
+export function allowedSubjectTypes(
+  ctx: BlockSqlContext,
+): readonly string[] | undefined {
+  return ctx.on === undefined
+    ? undefined
+    : subjectsOption(ctx).map(([type]) => type);
+}
+
+/**
+ * A PL/pgSQL `if` that fails with `hint` unless the text expression `type` is
+ * one of the types `blocks.<instance>.on` allows; empty when `on` is unset.
+ */
+export function subjectTypeGuard(
+  ctx: BlockSqlContext,
+  type: string,
+  hint: string,
+  indent: string,
+): string {
+  const allowed = allowedSubjectTypes(ctx);
+
+  if (allowed === undefined) {
+    return "";
+  }
+
+  const list = allowed.map((each) => sqlString(each)).join(", ");
+
+  return `\n${indent}if ${allowed.length === 0 ? "true" : `${type} is null or ${type} not in (${list})`} then
+${indent}  raise exception 'blocks.${ctx.instance}.on does not allow this record type'
+${indent}    using errcode = '22023', hint = '${hint}';
+${indent}end if;`;
+}
+
+/**
  * `blocks.<instance>.on` keyed by record type: a list gives each type empty
  * settings, and unset gives none.
  */
