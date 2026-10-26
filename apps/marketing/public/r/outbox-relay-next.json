@@ -4,7 +4,7 @@
   "title": "Outbox relay route (Next.js)",
   "description": "app/api/outbox/route.ts: a cron route that relays each registered consumer's events.",
   "dependencies": [
-    "better-supabase@^0.29.0",
+    "better-supabase@^0.30.0",
     "server-only"
   ],
   "registryDependencies": [
