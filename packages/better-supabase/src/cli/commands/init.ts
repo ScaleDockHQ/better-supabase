@@ -15,6 +15,7 @@ import type {
 } from "../../preset/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
+import type { CliEnv } from "../env.ts";
 import type { InstallTarget, Project } from "../project/detect.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
@@ -68,6 +69,12 @@ import {
   templateContextFor,
   templatePlan,
 } from "../glue.ts";
+import {
+  detectExisting,
+  existingLines,
+  isDatabaseUrl,
+  planSnapshotFrom,
+} from "../init-existing.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { readPresetInput } from "../preset-input.ts";
 import { detectProject, installCommand } from "../project/detect.ts";
@@ -120,6 +127,12 @@ const INIT_ARGS = {
     description:
       "How the SQL modules reach the database: pg-delta (the default), migra or migrations",
     valueHint: "pg-delta|migra|migrations",
+  },
+  from: {
+    type: "string",
+    description:
+      "Where the project starts: a postgres:// URL (reads its schema into supabase/snapshot.json), or a preset, design code, URL or file like --preset",
+    valueHint: "url|name|code|file",
   },
   preset: {
     type: "string",
@@ -336,10 +349,26 @@ function withDesign(
 
 export async function runInit(
   config: ResolvedConfig,
-  args: InitArgs,
+  given: InitArgs,
   prompts?: Prompter,
   now: Now = () => new Date(),
+  env: CliEnv = {},
 ): Promise<CommandResult> {
+  const databaseFrom =
+    given.from !== undefined && isDatabaseUrl(given.from)
+      ? given.from
+      : undefined;
+
+  if (given.from !== undefined && given.preset !== undefined) {
+    throw new CliError("usage", "Pass --from or --preset, not both.");
+  }
+
+  // SAFETY: the spread keeps every parsed flag; only preset gains a value.
+  const withPreset = { ...given, preset: given.from } as InitArgs;
+
+  const args: InitArgs =
+    given.from === undefined || databaseFrom !== undefined ? given : withPreset;
+
   const flags = conventionFlags(args);
   const chosen = await chosenPreset(args, flags, prompts, config.root);
 
@@ -519,10 +548,13 @@ export async function runInit(
     );
   }
 
+  const existing = await detectExisting(config, env, config.root);
+
   const lines = [
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
       : `No framework found${where}.`,
+    ...(existing === undefined ? [] : ["", ...existingLines(existing)]),
     "",
     ...changeLines(applied),
     ...(workflow === "pg-delta"
@@ -541,6 +573,17 @@ export async function runInit(
     );
 
     lines.push(...changeLines(wrote));
+  }
+
+  let snapshotTables: number | undefined;
+
+  if (databaseFrom !== undefined) {
+    const read = await planSnapshotFrom(config, env, config.root, databaseFrom);
+
+    const wrote = await applyPlan(read.plan, { ...args, force: true });
+
+    snapshotTables = read.tables;
+    lines.push("", ...changeLines(wrote));
   }
 
   if (createUrlParam(args.preset, "authz") !== undefined) {
@@ -628,6 +671,18 @@ export async function runInit(
       command: `better-supabase gen${cwdFlag}`,
       when: "generates the typed client",
     },
+    ...(existing === undefined
+      ? []
+      : [
+          {
+            command: `better-supabase doctor${cwdFlag}`,
+            when: "reports which tables each rung covers",
+          },
+          {
+            command: `better-supabase table <table> enable <feature>${cwdFlag}`,
+            when: "turns on a feature for one of your tables",
+          },
+        ]),
     {
       command: "better-supabase skills install",
       when: "installs the agent skills",
@@ -657,6 +712,8 @@ export async function runInit(
       ...(inPackage ? { package: target.dir } : {}),
       integrations,
       ...(chosen === null ? {} : { preset: chosen.value }),
+      ...(existing === undefined ? {} : { existing }),
+      ...(snapshotTables === undefined ? {} : { snapshotTables }),
       files: applied.changes,
       hints,
     },
@@ -669,7 +726,8 @@ export const initCommand: AnyCommand = defineCliCommand({
   args: { ...CONVENTION_ARGS, ...INIT_ARGS, ...PLAN_ARGS },
   lists: ["integration"],
   completions: { ...CONVENTION_COMPLETIONS, preset: () => PRESET_NAMES },
-  run: (args, { config, io }) => runInit(config, args, io.prompts),
+  run: (args, { config, io, env }) =>
+    runInit(config, args, io.prompts, undefined, env),
 });
 
 /** The `blocks` and `appTables` keys a design adds to the preset's config. */
