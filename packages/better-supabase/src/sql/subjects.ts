@@ -290,7 +290,7 @@ export function subjectsOption(
  * `config.records`, or `undefined` when `on` is unset and every registered type
  * is allowed.
  */
-export function allowedSubjectTypes(
+function allowedSubjectTypes(
   ctx: BlockSqlContext,
 ): readonly string[] | undefined {
   return ctx.on === undefined
