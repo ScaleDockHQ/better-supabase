@@ -182,36 +182,36 @@ export const ADOPTION_RULES: readonly Rule[] = [
         tables.map((table) => [qualified(table), "database"]),
       );
 
-      return adoptedTables(context.config.blocks, ownTables).flatMap(
-        (adopted) => {
-          const table = tables.find(
-            (entry) =>
-              entry.schema === adopted.schema && entry.name === adopted.table,
-          );
+      return adoptedTables(context.config.blocks, ownTables, {
+        subjects: context.config.subjects,
+      }).flatMap((adopted) => {
+        const table = tables.find(
+          (entry) =>
+            entry.schema === adopted.schema && entry.name === adopted.table,
+        );
 
-          if (table === undefined) {
+        if (table === undefined) {
+          return [];
+        }
+
+        return adopted.textColumns.flatMap((logical): FindingInput[] => {
+          const name = adopted.columns[logical];
+          const column = table.columns.find((entry) => entry.name === name);
+
+          if (column?.isEnum !== true || column.isArray) {
             return [];
           }
 
-          return adopted.textColumns.flatMap((logical): FindingInput[] => {
-            const name = adopted.columns[logical];
-            const column = table.columns.find((entry) => entry.name === name);
+          const target = `${qualified(table)}.${column.name}`;
 
-            if (column?.isEnum !== true || column.isArray) {
-              return [];
-            }
-
-            const target = `${qualified(table)}.${column.name}`;
-
-            return [
-              {
-                message: `blocks.${adopted.module} writes text into ${target} (${adopted.logical}.${logical}), which is the enum ${column.typeSchema}.${column.udt}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`,
-                target,
-              },
-            ];
-          });
-        },
-      );
+          return [
+            {
+              message: `blocks.${adopted.module} writes text into ${target} (${adopted.logical}.${logical}), which is the enum ${column.typeSchema}.${column.udt}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`,
+              target,
+            },
+          ];
+        });
+      });
     },
   },
   {
@@ -234,6 +234,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
       const adopted = adoptedTables(
         context.config.blocks,
         appTablesOf(context),
+        { subjects: context.config.subjects },
       ).find(
         (entry) =>
           entry.module === "webhooks-out" && entry.logical === "endpoints",

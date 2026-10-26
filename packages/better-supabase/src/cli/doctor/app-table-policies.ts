@@ -23,7 +23,9 @@ import { catalogOf, qualified } from "./shared.ts";
 export function widenedAppTablePolicies(
   context: DoctorContext,
 ): FindingInput[] {
-  const tables = adoptedTables(context.config.blocks, appTablesOf(context));
+  const tables = adoptedTables(context.config.blocks, appTablesOf(context), {
+    subjects: context.config.subjects,
+  });
 
   if (tables.length === 0) {
     return [];
@@ -205,7 +207,9 @@ export function keepsAppsName(
   );
 
   const adopted = named
-    ? adoptedTables(context.config.blocks, appTablesOf(context))
+    ? adoptedTables(context.config.blocks, appTablesOf(context), {
+        subjects: context.config.subjects,
+      })
     : [];
 
   return (entry) => {

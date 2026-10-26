@@ -723,6 +723,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           modulePermissionKeys(
             context.config.blocks,
             context.config.blockNames,
+            context.config.subjects,
           ),
         ),
       );

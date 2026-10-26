@@ -36,8 +36,13 @@ export interface BlockSqlPermissionKey {
 export function modulePermissionKeys(
   config: AnyBlocksConfig,
   names: readonly string[],
+  subjects?: BlockSqlLayout["subjects"],
 ): BlockSqlPermissionKey[] {
-  const layout: BlockSqlLayout = { modules: config };
+  const layout: BlockSqlLayout = {
+    modules: config,
+    ...(subjects === undefined ? {} : { subjects }),
+  };
+
   checkModules(config);
   const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);

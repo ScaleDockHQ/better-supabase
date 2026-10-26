@@ -140,6 +140,7 @@ export async function moduleLayoutFor(
     await declarativeTexts(config),
     config.schemas,
     own.ownTables,
+    config.subjects,
   );
 
   if (adopted.length > 0) {

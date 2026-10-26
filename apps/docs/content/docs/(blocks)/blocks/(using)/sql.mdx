@@ -1412,7 +1412,9 @@ A block's `on` works three ways:
 - a list of names, `on: ["task"]`: the block uses those registered types, and
   an unknown name fails `gen` (doctor reports it as BS346).
 - an object: each entry merges onto the registered one, and the block's
-  keys win. A type the registry lacks needs its own `table`.
+  keys win, so an entry for a registered type can leave out `table` and
+  `idType`. `add`, `upgrade`, `gen` and doctor read the merged entry. A type
+  the registry lacks needs its own `table`.
 
 `webhooks-in` never falls back to the registry, because its subjects are the
 tables that inbound events write to.

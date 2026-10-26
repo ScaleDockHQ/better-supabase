@@ -146,6 +146,7 @@ export async function runAdopt(
   const proposal = proposeAdoption(block, await deps.tables(), {
     from: list(args.tables),
     blocks: config.blocks,
+    subjects: config.subjects,
     schemas: adoptSchemas(config),
   });
 
