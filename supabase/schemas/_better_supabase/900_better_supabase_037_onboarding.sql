@@ -1,6 +1,6 @@
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
--- @bsb-hash sha256:4ddb56fb04ac1918e4334e53e0786cdcf872fdb4cca98f7d175c01a0c7b020d5
+-- @bsb-hash sha256:47791fc90373fb92fc1221cbdb2768b393cd582ac20f3bcd16418a02a93a45a2
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ begin
     if onboarding_progress.tenant is null then
       raise exception 'Checklist % belongs to an organization', onboarding_progress.checklist using errcode = '22023', hint = 'ONBOARDING_SCOPE';
     end if;
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', onboarding_progress.tenant, 'onboarding.read'), false)) then
+    if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', onboarding_progress.tenant, 'onboarding.read'), false)) then
       raise exception 'You may not see this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
     end if;
   elsif onboarding_progress.tenant is not null then
@@ -78,7 +78,7 @@ begin
   elsif auth.uid() is null then
     raise exception 'Sign in first' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
-  if v_scope = 'organization' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', complete_onboarding_step.tenant, 'onboarding.complete'), false)) then
+  if v_scope = 'organization' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', complete_onboarding_step.tenant, 'onboarding.complete'), false)) then
     raise exception 'You may not complete this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
   return "better_supabase"."enrollment_mark"("better_supabase"."enrollment_ensure"(case when v_scope = 'organization' then complete_onboarding_step.tenant end, 'onboarding:' || complete_onboarding_step.checklist, null, (select c.steps from (values ('getting-started', 'organization', array['customer', 'invite', 'api-key', 'plan']::text[])) as c(checklist, scope, steps) where c.checklist = complete_onboarding_step.checklist), v_scope, case when v_scope = 'organization' then complete_onboarding_step.tenant::text else auth.uid()::text end, auth.uid()), complete_onboarding_step.step, true, auth.uid());
@@ -109,7 +109,7 @@ begin
   elsif auth.uid() is null then
     raise exception 'Sign in first' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
-  if v_scope = 'organization' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', reset_onboarding_step.tenant, 'onboarding.complete'), false)) then
+  if v_scope = 'organization' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', reset_onboarding_step.tenant, 'onboarding.complete'), false)) then
     raise exception 'You may not change this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x where x."program" = 'onboarding:' || reset_onboarding_step.checklist

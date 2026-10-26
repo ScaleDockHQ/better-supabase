@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:4d4c1ef86d18da5b824668ac63eef9a15065f205441c136ebbfc6483d4e5e984
+-- @bsb-hash sha256:8c1b8b7f9dc951b767f6c32a28f7ad1fbded029069bdb80567ba6dac477f4eb7
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -183,7 +183,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', invite_guest.tenant, 'guests.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', invite_guest.tenant, 'guests.manage'), false)) then
     raise exception 'not allowed to manage guests' using errcode = '42501', hint = 'GUEST_FORBIDDEN';
   end if;
   if (invite_guest.party_type is null) <> (invite_guest.party_id is null) then
@@ -366,7 +366,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."guests" x where x."id" = revoke_guest.guest_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'guests.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'guests.manage'), false)) then
     raise exception 'guest not found' using errcode = 'P0002', hint = 'GUEST_NOT_FOUND';
   end if;
   if v_row."status" <> 'revoked' then
@@ -414,7 +414,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_guest from "better_supabase"."guests" x where x."id" = grant_guest_access.guest_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_guest."tenant_id", 'guests.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_guest."tenant_id", 'guests.manage'), false)) then
     raise exception 'guest not found' using errcode = 'P0002', hint = 'GUEST_NOT_FOUND';
   end if;
   if v_guest."status" = 'revoked' then
@@ -514,7 +514,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."guest_grants" y where y."id" = revoke_guest_access.grant_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'guests.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'guests.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."guest_grants" y where y."id" = v_row."id";
@@ -545,7 +545,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_guests.tenant, 'guests.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_guests.tenant, 'guests.read'), false)) then
     raise exception 'not allowed to read guests' using errcode = '42501', hint = 'GUEST_FORBIDDEN';
   end if;
   return (
@@ -623,7 +623,7 @@ declare
     end)
     end);
 begin
-  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant::uuid, 'guests.read'), false)) then
+  if v_tenant is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant::uuid, 'guests.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (

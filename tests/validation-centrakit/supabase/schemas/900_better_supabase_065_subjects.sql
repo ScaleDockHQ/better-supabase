@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:6a8f332b7b97f09dd2b2c8514df19dbdf9715016b6e685d121776b70c3aa18d9
+-- @bsb-hash sha256:7503c1d2feca781955a69b4164996a5cc4662137eb9448ba1b533b5d4dd79b6a
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -172,7 +172,7 @@ begin
       return exists (
         select 1 from "better_supabase"."messages" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
@@ -183,7 +183,7 @@ begin
       return exists (
         select 1 from "better_supabase"."conversations" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)

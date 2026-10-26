@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:2cb1c5bdefb69dae0da9c9ccbdeb5f517f14b3e5bfbb6cadffe248cb5bcf10a1
+-- @bsb-hash sha256:8d94ad866b6b2356eed5737db2b317996c14c908c26e6a5f13902e3b83c0beff
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -239,7 +239,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -376,7 +376,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -387,7 +387,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -464,7 +464,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -485,7 +485,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -564,7 +564,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -588,7 +588,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -627,7 +627,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -785,7 +785,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -810,7 +810,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
@@ -901,7 +901,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:fa2bfd35483f62f22f07ce690169e60cf03c68c7023d5ea54d29943e9f3e47e5
+-- @bsb-hash sha256:9b5722791bbe408f709df746942974bb403dee66f390354f9accf1e0e053b7e1
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1139,7 +1139,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -1276,7 +1276,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -1287,7 +1287,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -1364,7 +1364,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -1385,7 +1385,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -1464,7 +1464,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -1488,7 +1488,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -1527,7 +1527,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -1703,7 +1703,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -1737,7 +1737,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
@@ -1828,7 +1828,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:faff47b8e5b56d19caa7d9611f58ab139b8a7ae7e87a5a5ca8276c597786aad7
+-- @bsb-hash sha256:cff6b15071a76d27ed883cfbb9667855d444b51f6a3c6689247445091f884e0b
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2068,7 +2068,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -2205,7 +2205,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -2216,7 +2216,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -2293,7 +2293,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -2314,7 +2314,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -2393,7 +2393,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "app_private"."time_entries" x where x."id" = v_row."id";
@@ -2417,7 +2417,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -2456,7 +2456,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "app_private"."timesheets" s
@@ -2614,7 +2614,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -2639,7 +2639,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
@@ -2730,7 +2730,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:afc811576ce53198d76a09663676b1194687bb0976c926ec0dfc213eb47638a0
+-- @bsb-hash sha256:de73dcc05a832c1133ce6bf0e7e9903c9d0f293a85e1d788feaff63c0b0395c1
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2968,7 +2968,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -3105,7 +3105,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -3116,7 +3116,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -3193,7 +3193,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -3214,7 +3214,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -3293,7 +3293,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -3317,7 +3317,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -3356,7 +3356,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -3514,7 +3514,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -3539,7 +3539,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
@@ -3767,7 +3767,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:13461ff526fc65318f79c60403607fd065cc5a4ec19f45d03a722c2b8a036ab4
+-- @bsb-hash sha256:35ecaee4b62a427543bf0bc0c8d496ec24b3d5c45f342b17483dcbc1864830f8
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3984,7 +3984,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -4121,7 +4121,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -4132,7 +4132,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -4209,7 +4209,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -4230,7 +4230,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -4309,7 +4309,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -4333,7 +4333,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -4372,7 +4372,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -4530,7 +4530,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -4555,7 +4555,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then
@@ -4646,7 +4646,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:ed14948b81ba24c3ef51cf59d8aabc987b4ce62c44cbd747c1b4ee2d56846692
+-- @bsb-hash sha256:1e87b9e9b143af9f359d6b461d46db3bc284e56b1dfb9b2eace5151862232a84
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4884,7 +4884,7 @@ begin
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if start_timer.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
@@ -5021,7 +5021,7 @@ begin
     if not coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.track'), false) then
       raise exception 'not allowed to track time here' using errcode = '42501', hint = 'TIME_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
+  elsif not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', log_time.tenant, 'time_tracking.manage'), false)) then
     raise exception 'not allowed to log time for another member' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   elsif not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = log_time.tenant and m."user_id" = v_user) then
     raise exception 'that user isn''t a member of this organization' using errcode = '22023', hint = 'TIME_USER_INVALID';
@@ -5032,7 +5032,7 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if log_time.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if (log_time.rate is null) <> (log_time.rate_currency is null) then
@@ -5109,7 +5109,7 @@ begin
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
   v_previous_started_at := v_row."started_at";
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to change this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_patch ? 'startedAt' then
@@ -5130,7 +5130,7 @@ begin
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
-  if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
+  if v_row."subject_type" is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   end if;
@@ -5209,7 +5209,7 @@ begin
   if not found then
     raise exception 'time entry not found' using errcode = 'P0002', hint = 'TIME_ENTRY_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."user_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', v_row."org_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
@@ -5233,7 +5233,7 @@ declare
   v_user uuid := coalesce(list_time_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."org_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."started_at" desc), '[]'::jsonb) into v_rows
@@ -5272,7 +5272,7 @@ declare
   v_entries jsonb;
   v_totals jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', get_timesheet.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s
@@ -5430,7 +5430,7 @@ begin
   if not found then
     raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."org_id", 'time_tracking.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."org_id", 'time_tracking.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
@@ -5455,7 +5455,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_timesheets.tenant, 'time_tracking.track'), false)) then

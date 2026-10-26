@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:0bd5b6c73415dc9d69a62c2a1805002f830aeddd2e1b12960919452055cd535d
+-- @bsb-hash sha256:ad5fa2312de757d764990979e28404b40ea97e8c6f197e067047f965f3c4cc53
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -196,7 +196,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   token text := encode(extensions.gen_random_bytes(24), 'hex');
   created "centrakit"."organization_invitations";
   platform_created "centrakit"."organization_invitations";
@@ -351,14 +351,14 @@ begin
   set "token" = token,
     "expires_at" = now() + valid_for
   where i."id" = invitation_id and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is not null
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."organization_id", 'members.invite'), false))
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."organization_id", 'members.invite'), false))
   returning * into updated;
   if updated."id" is null then
     update "centrakit"."organization_invitations" i
     set "token" = token,
       "expires_at" = now() + valid_for
     where i."id" = invitation_id and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false)))
     returning * into platform_updated;
     if platform_updated."id" is not null then
       perform "better_supabase".emit_event('invitation.resent', jsonb_build_object('invitationId', platform_updated."id", 'organizationId', null, 'email', platform_updated."email"), 'invitations/' || platform_updated."id"::text, null, null, 'domain');
@@ -431,7 +431,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   current_invite "centrakit"."organization_invitations";
   updated "centrakit"."organization_invitations";
   tenant uuid;
@@ -597,7 +597,7 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."organization_id", 'members.invite'), false)) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is not null
+  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."organization_id", 'members.invite'), false)) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is not null
   returning i."organization_id"::text into tenant;
   if found then
     perform "better_supabase".emit_event('invitation.revoked', jsonb_build_object('invitationId', invitation_id, 'organizationId', tenant), 'invitations/' || invitation_id::text, (tenant)::text, null, 'domain');
@@ -611,7 +611,7 @@ begin
   );
     return true;
   end if;
-  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false))) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null;
+  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false))) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null;
   if found then
     perform "better_supabase".emit_event('invitation.revoked', jsonb_build_object('invitationId', invitation_id, 'organizationId', null), 'invitations/' || invitation_id::text, null, null, 'domain');
   perform better_supabase.audit_event(

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:2d5ce7c8dc69ea92430df40e587fed7f2adf3a506b4f4c08fd5cf6231be8d957
+-- @bsb-hash sha256:a21a03949fbde7d6e66dbc8845dcc9401f63e9aaa4217dd1df84935cff8cae56
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -46,7 +46,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -83,7 +83,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -132,7 +132,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:8156b5deaff58ff15a8d06ee46c3dc0e3a60460062bd4b16cb4c75d849d31145
+-- @bsb-hash sha256:a1b861da6d052fc1aa4d6fcada9d1240741dc18165b3657e3e4e15929089868b
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,7 +150,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -177,7 +177,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -221,7 +221,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -277,7 +277,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:5a54fa4d29942b939365f19e9cc555d697c2ed9050679f40adcb0b9542863ddb
+-- @bsb-hash sha256:095c9605170ab9ae3dab34b5bf71f6f94b99a33e9618c6ba3c61ea52cd337835
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,7 +297,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -324,7 +324,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -361,7 +361,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -410,7 +410,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:43a8dc4f727f941bcfbf0f97d2d63483d93bd5dc5e8d1271e47707e021471994
+-- @bsb-hash sha256:d2a71f6a8ae64675b869598e7ab25a3de34246969529245ab0ae12b00e98e15a
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -428,7 +428,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -455,7 +455,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -492,7 +492,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -572,7 +572,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:e1343114152af146795d06cb961acf5f57bee7326ea2e6c92a337b1eb4e9320b
+-- @bsb-hash sha256:e0c2152766da9702202f2426ee72cdcbaa0067f392d76f5490b3d7ec2abd1e89
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -593,7 +593,7 @@ declare
   v_tenant text;
   v_scope text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -641,7 +641,7 @@ declare
   v_vault uuid;
   v_row "better_supabase"."credentials";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;
@@ -709,7 +709,7 @@ declare
   v_tenant text;
   v_scope text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role reads and writes credentials'
       using errcode = '42501', hint = 'CREDENTIALS_FORBIDDEN';
   end if;

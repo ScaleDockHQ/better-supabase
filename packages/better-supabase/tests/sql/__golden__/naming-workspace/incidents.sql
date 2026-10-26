@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:86f0dc15a25eb14997af5b3ced7e95d1512775d92dcdb9ecfd30f08ddac3a38b
+-- @bsb-hash sha256:a603384ce314797cee9472ec45689e10a3fe491cded84b01dd596944c480d69b
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -338,7 +338,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if nullif(trim(save_status_component.name), '') is null then
@@ -383,7 +383,7 @@ begin
   if not found then
     raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."status_components" x where x."id" = v_row."id";
@@ -424,7 +424,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_incident.tenant, 'incidents.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_incident.tenant, 'incidents.write'), false)) then
     raise exception 'not allowed to open incidents' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if jsonb_typeof(open_incident.attrs) is distinct from 'object' then
@@ -480,7 +480,7 @@ begin
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change incidents' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if jsonb_typeof(update_incident.attrs) is distinct from 'object' then
@@ -532,7 +532,7 @@ begin
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to update incidents' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if post_incident_update.status is not null and post_incident_update.status not in ('investigating', 'identified', 'monitoring', 'resolved') then
@@ -583,7 +583,7 @@ begin
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change incidents' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   perform "better_supabase"."incident_apply_impacts"(v_row."id", set_incident_impacts.impacts);
@@ -660,7 +660,7 @@ begin
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if jsonb_typeof(save_postmortem.attrs) is distinct from 'object' then
@@ -706,7 +706,7 @@ begin
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.manage'), false)) then
     raise exception 'not allowed to publish postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if v_row."status" <> 'resolved' then
@@ -739,7 +739,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then

@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:6175f5dbb151baf887cc6b5c636c1a2ce05277c8061ebafdaee1aeced393b457
+-- @bsb-hash sha256:f877cb5a322c87229a4cfeaf3beb58b8e06e17e5bf88489a15b26084835b8662
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -254,7 +254,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_read record;
 begin
   if (select auth.uid()) is null and not v_service then

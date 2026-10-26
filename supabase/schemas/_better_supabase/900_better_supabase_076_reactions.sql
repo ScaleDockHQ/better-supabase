@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:cbab3990f3a54775826df68f4ac79adb41359539af80ecc763139e8d26f7a904
+-- @bsb-hash sha256:f4163143a61942bdc40b06b3be6676b039cb4a85ff8c8ebf898e31c8ea8704b5
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -335,7 +335,7 @@ declare
   v_actor text;
   v_user uuid;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_actor := coalesce(react.actor, 'service');
   elsif react.actor is not null then
     raise exception 'only the service role reacts for another actor' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
@@ -427,7 +427,7 @@ begin
   if vote.value is null or vote.value not in (-1, 0, 1) then
     raise exception 'a vote is 1, -1 or 0' using errcode = '22023', hint = 'REACTION_INVALID';
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_actor := coalesce(vote.actor, 'service');
   elsif vote.actor is not null then
     raise exception 'only the service role votes for another actor' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
@@ -499,7 +499,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_custom_emoji.tenant, 'reactions.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_custom_emoji.tenant, 'reactions.manage'), false)) then
     raise exception 'not allowed to manage custom emoji' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
   end if;
   insert into "better_supabase"."custom_emoji" ("tenant_id", "shortcode", "attachment_id", "url", "created_by")
@@ -530,7 +530,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reactions.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reactions.manage'), false)) then
     raise exception 'not allowed to manage custom emoji' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."reactions" r

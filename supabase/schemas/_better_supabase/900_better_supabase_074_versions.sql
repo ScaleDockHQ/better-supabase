@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:a73dada437f3243e2f87748cc0041d127b9e05e8d85edafed5b2c113192e99b1
+-- @bsb-hash sha256:c714ad17f0abcd25a4caa559a9eeafffef69b629801c306c008b44ce168d5067
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ declare
   v_content jsonb := snapshot_version.content;
   v_result jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and case snapshot_version.subject_type
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and case snapshot_version.subject_type
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant) and coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'customers.read'), false)
     else false
@@ -207,7 +207,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and case list_versions.subject_type
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and case list_versions.subject_type
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant) and coalesce(better_supabase.can('tenant', list_versions.tenant, 'customers.read'), false)
     else false
@@ -244,7 +244,7 @@ begin
   if not found then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and case v_row."subject_type"
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and case v_row."subject_type"
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'customers.read'), false)
     else false
@@ -321,7 +321,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and case v_subject_type
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and case v_subject_type
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
@@ -429,7 +429,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.create'), false) and case v_subject_type
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.create'), false) and case v_subject_type
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
@@ -469,7 +469,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then

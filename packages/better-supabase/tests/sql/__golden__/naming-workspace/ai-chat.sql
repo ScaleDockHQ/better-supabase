@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:399aac4f84b349798ec9feb577b8d909b4fbe1e631f9c147dd8e462770d17600
+-- @bsb-hash sha256:33e300a101c8676ccaeebb377b659add0d6b19bf02df0aecdfb68d9cfbed8484
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -418,7 +418,7 @@ as $$
     select 1 from "better_supabase"."ai_chats" x
     where x."id" = ai_chat_can_read.chat
       and (
-        coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+        coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
         or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."workspace_id", 'ai_chat.read'), false))
       )
@@ -473,7 +473,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_owner := coalesce((v_fields ->> 'owner_id')::uuid, v_owner);
   elsif not coalesce(better_supabase.can('tenant', create_ai_chat.tenant, 'ai_chat.create'), false) then
     raise exception 'You may not start chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
@@ -481,7 +481,7 @@ begin
   if v_owner is null then
     raise exception 'Sign in first' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  if v_visibility = 'organization' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_chat.tenant, 'ai_chat.share'), false)) then
+  if v_visibility = 'organization' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_chat.tenant, 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   v_id := coalesce((v_fields ->> 'id')::uuid, gen_random_uuid());
@@ -530,14 +530,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = update_ai_chat.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."workspace_id" = v_row."workspace_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility" <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_chats" x set
@@ -580,7 +580,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.admin'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.admin'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -852,7 +852,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -903,7 +903,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -972,7 +972,7 @@ declare
   v_status text := coalesce(save_ai_assistant_message.status, 'complete');
   v_created boolean;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = save_ai_assistant_message.chat for update;
@@ -1043,7 +1043,7 @@ declare
   v_run "better_supabase"."ai_runs";
   v_run_id uuid;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = claim_ai_chat_stream.chat for update;
@@ -1092,7 +1092,7 @@ declare
   v_status text := coalesce(release_ai_chat_stream.status, 'completed');
   v_found boolean := false;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if v_status not in ('completed', 'failed', 'cancelled') then
@@ -1134,7 +1134,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_chat."owner_id" = (select auth.uid())) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -1160,7 +1160,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_runs" x set
@@ -1188,7 +1188,7 @@ declare
   v_chat "better_supabase"."ai_chats";
   v_row "better_supabase"."ai_tool_approvals";
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = record_ai_tool_approval.chat;
@@ -1285,7 +1285,7 @@ declare
 begin
   perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   select * into v_row from "better_supabase"."ai_tool_approvals" x where x."approval_id" = decide_ai_tool_approval.approval_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No approval %', decide_ai_tool_approval.approval_id using errcode = 'P0002', hint = 'AI_APPROVAL_NOT_FOUND';
   end if;
   return "better_supabase"."apply_ai_tool_approval"(decide_ai_tool_approval.approval_id, decide_ai_tool_approval.approved, decide_ai_tool_approval.reason);
@@ -1330,7 +1330,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_ai_tool_policy.tenant, 'ai_chat.admin'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_ai_tool_policy.tenant, 'ai_chat.admin'), false)) then
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
@@ -1357,7 +1357,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ai_tool_policies_for.tenant, 'ai_chat.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ai_tool_policies_for.tenant, 'ai_chat.read'), false)) then
     return '{}'::jsonb;
   end if;
   return (
@@ -1381,7 +1381,7 @@ declare
   v_chat "better_supabase"."ai_chats";
   v_row "better_supabase"."ai_pending_inputs";
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = open_ai_pending_input.chat;
@@ -1416,7 +1416,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_pending_inputs" x where x."id" = answer_ai_pending_input.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = (select auth.uid())) then
     raise exception 'No question %', answer_ai_pending_input.id using errcode = 'P0002', hint = 'AI_INPUT_NOT_FOUND';
   end if;
   if v_row."answered_at" is not null then
@@ -1524,7 +1524,7 @@ begin
   where x."id" = revoke_ai_chat_share.id
     and x."revoked_at" is null
     and (
-      coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+      coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or x."created_by" = (select auth.uid())
       or exists (select 1 from "better_supabase"."ai_chats" c where c."id" = x."chat_id" and c."owner_id" = (select auth.uid()))
     )
@@ -1555,7 +1555,7 @@ as $$
   from "better_supabase"."ai_chat_shares" x
   join "better_supabase"."ai_chats" c on c."id" = x."chat_id"
   where x."chat_id" = list_ai_chat_shares.chat
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or c."owner_id" = (select auth.uid()));
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or c."owner_id" = (select auth.uid()));
 $$;
 revoke execute on function "better_supabase"."list_ai_chat_shares"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_chat_shares"(uuid) to authenticated, service_role;
@@ -1609,7 +1609,7 @@ declare
     else '[]'::jsonb
   end;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_model_catalog" ("model_id", "provider", "name", "pricing", "capabilities", "plans", "enabled")
@@ -1652,7 +1652,7 @@ as $$
 declare
   v_tenant uuid := allowed_ai_models.tenant;
 begin
-  if v_tenant is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'ai_chat.read'), false)) then
+  if v_tenant is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'ai_chat.read'), false)) then
     v_tenant := null;
   end if;
   return (
@@ -1677,7 +1677,7 @@ as $$
 declare
   v_row "better_supabase"."ai_moderation_events";
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_moderation_events" ("workspace_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
@@ -1707,7 +1707,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_ai_moderation_events.tenant, 'ai_chat.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_ai_moderation_events.tenant, 'ai_chat.moderate'), false)) then
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
@@ -1734,7 +1734,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   with doomed as (
@@ -1998,7 +1998,7 @@ begin
       select * from "better_supabase"."ai_runs" x
       where (
           case when list_ai_runs.chat is not null then x."chat_id" = list_ai_runs.chat
-          else coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."owner_id" = (select auth.uid()) end
+          else coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."owner_id" = (select auth.uid()) end
         )
         and (
           list_ai_runs.active is null
@@ -2024,7 +2024,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_runs" x set "external_run_id" = attach_ai_run.external_run_id
@@ -2074,7 +2074,7 @@ declare
   v_status text := coalesce(record_ai_run_step.step ->> 'status', 'running');
   v_detail jsonb := coalesce(record_ai_run_step.step -> 'detail', '{}'::jsonb);
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_run from "better_supabase"."ai_runs" x where x."id" = record_ai_run_step.run;
@@ -2140,7 +2140,7 @@ as $$
 declare
   v_row "better_supabase"."ai_harness_sessions";
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ai_harness_sessions" x
@@ -2171,7 +2171,7 @@ declare
   v_row "better_supabase"."ai_harness_sessions";
   v_status text := save_ai_harness_session.fields ->> 'status';
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if nullif(save_ai_harness_session.harness, '') is null then
@@ -2247,7 +2247,7 @@ declare
   v_chat "better_supabase"."ai_chats";
   v_row "better_supabase"."ai_harness_sessions";
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if nullif(lock_ai_harness_session.harness, '') is null then
@@ -2291,7 +2291,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:b28a277636a63fe05a3b1719a2b0d13567233bd819967c3ecf810ac8796aa556
+-- @bsb-hash sha256:adda3fa243050bb648885e0067eac9092254aa33148a322250e7ca36971f4682
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -323,7 +323,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', assign_subject.tenant, 'assignment.assign'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', assign_subject.tenant, 'assignment.assign'), false)) then
     raise exception 'You need assignment.assign to assign records' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if subject_id is null or length(subject_id) > 200 then

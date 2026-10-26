@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:bc07d3ccbb8ff3370fd86d4bae8d0e4f6a73155693e3c68179ddb8158a91c319
+-- @bsb-hash sha256:f6a5dd65308ee9f9dfb40ea3cad8ace696533437c625a5a86c24edc7403f46a0
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ begin
   else
     raise exception 'subject_type must be the company or the person type' using errcode = '22023', hint = 'ENRICHMENT_SUBJECT_UNKNOWN';
   end if;
-  if v_target is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', (v_target ->> 'organizationId')::uuid, 'enrichment.run'), false)) then
+  if v_target is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', (v_target ->> 'organizationId')::uuid, 'enrichment.run'), false)) then
     raise exception 'No company or person you can enrich has this id' using errcode = 'P0002', hint = 'ENRICHMENT_NOT_FOUND';
   end if;
   return v_target;
@@ -166,7 +166,7 @@ begin
   else
     raise exception 'subject_type must be the company or the person type' using errcode = '22023', hint = 'ENRICHMENT_SUBJECT_UNKNOWN';
   end if;
-  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'enrichment.run'), false)) then
+  if v_tenant is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'enrichment.run'), false)) then
     raise exception 'No company or person you can enrich has this id' using errcode = 'P0002', hint = 'ENRICHMENT_NOT_FOUND';
   end if;
   if v_status = 'matched' and coalesce(record_enrichment.fill, true) then

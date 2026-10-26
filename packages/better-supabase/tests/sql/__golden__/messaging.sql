@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:026dd9bcfd5016b95eb1f58659eef4bf79e7da575029ac93719be9fde71abefb
+-- @bsb-hash sha256:091e54d729d9ae292b5511e4f6311b0fb45e66f0f2ed25b14ce1728f07595aa5
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -394,7 +394,7 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -404,7 +404,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   case can_conversation.action
@@ -446,7 +446,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -475,7 +475,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -493,7 +493,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -553,7 +553,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -598,7 +598,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -633,7 +633,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -814,7 +814,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -992,7 +992,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
     perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -1076,7 +1076,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -1188,7 +1188,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -1441,7 +1441,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then
@@ -1655,7 +1655,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:ba93b29e91d59895dbba920e500c381cd0c065828497310d5ff7ab292741718a
+-- @bsb-hash sha256:e724c5cd21d23ca2ca96aa064b73bcce144782c65a8ead3d205d90ef2d31464c
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2197,7 +2197,7 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
     else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
@@ -2210,7 +2210,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   if v_conv."kind" = 'inbox' then
@@ -2257,7 +2257,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -2286,7 +2286,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_guest or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_guest or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -2304,7 +2304,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -2364,7 +2364,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -2409,7 +2409,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -2444,7 +2444,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -2626,7 +2626,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -2846,7 +2846,7 @@ begin
   if v_conv."kind" = 'inbox' then
     raise exception 'write to an inbox conversation through send_inbox_message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
     perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -2953,7 +2953,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -3066,7 +3066,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -3324,7 +3324,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then
@@ -3582,7 +3582,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:1b9f41ff58b2d9ecb013fa49d11ce611fb9cd8ae0c140331a94943fdf20a1562
+-- @bsb-hash sha256:d890bc464a23cdcea35ac05c3d3f36f9d4228ab5a0269933e41310a80c2f9746
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3977,7 +3977,7 @@ declare
 begin
   select * into v_conv from "app_private"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "app_private"."is_conversation_member"(c."id")
@@ -3987,7 +3987,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   case can_conversation.action
@@ -4029,7 +4029,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -4058,7 +4058,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -4076,7 +4076,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -4136,7 +4136,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
     or ("app_private"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -4181,7 +4181,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -4216,7 +4216,7 @@ begin
   if not found or not "app_private"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -4397,7 +4397,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "app_private"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -4575,7 +4575,7 @@ begin
   if not found or not "app_private"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
     perform "app_private"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -4659,7 +4659,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -4771,7 +4771,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "app_private"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "app_private"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "app_private"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -5024,7 +5024,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then
@@ -5238,7 +5238,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:c94fe2edc1984dd1b6bf5d55d4163aba25bd3a3bfe52f26c250eda8f25a4600e
+-- @bsb-hash sha256:4a01096f0fb69e98cdb992029e00523c8bf63c4854bfea551a711b3bced7aa0f
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5631,7 +5631,7 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -5641,7 +5641,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   case can_conversation.action
@@ -5683,7 +5683,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -5712,7 +5712,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -5730,7 +5730,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -5790,7 +5790,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -5835,7 +5835,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -5870,7 +5870,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -6051,7 +6051,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -6229,7 +6229,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
     perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -6313,7 +6313,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -6425,7 +6425,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -6678,7 +6678,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then
@@ -7165,7 +7165,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:62ce2d181ca97a1d82ca1b10ad6c05e79cd850892edd65b9de626b59e703b8a6
+-- @bsb-hash sha256:08f438e9108ae8f82706ffaa45eaef2cb6db2b35364c55622d8ab116745551f3
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7557,7 +7557,7 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -7567,7 +7567,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   case can_conversation.action
@@ -7609,7 +7609,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -7638,7 +7638,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -7656,7 +7656,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -7716,7 +7716,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -7761,7 +7761,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -7796,7 +7796,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -7977,7 +7977,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -8155,7 +8155,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
     perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -8239,7 +8239,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -8351,7 +8351,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -8604,7 +8604,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then
@@ -8818,7 +8818,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:848c78ff91971b815a58ded68bd0e5b287a880dbbaf20448d933cd30184cc704
+-- @bsb-hash sha256:e7b4e73fc99b7c9f0b87264164ee9e5bb03ab98f5a975a0a1d25e4868151c860
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9211,7 +9211,7 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."org_id", 'messages.read'), false)
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."org_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
@@ -9221,7 +9221,7 @@ begin
   if not found then
     return false;
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
   end if;
   case can_conversation.action
@@ -9263,7 +9263,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
@@ -9292,7 +9292,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       -- A record with a tenant column takes conversations in its own tenant only.
@@ -9310,7 +9310,7 @@ begin
         raise exception 'a channel''s access is members or tenant' using errcode = '22023', hint = 'MESSAGING_ACCESS_INVALID';
       end if;
     when 'inbox' then
-      if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
         raise exception 'the inbox opens its own conversations' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
       end if;
       v_access := 'members';
@@ -9370,7 +9370,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm', 'subject') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or add_conversation_members.users <@ array[auth.uid()]))
     or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and add_conversation_members.users <@ array[auth.uid()])) then
@@ -9415,7 +9415,7 @@ begin
   if v_conv."kind" in ('dm', 'group_dm') then
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or remove_conversation_member.member = auth.uid()
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -9450,7 +9450,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or v_conv."created_by" = auth.uid()
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
@@ -9631,7 +9631,7 @@ as $$
 declare
   v_who text;
 begin
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_who := coalesce(set_typing.actor, 'bot');
   elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
@@ -9809,7 +9809,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
+  if v_conv."access" = 'tenant' and not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."org_id", 'messages.send'), false) then
     perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
@@ -9893,7 +9893,7 @@ declare
   v_id uuid;
   v_sent integer := 0;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'publish_due_messages runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   for v_id in
@@ -10005,7 +10005,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_msg."author_id" = auth.uid() or "better_supabase"."can_conversation"(v_msg."conversation_id", 'moderate')) then
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
@@ -10258,7 +10258,7 @@ declare
   v_tenant uuid;
   v_count integer;
 begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+  if not coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if save_thread_summary.thread is null then

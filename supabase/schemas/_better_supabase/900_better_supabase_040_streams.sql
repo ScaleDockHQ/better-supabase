@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:82ce3787de19d37ea489f394aa30d7b98d8f07edf457721d195f932d818fcd1e
+-- @bsb-hash sha256:d4557fd4d8a245a80f385e228ea62e07cf7d1bec1f7bebed8d7ea04101f285f7
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -266,7 +266,7 @@ begin
   where "id" = stream_cancel.stream_id
     and "cancel_requested_at" is null
     and "closed_at" is null
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "owner_id" = (select auth.uid()))
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "owner_id" = (select auth.uid()))
   returning "wake" into v_wake;
   if not found then
     return false;

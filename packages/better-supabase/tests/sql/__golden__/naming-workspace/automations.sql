@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:588f50e76b0b21fb985d690db2a6a7733c895a2b68b21e987a516c90ef7bb826
+-- @bsb-hash sha256:9f00b1ceb99f9e3abaf024530ba27b9d12e6f2cdf0ab6d809d26cab6a599c115
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -626,7 +626,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role syncs rule fields' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if jsonb_typeof(fields) is distinct from 'array' then
@@ -740,7 +740,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.edit'), false) end)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'rules.edit'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -818,7 +818,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
@@ -845,7 +845,7 @@ declare
   v_row "better_supabase"."rules";
 begin
   select * into v_row from "better_supabase"."rules" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
     return null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."workspace_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
@@ -864,7 +864,7 @@ declare
   v_tenant uuid;
 begin
   select x."workspace_id" into v_tenant from "better_supabase"."rules" x where x."id" = rule_versions_list.id;
-  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'rules.read'), false)) then
+  if v_tenant is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'rules.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
@@ -892,10 +892,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
@@ -926,10 +926,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.edit'), false) end)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.edit'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -956,7 +956,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.admin'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.admin'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -983,7 +983,7 @@ declare
   v_result jsonb;
   v_matches jsonb := '[]'::jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', matching_rules.tenant, 'rules.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', matching_rules.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
@@ -1025,10 +1025,10 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') not in ('live', 'test') then
     raise exception 'mode is live or test' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
-  if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."workspace_id", 'rules.edit'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."workspace_id", 'rules.edit'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   insert into "better_supabase"."rule_evaluations" ("workspace_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
@@ -1058,7 +1058,7 @@ declare
   v_result jsonb;
   v_matches jsonb := '[]'::jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   perform "better_supabase"."install_default_rules"(run_rules.tenant);
@@ -1124,14 +1124,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.edit'), false) end)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."workspace_id", 'rules.edit'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   update "better_supabase"."rules" x set
@@ -1167,7 +1167,7 @@ declare
   v_tenant uuid;
 begin
   select x."workspace_id" into v_tenant from "better_supabase"."rules" x where x."id" = rule_evaluations_list.rule;
-  if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'rules.read'), false)) then
+  if v_tenant is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'rules.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (

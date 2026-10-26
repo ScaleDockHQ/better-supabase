@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:212d813d30d9f1ce289a6ddc6709bb1a2b83f4747bcef039c9045a618aeac7f0
+-- @bsb-hash sha256:f527fcda1a0cb17266098cc5c980e3bb442897e42154fd51b68ca78ad7f97a70
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -164,7 +164,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_read record;
 begin
   if (select auth.uid()) is null and not v_service then
@@ -275,7 +275,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if (select auth.uid()) is null and not v_service then
     raise exception 'only signed-in users and the service role reveal notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';
@@ -361,7 +361,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_service boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
 begin
   if (select auth.uid()) is null and not v_service then
     raise exception 'only signed-in users and the service role reveal keys' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';

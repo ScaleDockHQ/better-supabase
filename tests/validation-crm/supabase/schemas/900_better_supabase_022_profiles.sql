@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:5dc4bfde992ba6757bafac5528221a7032a74add90278e6ba0ff78f571c1173a
+-- @bsb-hash sha256:26a985dbb636b44bec5d776238972d50740f86a84e8522978e0ee8b3246bc899
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."user_id" is distinct from old."user_id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"

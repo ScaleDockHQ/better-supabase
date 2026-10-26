@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:cda5cd2f2e023f7021e7251b07f389541bc034d508280e973413733ab004a10d
+-- @bsb-hash sha256:ac15a86cb0ededa47eec19b9c8c7bae95bd15fbaaee4187f3b52087d70270717
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,7 +168,7 @@ begin
       raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
     end if;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template.tenant is not null and coalesce(better_supabase.can('tenant', save_template.tenant, 'templates.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template.tenant is not null and coalesce(better_supabase.can('tenant', save_template.tenant, 'templates.manage'), false))) then
     raise exception 'You may not change templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   if save_template.template_id is null and (save_template.type is null or save_template.type !~ '^[a-z][a-z0-9_.-]{0,63}$') then
@@ -351,7 +351,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not remove this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   delete from "better_supabase"."templates" x where x."id" = remove_template.template_id;
@@ -381,7 +381,7 @@ begin
   if not found then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not edit this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   if save_template_draft.body is null then
@@ -439,7 +439,7 @@ begin
   if not found then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not publish this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   update "better_supabase"."template_versions" x set "published_at" = now()
@@ -504,7 +504,7 @@ begin
   if not found then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not change this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   if set_default_template.on_default then
@@ -543,7 +543,7 @@ begin
   if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from fork_template.tenant) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
-  if fork_template.tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
+  if fork_template.tenant is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (fork_template.tenant is not null and coalesce(better_supabase.can('tenant', fork_template.tenant, 'templates.manage'), false))) then
     raise exception 'You may not create templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."template_versions" y
@@ -665,7 +665,7 @@ begin
   if template_apply_target.tenant is null then
     raise exception 'Applying a template needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', template_apply_target.tenant, 'templates.apply'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', template_apply_target.tenant, 'templates.apply'), false)) then
     raise exception 'You may not apply templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   select * into v_tpl from "better_supabase"."templates" x where x."id" = template_apply_target.template_id;
@@ -734,7 +734,7 @@ begin
   if record_template_application.tenant is null then
     raise exception 'Applying a template needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', record_template_application.tenant, 'templates.apply'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', record_template_application.tenant, 'templates.apply'), false)) then
     raise exception 'You may not apply templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
   select * into v_tpl from "better_supabase"."templates" x where x."id" = record_template_application.template_id;

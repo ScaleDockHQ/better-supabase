@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:8dc992ac8d04a990743ced58fd1881f10910afd5c4e24996962621fb97983ca7
+-- @bsb-hash sha256:5b09b8bbd42e065049f48ffcdfbb973a141275914dfb86e615ead6f2919d6edd
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -130,7 +130,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -165,7 +165,7 @@ declare
   v_check "better_supabase"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "better_supabase"."lead_score_checks" ("tenant_id", "subject_type", "subject_id")
@@ -274,7 +274,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:97eba12d28a53a34fb49a4c19b4b06eb4f21fe66b7e7dd3eab8f112362a1b831
+-- @bsb-hash sha256:08554086a2fab8eadc16ebe29f0cb53e4f9deece744bf3ac094f5acf8cd5f615
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -363,7 +363,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -420,7 +420,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -455,7 +455,7 @@ declare
   v_check "better_supabase"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "better_supabase"."lead_score_checks" ("tenant_id", "subject_type", "subject_id")
@@ -635,7 +635,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:854dc5905739c1fc4eb5c545772cb160ae2c98a26c997661a1808b9deaa2b7c3
+-- @bsb-hash sha256:f0e920ef8240fb5a5902572739dabacb408136f30c05aa5c3d29b813717a0e07
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -726,7 +726,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -766,7 +766,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -801,7 +801,7 @@ declare
   v_check "app_private"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "app_private"."lead_score_checks" ("tenant_id", "subject_type", "subject_id")
@@ -910,7 +910,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:28ec1aca47a92a307852b06ad09ba752256fdb81ce63f6ea43884d59e6826201
+-- @bsb-hash sha256:41e65e9d389ed0fbb8a10c3456c8680c5ad3363ec82923af0198b37e15ac0c06
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -999,7 +999,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -1039,7 +1039,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -1074,7 +1074,7 @@ declare
   v_check "better_supabase"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "better_supabase"."lead_score_checks" ("tenant_id", "subject_type", "subject_id")
@@ -1232,7 +1232,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:6237f344bfb5e6c96230f5e5e8c8bc2b6fe3734411d742ec55e9d208affa3bb5
+-- @bsb-hash sha256:a3fbc9d45bc841fd6609ff58c78d39d10e462de08411846d5a349f05d7d26a8d
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1318,7 +1318,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -1358,7 +1358,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -1394,7 +1394,7 @@ declare
   v_check "better_supabase"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "better_supabase"."lead_score_checks" ("tenant_id", "subject_type", "subject_id")
@@ -1503,7 +1503,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:da8109edd903648585373ffc4f4faac27f54f6261b569f1983f15f1ed9e1a771
+-- @bsb-hash sha256:975b8bf5a670d29cbac6daf1ad8d63ee8801d16ad519137351f8a7cd71636447
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1592,7 +1592,7 @@ declare
   v_row jsonb;
   v_tenant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (lead_fields.tenant is not null and coalesce(better_supabase.can('tenant', lead_fields.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   begin
@@ -1632,7 +1632,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (score_lead.tenant is not null and coalesce(better_supabase.can('tenant', score_lead.tenant, 'scores.compute'), false))) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   if score_lead.subject_type not in ('person') then
@@ -1667,7 +1667,7 @@ declare
   v_check "better_supabase"."lead_score_checks";
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to score leads' using errcode = '42501', hint = 'LEAD_SCORING_FORBIDDEN';
   end if;
   insert into "better_supabase"."lead_score_checks" ("org_id", "subject_type", "subject_id")

@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:80d852fb6bd0a7821e17cb849c307d5e5b883306629752c435c32da25db690e3
+-- @bsb-hash sha256:a2bcd3b0827d5c8b59cce3f54d0c81f4dcd362924cfbbc1144dc6123781c2013
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -222,7 +222,7 @@ as $$
 declare
   v_row "better_supabase"."retention_policies";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   insert into "better_supabase"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
@@ -242,7 +242,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
@@ -274,7 +274,7 @@ as $$
 declare
   v_row "better_supabase"."legal_holds";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
   end if;
   insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
@@ -303,7 +303,7 @@ as $$
 declare
   v_row "better_supabase"."legal_holds";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role releases legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
   end if;
   update "better_supabase"."legal_holds" x set "released_at" = now(), "released_by" = auth.uid()
@@ -508,7 +508,7 @@ declare
   v_refs jsonb;
   v_all jsonb := '[]'::jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if not exists (
@@ -671,7 +671,7 @@ as $$
 declare
   v_row "better_supabase"."data_exports";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   update "better_supabase"."data_exports" x set "status" = 'running', "error" = null
@@ -703,7 +703,7 @@ declare
   v_rows jsonb;
   v_after text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x where x."id" = data_export_rows.id and x."status" = 'running';
@@ -741,7 +741,7 @@ as $$
 declare
   v_row "better_supabase"."data_exports";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   update "better_supabase"."data_exports" x set "status" = 'ready', "files" = complete_data_export.files,
@@ -774,7 +774,7 @@ as $$
 declare
   v_row "better_supabase"."data_exports";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   update "better_supabase"."data_exports" x set "status" = 'failed', "error" = fail_data_export.error, "completed_at" = now()
@@ -812,7 +812,7 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -866,7 +866,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."requested_by" = auth.uid() or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -899,7 +899,7 @@ as $$
   select to_jsonb(x.*) from "better_supabase"."organization_deletions" x
   where x."organization_id" = organization_deletion.tenant
     and x."cancelled_at" is null
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or exists (select 1 from "centrakit"."organization_users" mm where mm."organization_id" = organization_deletion.tenant and mm."user_id" = auth.uid()))
+    and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or exists (select 1 from "centrakit"."organization_users" mm where mm."organization_id" = organization_deletion.tenant and mm."user_id" = auth.uid()))
 $$;
 
 create or replace function "better_supabase"."due_organization_deletions"(max_rows integer default 100)
@@ -938,7 +938,7 @@ declare
   v_name text;
   v_pass integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."organization_deletions" x
@@ -1066,7 +1066,7 @@ declare
   v_count bigint;
   v_done jsonb := '{}'::jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role anonymizes rows' using errcode = '42501', hint = 'DATA_ANONYMIZE_FORBIDDEN';
   end if;
   with due as (

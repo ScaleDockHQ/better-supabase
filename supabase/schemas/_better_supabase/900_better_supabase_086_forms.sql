@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:88f69e552a58d56cec3995ed4cd6f0d2cffd823c643d69fce64504df71f25778
+-- @bsb-hash sha256:6f8b8685afb784aeb744ec94b0091c6a310af826073ca1d0fab9239ca8929051
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -527,7 +527,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_form.tenant, 'forms.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_form.tenant, 'forms.manage'), false)) then
     raise exception 'not allowed to manage forms' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   if create_form.key is null or create_form.key !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -574,7 +574,7 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)) then
     raise exception 'not allowed to manage forms' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   if update_form.status is not null and update_form.status not in ('open', 'closed', 'archived') then
@@ -618,7 +618,7 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.manage'), false)) then
     raise exception 'not allowed to manage forms' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   declare
@@ -666,7 +666,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
         then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
         else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
@@ -689,11 +689,11 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
         then "better_supabase"."form_answer_merge"(v_version."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_version."id"))
         else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
@@ -715,10 +715,10 @@ begin
   if not found then
     raise exception 'form version not found' using errcode = 'P0002', hint = 'FORM_VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
         then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
         else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
@@ -736,7 +736,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_forms.tenant, 'forms.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_forms.tenant, 'forms.read'), false)) then
     raise exception 'not allowed to read forms' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'status', x."status", 'currentVersionId', x."current_version_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."created_at" desc), '[]'::jsonb) into v_rows
@@ -853,13 +853,13 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_tenant, 'forms.submit'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_tenant, 'forms.submit'), false))) then
     raise exception 'not allowed to submit this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   if (submit_form.subject_type is null) <> (submit_form.subject_id is null) then
     raise exception 'pass both subject_type and subject_id, or neither' using errcode = '22023', hint = 'FORM_SUBJECT_INVALID';
   end if;
-  if submit_form.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case submit_form.subject_type
+  if submit_form.subject_type is not null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case submit_form.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'messages.read'), false)
@@ -904,7 +904,7 @@ begin
     raise exception 'not allowed to link this record' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   return "better_supabase"."form_submission_save"(submit_form.form_id, submit_form.answers, submit_form.subject_type, submit_form.subject_id, auth.uid(),
-    case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then 'service' else 'member' end, coalesce(submit_form.draft, false), submit_form.submission_id);
+    case when coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then 'service' else 'member' end, coalesce(submit_form.draft, false), submit_form.submission_id);
 end;
 $$;
 revoke execute on function "better_supabase"."submit_form"(uuid, jsonb, text, text, uuid, boolean) from public, anon;
@@ -1024,7 +1024,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
@@ -1050,7 +1050,7 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
+  v_all := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
   select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
@@ -1088,7 +1088,7 @@ begin
   if not found then
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
     raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
@@ -1151,7 +1151,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'not allowed to review submissions' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   if review_form_submission.status is null or review_form_submission.status not in ('submitted', 'accepted', 'rejected') then
@@ -1199,7 +1199,7 @@ begin
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
     or (v_row."respondent_id" = auth.uid() and v_row."status" = 'draft')) then
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;

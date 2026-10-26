@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4938d32314c657a4ee20290bb0b01a6ed56f0829dfae8be5abab68a510cef87e
+-- @bsb-hash sha256:aa06de498d3c5054b93a95358d8e18c18908ce5baa334bfd9543ddd35b3f921d
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -208,7 +208,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -260,7 +260,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -295,7 +295,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -344,7 +344,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
@@ -388,7 +388,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -448,7 +448,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -482,7 +482,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -664,7 +664,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -702,7 +702,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
@@ -796,7 +796,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f206b8fa6ed99caaee658844394b12fdb6577cc98aebe578e185cf8638b52204
+-- @bsb-hash sha256:0cfe25fa0002e3f3cccab34eb8efbddaac8ca60930c6ead53746bd16397ef05b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1051,7 +1051,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -1103,7 +1103,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -1138,7 +1138,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -1196,7 +1196,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
@@ -1240,7 +1240,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -1300,7 +1300,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -1334,7 +1334,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -1534,7 +1534,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -1581,7 +1581,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
@@ -1675,7 +1675,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4be3f78b30f2613a2dcd43aef444c949b03ad3916c38211bfd642cba7768962b
+-- @bsb-hash sha256:7db37a2e336d724fda5ab305704b6cb750b755b5cc96475aa1b085bebde28be7
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1884,7 +1884,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -1936,7 +1936,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -1971,7 +1971,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -2020,7 +2020,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "app_private"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
@@ -2064,7 +2064,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -2124,7 +2124,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "app_private"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -2158,7 +2158,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "app_private"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -2340,7 +2340,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -2378,7 +2378,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
@@ -2472,7 +2472,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:3c7245b4c0817f50fa647ed14a70f664000885df5e5ac023ab7d8f8a8d308fbc
+-- @bsb-hash sha256:f320e797c83b6ab6d5cc696ff418897ab0dfab2786ca2977f47f991e5b9741a3
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2679,7 +2679,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -2731,7 +2731,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -2766,7 +2766,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -2815,7 +2815,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
@@ -2859,7 +2859,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -2919,7 +2919,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -2953,7 +2953,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -3135,7 +3135,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -3173,7 +3173,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
@@ -3399,7 +3399,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:3f565499675c502b9e491803e7f1b61f85c66bcb9fe899258968c9a1eb50b9d4
+-- @bsb-hash sha256:c8f155e2c7ff418bde4e045854049f9c01c9375b72ed9c3aac147754931e4cf4
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3612,7 +3612,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -3664,7 +3664,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -3699,7 +3699,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -3748,7 +3748,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
@@ -3792,7 +3792,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -3852,7 +3852,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -3886,7 +3886,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -4068,7 +4068,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -4106,7 +4106,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then
@@ -4200,7 +4200,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:6d8bdb17a8c9f335cc0fc43c884acd4261f3dcf0d6891f9abfd122112cf8448a
+-- @bsb-hash sha256:43fe67d33995ff645c2a6b26167f485ab832b86e376c9e0731e2ef3935467bc6
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4407,7 +4407,7 @@ declare
   v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -4459,7 +4459,7 @@ declare
   v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
     or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
     raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -4494,7 +4494,7 @@ declare
   v_entry uuid;
   v_row jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
@@ -4543,7 +4543,7 @@ declare
   v_user uuid;
   v_count integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."org_id" = accrue_leave.tenant;
@@ -4587,7 +4587,7 @@ declare
   v_row record;
   v_written integer := 0;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if close_leave_year.period is null then
@@ -4647,7 +4647,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("org_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
@@ -4681,7 +4681,7 @@ begin
   if not found then
     raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
@@ -4863,7 +4863,7 @@ begin
   if not found then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
-  v_manager := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false);
+  v_manager := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false);
   if not (v_manager or v_row."user_id" = auth.uid()) then
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
@@ -4901,7 +4901,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_reader boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
+  v_reader boolean := coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.read'), false);
   v_rows jsonb;
 begin
   if not (v_reader or coalesce(better_supabase.can('tenant', list_leave_requests.tenant, 'leave.request'), false)) then

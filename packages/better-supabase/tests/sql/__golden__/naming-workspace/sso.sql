@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:7a60a6b1ef2350da0a2633490df89853c9e0d8d7a423ed43b8570944a1730d99
+-- @bsb-hash sha256:d8be6228cb0b436b4d9458f217180ea22a8bf7582d54a8988c51b9bb350fbc03
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -257,7 +257,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', list_workspace_domains.tenant, 'sso.manage'), false) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', list_workspace_domains.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -279,7 +279,7 @@ declare
   v_row "better_supabase"."workspace_domains";
 begin
   select * into v_row from "better_supabase"."workspace_domains" x where x."id" = workspace_domain.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'sso.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'sso.manage'), false)) then
     return null;
   end if;
   return to_jsonb(v_row) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."domain", 'value', 'better-supabase-domain-verification=' || v_row."verification_token"));
@@ -307,7 +307,7 @@ begin
     raise exception 'Auto-join cannot assign role %', update_workspace_domain.auto_join_role using errcode = '22023', hint = 'SSO_ROLE_INVALID';
   end if;
   if update_workspace_domain.auto_join_role is not null
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
     and not coalesce(better_supabase.can_assign(v_row."workspace_id", update_workspace_domain.auto_join_role), false) then
     raise exception 'You may not assign role %', update_workspace_domain.auto_join_role using errcode = '42501', hint = 'SSO_ROLE_FORBIDDEN';
   end if;
@@ -335,7 +335,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."workspace_domains" x where x."id" = remove_workspace_domain.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'sso.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'sso.manage'), false)) then
     return false;
   end if;
   if exists (select 1 from "better_supabase"."workspace_sso_providers" sp where sp."workspace_id" = v_row."workspace_id" and v_row."domain" = any (sp."domains")) then
@@ -358,7 +358,7 @@ as $$
 declare
   v_row "better_supabase"."workspace_domains";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role verifies domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."workspace_domains" x where x."id" = verify_workspace_domain.id for update;
@@ -387,7 +387,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role registers SSO providers' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if not (check_sso_provider.actor is null or coalesce(better_supabase.can_user(check_sso_provider.actor, 'tenant', check_sso_provider.tenant, 'sso.manage'), false)) then
@@ -442,7 +442,7 @@ as $$
 declare
   v_row "better_supabase"."workspace_sso_providers";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role registers SSO providers' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."workspace_sso_providers" x where x."id" = sso_provider.provider;
@@ -466,7 +466,7 @@ as $$
 declare
   v_row "better_supabase"."workspace_sso_providers";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role registers SSO providers' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."workspace_sso_providers" x where x."id" = unregister_sso_provider.provider;
@@ -490,7 +490,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', list_sso_providers.tenant, 'sso.manage'), false) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', list_sso_providers.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -620,7 +620,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -642,7 +642,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -672,7 +672,7 @@ declare
   v_email text;
   v_user uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_name is null or length(trim(v_name)) = 0 then
@@ -743,7 +743,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   update "better_supabase"."scim_users" x set "active" = false
@@ -767,7 +767,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -789,7 +789,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   return (
@@ -819,7 +819,7 @@ declare
   v_before uuid[] := '{}';
   v_member uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_name is null or length(trim(v_name)) = 0 then
@@ -885,7 +885,7 @@ declare
   v_members uuid[];
   v_member uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role serves SCIM' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   select coalesce(array_agg(sm."scim_user_id"), '{}') into v_members

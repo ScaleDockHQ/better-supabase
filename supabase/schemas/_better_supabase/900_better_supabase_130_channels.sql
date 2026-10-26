@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:f65f596f3a7a880b52e2a77799ce87bcb36a7f48f3ce2e49426f4a492ed386bb
+-- @bsb-hash sha256:15f1812314874085a574df525217be5bf4ae4e2cd67445e9e74afd398eba3331
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_channel.tenant, 'channels.create'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_channel.tenant, 'channels.create'), false)) then
     raise exception 'not allowed to create channels here' using errcode = '42501', hint = 'CHANNELS_FORBIDDEN';
   end if;
   if v_name is null or v_name !~ '^[a-z0-9][a-z0-9_-]{0,79}$' then
@@ -117,7 +117,7 @@ begin
     raise exception 'a linked record needs subjectType and subjectId' using errcode = '22023', hint = 'CHANNELS_SUBJECT_INVALID';
   end if;
   if nullif(create_channel.attrs ->> 'subjectType', '') is not null
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     raise exception 'no such record you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
   if coalesce((case (create_channel.attrs ->> 'subjectType')
@@ -229,7 +229,7 @@ begin
   if not found or not "better_supabase"."can_conversation"(v_ch."id", 'read') then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_ch."tenant_id", 'channels.manage'), false)
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_ch."tenant_id", 'channels.manage'), false)
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_ch."id" and k."user_id" = auth.uid() and k."role" = 'owner'))) then
     raise exception 'not allowed to change this channel' using errcode = '42501', hint = 'CHANNELS_FORBIDDEN';
   end if;

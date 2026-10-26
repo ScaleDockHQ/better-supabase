@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:bba44c1537a85fb988aba76b5112e2e9e4e8f920006ff21e112728efb26382e0
+-- @bsb-hash sha256:5aae19d20e6b3a4c5a23a160c15e20aa12adf2f9c9311bd080836da94f195654
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -327,7 +327,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = confirm_attachment.id for update;
-  if v_row."id" is null or (v_row."uploaded_by" is distinct from auth.uid() and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or (v_row."uploaded_by" is distinct from auth.uid() and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No pending attachment of yours has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
@@ -368,7 +368,7 @@ as $$
 declare
   v_row "better_supabase"."attachments";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records scan results' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if set_attachment_status.status not in ('clean', 'infected', 'failed') then
@@ -469,7 +469,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = replace_attachment.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or (v_row."subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'crm.read'), false))) or (not coalesce(v_row."subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)))) or ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(v_row."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or (v_row."subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'crm.read'), false))) or (not coalesce(v_row."subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)))) or ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(v_row."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false))) or (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may replace has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
@@ -524,7 +524,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = restore_attachment_version.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or (v_row."subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'crm.read'), false))) or (not coalesce(v_row."subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)))) or ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(v_row."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or (v_row."subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'crm.read'), false))) or (not coalesce(v_row."subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)))) or ((v_row."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or v_row."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(v_row."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false))) or (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may restore has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."attachment_versions" v
@@ -652,7 +652,7 @@ as $$
 declare
   v_row "better_supabase"."scanned_objects";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records scan results' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if set_object_scan.status not in ('pending', 'clean', 'infected', 'failed') then

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f6bfcb6e398b429789ea595ced7bfccf9a21f54fc84a9436b99dd0fd1b6dea3
+-- @bsb-hash sha256:7a206d5a4a343d1571a5b220f1603c34a2b7f618a4c26f52b6f282954d57c864
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -70,7 +70,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -132,7 +132,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f6bfcb6e398b429789ea595ced7bfccf9a21f54fc84a9436b99dd0fd1b6dea3
+-- @bsb-hash sha256:7a206d5a4a343d1571a5b220f1603c34a2b7f618a4c26f52b6f282954d57c864
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -201,7 +201,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -263,7 +263,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:7f5f7c4fec60fbf5e99568d2ab062f49115c6fbae6608aa64e81601ebc32eb83
+-- @bsb-hash sha256:c1b2e5e8bdb4f01f14492e35dbb1798353a19420db040e8f8d459e16055e3d9b
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -334,7 +334,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -396,7 +396,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:0f3b9e8dae0062ea573d5d6bc40127d8a730fb5e5a721d2c8294575e9621b2e6
+-- @bsb-hash sha256:754c47ce6289132affa54c1ee13621bbc985f70f1a78758bbec08c59d5028eb0
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,7 +465,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -540,7 +540,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:9ef613d6f03135a4a85efa76ee7000a3fff0305559717dacdc61f4821b8c07e8
+-- @bsb-hash sha256:4545ea9d1427e8d63b595171274a3d07f7ab4422c95d05cbdd70f4d1a7739059
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -607,7 +607,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z
@@ -669,7 +669,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:553c3e10bcd376653aa8e14215c709cbc5e9e38ae9322f3feb33b7e3eaf4101f
+-- @bsb-hash sha256:55b65ce60a621f45e82f58bf61a36c166beae45916493b82ee83854b0b495e96
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,7 +738,7 @@ as $$
       and x."subject_id" = field_history.subject_id
       and (field_history.field is null or x."field" = field_history.field)
       and (field_history.before is null or x."id" < field_history.before)
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."org_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
+      and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', x."org_id", 'history.read'), false) and coalesce("better_supabase"."can_subject"(field_history.subject_type, field_history.subject_id, 'read'), false)))
     order by x."id" desc
     limit least(greatest(coalesce(field_history.max_count, 50), 1), 500)
   ) z

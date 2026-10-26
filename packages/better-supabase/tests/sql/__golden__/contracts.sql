@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:86723c4d1f1557d1be77ad909b88f765036642a5d0e86e1f3a5df76b795d3db3
+-- @bsb-hash sha256:80e44f46fd744922347df776f806e007f055b7b3c0430facc066ecf84171ebf3
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,7 +224,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -288,7 +288,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -378,7 +378,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status" = any (v_from)) then
@@ -419,7 +419,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -576,7 +576,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -623,7 +623,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -658,7 +658,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "better_supabase"."contract_obligations" x where x."id" = v_row."id";
@@ -753,7 +753,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:13d242efe6e14c921ee971262fb7608a07be4ad06924b4f34d19e5668ae3b412
+-- @bsb-hash sha256:f3795a951eeb6a204017a0898d70ac2257395ec3837db28f5a35a31ae5881da7
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -985,7 +985,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -1058,7 +1058,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -1157,7 +1157,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status" = any (v_from)) then
@@ -1198,7 +1198,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -1364,7 +1364,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -1420,7 +1420,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -1464,7 +1464,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "better_supabase"."contract_obligations" x where x."id" = v_row."id";
@@ -1559,7 +1559,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:9ac124b6850e7a2c5553159542c799042cfe9d1d4547be179bcb5f6a7b1179a3
+-- @bsb-hash sha256:9808300e9687e6ba4b898cdc897cd6c581096308d2ec8aa849827491810fa391
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1784,7 +1784,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -1848,7 +1848,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -1938,7 +1938,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status" = any (v_from)) then
@@ -1979,7 +1979,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -2136,7 +2136,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -2183,7 +2183,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -2218,7 +2218,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "app_private"."contract_obligations" x where x."id" = v_row."id";
@@ -2313,7 +2313,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:7c28a46e1dee98d47236b2944ee498351498fef0f035ac1897a8be2882e2a799
+-- @bsb-hash sha256:36be2e6cbb1553baed637f1bf6ae71d9e3f03538d89c2732649306803e4ae5f0
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2536,7 +2536,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -2600,7 +2600,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -2690,7 +2690,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status" = any (v_from)) then
@@ -2731,7 +2731,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -2888,7 +2888,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -2935,7 +2935,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -2970,7 +2970,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "better_supabase"."contract_obligations" x where x."id" = v_row."id";
@@ -3193,7 +3193,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:fa2ea1034be3d58724ce919d10f853326d6e0aec1479239e0dd77e63a3c75411
+-- @bsb-hash sha256:c9ab06e426dc47971c201f9db1c2bf04d3ff0200d6d84ea79524641b1650183f
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3420,7 +3420,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -3484,7 +3484,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -3574,7 +3574,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status"::text = any (v_from)) then
@@ -3615,7 +3615,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -3772,7 +3772,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -3819,7 +3819,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -3854,7 +3854,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "better_supabase"."contract_obligations" x where x."id" = v_row."id";
@@ -3949,7 +3949,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:59cf6383d8667b177a94a64aba09464b7472bb87c548c94e75bc8cc908ce588e
+-- @bsb-hash sha256:0be63463f50146e95788aafdf249d9d2b764e2803c5dff00c9003d0e7cf57599
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4172,7 +4172,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_contract.tenant, 'contracts.write'), false)) then
     raise exception 'not allowed to create contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(create_contract.attrs) is distinct from 'object' then
@@ -4236,7 +4236,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contracts' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if jsonb_typeof(update_contract.attrs) is distinct from 'object' then
@@ -4326,7 +4326,7 @@ begin
     else
       raise exception 'action must be submit, return, activate, recall or terminate' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end case;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", case when transition_contract.action in ('submit', 'return') then 'contracts.write' else 'contracts.manage' end), false)) then
     raise exception 'not allowed to move this contract' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if not (v_row."status" = any (v_from)) then
@@ -4367,7 +4367,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.manage'), false)) then
     raise exception 'not allowed to send contracts for signature' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if v_row."status" <> 'in_review' then
@@ -4524,7 +4524,7 @@ begin
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."org_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."org_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if nullif(trim(save_obligation.title), '') is null then
@@ -4571,7 +4571,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) or v_row."owner_id" = auth.uid()) then
     raise exception 'not allowed to change this obligation' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   if set_obligation_status.status is null or set_obligation_status.status not in ('open', 'done', 'waived') then
@@ -4606,7 +4606,7 @@ begin
   if not found then
     raise exception 'obligation not found' using errcode = 'P0002', hint = 'OBLIGATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
   delete from "better_supabase"."contract_obligations" x where x."id" = v_row."id";

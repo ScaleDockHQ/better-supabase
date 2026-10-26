@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:f1985c112321352cabe65b8f62963e4c0a05aef45ffe410e8404bfd985e02422
+-- @bsb-hash sha256:f1fe6ed1eae28c5e57ad7d3d85343363180dc3552fbb58688ff1973ef09d605e
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -125,7 +125,7 @@ begin
   if not personal and tenant is null then
     raise exception 'A tenant API key needs a tenant' using errcode = '22023', hint = 'API_KEY_TENANT_REQUIRED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     if not personal and not coalesce(better_supabase.can('tenant', tenant, 'api_keys.manage'), false) then
       raise exception 'Not allowed to manage API keys in this tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
@@ -210,7 +210,7 @@ begin
   ) order by k."created_at" desc), '[]'::jsonb)
       from "better_supabase"."api_keys" k where k."user_id" = auth.uid());
   end if;
-  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then
+  if coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then
     return (select coalesce(jsonb_agg(jsonb_build_object(
     'id', k."id",
     'organization_id', k."workspace_id",
@@ -278,7 +278,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into found from "better_supabase"."api_keys" k where k."id" = revoke_api_key.key;
-  if found."id" is null or not ((found."workspace_id" is not null and coalesce(better_supabase.can('tenant', found."workspace_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if found."id" is null or not ((found."workspace_id" is not null and coalesce(better_supabase.can('tenant', found."workspace_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   update "better_supabase"."api_keys" k set "revoked_at" = now()
@@ -309,7 +309,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into old from "better_supabase"."api_keys" k where k."id" = rotate_api_key.key for update;
-  if old."id" is null or not ((old."workspace_id" is not null and coalesce(better_supabase.can('tenant', old."workspace_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if old."id" is null or not ((old."workspace_id" is not null and coalesce(better_supabase.can('tenant', old."workspace_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   if old."revoked_at" is not null and old."revoked_at" <= now() then

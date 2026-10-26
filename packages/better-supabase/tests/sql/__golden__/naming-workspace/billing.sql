@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:8d9cf399bcb9773587010e9a610106f9771f53bcd4a13df16a3f42d2e516fac4
+-- @bsb-hash sha256:d9675fc65aecd5c964ae23e22f8edf2c571ea64837968821b3e4152f3f2e1d73
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ security definer
 set search_path = ''
 as $$
   select b."stripe_customer_id" from "better_supabase"."billing_customers" b
-  where b."workspace_id" = billing_customer.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_customer.tenant, 'billing.read'), false))
+  where b."workspace_id" = billing_customer.tenant and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_customer.tenant, 'billing.read'), false))
 $$;
 
 -- The tenant's Stripe Accounts v2 account (acct_), when it is billed as one.
@@ -60,7 +60,7 @@ security definer
 set search_path = ''
 as $$
   select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b
-  where b."workspace_id" = billing_account.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_account.tenant, 'billing.read'), false))
+  where b."workspace_id" = billing_account.tenant and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_account.tenant, 'billing.read'), false))
 $$;
 
 -- The tenant of a customer (cus_) or an account (acct_).
@@ -218,7 +218,7 @@ declare
     then 'left join lateral (select null::jsonb as customer_row) cu on true'
     else 'left join lateral (select to_jsonb(k.*) as customer_row from stripe.customers k where k.id = b."stripe_customer_id"::text) cu on true' end;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if to_regclass('stripe.subscriptions') is null then
@@ -289,7 +289,7 @@ declare
     then 'left join lateral (select null::jsonb as customer_row) cu on true'
     else 'left join lateral (select to_jsonb(k.*) as customer_row from stripe.customers k where k.id = b."stripe_customer_id"::text) cu on true' end;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if to_regclass('stripe.invoices') is null then
@@ -339,7 +339,7 @@ declare
     then 'left join lateral (select null::jsonb as customer_row) cu on true'
     else 'left join lateral (select to_jsonb(k.*) as customer_row from stripe.customers k where k.id = b."stripe_customer_id"::text) cu on true' end;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   return query execute format($q$
@@ -388,7 +388,7 @@ declare
   customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_stripe_rows.tenant);
   found jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids') then
@@ -504,7 +504,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   return "better_supabase"."billing_tenant_subscription"(billing_subscription.tenant);
@@ -524,7 +524,7 @@ as $$
 declare
   found jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if to_regclass('stripe.subscriptions') is null then
@@ -565,7 +565,7 @@ as $$
 declare
   found jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if to_regclass('stripe.invoices') is null then
@@ -596,7 +596,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) then
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   return jsonb_build_object(

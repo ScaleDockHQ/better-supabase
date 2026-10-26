@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:852f38d1a0d4c4cbccdfdaa862466ed46899faa4771f7981256b7c2d803163ea
+-- @bsb-hash sha256:9ed10081c9a5c33529fd24f2b617fd459d3e72b20bcfc30c3e646918400eea35
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,7 +159,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g
@@ -196,7 +196,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_clients" ("client_id", "secret_hash", "registration_token_hash", "client_name",
@@ -235,7 +235,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
@@ -263,7 +263,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -296,7 +296,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return exists (
@@ -320,7 +320,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set
@@ -356,7 +356,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set "secret_hash" = rotate_oauth_client_secret.secret_hash, "updated_at" = now()
@@ -375,7 +375,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_clients" c where c."client_id" = delete_oauth_client.client_id;
@@ -402,7 +402,7 @@ as $$
 declare
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -444,7 +444,7 @@ declare
   v_code "better_supabase"."oauth_authorization_codes";
   v_grant "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_code from "better_supabase"."oauth_authorization_codes" a
@@ -499,7 +499,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -530,7 +530,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -557,7 +557,7 @@ declare
   v_device "better_supabase"."oauth_device_codes";
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -595,7 +595,7 @@ as $$
 declare
   v_device "better_supabase"."oauth_device_codes";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -654,7 +654,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return coalesce((
@@ -687,7 +687,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g set "revoked_at" = now(), "updated_at" = now()
@@ -769,7 +769,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_revocations" ("jti", "grant_id", "expires_at")
@@ -792,7 +792,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."oauth_revocations" r where r."jti" = is_oauth_token_revoked.jti) then
@@ -822,7 +822,7 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_authorization_codes" a where a."expires_at" < now() - interval '1 day';
@@ -869,7 +869,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:c1228648814492a4c9319f605f2567efe545d0b38552ed7918eaab45ce2dae34
+-- @bsb-hash sha256:bc2e716fba0de6c3b395c4dbe34c967f3212a529f2086151882657407c515b62
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1027,7 +1027,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g
@@ -1072,7 +1072,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_clients" ("client_id", "secret_hash", "registration_token_hash", "client_name",
@@ -1118,7 +1118,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
@@ -1146,7 +1146,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -1179,7 +1179,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return exists (
@@ -1203,7 +1203,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set
@@ -1239,7 +1239,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set "secret_hash" = rotate_oauth_client_secret.secret_hash, "updated_at" = now()
@@ -1258,7 +1258,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_clients" c where c."client_id" = delete_oauth_client.client_id;
@@ -1292,7 +1292,7 @@ as $$
 declare
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -1334,7 +1334,7 @@ declare
   v_code "better_supabase"."oauth_authorization_codes";
   v_grant "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_code from "better_supabase"."oauth_authorization_codes" a
@@ -1397,7 +1397,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -1428,7 +1428,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -1455,7 +1455,7 @@ declare
   v_device "better_supabase"."oauth_device_codes";
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -1493,7 +1493,7 @@ as $$
 declare
   v_device "better_supabase"."oauth_device_codes";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -1552,7 +1552,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return coalesce((
@@ -1585,7 +1585,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g set "revoked_at" = now(), "updated_at" = now()
@@ -1683,7 +1683,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_revocations" ("jti", "grant_id", "expires_at")
@@ -1706,7 +1706,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."oauth_revocations" r where r."jti" = is_oauth_token_revoked.jti) then
@@ -1736,7 +1736,7 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_authorization_codes" a where a."expires_at" < now() - interval '1 day';
@@ -1783,7 +1783,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:c16e9bc47885b92f7530aa4b4f6c6b323d3e829b18afb72e96ff2d2c10790e9e
+-- @bsb-hash sha256:06997271d4d418124dd246c04be80c5c1789caac9f33c690898a70f36ad54baa
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1943,7 +1943,7 @@ as $$
 declare
   v_row "app_private"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "app_private"."oauth_grants" g
@@ -1980,7 +1980,7 @@ as $$
 declare
   v_row "app_private"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "app_private"."oauth_clients" ("client_id", "secret_hash", "registration_token_hash", "client_name",
@@ -2019,7 +2019,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
@@ -2047,7 +2047,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -2080,7 +2080,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return exists (
@@ -2104,7 +2104,7 @@ as $$
 declare
   v_row "app_private"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "app_private"."oauth_clients" c set
@@ -2140,7 +2140,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "app_private"."oauth_clients" c set "secret_hash" = rotate_oauth_client_secret.secret_hash, "updated_at" = now()
@@ -2159,7 +2159,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "app_private"."oauth_clients" c where c."client_id" = delete_oauth_client.client_id;
@@ -2186,7 +2186,7 @@ as $$
 declare
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -2228,7 +2228,7 @@ declare
   v_code "app_private"."oauth_authorization_codes";
   v_grant "app_private"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_code from "app_private"."oauth_authorization_codes" a
@@ -2283,7 +2283,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -2314,7 +2314,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -2341,7 +2341,7 @@ declare
   v_device "app_private"."oauth_device_codes";
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "app_private"."oauth_device_codes" d
@@ -2379,7 +2379,7 @@ as $$
 declare
   v_device "app_private"."oauth_device_codes";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "app_private"."oauth_device_codes" d
@@ -2438,7 +2438,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return coalesce((
@@ -2471,7 +2471,7 @@ as $$
 declare
   v_row "app_private"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "app_private"."oauth_grants" g set "revoked_at" = now(), "updated_at" = now()
@@ -2553,7 +2553,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "app_private"."oauth_revocations" ("jti", "grant_id", "expires_at")
@@ -2576,7 +2576,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if exists (select 1 from "app_private"."oauth_revocations" r where r."jti" = is_oauth_token_revoked.jti) then
@@ -2606,7 +2606,7 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "app_private"."oauth_authorization_codes" a where a."expires_at" < now() - interval '1 day';
@@ -2653,7 +2653,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:4994bffe03fa64f4d465261a566901434f3ecb4b04ecf5ce8cf52a30de4e8f30
+-- @bsb-hash sha256:cba82b4377b25f5fee0f5214c2818fe361da98cdd52727b9ab717d01037d4d52
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2811,7 +2811,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g
@@ -2848,7 +2848,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_clients" ("client_id", "secret_hash", "registration_token_hash", "client_name",
@@ -2887,7 +2887,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
@@ -2915,7 +2915,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -2948,7 +2948,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return exists (
@@ -2972,7 +2972,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set
@@ -3008,7 +3008,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set "secret_hash" = rotate_oauth_client_secret.secret_hash, "updated_at" = now()
@@ -3027,7 +3027,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_clients" c where c."client_id" = delete_oauth_client.client_id;
@@ -3054,7 +3054,7 @@ as $$
 declare
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -3096,7 +3096,7 @@ declare
   v_code "better_supabase"."oauth_authorization_codes";
   v_grant "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_code from "better_supabase"."oauth_authorization_codes" a
@@ -3151,7 +3151,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -3182,7 +3182,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -3209,7 +3209,7 @@ declare
   v_device "better_supabase"."oauth_device_codes";
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -3247,7 +3247,7 @@ as $$
 declare
   v_device "better_supabase"."oauth_device_codes";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -3306,7 +3306,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return coalesce((
@@ -3339,7 +3339,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g set "revoked_at" = now(), "updated_at" = now()
@@ -3421,7 +3421,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_revocations" ("jti", "grant_id", "expires_at")
@@ -3444,7 +3444,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."oauth_revocations" r where r."jti" = is_oauth_token_revoked.jti) then
@@ -3474,7 +3474,7 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_authorization_codes" a where a."expires_at" < now() - interval '1 day';
@@ -3728,7 +3728,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:40d32ecbdf04b6dc98949327c020251fc5ca9e8f8fdab89d625b022dcaa36647
+-- @bsb-hash sha256:bd3d7bb9f3ef86dfb0927f84b21e12cb72241731e3e76af7aa12219fc31b14aa
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3887,7 +3887,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g
@@ -3924,7 +3924,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_clients" ("client_id", "secret_hash", "registration_token_hash", "client_name",
@@ -3963,7 +3963,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
@@ -3991,7 +3991,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -4024,7 +4024,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return exists (
@@ -4048,7 +4048,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_clients";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set
@@ -4084,7 +4084,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_clients" c set "secret_hash" = rotate_oauth_client_secret.secret_hash, "updated_at" = now()
@@ -4103,7 +4103,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_clients" c where c."client_id" = delete_oauth_client.client_id;
@@ -4130,7 +4130,7 @@ as $$
 declare
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -4172,7 +4172,7 @@ declare
   v_code "better_supabase"."oauth_authorization_codes";
   v_grant "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_code from "better_supabase"."oauth_authorization_codes" a
@@ -4227,7 +4227,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if not exists (
@@ -4258,7 +4258,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
@@ -4285,7 +4285,7 @@ declare
   v_device "better_supabase"."oauth_device_codes";
   v_grant uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -4323,7 +4323,7 @@ as $$
 declare
   v_device "better_supabase"."oauth_device_codes";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   select * into v_device from "better_supabase"."oauth_device_codes" d
@@ -4382,7 +4382,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return coalesce((
@@ -4415,7 +4415,7 @@ as $$
 declare
   v_row "better_supabase"."oauth_grants";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   update "better_supabase"."oauth_grants" g set "revoked_at" = now(), "updated_at" = now()
@@ -4497,7 +4497,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   insert into "better_supabase"."oauth_revocations" ("jti", "grant_id", "expires_at")
@@ -4520,7 +4520,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."oauth_revocations" r where r."jti" = is_oauth_token_revoked.jti) then
@@ -4550,7 +4550,7 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   delete from "better_supabase"."oauth_authorization_codes" a where a."expires_at" < now() - interval '1 day';

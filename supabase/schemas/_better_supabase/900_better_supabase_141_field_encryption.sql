@@ -1,6 +1,6 @@
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:d52e10b7ca55f93356449d16a04da5abd3256b5de7fe25cb4b6255e07147a0c3
+-- @bsb-hash sha256:ae2575d16b859689608101effd2c94d093ca61655888d5b87320a257275dec7a
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -115,7 +115,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role drops field keys' using errcode = '42501', hint = 'FIELD_KEY_FORBIDDEN';
   end if;
   delete from vault.secrets s where s.name = 'bs:field-key:' || drop_field_key.owner;

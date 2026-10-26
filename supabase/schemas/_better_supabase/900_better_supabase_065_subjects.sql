@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:66624af463a6927d2ad22f0b9e26d663441752bed8e6386de5a0c418f9000dfe
+-- @bsb-hash sha256:558ee0168032635c5977e4007d6dc2d5e9069be7d3bfde29f682914391e9bbed
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -467,7 +467,7 @@ begin
       return exists (
         select 1 from "better_supabase"."messages" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
@@ -478,7 +478,7 @@ begin
       return exists (
         select 1 from "better_supabase"."conversations" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
@@ -489,7 +489,7 @@ begin
       return exists (
         select 1 from "better_supabase"."channels" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'channels.manage'), false)
           else true
@@ -499,7 +499,7 @@ begin
       return exists (
         select 1 from "better_supabase"."companies" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
           else true
@@ -509,7 +509,7 @@ begin
       return exists (
         select 1 from "better_supabase"."people" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
           else true
@@ -519,7 +519,7 @@ begin
       return exists (
         select 1 from "better_supabase"."deals" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.write'), false)
           else true
@@ -529,7 +529,7 @@ begin
       return exists (
         select 1 from "better_supabase"."courses" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.manage'), false)
           else true
@@ -539,7 +539,7 @@ begin
       return exists (
         select 1 from "better_supabase"."posts" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'posts.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'posts.write'), false)
           else true
@@ -549,7 +549,7 @@ begin
       return exists (
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.write'), false)
           else true
@@ -559,7 +559,7 @@ begin
       return exists (
         select 1 from "better_supabase"."quotes" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'quotes.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'quotes.write'), false)
           else true
@@ -569,7 +569,7 @@ begin
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.write'), false)
           else true
@@ -579,7 +579,7 @@ begin
       return exists (
         select 1 from "better_supabase"."employees" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.write'), false)
           else true
@@ -589,7 +589,7 @@ begin
       return exists (
         select 1 from "better_supabase"."invoices" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.write'), false)
           else true
@@ -599,7 +599,7 @@ begin
       return exists (
         select 1 from "better_supabase"."ledger_accounts" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.manage'), false)
           else true
@@ -609,7 +609,7 @@ begin
       return exists (
         select 1 from "better_supabase"."products" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.manage'), false)
           else true
@@ -619,7 +619,7 @@ begin
       return exists (
         select 1 from "better_supabase"."product_variants" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.manage'), false)
           else true
@@ -629,7 +629,7 @@ begin
       return exists (
         select 1 from "better_supabase"."orders" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'orders.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'orders.manage'), false)
           else true
@@ -639,7 +639,7 @@ begin
       return exists (
         select 1 from "better_supabase"."calendar_events" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'calendar.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'calendar.write'), false)
           else true
@@ -649,7 +649,7 @@ begin
       return exists (
         select 1 from "better_supabase"."bookings" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'bookings.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'bookings.manage'), false)
           else true
@@ -659,7 +659,7 @@ begin
       return exists (
         select 1 from "better_supabase"."assets" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'assets.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'assets.manage'), false)
           else true
@@ -669,7 +669,7 @@ begin
       return exists (
         select 1 from "better_supabase"."asset_locations" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'assets.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'assets.manage'), false)
           else true
@@ -679,7 +679,7 @@ begin
       return exists (
         select 1 from "better_supabase"."lease_agreements" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.manage'), false)
           else true
@@ -689,7 +689,7 @@ begin
       return exists (
         select 1 from "better_supabase"."expense_reports" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'expenses.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'expenses.manage'), false)
           else true
@@ -699,7 +699,7 @@ begin
       return exists (
         select 1 from "better_supabase"."expense_lines" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'expenses.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'expenses.manage'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'expenses.submit'), false)
@@ -710,7 +710,7 @@ begin
       return exists (
         select 1 from "better_supabase"."donation_funds" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.manage'), false)
           else true
@@ -720,7 +720,7 @@ begin
       return exists (
         select 1 from "better_supabase"."work_orders" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'dispatch.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'dispatch.manage'), false)
           else true
@@ -730,7 +730,7 @@ begin
       return exists (
         select 1 from "better_supabase"."shipments" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'shipments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'shipments.manage'), false)
           else true
@@ -740,7 +740,7 @@ begin
       return exists (
         select 1 from "better_supabase"."contracts" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contracts.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contracts.write'), false)
           else true
@@ -750,7 +750,7 @@ begin
       return exists (
         select 1 from "better_supabase"."controls" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.manage'), false)
           else true
@@ -760,7 +760,7 @@ begin
       return exists (
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.manage'), false)
           else true
@@ -770,7 +770,7 @@ begin
       return exists (
         select 1 from "better_supabase"."incidents" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'incidents.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'incidents.write'), false)
           else true
@@ -780,7 +780,7 @@ begin
       return exists (
         select 1 from "better_supabase"."content_entries" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'content.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'content.write'), false)
           else true
@@ -790,7 +790,7 @@ begin
       return exists (
         select 1 from "better_supabase"."forms" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.manage'), false)
           else true
@@ -800,7 +800,7 @@ begin
       return exists (
         select 1 from "better_supabase"."documents" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'documents.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'documents.write'), false)
           else true
@@ -810,7 +810,7 @@ begin
       return exists (
         select 1 from "public"."customers" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'customers.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'customers.write'), false)
           else true
@@ -820,7 +820,7 @@ begin
       return exists (
         select 1 from "better_supabase"."drive_nodes" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
           else true
@@ -830,7 +830,7 @@ begin
       return exists (
         select 1 from "better_supabase"."applications" s
         where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          and (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.write'), false)
           else true

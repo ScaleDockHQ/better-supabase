@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
+-- @bsb-hash sha256:b7535e6ef7fcd02cb3023fa9605d2cc78c95162fda2426890933ec5a336627d0
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
@@ -390,7 +390,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ae4a36afeae59573571f03f0ee4ff6c1d6a375fac2306495c982bd3967daf366
+-- @bsb-hash sha256:b7535e6ef7fcd02cb3023fa9605d2cc78c95162fda2426890933ec5a336627d0
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -493,7 +493,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
@@ -779,7 +779,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ec95279872e5fda1903d46056d627c95aba19537acc5cbc2a0e776b16d3a64ba
+-- @bsb-hash sha256:9db4cac6f612ef268f0db7a594b6a374b8d8d0e07d7915abeb4aabcb0e11383c
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -884,7 +884,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
@@ -1170,7 +1170,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:710847181ab1e2526099ba8d242958a3e5cff3995af0c6359907bb87c6e8928d
+-- @bsb-hash sha256:baf6f6fc7bb9a119ef615fbf8781007feed0763254c91deea22f6d44a167c04e
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1273,7 +1273,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
@@ -1628,7 +1628,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ac8928e0f4e6ca6d59463b49f30a5e1020843bdae01efb1fb17af3073025bee3
+-- @bsb-hash sha256:eafe0c379f3609e9a619c0cb7ba2d4ea5e80440bfdd90c547b46024c49c3b9f9
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1713,7 +1713,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:989434fa17e30f4297fe1fc6db616cc2d42d5d1525522a6548bec08d3dbd7184
+-- @bsb-hash sha256:0f974c4b63495db5c62db0029fa3a8549a068ceecc2812b0bf05a4e825c35a85
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -288,7 +288,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -390,7 +390,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -419,7 +419,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
@@ -450,7 +450,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -508,7 +508,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x
@@ -530,7 +530,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -570,10 +570,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -627,10 +627,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then
@@ -721,7 +721,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:2d3b3f25a3fe9109ae34571a029c0f98e4b566b4ddc6ebf3f22eb885c0043ea5
+-- @bsb-hash sha256:46c9200a0abb4d5a98c5781103cc9926021bbb5d9a9cd3262eb9b36f595e6736
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1017,7 +1017,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -1129,7 +1129,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -1158,7 +1158,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
@@ -1199,7 +1199,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -1260,7 +1260,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x
@@ -1282,7 +1282,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -1322,10 +1322,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -1379,10 +1379,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then
@@ -1476,7 +1476,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:59ce6294a955e4c538bfc5ccccf5b81e86bcefc0a1fc6c1739fb7e4a6e494931
+-- @bsb-hash sha256:e6a1fef2abe0aacb7c2eeb84a6ae801b6888780637ee96b9b93d1031c2072c20
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1765,7 +1765,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -1867,7 +1867,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -1896,7 +1896,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "app_private"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
@@ -1927,7 +1927,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "app_private"."enrollment_programs" x
@@ -1985,7 +1985,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "app_private"."enrollments" x
@@ -2007,7 +2007,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -2047,10 +2047,10 @@ declare
   v_row "app_private"."enrollments";
 begin
   select * into v_row from "app_private"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -2104,10 +2104,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then
@@ -2198,7 +2198,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:97cfae1c416df98aa3a190377970268019e06057c90a44734e8964f6dbf916ad
+-- @bsb-hash sha256:503b83dc854ebb10da8415efba1c349d331188e05ff9d72822b0da547ebfa779
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2485,7 +2485,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -2587,7 +2587,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -2616,7 +2616,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
@@ -2647,7 +2647,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -2705,7 +2705,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x
@@ -2727,7 +2727,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -2767,10 +2767,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -2824,10 +2824,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then
@@ -3021,7 +3021,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:4167bfe9b98d643f25414257540d4fee6afc973dd9e3a6aa43381c0a315512df
+-- @bsb-hash sha256:6dc7ada254e0d3fd97fd6da1a840d1c888d8c7b044ba2a5f860de583917a0333
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3313,7 +3313,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -3415,7 +3415,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -3444,7 +3444,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
@@ -3475,7 +3475,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -3533,7 +3533,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x
@@ -3555,7 +3555,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -3595,10 +3595,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -3652,10 +3652,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then
@@ -3746,7 +3746,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:b35bff80c1e6087bb274764b07a16a63458c92b7ce7bf37654f3837ac70badee
+-- @bsb-hash sha256:287fc49c1fb60945232a5ab92e35cfed86f08ba2ae567a9c1d3d0f0c94ec3ce0
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4033,7 +4033,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
@@ -4135,7 +4135,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment_programs.tenant is not null and coalesce(better_supabase.can('tenant', enrollment_programs.tenant, 'enrollments.read'), false))) then
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
@@ -4164,7 +4164,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."org_id" = v_row."org_id" and x."program" = v_row."key";
@@ -4195,7 +4195,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enroll.tenant is not null and coalesce(better_supabase.can('tenant', enroll.tenant, 'enrollments.enroll'), false))) then
     raise exception 'not allowed to enroll' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -4253,7 +4253,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (enrollment.tenant is not null and coalesce(better_supabase.can('tenant', enrollment.tenant, 'enrollments.read'), false))) or (enrollment.subject_type = 'user' and enrollment.subject_id = auth.uid()::text)) then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   select x."id" into v_id from "better_supabase"."enrollments" x
@@ -4275,7 +4275,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_read boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
+  v_read boolean := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_enrollments.tenant, 'enrollments.read'), false)));
 begin
   if not v_read and auth.uid() is null then
     raise exception 'not allowed to read enrollments' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
@@ -4315,10 +4315,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -4372,10 +4372,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."enrollments" x where x."id" = cancel_enrollment.enrollment_id for update;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   if position(':' in v_row."program") > 0 then

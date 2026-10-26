@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:b05c8738a5ce252637592bbc05444487c9da2cd4fa4c0c1a64eb7ae28443dcf2
+-- @bsb-hash sha256:e31ab83846af866665755cad584a73d06c32814ad461eb34d521dd0529f6476c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
@@ -643,7 +643,7 @@ begin
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
     actor_label := null;

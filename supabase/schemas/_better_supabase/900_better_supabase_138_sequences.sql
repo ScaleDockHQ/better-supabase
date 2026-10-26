@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:6d8c09c2b3adc3aaf1d0f659d1058b0195547a710959d88b80f028f12deba163
+-- @bsb-hash sha256:e8be845f121aeb17ea117a71c0d4e380fae3d718288890c9a47874bce9e09cf7
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -386,7 +386,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
@@ -496,7 +496,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequences.tenant is not null and coalesce(better_supabase.can('tenant', list_sequences.tenant, 'sequences.read'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequences.tenant is not null and coalesce(better_supabase.can('tenant', list_sequences.tenant, 'sequences.read'), false))) then
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   return coalesce((
@@ -526,7 +526,7 @@ declare
   v_row "better_supabase"."sequences";
 begin
   select * into v_row from "better_supabase"."sequences" x where x."id" = get_sequence.sequence_id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
+  if v_row."id" is null or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
@@ -556,7 +556,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('sequence:' || v_row."id"::text);
@@ -607,10 +607,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_sequence from "better_supabase"."sequences" x where x."id" = enroll_in_sequence.sequence_id;
-  if v_sequence."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.enroll'), false)))) then
+  if v_sequence."id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.read'), false))) or (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to enroll in sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   if v_sequence."status" <> 'active' then
@@ -663,7 +663,7 @@ begin
     if not found then
       raise exception 'accountId must be a connected mailbox of this organization' using errcode = '22023', hint = 'SEQUENCE_INVALID';
     end if;
-    if v_owner is distinct from auth.uid() and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.manage'), false))) then
+    if v_owner is distinct from auth.uid() and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_sequence."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_sequence."tenant_id", 'sequences.manage'), false))) then
       raise exception 'only a sequence manager sends from another user''s mailbox' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
     end if;
   end if;
@@ -732,10 +732,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = change_sequence_enrollment.enrollment_id for update;
-  if v_member."enrollment_id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
+  if v_member."enrollment_id" is null or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.read'), false))) or (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false)))) then
     raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_member."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_member."tenant_id", 'sequences.enroll'), false))) then
     raise exception 'not allowed to change sequence enrollments' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   case change_sequence_enrollment.action
@@ -804,7 +804,7 @@ declare
   v_filter jsonb := coalesce(list_sequence_enrollments.filter, '{}'::jsonb);
   v_parent uuid := nullif(v_filter ->> 'sequence', '')::uuid;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', list_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
     raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   if jsonb_typeof(v_filter) <> 'object' then
@@ -852,7 +852,7 @@ declare
   v_ran integer := 0;
   v_turns integer;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   for v_due in
@@ -918,7 +918,7 @@ as $$
 declare
   v_member "better_supabase"."sequence_enrollments";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_sent.enrollment_id for update;
@@ -954,7 +954,7 @@ as $$
 declare
   v_member "better_supabase"."sequence_enrollments";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role runs sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
   select * into v_member from "better_supabase"."sequence_enrollments" x where x."enrollment_id" = sequence_step_failed.enrollment_id for update;

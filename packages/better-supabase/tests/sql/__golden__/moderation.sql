@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:3cb01bb639260bf1329de60747ebbd1335845a5eff3007bba385d77e0f179f4f
+-- @bsb-hash sha256:b74bfe848ed2fdcedf9911ec1e8d980ae6451d332e80e24018ea091d6caa1dce
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -372,10 +372,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -400,7 +400,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -433,7 +433,7 @@ as $$
 declare
   v_row "better_supabase"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."moderation_items" x
@@ -463,7 +463,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -491,7 +491,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -534,7 +534,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -562,7 +562,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows
@@ -658,7 +658,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:2f0bbd3bf6decce2f2dffaee8b7ddc40d2bcb42b47d6d8a254341e564432217e
+-- @bsb-hash sha256:6a1b48f44da5de4f7608d5f1394e05ad431e8662e18b8016db7e9000cf2e1ba1
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1064,10 +1064,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -1092,7 +1092,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -1125,7 +1125,7 @@ as $$
 declare
   v_row "better_supabase"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."moderation_items" x
@@ -1155,7 +1155,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -1183,7 +1183,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -1235,7 +1235,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -1272,7 +1272,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows
@@ -1385,7 +1385,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:efcb35c1f0fff8878f8767f11f5eb7592dadd26eb1ff1cce35925c81aacbbd20
+-- @bsb-hash sha256:dcaff4a4025903ea31faa9a154411a532627a22ac4d3a6543a5654158f90880b
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1758,10 +1758,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -1786,7 +1786,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -1819,7 +1819,7 @@ as $$
 declare
   v_row "app_private"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "app_private"."moderation_items" x
@@ -1849,7 +1849,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -1877,7 +1877,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -1920,7 +1920,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -1948,7 +1948,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows
@@ -2044,7 +2044,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:78456dd94b69a9425bb16f7ef061baab07f24d99489b455cc6e16bbf3552fd56
+-- @bsb-hash sha256:61345451a6bb29dc99a6e79b6d22c694d628a9e4abe50577bd6951595ce09469
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2415,10 +2415,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -2443,7 +2443,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -2476,7 +2476,7 @@ as $$
 declare
   v_row "better_supabase"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."moderation_items" x
@@ -2506,7 +2506,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -2534,7 +2534,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -2577,7 +2577,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -2605,7 +2605,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows
@@ -2795,7 +2795,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:2d92712e68bc6ad329fd8210e6f46de399c0c4e961b5009426299b0342366c81
+-- @bsb-hash sha256:3643ca79576862a907db3fec8d43377119dab34a6d2b675f1ec27e3b599a4430
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3174,10 +3174,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -3202,7 +3202,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -3235,7 +3235,7 @@ as $$
 declare
   v_row "better_supabase"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."moderation_items" x
@@ -3265,7 +3265,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -3293,7 +3293,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -3336,7 +3336,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -3364,7 +3364,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows
@@ -3460,7 +3460,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:c0b9eddcc91ed16139eb385bc1690fbfcdaf9a79287d331a2c80edfd3f49130a
+-- @bsb-hash sha256:5bb10eef8486237bf2bac17e8aaa3b556aa63717ce472ac98d9d28c45d33ac28
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3831,10 +3831,10 @@ begin
   if not found then
     raise exception 'moderation item not found' using errcode = 'P0002', hint = 'MODERATION_ITEM_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.manage'), false)) then
     raise exception 'not allowed to moderate content' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
-  if moderate.action = 'ban' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
+  if moderate.action = 'ban' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if moderate.action = 'auto_hide' then
@@ -3859,7 +3859,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_queue.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read the moderation queue' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.updated desc, q.id desc), '[]'::jsonb) into v_rows
@@ -3892,7 +3892,7 @@ as $$
 declare
   v_row "better_supabase"."moderation_items";
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_item.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."moderation_items" x
@@ -3922,7 +3922,7 @@ as $$
 declare
   v_out jsonb;
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.report'), false)) or coalesce(better_supabase.can('tenant', moderation_statuses.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read moderation' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_object_agg(x."subject_id", x."status"), '{}'::jsonb) into v_out
@@ -3950,7 +3950,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ban_user.tenant, 'moderation.ban'), false)) then
     raise exception 'not allowed to ban users' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if ban_user.user_id is null or ban_user.user_id = auth.uid() then
@@ -3993,7 +3993,7 @@ begin
   if v_row."id" is null then
     raise exception 'ban not found' using errcode = 'P0002', hint = 'MODERATION_BAN_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'moderation.ban'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'moderation.ban'), false)) then
     raise exception 'not allowed to lift bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   if v_row."lifted_at" is not null then
@@ -4021,7 +4021,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_bans.tenant, 'moderation.read'), false)) then
     raise exception 'not allowed to read bans' using errcode = '42501', hint = 'MODERATION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(q.item order by q.created desc, q.id desc), '[]'::jsonb) into v_rows

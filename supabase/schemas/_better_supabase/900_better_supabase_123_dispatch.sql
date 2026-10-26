@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:6dcc0481fa92a49c9d0c46f3f7d2f015d0fe790eab6b8b2bb2222448829ebd67
+-- @bsb-hash sha256:dd324a800c46df01f42f7345aa4ea9fde911f61fd8ff736df79aca75653b4736
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -301,7 +301,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_work_order.tenant, 'dispatch.manage'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_work_order.tenant, 'dispatch.manage'), false)) then
     raise exception 'not allowed to manage work orders' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
   end if;
   if (create_work_order.subject_type is null) <> (create_work_order.subject_id is null) then
@@ -457,7 +457,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."work_orders" x where x."id" = update_work_order.work_order_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
     raise exception 'work order not found' using errcode = 'P0002', hint = 'DISPATCH_NOT_FOUND';
   end if;
   if update_work_order.location_id is not null and not exists (
@@ -520,7 +520,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."work_orders" x where x."id" = schedule_work_order.work_order_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
     raise exception 'work order not found' using errcode = 'P0002', hint = 'DISPATCH_NOT_FOUND';
   end if;
   if v_row."status" not in ('unscheduled', 'scheduled') then
@@ -586,7 +586,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."work_orders" x where x."id" = unschedule_work_order.work_order_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
+  if not found or not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
     raise exception 'work order not found' using errcode = 'P0002', hint = 'DISPATCH_NOT_FOUND';
   end if;
   if v_row."status" = 'unscheduled' then
@@ -637,7 +637,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."work_orders" x where x."id" = set_work_order_status.work_order_id for update;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) or (v_row."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))) then
+  if not found or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) or (v_row."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))) then
     raise exception 'work order not found' using errcode = 'P0002', hint = 'DISPATCH_NOT_FOUND';
   end if;
   v_from := v_row."status";
@@ -652,7 +652,7 @@ begin
   ) then
     raise exception 'a work order can''t move to that status from where it is' using errcode = '55000', hint = 'DISPATCH_TRANSITION_INVALID';
   end if;
-  if set_work_order_status.status = 'cancelled' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
+  if set_work_order_status.status = 'cancelled' and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) then
     raise exception 'only a dispatcher can cancel a work order' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
   end if;
   update "better_supabase"."work_orders" x set
@@ -697,7 +697,7 @@ declare
   v_row "better_supabase"."work_orders"%rowtype;
 begin
   select * into v_row from "better_supabase"."work_orders" x where x."id" = get_work_order.work_order_id;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.read'), false)) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) or (v_row."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false)))) then
+  if not found or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.read'), false)) or ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false)) or (v_row."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false)))) then
     return null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'title', v_row."title", 'description', v_row."description", 'priority', v_row."priority", 'status', v_row."status", 'technicianId', v_row."technician_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'day', (v_row."starts_at" at time zone 'UTC')::date, 'locationId', v_row."location_id", 'assetId', v_row."asset_id", 'bookingId', v_row."booking_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'address', v_row."address", 'enRouteAt', v_row."en_route_at", 'arrivedAt', v_row."arrived_at", 'completedAt', v_row."completed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'completionNote', v_row."completion_note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -717,7 +717,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_work_orders.tenant, 'dispatch.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_work_orders.tenant, 'dispatch.read'), false)) then
     raise exception 'not allowed to read work orders' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
   end if;
   return (
@@ -758,7 +758,7 @@ declare
   v_until timestamptz;
   v_orders jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', dispatch_board.tenant, 'dispatch.read'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', dispatch_board.tenant, 'dispatch.read'), false)) then
     raise exception 'not allowed to read work orders' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
   end if;
   if dispatch_board.from_date is null or dispatch_board.to_date is null
@@ -815,7 +815,7 @@ declare
   v_route "better_supabase"."dispatch_routes"%rowtype;
 begin
   if v_technician is null or not (
-    (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', technician_day.tenant, 'dispatch.read'), false))
+    (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', technician_day.tenant, 'dispatch.read'), false))
     or (v_technician = auth.uid() and coalesce(better_supabase.can('tenant', technician_day.tenant, 'dispatch.work'), false))
   ) then
     raise exception 'not allowed to read this technician''s day' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
@@ -867,7 +867,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if plan_dispatch_route.technician is null or not (
-    (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', plan_dispatch_route.tenant, 'dispatch.manage'), false))
+    (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', plan_dispatch_route.tenant, 'dispatch.manage'), false))
     or (plan_dispatch_route.technician = auth.uid() and coalesce(better_supabase.can('tenant', plan_dispatch_route.tenant, 'dispatch.work'), false))
   ) then
     raise exception 'not allowed to plan this technician''s route' using errcode = '42501', hint = 'DISPATCH_FORBIDDEN';
@@ -920,7 +920,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_order from "better_supabase"."work_orders" x where x."id" = record_work_order_part.work_order_id;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.manage'), false)) or (v_order."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.work'), false))) then
+  if not found or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.manage'), false)) or (v_order."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.work'), false))) then
     raise exception 'work order not found' using errcode = 'P0002', hint = 'DISPATCH_NOT_FOUND';
   end if;
   if v_order."status" = 'cancelled' then
@@ -972,7 +972,7 @@ declare
   v_order "better_supabase"."work_orders"%rowtype;
 begin
   select * into v_order from "better_supabase"."work_orders" x where x."id" = list_work_order_parts.work_order_id;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.read'), false)) or ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.manage'), false)) or (v_order."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.work'), false)))) then
+  if not found or not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.read'), false)) or ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.manage'), false)) or (v_order."technician_id" = auth.uid() and coalesce(better_supabase.can('tenant', v_order."tenant_id", 'dispatch.work'), false)))) then
     return '[]'::jsonb;
   end if;
   return (
@@ -1001,7 +1001,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
   if not found or not (
-    (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
+    (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (v_row."recorded_by" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
   ) then
     return false;

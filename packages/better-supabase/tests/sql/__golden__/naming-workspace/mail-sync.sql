@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:cbcdd4fe6638a1da8de918ed01830bff0b9df07dfe40ae7e28d5209e74724f5d
+-- @bsb-hash sha256:c9d7171453ceab4612ddf2eb45a4d0469cd24e5105a1e5274849b04a202ed7ff
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -341,7 +341,7 @@ begin
   if jsonb_typeof(connect_mail_account.credential_ref) is distinct from 'object' then
     raise exception 'credential_ref is a credential reference' using errcode = '22023', hint = 'MAIL_CREDENTIAL_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and connect_mail_account.credential_ref is not null and jsonb_typeof(connect_mail_account.credential_ref) <> 'null'
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and connect_mail_account.credential_ref is not null and jsonb_typeof(connect_mail_account.credential_ref) <> 'null'
     and (jsonb_typeof(connect_mail_account.credential_ref -> 'tenant') is distinct from 'string' or (connect_mail_account.credential_ref ->> 'tenant') is distinct from (connect_mail_account.tenant)::text) then
     raise exception 'credential_ref must carry the tenant % that owns it', connect_mail_account.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
@@ -470,7 +470,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role syncs mailboxes' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -497,7 +497,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role syncs mailboxes' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if set_mail_account_status.status not in ('active', 'paused', 'error') then
@@ -532,7 +532,7 @@ declare
   v_threads uuid[] := '{}';
   v_thread uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role syncs mailboxes' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
@@ -599,11 +599,11 @@ begin
   end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "better_supabase"."mail_accounts" k
-  where k."id" = record_sent_mail.account and (k."user_id" = auth.uid() or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and k."status" <> 'disconnected';
+  where k."id" = record_sent_mail.account and (k."user_id" = auth.uid() or coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and k."status" <> 'disconnected';
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -766,7 +766,7 @@ declare
   v_url text;
   v_event uuid;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role records tracking' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if track_mail.kind is null or track_mail.kind not in ('open', 'click') then

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:2f8a3a9f78bef8ff111bad9082eaece76eb9dc60aa583ff1cf69fda9551e16d6
+-- @bsb-hash sha256:1e748ce223fb1ce22ab88d58d4a35c9f53b05a9233cbfe32e8707bd1a2561dca
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -135,7 +135,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -224,7 +224,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -272,7 +272,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -318,7 +318,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -370,7 +370,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -420,7 +420,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
@@ -595,7 +595,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;
@@ -700,7 +700,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:40a68c966e1ef918f5fd5b22a2dab517b47187332ede753f3ecd194d00cc8ad3
+-- @bsb-hash sha256:bb9c2d84a8acd005d84f937a6b0c9b236d0c61edb93d660fec961523ad6efd2e
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -834,7 +834,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -933,7 +933,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -981,7 +981,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -1027,7 +1027,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -1099,7 +1099,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -1159,7 +1159,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
@@ -1344,7 +1344,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;
@@ -1449,7 +1449,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:559b0b10ce2389d61e3c27ab38582a1beaa9024fb4bc6ab8e5d0b38b9e902cf8
+-- @bsb-hash sha256:fe2320787963b19828dba4805d3c2e72497b23c01423494af23aacfdebdb56d1
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1585,7 +1585,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -1674,7 +1674,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -1722,7 +1722,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -1768,7 +1768,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -1820,7 +1820,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -1870,7 +1870,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "app_private"."posts" x where x."id" = v_row."id";
@@ -2045,7 +2045,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;
@@ -2150,7 +2150,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:ff073b3a7a82cf16afd14397b71c55efd6c56b917af64a6e486d3863ef8fe165
+-- @bsb-hash sha256:d4982e879b37136d6d2b81d0b73729043249f536ee5eaafc482003b571b40220
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2284,7 +2284,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -2373,7 +2373,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -2421,7 +2421,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -2467,7 +2467,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -2519,7 +2519,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -2569,7 +2569,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
@@ -2744,7 +2744,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;
@@ -2961,7 +2961,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:c269b5dccffc588e8af6cb06c5d074e844a01b6060c86d576342612c9a6d6792
+-- @bsb-hash sha256:88bb4504ac4d0244956b0f16802e9a14e3ceb621065686adec9e0195032051f8
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3104,7 +3104,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -3193,7 +3193,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_board."tenant_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -3241,7 +3241,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -3287,7 +3287,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -3339,7 +3339,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -3389,7 +3389,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
@@ -3564,7 +3564,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;
@@ -3669,7 +3669,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:1b9a75397f3d65f974cd4c201f35dfd8d677cc6758bb56c17c2a016141ee32fa
+-- @bsb-hash sha256:36f652d22eb15b6a37ce8da09e0e3e3e7bb9a0593ee08f631f4511b624e0a731
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3803,7 +3803,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(save_post_board.board) is distinct from 'object' then
@@ -3892,7 +3892,7 @@ begin
   if not found then
     raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."org_id" is not null and coalesce(better_supabase.can('tenant', v_board."org_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_board."org_id" is not null and coalesce(better_supabase.can('tenant', v_board."org_id", 'posts.write'), false))) or (v_me is null and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to post on this board' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_board."archived_at" is not null then
@@ -3940,7 +3940,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  v_moderator := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false));
+  v_moderator := (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false));
   if not v_moderator and (v_row."author_id" is distinct from auth.uid() or v_row."locked_at" is not null) then
     raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -3986,7 +3986,7 @@ begin
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if jsonb_typeof(set_post_state.attrs) is distinct from 'object' then
@@ -4038,7 +4038,7 @@ begin
   if not found or v_target."board_id" is distinct from v_row."board_id" then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
@@ -4088,7 +4088,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+  if not ((coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
     raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
@@ -4263,7 +4263,7 @@ begin
     return new;
   end if;
   if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."org_id", 'posts.moderate'), false)) then
+    and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."org_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return new;

@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:4c41341bce3d04dd60dc5c70bb29bc9de2de62fa39ef52d3487fc7fcaedf1cf4
+-- @bsb-hash sha256:2da7921d946dcadee3715f4faed047e1c725a11fd15681bc4e7858285db276d4
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,7 +47,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
@@ -597,7 +597,7 @@ declare
   existing text;
   entry_id "centrakit"."audit_logs"."id"%type;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     actor_id := auth.uid();
     actor_kind := null;
     actor_label := null;
@@ -1127,7 +1127,7 @@ declare
 begin
   select true, l."organization_id" into found_entry, owner from "centrakit"."audit_logs" l where l."id"::text = entry;
   if found_entry is null or not (
-    (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+    (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
     or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
     or (owner is not null and coalesce(better_supabase.member_can(auth.uid(), owner, 'audit.view'), false))
   ) then
@@ -1169,7 +1169,7 @@ begin
   from "centrakit"."audit_logs" l
   where l."id"::text = any (entries)
     and (
-    (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+    (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
     or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
     or (l."organization_id" is not null and coalesce(better_supabase.member_can(auth.uid(), l."organization_id", 'audit.view'), false))
     );

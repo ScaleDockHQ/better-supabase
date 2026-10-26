@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:727566fb34030604d536b5847b1771aa6eefd962c0d5928a648c0cf96cfe3a17
+-- @bsb-hash sha256:c1f1d4c01d20ec72f9a7aaa8a8a3daf46108f8f9553d3d5ac55dd21f6a7d681a
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"

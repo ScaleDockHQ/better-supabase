@@ -180,7 +180,7 @@ describe("organizations module", () => {
   it("checks the own-role rule and both roles' ceilings in update_member_role", () => {
     const sql = body({});
     expect(sql).toContain(
-      "if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then",
+      "if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then",
     );
     expect(sql).toContain(
       "if not better_supabase.can_assign(organization, previous_assignable)\n    or not better_supabase.can_assign(organization, (role)::text) then",

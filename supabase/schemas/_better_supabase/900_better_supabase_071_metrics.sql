@@ -1,6 +1,6 @@
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:ddac8dff772109ac20d7984760e7392fa8ba5ca2cdec51cf189f41d2b86629fd
+-- @bsb-hash sha256:b2b339007c01f9786335f83f49158143f4520dc0c072cc631ad3f2fccc7a2839
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,7 +96,7 @@ begin
   end if;
   case p_metric
     when 'customers' then
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'metrics.read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'metrics.read'), false)) then
         raise exception 'you cannot read this metric in this organization' using errcode = '42501', hint = 'METRIC_FORBIDDEN';
       end if;
       if exists (
@@ -182,7 +182,7 @@ begin
   end if;
   case p_metric
     when 'customers' then
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'metrics.read'), false)) then
+      if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'metrics.read'), false)) then
         raise exception 'you cannot read this metric in this organization' using errcode = '42501', hint = 'METRIC_FORBIDDEN';
       end if;
       if exists (

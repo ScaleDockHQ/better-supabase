@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:5e2fb063a7bd2112b325790b9801e075478e95528c1da652f6ad10f0738ed70e
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
@@ -198,7 +198,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:5e2fb063a7bd2112b325790b9801e075478e95528c1da652f6ad10f0738ed70e
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -219,7 +219,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
@@ -395,7 +395,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:5e2fb063a7bd2112b325790b9801e075478e95528c1da652f6ad10f0738ed70e
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,7 +416,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
@@ -592,7 +592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:3f938839ee6c1445325989dfe9b372c4722d40a4d1acb5d78c40d61d5913d227
+-- @bsb-hash sha256:8f86e4cc8a9d29ecea15d983251da1f099e7886b7710cdda7c97fa09d83e6e39
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -613,7 +613,7 @@ as $$
 declare
   header text;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
   header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';

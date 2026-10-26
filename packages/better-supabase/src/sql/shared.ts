@@ -166,10 +166,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
 /**
  * A SQL condition true for the service role and for a direct admin connection
- * (no JWT, a privileged session user), which may act for others.
+ * (no JWT, a privileged session user), which may act for others. The role
+ * PostgREST switched to (the `role` setting, which a request can't change) wins
+ * over the JWT claim; the claim only decides when no role is set, as on a
+ * direct connection that sets claims by hand.
  */
 export const SERVICE_CALLER =
-  "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
+  "coalesce(nullif(nullif(current_setting('role', true), ''), 'none'), nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
 /**
  * The `organization.member_added` record for a module that adds a member, so
