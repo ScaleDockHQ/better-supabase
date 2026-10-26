@@ -19,16 +19,8 @@ export default defineConfig({
     powersync: { instances: ["notifications", "memberships"] },
   },
   blocks: {
-    memberships: {
-      ownership: "custom",
-      api: false,
-      tables: { memberships: "public.memberships" },
-    },
-    permissions: {
-      ownership: "custom",
-      activeTenant: "claim",
-      roles: { owner: [], admin: [], member: [] },
-    },
+    memberships: { api: false, tables: { memberships: "public.memberships" } },
+    permissions: { model: "catalog", activeTenant: "claim" },
     comments: {},
     tags: {},
     notifications: {},

@@ -63,6 +63,10 @@ const FIXTURE_SEARCH = new URL(
 );
 
 const ACME = "00000000-0000-4000-8000-000000000001";
+
+// A member of Acme (tests/integration/global-setup.ts), since the tenant
+// scope reads the claim only for a member.
+const MEMBER = "00000000-0000-4000-8000-0000000000ff";
 const RUN = String(Date.now());
 
 async function reachable(): Promise<boolean> {
@@ -161,6 +165,11 @@ async function installSchemaModules(pool: Pool): Promise<void> {
         (module) => module.target === "schema" && module.name !== "rls-guard",
       )
       .map((module) => module.name);
+
+    // The default render points team members at its own memberships table,
+    // which can't hold the seed's team members; `pnpm supabase:reset` brings
+    // them back.
+    await client.query("delete from better_supabase.team_members");
 
     for (const file of renderBlocks(names)) {
       if (file.kind !== "test") {
@@ -4599,7 +4608,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const alice = await asUser(
       betterSupabase,
-      { sub: crypto.randomUUID(), tenant_id: ACME },
+      { sub: MEMBER, tenant_id: ACME },
       { url, publishableKey, postgres },
     );
 
@@ -4660,7 +4669,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     try {
       const alice = await asUser(
         betterSupabase,
-        { sub: crypto.randomUUID(), tenant_id: ACME },
+        { sub: MEMBER, tenant_id: ACME },
         { url, publishableKey, postgres },
       );
 
@@ -4735,8 +4744,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       readSets: [await compileReadSet(mine)],
     });
 
-    const alice = crypto.randomUUID();
-    const bob = crypto.randomUUID();
+    const alice = "00000000-0000-4000-8000-0000000000a1";
+    const bob = "00000000-0000-4000-8000-0000000000a2";
     await pool.query(file!.contents);
     await pool.query(
       `insert into public.customers (organization_id, name, created_by)
@@ -4784,7 +4793,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const alice = await asUser(
       betterSupabase,
-      { sub: crypto.randomUUID(), tenant_id: ACME },
+      { sub: MEMBER, tenant_id: ACME },
       { url, publishableKey, postgres },
     );
 

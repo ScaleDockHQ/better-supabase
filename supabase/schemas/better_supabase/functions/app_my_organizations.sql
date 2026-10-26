@@ -14,9 +14,10 @@ set search_path = ''
 as $$
 begin
   return query
-  select o.id, o.name, o.slug, m.role, s.plan_key, m.last_used_at
+  select o.id, o.name, o.slug, r.key, s.plan_key, m.last_used_at
   from public.memberships m
   join public.organizations o on o.id = m.organization_id
+  join better_supabase.roles r on r.id = m.role
   left join public.subscriptions s on s.organization_id = o.id
   where m.user_id = (select auth.uid())
   order by o.name;

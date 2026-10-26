@@ -18,9 +18,6 @@ export type Database = EnrichDatabase<
         metadata: { source?: string; tier?: 'free' | 'pro' };
         logo_path: StoragePath<"customer-logos">;
       };
-      memberships: {
-        role: "owner" | "admin" | "member";
-      };
       subscriptions: {
         status: "active" | "trialing" | "past_due" | "canceled";
       };
@@ -38,8 +35,6 @@ export const noteKindValues = ["call", "meeting", "email"] as const;
 export type NoteKind = (typeof noteKindValues)[number];
 export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
-export const membershipsRoleValues = ["owner", "admin", "member"] as const;
-export type MembershipsRole = (typeof membershipsRoleValues)[number];
 export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
 export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
@@ -96,6 +91,7 @@ export type Models = {
       full_name: string | null;
       created_at: string;
       updated_at: string;
+      email_domain: string | null;
     };
     Insert: {
       id?: string;
@@ -104,6 +100,7 @@ export type Models = {
       full_name?: string | null;
       created_at?: string;
       updated_at?: string;
+      email_domain?: never;
     };
     Update: {
       id?: string;
@@ -112,6 +109,7 @@ export type Models = {
       full_name?: string | null;
       created_at?: string;
       updated_at?: string;
+      email_domain?: never;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -276,34 +274,34 @@ export type Models = {
     Row: {
       organization_id: string;
       user_id: string;
-      role: "owner" | "admin" | "member";
+      role: string;
       created_at: string;
       last_used_at: string | null;
-      tier_role: string | null;
+      updated_at: string;
     };
     Insert: {
       organization_id: string;
       user_id: string;
-      role?: "owner" | "admin" | "member";
+      role: string;
       created_at?: string;
       last_used_at?: string | null;
-      tier_role?: never;
+      updated_at?: string;
     };
     Update: {
       organization_id?: string;
       user_id?: string;
-      role?: "owner" | "admin" | "member";
+      role?: string;
       created_at?: string;
       last_used_at?: string | null;
-      tier_role?: never;
+      updated_at?: string;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "organization_id" | "user_id";
     UniqueKeys: Record<never, never>;
-    Checks: "memberships_role_check";
-    ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
+    Checks: never;
+    ForeignKeys: "memberships_organization_id_fkey" | "memberships_role_fkey" | "memberships_user_id_fkey";
     Flags: {
       timestamps: true;
       tenant: "organization_id";

@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:1e3f5b80b5e5290103cb9ffd6a0eb005811b448c0cb6363aecb94004a4804f1a
+-- @bsb-hash sha256:c87bb42c13d71c8b1d5d421dabc4217484816fcea607246505e6ad8d6bdb18bb
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -469,6 +469,10 @@ begin
       where m."organization_id" = v_tenant
         and coalesce(better_supabase.can_user(m."user_id", 'tenant', v_tenant, notification ->> 'permission'), false)
       
+      union
+      select a."user_id"
+      from "better_supabase"."platform_roles" a
+      where coalesce(better_supabase.platform_can(a."user_id", notification ->> 'permission'), false)
     ), '{}');
   end if;
   -- exclude: users the composer already reached (the mentioned ones, say).

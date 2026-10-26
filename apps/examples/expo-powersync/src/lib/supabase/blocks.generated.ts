@@ -151,9 +151,6 @@ export const permissions = {
  */
 export type PermissionKey = "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "tags.apply" | "tags.manage" | "tags.read";
 
-/** The roles `blocks.permissions.roles` defines. @public */
-export type RoleName = "admin" | "member" | "owner";
-
 /** Every installed block's events: type to data. @public */
 export type BlockEvents = MessagingEvents & NotificationsEvents & TagsEvents;
 

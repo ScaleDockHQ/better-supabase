@@ -49,7 +49,7 @@ select throws_ok(
 reset role;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-0000000000b1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000002"}}',
+  '{"sub":"00000000-0000-4000-8000-0000000000a3","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000002"}}',
   true
 );
 set local role authenticated;

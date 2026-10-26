@@ -1,17 +1,18 @@
 -- team_ids_of(member) answers only for the caller, the service role and
 -- direct database sessions. The admin (…00a1) and the member (…00a2) both
--- belong to Acme (…0001) (supabase/seed.sql).
+-- belong to Acme (…0001), and the seed puts the member in Sales
+-- (supabase/seed.sql).
 begin;
 select plan(5);
 
 insert into better_supabase.teams (id, tenant_id, name, slug)
-values ('00000000-0000-4000-8000-0000000000f1', '00000000-0000-4000-8000-000000000001', 'Support', 'support');
+values ('00000000-0000-4000-8000-0000000000f1', '00000000-0000-4000-8000-000000000001', 'Escalations', 'escalations');
 insert into better_supabase.team_members (team_id, user_id, tenant_id)
 values ('00000000-0000-4000-8000-0000000000f1', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-000000000001');
 
 select is(
   (select count(*)::int from better_supabase.team_ids_of('00000000-0000-4000-8000-0000000000a2')),
-  1,
+  2,
   'a direct database session reads any user''s teams'
 );
 
@@ -24,7 +25,7 @@ set local role authenticated;
 
 select is(
   (select count(*)::int from better_supabase.team_ids_of('00000000-0000-4000-8000-0000000000a2')),
-  1,
+  2,
   'a member reads their own teams'
 );
 
@@ -47,7 +48,7 @@ set local role service_role;
 
 select is(
   (select count(*)::int from better_supabase.team_ids_of('00000000-0000-4000-8000-0000000000a2')),
-  1,
+  2,
   'the service role reads any user''s teams'
 );
 

@@ -57,6 +57,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          email_domain: string | null
           full_name: string | null
           id: string
           organization_id: string
@@ -66,6 +67,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          email_domain?: never
           full_name?: string | null
           id?: string
           organization_id: string
@@ -74,6 +76,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          email_domain?: never
           full_name?: string | null
           id?: string
           organization_id?: string
@@ -252,7 +255,7 @@ export type Database = {
           last_used_at: string | null
           organization_id: string
           role: string
-          tier_role: string | null
+          updated_at: string
           user_id: string
         }
         ComputedFields: never
@@ -260,8 +263,8 @@ export type Database = {
           created_at?: string
           last_used_at?: string | null
           organization_id: string
-          role?: string
-          tier_role?: never
+          role: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -269,7 +272,7 @@ export type Database = {
           last_used_at?: string | null
           organization_id?: string
           role?: string
-          tier_role?: never
+          updated_at?: string
           user_id?: string
         }
         Relationships: [

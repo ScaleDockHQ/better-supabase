@@ -52,10 +52,9 @@ select set_config(
 );
 set local role authenticated;
 
-select is(
-  api.my_permissions('00000000-0000-4000-8000-000000000001'),
-  array['*'],
-  'an owner holds the wildcard'
+select ok(
+  api.my_permissions('00000000-0000-4000-8000-000000000001') @> array['organization.delete', 'roles.manage'],
+  'an owner holds every catalog key, the owner-only ones too'
 );
 
 -- Anonymous.

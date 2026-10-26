@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:2f36d46913b9677e4944336989e859a237f7a20caf4158a73842822cd21b54d1
+-- @bsb-hash sha256:fef5333c88c3e11492dd164c3c6d71531ff94a4972d0a10d409073aa7ba36ba6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -166,7 +166,7 @@ begin
     or (v_approvers ->> 'permission' is not null and coalesce(better_supabase.can('tenant', v_req."tenant_id", v_approvers ->> 'permission'), false))
     or (v_approvers ->> 'role' is not null and exists (
       select 1 from "public"."memberships" m
-      where m."organization_id" = v_req."tenant_id" and m."user_id" = v_me and m."role" = v_approvers ->> 'role'
+      where m."organization_id" = v_req."tenant_id" and m."user_id" = v_me and m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_approvers ->> 'role')::text or r."key" = (v_approvers ->> 'role')::text) order by (r."id"::text = (v_approvers ->> 'role')::text) desc limit 1)
     ))
     or (v_approvers ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = v_approvers ->> 'team' and tm."user_id" = v_me))
     or exists (
@@ -208,7 +208,7 @@ begin
       select x::uuid from jsonb_array_elements_text(coalesce(v_approvers -> 'users', '[]'::jsonb)) x
       union
       select m."user_id" from "public"."memberships" m
-      where m."organization_id" = v_req."tenant_id" and m."role" = v_approvers ->> 'role'
+      where m."organization_id" = v_req."tenant_id" and m."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_approvers ->> 'role')::text or r."key" = (v_approvers ->> 'role')::text) order by (r."id"::text = (v_approvers ->> 'role')::text) desc limit 1)
       union
       select tm."user_id" from "better_supabase"."team_members" tm
       where tm."team_id"::text = v_approvers ->> 'team'

@@ -39,6 +39,7 @@ export const contactsRow: z.ZodType<RowOf<'contacts'>> = z.object({
   fullName: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  emailDomain: z.string().nullable(),
 }).meta({ title: "Contacts" });
 export const contactsInsert: z.ZodType<InsertOf<'contacts'>> = z.object({
   id: z.guid().exactOptional(),
@@ -156,24 +157,26 @@ export const locationsUpdate: z.ZodType<UpdateOf<'locations'>> = z.object({
 export const membershipsRow: z.ZodType<RowOf<'memberships'>> = z.object({
   organizationId: z.guid(),
   userId: z.guid(),
-  role: z.enum(["owner", "admin", "member"]),
+  role: z.guid(),
   createdAt: z.iso.datetime({ offset: true }),
   lastUsedAt: z.iso.datetime({ offset: true }).nullable(),
-  tierRole: z.string().nullable(),
+  updatedAt: z.iso.datetime({ offset: true }),
 }).meta({ title: "Memberships" });
 export const membershipsInsert: z.ZodType<InsertOf<'memberships'>> = z.object({
   organizationId: z.guid(),
   userId: z.guid(),
-  role: z.enum(["owner", "admin", "member"]).exactOptional(),
+  role: z.guid(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   lastUsedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Memberships insert" });
 export const membershipsUpdate: z.ZodType<UpdateOf<'memberships'>> = z.object({
   organizationId: z.guid().exactOptional(),
   userId: z.guid().exactOptional(),
-  role: z.enum(["owner", "admin", "member"]).exactOptional(),
+  role: z.guid().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   lastUsedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Memberships update" });
 
 export const notesRow: z.ZodType<RowOf<'notes'>> = z.object({

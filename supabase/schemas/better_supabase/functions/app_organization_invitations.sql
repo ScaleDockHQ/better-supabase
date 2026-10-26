@@ -10,8 +10,9 @@ begin
     raise exception 'Not allowed to list invitations' using errcode = '42501';
   end if;
   return query
-  select i.id, i.email, i.role, coalesce(p.full_name, p.email), i.created_at, i.expires_at
+  select i.id, i.email, coalesce(r.key, i.role), coalesce(p.full_name, p.email), i.created_at, i.expires_at
   from better_supabase.invitations i
+  left join better_supabase.roles r on r.id::text = i.role
   left join better_supabase.profiles p on p.id = i.invited_by
   where i.organization_id = organization
     and i.accepted_at is null and i.declined_at is null and i.revoked_at is null

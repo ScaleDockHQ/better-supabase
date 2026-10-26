@@ -15,7 +15,7 @@ const customersFactory: Factory<InsertOf<"customers">, "organizationId" | "prima
 
 const locationsFactory: Factory<InsertOf<"locations">, "organizationId" | "customerId", "organizationId" | "customerId"> = defineFactory<InsertOf<"locations">, "organizationId" | "customerId", "organizationId" | "customerId">((n) => ({ "label": `label-${String(n)}` }), { "organizationId": "id", "customerId": "id" });
 
-const membershipsFactory: Factory<InsertOf<"memberships">, "organizationId" | "userId", "organizationId" | "userId"> = defineFactory<InsertOf<"memberships">, "organizationId" | "userId", "organizationId" | "userId">((_n) => ({}), { "organizationId": "id", "userId": "id" });
+const membershipsFactory: Factory<InsertOf<"memberships">, "organizationId" | "userId" | "role", "organizationId" | "userId" | "role"> = defineFactory<InsertOf<"memberships">, "organizationId" | "userId" | "role", "organizationId" | "userId" | "role">((_n) => ({}), { "organizationId": "id", "userId": "id", "role": "id" });
 
 const notesFactory: Factory<InsertOf<"notes">, "organizationId" | "customerId", "organizationId" | "customerId"> = defineFactory<InsertOf<"notes">, "organizationId" | "customerId", "organizationId" | "customerId">((n) => ({ "body": `body-${String(n)}` }), { "organizationId": "id", "customerId": "id" });
 

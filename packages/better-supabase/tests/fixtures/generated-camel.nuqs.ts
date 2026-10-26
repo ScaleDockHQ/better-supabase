@@ -27,12 +27,12 @@ export const serializeClientNotesSearchParams: ReturnType<typeof createSerialize
 
 /** Search params for a list of `contacts`: filters, order, cursor and page size. */
 export const contactsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt" | "emailDomain">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "createdAt", "updatedAt"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "createdAt", "updatedAt", "emailDomain"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -117,14 +117,12 @@ export const serializeLocationsSearchParams: ReturnType<typeof createSerializer<
 
 /** Search params for a list of `memberships`: filters, order, cursor and page size. */
 export const membershipsSearchParams: {
-  readonly role: SingleParserBuilder<"owner" | "admin" | "member">;
-  readonly orderBy: SingleParserBuilder<"organizationId" | "userId" | "role" | "createdAt" | "lastUsedAt" | "tierRole">;
+  readonly orderBy: SingleParserBuilder<"organizationId" | "userId" | "role" | "createdAt" | "lastUsedAt" | "updatedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  role: parseAsStringLiteral(["owner", "admin", "member"] as const),
-  orderBy: parseAsStringLiteral(["organizationId", "userId", "role", "createdAt", "lastUsedAt", "tierRole"] as const),
+  orderBy: parseAsStringLiteral(["organizationId", "userId", "role", "createdAt", "lastUsedAt", "updatedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

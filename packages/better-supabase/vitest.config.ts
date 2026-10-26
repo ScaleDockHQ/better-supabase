@@ -48,6 +48,7 @@ export default mergeConfig(
           test: {
             name: "integration",
             include: ["tests/**/*.integration.test.ts"],
+            globalSetup: ["./tests/integration/global-setup.ts"],
             // The suites share one database; counts must not race with writes.
             fileParallelism: false,
           },

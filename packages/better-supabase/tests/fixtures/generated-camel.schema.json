@@ -167,6 +167,12 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "emailDomain": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -175,7 +181,8 @@
         "email",
         "fullName",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "emailDomain"
       ],
       "additionalProperties": false
     },
@@ -778,11 +785,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -796,11 +799,10 @@
           ],
           "format": "date-time"
         },
-        "tierRole": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
@@ -809,7 +811,7 @@
         "role",
         "createdAt",
         "lastUsedAt",
-        "tierRole"
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -827,11 +829,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -844,11 +842,17 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
         "organizationId",
-        "userId"
+        "userId",
+        "role"
       ],
       "additionalProperties": false
     },
@@ -866,11 +870,7 @@
         },
         "role": {
           "type": "string",
-          "enum": [
-            "owner",
-            "admin",
-            "member"
-          ]
+          "format": "uuid"
         },
         "createdAt": {
           "type": "string",
@@ -883,6 +883,11 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "additionalProperties": false

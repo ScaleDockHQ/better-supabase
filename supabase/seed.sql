@@ -61,11 +61,27 @@ insert into rbac.user_roles (user_id, role) values
   ('00000000-0000-4000-8000-0000000000a1', 'admin'),
   ('00000000-0000-4000-8000-0000000000a2', 'member');
 
-insert into public.memberships (organization_id, user_id, role, created_at) values
-  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'owner', now() - interval '30 days'),
-  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'member', now() - interval '20 days'),
-  ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a3', 'owner', now() - interval '25 days'),
-  ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a1', 'member', now() - interval '10 days');
+-- Roles are rows of the permissions block's catalog; a membership points at
+-- the role's id.
+insert into public.memberships (organization_id, user_id, role, created_at)
+select m.organization_id, m.user_id, r.id, now() - m.age
+from (values
+  ('00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-8000-0000000000a1'::uuid, 'owner', interval '30 days'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'member', interval '20 days'),
+  ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a3', 'owner', interval '25 days'),
+  ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a1', 'member', interval '10 days')
+) as m(organization_id, user_id, role, age)
+join better_supabase.roles r on r.key = m.role;
+
+-- Acme's teams: Sales has both members, Support only the owner.
+insert into better_supabase.teams (id, tenant_id, name, slug, description, created_by) values
+  ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-000000000001', 'Sales', 'sales', 'New business and renewals.', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-000000000001', 'Support', 'support', 'Customer questions and incidents.', '00000000-0000-4000-8000-0000000000a1');
+
+insert into better_supabase.team_members (team_id, user_id, tenant_id) values
+  ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-000000000001'),
+  ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-000000000001'),
+  ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-000000000001');
 
 -- Plans and their features (the entitlements module's plan catalog), and
 -- the quotas the usage module enforces per plan.

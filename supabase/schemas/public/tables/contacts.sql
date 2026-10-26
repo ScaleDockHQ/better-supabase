@@ -3,6 +3,8 @@ create table public.contacts (
   organization_id uuid not null references public.organizations (id) on delete cascade,
   email text not null,
   full_name text,
+  -- Groups contacts by company; Postgres computes it, so clients can't write it.
+  email_domain text generated always as (lower(split_part(email, '@', 2))) stored,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   -- Target of the composite foreign keys that keep children in the same tenant.

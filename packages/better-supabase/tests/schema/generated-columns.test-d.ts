@@ -17,37 +17,39 @@ declare const client: SupabaseClient;
 const db = defineSupabase(schema).connect(client);
 
 describe("generated columns", () => {
-  it("keeps tierRole in Row and out of the writable columns", () => {
-    expectTypeOf<RowOf<"memberships">["tierRole"]>().toEqualTypeOf<
+  it("keeps emailDomain in Row and out of the writable columns", () => {
+    expectTypeOf<RowOf<"contacts">["emailDomain"]>().toEqualTypeOf<
       string | null
     >();
-    expectTypeOf<GeneratedColumnOf<"memberships">>().toEqualTypeOf<"tierRole">();
+    expectTypeOf<GeneratedColumnOf<"contacts">>().toEqualTypeOf<"emailDomain">();
 
-    expectTypeOf<WritableColumnOf<"memberships">>().toEqualTypeOf<
-      "organizationId" | "userId" | "role" | "createdAt" | "lastUsedAt"
+    expectTypeOf<WritableColumnOf<"contacts">>().toEqualTypeOf<
+      | "id"
+      | "organizationId"
+      | "email"
+      | "fullName"
+      | "createdAt"
+      | "updatedAt"
     >();
 
-    expectTypeOf<WritableColumns<Models, "memberships">>().toEqualTypeOf<
-      WritableColumnOf<"memberships">
+    expectTypeOf<WritableColumns<Models, "contacts">>().toEqualTypeOf<
+      WritableColumnOf<"contacts">
     >();
 
-    expectTypeOf<GeneratedColumns<Models, "memberships">>().toEqualTypeOf<
-      GeneratedColumnOf<"memberships">
+    expectTypeOf<GeneratedColumns<Models, "contacts">>().toEqualTypeOf<
+      GeneratedColumnOf<"contacts">
     >();
   });
 
   it("rejects the column in create and update", () => {
-    const row = { organizationId: "o", userId: "u", tierRole: "manager" };
+    const row = { organizationId: "o", email: "a@b.test", emailDomain: "b.test" };
     // @ts-expect-error generated columns are not writable
-    void db.memberships.create(row);
+    void db.contacts.create(row);
 
-    void db.memberships.update(
-      { organizationId: "o", userId: "u" },
-      {
-        // @ts-expect-error generated columns are not writable
-        tierRole: "manager",
-      },
-    );
+    void db.contacts.update("c", {
+      // @ts-expect-error generated columns are not writable
+      emailDomain: "b.test",
+    });
   });
 
   it("has no generated columns on a table without them", () => {

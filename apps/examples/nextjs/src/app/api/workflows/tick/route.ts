@@ -17,18 +17,14 @@ async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
     return null;
   }
 
-  const [owner] = await bsb
+  const members = await bsb
     .admin()
-    .memberships.list({
-      select: ["userId"],
-      where: { organizationId: call.tenant, role: "owner" },
-      limit: 1,
-    })
+    .$rpc("organization_members", { organization: call.tenant })
     .orThrow();
 
-  return owner === undefined
-    ? null
-    : { publisher: owner.userId, permissions: [] };
+  const owner = members.find((member) => member.role === "owner")?.userId;
+
+  return owner ? { publisher: owner, permissions: [] } : null;
 }
 
 /**
