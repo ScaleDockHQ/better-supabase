@@ -11,8 +11,12 @@ dist/
 
 # testing
 coverage/
+# Vitest blob reports from a sharded run.
+.vitest/
 tmp/
 packages/better-supabase/tmp/
+# Temp folders from Rust tools (`.tmpAbC123`) that would otherwise enter Turbo task hashes.
+.tmp*/
 
 # expo
 .expo/

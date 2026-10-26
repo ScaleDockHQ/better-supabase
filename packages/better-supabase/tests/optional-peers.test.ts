@@ -21,6 +21,8 @@ const INTEGRATIONS = [
   "@openfeature/server-sdk",
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",
+  "@supabase/pg-delta",
+  "@supabase/pg-topo",
   "@vercel/connect",
   "@vercel/queue",
   "flags",

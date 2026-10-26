@@ -3,7 +3,7 @@
  * checkout and its worktrees. Every running native stack holds shared memory
  * segments, and macOS allows 32 (`kern.sysv.shmmni`), so a few dozen idle
  * stacks make the next `supabase start` fail. Stopping keeps the stack's data;
- * `supabase stack list` still shows it. `--dry-run` only prints.
+ * `supabase stack list` still shows it. Without `--apply` it only lists them.
  */
 import { execFileSync } from "node:child_process";
 import * as v from "valibot";
@@ -69,6 +69,10 @@ export const mergedBranches = (output: string): Set<string> =>
       .filter((line) => line.length > 0),
   );
 
+/** Whether the arguments ask to stop the stacks rather than list them. */
+export const shouldApply = (args: readonly string[]): boolean =>
+  args.includes("--apply");
+
 const run = (command: string, args: string[]): string =>
   execFileSync(command, args, {
     encoding: "utf-8",
@@ -76,7 +80,7 @@ const run = (command: string, args: string[]): string =>
   });
 
 function main(): void {
-  const dryRun = process.argv.includes("--dry-run");
+  const apply = shouldApply(process.argv.slice(2));
 
   const listed = run("pnpm", [
     "exec",
@@ -105,7 +109,7 @@ function main(): void {
   for (const stack of prunable) {
     const branch = stack.branch_context.slice(BRANCH_REF.length);
 
-    if (dryRun) {
+    if (!apply) {
       console.log(`Would stop ${branch} (${stack.project_root})`);
 
       continue;
@@ -114,6 +118,10 @@ function main(): void {
     run("pnpm", ["exec", "supabase", "stop", "--stack-id", stack.id]);
 
     console.log(`Stopped ${branch} (${stack.project_root})`);
+  }
+
+  if (!apply) {
+    console.log("Run `pnpm supabase:prune --apply` to stop them.");
   }
 }
 

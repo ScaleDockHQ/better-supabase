@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.0 (2026-10-26)
+
+- `better-supabase add <block> --over <schema.table>` installs one block over a table you already have. It proposes the `tables` and `columns` mapping, reports what cannot map and writes `blocks.<block>` to the config, like `add --adopt <block> --tables`, and refuses to combine with those two flags.
+- `better-supabase db diff` plans with pg-delta's library on a local pg-delta project. A rename becomes a rename only when a migration records `-- bsb: rename old -> new`, and a diff that drops tables or columns stops with a `check_failed` error until you pass `--allow-data-loss`. The shadow database comes from `provisionCoLocatedShadow`, so `pg_dump`, `psql` and `BSB_PG_BIN` are no longer used. Install `@supabase/pg-delta` and `@supabase/pg-topo` (optional peers) to use it. The Supabase CLI still runs for the migra workflow and remote databases.
+- `better-supabase init` recognizes a project that already has a `supabase` folder: it prints the migrations, schema files and snapshot tables it found, says that the database is unchanged, and points at `doctor` and `table` as next steps. The new `--from` flag starts a project from a `postgres://` URL, which writes the database's schema to `supabase/snapshot.json`, or from a preset, design code, URL or file like `--preset`.
+- Tenant topics of `realtime-tables` (`bsb:t:<table>:<tenant>`) are now received by members of that tenant at the time of the message, checked with `member_organization_ids()`, instead of by whoever carries the tenant id in their token. A removed member stops receiving at once. Without the `memberships` module tenant topics stay closed; unscoped and own-user topics are unchanged.
+  The preset catalog is regenerated with it.
+- `migrate schema-first` keeps the grants, comment and policies of a view in the view's own file, and leaves out a `drop view` for a view it writes. `gen` names the events of a table with an `events` tag after its `subject` tag type, as the table's trigger does.
+
+## 0.27.1 (2026-10-26)
+
+- Block modules now emit every row level security policy as a typed `Policy` value, so the installed SQL is laid out one clause per line. The policies, their names and their drops are unchanged, and a module that writes `create policy` by hand now fails the test suite.
+
 ## 0.27.0 (2026-10-26)
 
 - Blocks over the app's own tables take more of their shapes, all opt-in:

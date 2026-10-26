@@ -19,6 +19,11 @@ flag.
   `next/dynamic` and `ssr: false`, so its client code stays out of the page.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
   `<html>`, fonts and `metadataBase`.
+- Outside a Vercel production build, `BSB_BUILD_SCOPE` is `minimal` and every
+  `generateStaticParams` in docs and marketing returns its first 3 entries
+  through `scopeStaticParams` (ADR 0109). Wrap a new one the same way, and
+  run `BSB_BUILD_SCOPE=full pnpm build` to prerender every page. The scope
+  is read from the shell env, not from `.env` files.
 
 ## Instant navigation tests
 

@@ -8,6 +8,7 @@ import { assertSameSlugs } from "@/lib/page-slugs";
 import pageSlugs from "@/lib/page-slugs.json" with { type: "json" };
 import { siteUrl } from "@/lib/site-url";
 import { getPageImage, getPagePublicMarkdownUrl, source } from "@/lib/source";
+import { scopeStaticParams } from "@better-supabase/next-config/build-scope";
 
 type DocsPageProps = { params: Promise<{ slug?: string[] }> };
 
@@ -26,7 +27,7 @@ export function generateStaticParams() {
     source.getPages().map((page) => page.slugs.join("/")),
   );
 
-  return source.generateParams();
+  return scopeStaticParams(source.generateParams());
 }
 
 export async function generateMetadata(

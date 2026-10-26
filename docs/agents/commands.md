@@ -20,7 +20,7 @@ what it checks.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
-- `pnpm supabase:prune`: stop the running stacks of branches merged into `main`, in this checkout and its worktrees, keeping their data (`--dry-run` lists them). macOS runs out of shared memory segments after about 30 running stacks.
+- `pnpm supabase:prune`: list the running stacks of branches merged into `main`, in this checkout and its worktrees; `--apply` stops them and keeps their data. macOS runs out of shared memory segments after about 30 running stacks.
 - `pnpm test:scripts`: the tests of the repo scripts in `scripts/`.
 - `pnpm supabase:diff <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.

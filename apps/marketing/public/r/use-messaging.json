@@ -4,7 +4,7 @@
   "title": "useMessages, useConversations",
   "description": "useMessages and useConversations: the messaging block's controllers as React hooks, for React DOM and React Native.",
   "dependencies": [
-    "better-supabase@^0.27.0"
+    "better-supabase@^0.28.0"
   ],
   "files": [
     {

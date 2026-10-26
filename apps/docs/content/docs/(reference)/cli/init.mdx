@@ -24,6 +24,27 @@ diffs your schema files with pg-delta, the engine `supabase init` uses for new
 projects. A table that sets `enabled = false` stays as it is, and `init` prints
 the steps to switch (see [BS316](/docs/cli/doctor#bs316)).
 
+### An existing Supabase project
+
+When the project already has a `supabase` folder, `init` counts its
+migrations, schema files and the tables in `supabase/snapshot.json`, prints
+them, and changes nothing in the database. It adds no blocks: each later step
+(`gen`, [`table`](/docs/cli/table), `add --adopt`) is optional and
+reversible, and the next steps point at `doctor` and `table`. Tables you made
+in the dashboard reach the CLI through the snapshot.
+
+`--from` starts the project from a source. With a `postgres://` URL it reads
+that database's schema into `supabase/snapshot.json`, so `gen`, `doctor` and
+block detection see every table at once:
+
+```bash
+npx better-supabase init --from "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+```
+
+Any other value (a preset name, a design code, a Create URL or a design file)
+behaves like `--preset`, and passing both flags is an error. `--from` is the
+one flag to remember when you start from something that already exists.
+
 `--workflow` picks how the SQL modules reach the database (see
 [Workflows](/docs/blocks/sql#workflows)):
 
@@ -283,7 +304,9 @@ no env file lists, BS505 on a required provider that is still a comment.
 
 `add --preset <name|code|url>` applies a preset to the config you have
 (`--only`, `--package` and `--allow-breaking`), and `add --adopt <block>
---tables <schema.table>` maps a block onto tables you already have. Both read
+--tables <schema.table>` maps a block onto tables you already have;
+`add <block> --over <schema.table>` is the short form for one block over one
+table, and refuses `--adopt`, `--tables` and more than one block. They read
 the database through `--snapshot`, `--db-url-stdin` or `--project-ref` when
 they need it, and [Presets and blocks](/docs/cli/presets) describes them.
 
