@@ -275,10 +275,12 @@ may be your own enum or domain.
   - `better_supabase.guests`: `id`, `tenant_id`, `email`, `user_id`, `status`, `token_hash`, `created_at`; typed: `status`
   - `better_supabase.guest_grants`: `id`, `tenant_id`, `guest_id`, `subject_type`, `subject_id`, `actions`, `created_at`
 - `hiring`
-  - `better_supabase.job_openings`: `id`, `tenant_id`, `title`, `status`, `created_at`, `updated_at`; typed: `status`
-  - `better_supabase.applications`: `id`, `tenant_id`, `job_id`, `candidate_type`, `candidate_id`, `pipeline_id`, `stage_id`, `state`, `rank`, `created_at`, `updated_at`; typed: `state`
-  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `stage_id`, `reviewer_user_id`, `rating`, `recommendation`, `submitted_at`; typed: `recommendation`
-  - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `interviewer_user_ids`, `created_at`
+  - `better_supabase.job_openings`: `id`, `tenant_id`, `title`, `status`, `created_at`, `updated_at`; typed: `status`; typed with values: `employment_type`
+  - `better_supabase.applications`: `id`, `tenant_id`, `job_id`, `candidate_id`, `stage_id`, `state`, `rank`, `created_at`, `updated_at`; typed: `state`; typed with values: `source`
+  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `reviewer_user_id`, `rating`, `submitted_at`; typed: `recommendation`
+  - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `created_at`; typed with values: `kind`
+  - `better_supabase.interview_interviewers`, once mapped: `interview_id`, `user_id`
+  - `better_supabase.application_scorecard_scores`, once mapped: `scorecard_id`, `criterion_key`, `score`
 - `idempotency`
   - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `locked_until`, `expires_at`, `holder`; typed: `status`
   - `better_supabase.leases`: `scope`, `key`, `holder`, `expires_at`

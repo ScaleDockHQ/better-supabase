@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { APPLICATION_TO_EMPLOYEE } from "../../blocks/hiring/automations.ts";
 import { sqlString } from "../../core/template.ts";
+import { asColumnType } from "../column-type.ts";
 import {
   addExtraColumns,
   fail,
@@ -21,6 +22,18 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
+import {
+  candidateSubjectIdType,
+  choice,
+  hiringCandidate,
+  interviewersTable,
+  managerCheck,
+  optIn,
+  reviewable,
+  scoresTable,
+  scoresWrite,
+} from "./hiring-adoption.ts";
+import { closeInStages, jobStages, stageTriggers } from "./hiring-stages.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -80,7 +93,13 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
-  options: ["candidate", "extraColumns"],
+  options: [
+    "candidate",
+    "extraColumns",
+    "stages",
+    "scorecardKey",
+    "hiringManager",
+  ],
   tables: {
     jobs: {
       name: "job_openings",
@@ -111,6 +130,7 @@ const NAMES: BlockSqlNames = {
         "closedAt",
       ],
       typed: ["status"],
+      mappable: ["employmentType"],
     },
     applications: {
       name: "applications",
@@ -140,8 +160,11 @@ const NAMES: BlockSqlNames = {
         "stageEnteredAt",
         "rejectionReason",
         "hiredAt",
+        "candidateType",
+        "pipeline",
       ],
       typed: ["state"],
+      mappable: ["source"],
     },
     scorecards: {
       name: "application_scorecards",
@@ -158,7 +181,7 @@ const NAMES: BlockSqlNames = {
         notes: "notes",
         submittedAt: "submitted_at",
       },
-      optional: ["notes"],
+      optional: ["notes", "recommendation", "stage"],
       typed: ["recommendation"],
     },
     interviews: {
@@ -177,7 +200,32 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
-      optional: ["kind", "location", "createdBy"],
+      optional: ["kind", "location", "createdBy", "interviewers"],
+      mappable: ["kind"],
+    },
+    interviewers: {
+      name: "interview_interviewers",
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        tenant: "tenant_id",
+        interview: "interview_id",
+        user: "user_id",
+      },
+      optional: ["tenant"],
+    },
+    scorecardScores: {
+      name: "application_scorecard_scores",
+      optionalTable: true,
+      app: { onlyWhenMapped: true },
+      columns: {
+        tenant: "tenant_id",
+        scorecard: "scorecard_id",
+        criterion: "criterion_key",
+        score: "score",
+        notes: "notes",
+      },
+      optional: ["tenant", "notes"],
     },
   },
   migrations: [
@@ -211,6 +259,80 @@ function build(ctx: BlockSqlContext): string {
   const service = "(auth.role() = 'service_role')";
   const pipelines = ctx.of("pipelines");
   const st = (column: string): string => pipelines.col("stages", column);
+  const iv = (column: string): string => ctx.col("interviewers", column);
+  const sc = (column: string): string => ctx.col("scorecardScores", column);
+  const stages = jobStages(ctx);
+  const fixedCandidate = !ctx.has("applications", "candidateType");
+  const interviewerRows = optIn(ctx, "interviewers");
+  const scoreRows = optIn(ctx, "scorecardScores");
+  const pipelined = stages === undefined && ctx.has("applications", "pipeline");
+
+  const perApplication =
+    choice(ctx, "scorecardKey", ["stage", "application"]) === "application" ||
+    !ctx.has("scorecards", "stage");
+
+  const managerEmployee =
+    choice(ctx, "hiringManager", ["user", "employee"]) === "employee";
+
+  const candidateIdType = fixedCandidate
+    ? candidateSubjectIdType(ctx, candidate)
+    : "text";
+
+  const candidateType = (row: string): string => hiringCandidate(ctx, row).type;
+
+  const candidateId = (row: string): string => hiringCandidate(ctx, row).id;
+
+  const candidateValue = (value: string): string =>
+    fixedCandidate
+      ? asColumnType(
+          t("applications"),
+          ctx.colName("applications", "candidateId"),
+          value,
+        )
+      : value;
+
+  const applicationJson = (alias: string): string =>
+    fixedCandidate
+      ? `(to_jsonb(${alias}) || jsonb_build_object('candidate_type', ${sqlString(candidate)}, ${sqlString(ctx.colName("applications", "candidateId"))}, ${alias}.${a("candidateId")}::text))`
+      : `to_jsonb(${alias})`;
+
+  const interviewerOf = (row: string, user: string): string | undefined => {
+    const checks = [
+      ...(ctx.has("interviews", "interviewers")
+        ? [`${user} = any (${row}.${v("interviewers")})`]
+        : []),
+      ...(interviewerRows
+        ? [
+            `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${row}.${v("id")} and z.${iv("user")} = ${user})`,
+          ]
+        : []),
+    ];
+
+    if (checks.length <= 1) {
+      return checks[0];
+    }
+
+    return `(${checks.join(" or ")})`;
+  };
+
+  const interviewJson = (alias: string): string =>
+    interviewerRows
+      ? `(to_jsonb(${alias}) || jsonb_build_object('interviewer_user_ids', (select coalesce(jsonb_agg(z.${iv("user")} order by z.${iv("user")}), '[]'::jsonb) from ${t("interviewers")} z where z.${iv("interview")} = ${alias}.${v("id")})))`
+      : `to_jsonb(${alias})`;
+
+  const scorecardJson = (alias: string): string =>
+    scoreRows
+      ? `(to_jsonb(${alias}) || jsonb_build_object('scores', (select coalesce(jsonb_agg(jsonb_build_object('criterion', y.${sc("criterion")}, 'score', y.${sc("score")}, 'notes', ${ctx.has("scorecardScores", "notes") ? `y.${sc("notes")}` : "null"}) order by y.${sc("criterion")}), '[]'::jsonb) from ${t("scorecardScores")} y where y.${sc("scorecard")} = ${alias}.${s("id")})))`
+      : `to_jsonb(${alias})`;
+
+  const managerValue =
+    managerEmployee && ctx.has("jobs", "hiringManager")
+      ? asColumnType(
+          t("jobs"),
+          ctx.colName("jobs", "hiringManager"),
+          "save_job.attrs ->> 'hiringManagerId'",
+        )
+      : "(save_job.attrs ->> 'hiringManagerId')::uuid";
 
   // A column definition, left out when the app maps the column to null.
   const column = (table: string, logical: string, type: string): string =>
@@ -276,7 +398,7 @@ ${indent}end if;`;
   };
 
   const payload = (alias: string, extra = ""): string =>
-    `jsonb_build_object('organizationId', ${alias}.${a("tenant")}, 'applicationId', ${alias}.${a("id")}, 'subjectType', 'application', 'subjectId', ${alias}.${a("id")}::text, 'jobId', ${alias}.${a("job")}, 'candidateType', ${alias}.${a("candidateType")}, 'candidateId', ${alias}.${a("candidateId")}${extra})`;
+    `jsonb_build_object('organizationId', ${alias}.${a("tenant")}, 'applicationId', ${alias}.${a("id")}, 'subjectType', 'application', 'subjectId', ${alias}.${a("id")}::text, 'jobId', ${alias}.${a("job")}, 'candidateType', ${candidateType(alias)}, 'candidateId', ${candidateId(alias)}${extra})`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -328,19 +450,17 @@ using (${ctx.scope.check(j("tenant"), read)});
 create table if not exists ${t("applications")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.idType} not null,
-  ${a("job")} uuid not null references ${t("jobs")} (${j("id")}) on delete cascade,
-  ${a("candidateType")} text not null,
-  ${a("candidateId")} text not null,${column("applications", "source", "text")}${column("applications", "owner", "uuid")}
-  ${a("pipeline")} uuid,
+  ${a("job")} uuid not null references ${t("jobs")} (${j("id")}) on delete cascade,${fixedCandidate ? "" : `\n  ${a("candidateType")} text not null,`}
+  ${a("candidateId")} ${candidateIdType} not null,${column("applications", "source", "text")}${column("applications", "owner", "uuid")}${column("applications", "pipeline", "uuid")}
   ${a("stage")} uuid,${column("applications", "stageEnteredAt", "timestamptz")}
   ${a("state")} text not null default 'active' check (${a("state")} in ('active', 'hired', 'rejected', 'withdrawn')),${column("applications", "rejectionReason", "text")}${column("applications", "hiredAt", "timestamptz")}
   ${a("rank")} text collate "C" not null default 'V',
   ${a("createdAt")} timestamptz not null default now(),
   ${a("updatedAt")} timestamptz not null default now(),
-  unique (${a("job")}, ${a("candidateType")}, ${a("candidateId")})
+  unique (${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")})
 );
-create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${a("pipeline")}, ${a("stage")}, ${a("rank")});
-create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${a("candidateType")}, ${a("candidateId")});
+create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
+create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});
 ${lockModuleTable(ctx, "applications", { read: true })}
 drop policy if exists ${ctx.naming.rename("applications_read")} on ${t("applications")};
 create policy ${ctx.naming.rename("applications_read")} on ${t("applications")} for select to authenticated
@@ -349,35 +469,43 @@ using (${ctx.scope.check(a("tenant"), read)});
 create table if not exists ${t("scorecards")} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
-  ${s("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,
-  ${s("stage")} uuid,
+  ${s("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,${column("scorecards", "stage", "uuid")}
   ${s("reviewer")} uuid not null,
-  ${s("rating")} smallint not null check (${s("rating")} between 1 and 4),
-  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),${column("scorecards", "notes", "text")}
+  ${s("rating")} smallint not null check (${s("rating")} between 1 and 4),${ctx.has("scorecards", "recommendation") ? `\n  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),` : ""}${column("scorecards", "notes", "text")}
   ${s("submittedAt")} timestamptz not null default now(),
-  unique nulls not distinct (${s("application")}, ${s("stage")}, ${s("reviewer")})
-);${appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
+  ${perApplication ? `unique (${s("application")}, ${s("reviewer")})` : `unique nulls not distinct (${s("application")}, ${s("stage")}, ${s("reviewer")})`}
+);${perApplication ? appUniqueIndex(ctx, "scorecards", ["application", "reviewer"]) : appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
 create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
 ${lockModuleTable(ctx, "scorecards", { read: true })}
 drop policy if exists ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")};
 create policy ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")} for select to authenticated
 using (${ctx.scope.check(s("tenant"), read)});
-
+${scoreRows ? scoresTable(ctx, read) : ""}
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
   ${v("tenant")} ${ctx.idType} not null,
   ${v("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,${column("interviews", "kind", "text")}
   ${v("startsAt")} timestamptz not null,
-  ${v("endsAt")} timestamptz not null,${column("interviews", "location", "text")}
-  ${v("interviewers")} uuid[] not null default '{}',${column("interviews", "createdBy", "uuid")}
+  ${v("endsAt")} timestamptz not null,${column("interviews", "location", "text")}${column("interviews", "interviewers", "uuid[] not null default '{}'")}${column("interviews", "createdBy", "uuid")}
   ${v("createdAt")} timestamptz not null default now(),
   check (${v("endsAt")} > ${v("startsAt")})
 );
 create index if not exists ${ctx.naming.rename("interviews_application_idx")} on ${t("interviews")} (${v("application")}, ${v("startsAt")});
-${lockModuleTable(ctx, "interviews", { read: true })}
+${lockModuleTable(ctx, "interviews", { read: true })}${interviewerRows ? interviewersTable(ctx, read) : ""}
 drop policy if exists ${ctx.naming.rename("interviews_read")} on ${t("interviews")};
 create policy ${ctx.naming.rename("interviews_read")} on ${t("interviews")} for select to authenticated
-using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
+using (${ctx.scope.check(v("tenant"), read)}${[
+        ...(ctx.has("interviews", "interviewers")
+          ? [`(select auth.uid()) = any (${v("interviewers")})`]
+          : []),
+        ...(interviewerRows
+          ? [
+              `exists (select 1 from ${t("interviewers")} z where z.${iv("interview")} = ${t("interviews")}.${v("id")} and z.${iv("user")} = (select auth.uid()))`,
+            ]
+          : []),
+      ]
+        .map((check) => ` or ${check}`)
+        .join("")});
 `
     : "";
 
@@ -418,7 +546,7 @@ ${triggerGrant(`better_supabase.${ctx.naming.rename("bsb_application_guard")}()`
 drop trigger if exists ${ctx.naming.rename("bsb_application_guard")} on ${t("applications")};
 create trigger ${ctx.naming.rename("bsb_application_guard")} before update of ${a("state")} on ${t("applications")}
 for each row execute function better_supabase.${ctx.naming.rename("bsb_application_guard")}();
-
+${stages === undefined ? "" : stageTriggers(ctx, stages)}
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
@@ -441,7 +569,7 @@ begin
       ${fail("HIRING_JOB_NOT_FOUND", "job not found", "P0002")}
     end if;
     v_was := v_job.${j("status")};
-  end if;${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
+  end if;${managerCheck(ctx, managerEmployee)}${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
   begin
     if save_job.job is null then
       insert into ${t("jobs")} (${j("tenant")}, ${j("title")}${also("jobs", "team")}${also("jobs", "location")}${also("jobs", "employmentType")}${also("jobs", "description")}${also("jobs", "hiringManager")}, ${j("status")})
@@ -457,14 +585,14 @@ begin
           present(
             "jobs",
             "employmentType",
-            "save_job.attrs ->> 'employmentType'",
+            ctx.cast(
+              "jobs",
+              "employmentType",
+              "save_job.attrs ->> 'employmentType'",
+            ),
           ),
           present("jobs", "description", "save_job.attrs ->> 'description'"),
-          present(
-            "jobs",
-            "hiringManager",
-            "(save_job.attrs ->> 'hiringManagerId')::uuid",
-          ),
+          present("jobs", "hiringManager", managerValue),
         ],
         [
           ctx.cast(
@@ -477,7 +605,7 @@ begin
       returning * into v_job;
     else
       update ${t("jobs")} x set
-        ${j("title")} = coalesce(save_job.attrs ->> 'title', x.${j("title")}),${keep("team", "teamId", "(save_job.attrs ->> 'teamId')::uuid")}${keep("location", "location", "save_job.attrs ->> 'location'")}${keep("employmentType", "employmentType", "save_job.attrs ->> 'employmentType'")}${keep("description", "description", "save_job.attrs ->> 'description'")}${keep("hiringManager", "hiringManagerId", "(save_job.attrs ->> 'hiringManagerId')::uuid")}
+        ${j("title")} = coalesce(save_job.attrs ->> 'title', x.${j("title")}),${keep("team", "teamId", "(save_job.attrs ->> 'teamId')::uuid")}${keep("location", "location", "save_job.attrs ->> 'location'")}${keep("employmentType", "employmentType", ctx.cast("jobs", "employmentType", "save_job.attrs ->> 'employmentType'"))}${keep("description", "description", "save_job.attrs ->> 'description'")}${keep("hiringManager", "hiringManagerId", managerValue)}
         ${j("status")} = coalesce(${ctx.cast("jobs", "status", "save_job.attrs ->> 'status'")}, x.${j("status")}),
         ${j("updatedAt")} = now()
       where x.${j("id")} = save_job.job
@@ -527,20 +655,27 @@ begin
   end if;
   if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"], true)} then
     ${fail("HIRING_JOB_NOT_OPEN", "the job isn't open", "55000")}
-  end if;
+  end if;${
+    fixedCandidate
+      ? `
+  if v_type <> ${sqlString(candidate)} then
+    ${fail("HIRING_CANDIDATE_TYPE_UNSUPPORTED", `applications take candidates of type ${candidate} only`, "22023")}
+  end if;`
+      : ""
+  }
   if v_id is null or not ${subjectInTenant(ctx, "v_type", "v_id", `v_job.${j("tenant")}`)} then
     ${fail("HIRING_CANDIDATE_FORBIDDEN", "the candidate is unknown or not readable in this organization", "42501")}
   end if;
   select * into v_row from ${t("applications")} x
-  where x.${a("job")} = v_job.${j("id")} and x.${a("candidateType")} = v_type and x.${a("candidateId")} = v_id;
+  where x.${a("job")} = v_job.${j("id")}${fixedCandidate ? "" : ` and x.${a("candidateType")} = v_type`} and x.${a("candidateId")} = ${candidateValue("v_id")};
   if v_row.${a("id")} is not null then
-    return to_jsonb(v_row);
+    return ${applicationJson("v_row")};
   end if;${refuse("applications", "source", "nullif(trim(apply_to_job.source), '')", "HIRING_SOURCE_UNSUPPORTED", "this applications table has no source column")}${refuse("applications", "owner", "apply_to_job.owner", "HIRING_OWNER_UNSUPPORTED", "this applications table has no owner column")}
-  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${a("candidateType")}, ${a("candidateId")}${also("applications", "source")}${also("applications", "owner")})
-  values (v_job.${j("tenant")}, v_job.${j("id")}, v_type, v_id${alsoValue("applications", "source", "nullif(trim(apply_to_job.source), '')")}${alsoValue("applications", "owner", "coalesce(apply_to_job.owner, auth.uid())")})
+  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")}${also("applications", "source")}${also("applications", "owner")})
+  values (v_job.${j("tenant")}, v_job.${j("id")}, ${fixedCandidate ? "" : "v_type, "}${candidateValue("v_id")}${alsoValue("applications", "source", ctx.cast("applications", "source", "nullif(trim(apply_to_job.source), '')"))}${alsoValue("applications", "owner", "coalesce(apply_to_job.owner, auth.uid())")})
   returning * into v_row;
   ${record("application.created", "v_row")}
-  return to_jsonb(v_row);
+  return ${applicationJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("apply_to_job")}(uuid, jsonb, text, uuid)`)}
@@ -555,7 +690,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("applications")};
-  v_stage uuid;
+  v_stage ${stages === undefined ? "uuid" : `${stages.table}.${stages.id}%type`};
 begin
   select * into v_row from ${t("applications")} x where x.${a("id")} = close_application.application;
   if v_row.${a("id")} is null or not ${editable(`v_row.${a("tenant")}`)} then
@@ -579,21 +714,21 @@ ${
       ).slice(1)
 }
   case close_application.outcome
-    when 'hired' then ${moveTo("success", "hired")}
-    when 'rejected' then ${moveTo("failure", "rejected")}
-    else ${moveTo("failure", "withdrawn")}
+    when 'hired' then ${pipelined ? moveTo("success", "hired") : closeInStages(ctx, stages, "hired")}
+    when 'rejected' then ${pipelined ? moveTo("failure", "rejected") : closeInStages(ctx, stages, "rejected")}
+    else ${pipelined ? moveTo("failure", "withdrawn") : closeInStages(ctx, stages, "withdrawn")}
   end case;
   if close_application.outcome = 'hired' then
     ${ctx.hook("after_application_hire", [["uuid", `v_row.${a("id")}`]])}
   end if;
-  return (select to_jsonb(x) from ${t("applications")} x where x.${a("id")} = v_row.${a("id")});
+  return (select ${applicationJson("x")} from ${t("applications")} x where x.${a("id")} = v_row.${a("id")});
 end;
 $$;
 ${userGrant(`${fn("close_application")}(uuid, text, text)`)}
 
 -- The caller's scorecard on an application at its current stage: a rating
 -- from 1 to 4 and a recommendation. Submitting again replaces it.
-create or replace function ${fn("submit_scorecard")}(application uuid, rating integer, recommendation text, notes text)
+${scoreRows ? `drop function if exists ${fn("submit_scorecard")}(uuid, integer, text, text);\n` : ""}create or replace function ${fn("submit_scorecard")}(application uuid, rating integer, recommendation text, notes text${scoreRows ? ", scores jsonb default null" : ""})
 returns jsonb
 language plpgsql
 security definer
@@ -604,33 +739,37 @@ declare
   v_card ${t("scorecards")};
 begin
   select * into v_row from ${t("applications")} x where x.${a("id")} = submit_scorecard.application;
-  if v_row.${a("id")} is null or not (${editable(`v_row.${a("tenant")}`)} or exists (
-    select 1 from ${t("interviews")} y where y.${v("application")} = v_row.${a("id")} and auth.uid() = any (y.${v("interviewers")}))) then
+  if v_row.${a("id")} is null or not ${reviewable(interviewerOf("y", "auth.uid()"), editable(`v_row.${a("tenant")}`), `${t("interviews")} y where y.${v("application")} = v_row.${a("id")}`)} then
     ${fail("HIRING_APPLICATION_NOT_FOUND", "no such application you can review", "P0002")}
-  end if;${refuse("scorecards", "notes", "submit_scorecard.notes", "HIRING_NOTES_UNSUPPORTED", "this scorecards table has no notes column")}${
+  end if;${refuse("scorecards", "notes", "submit_scorecard.notes", "HIRING_NOTES_UNSUPPORTED", "this scorecards table has no notes column")}${refuse("scorecards", "recommendation", "submit_scorecard.recommendation", "HIRING_RECOMMENDATION_UNSUPPORTED", "this scorecards table has no recommendation column")}${
     ctx.appOwned.includes("scorecards")
-      ? `
+      ? ctx.has("scorecards", "recommendation")
+        ? `
   if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4
     or submit_scorecard.recommendation is null or submit_scorecard.recommendation not in ('strong_no', 'no', 'yes', 'strong_yes') then
     ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
   end if;`
+        : `
+  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4 then
+    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4", "22023")}
+  end if;`
       : ""
   }
   begin
-    insert into ${t("scorecards")} (${s("tenant")}, ${s("application")}, ${s("stage")}, ${s("reviewer")}, ${s("rating")}, ${s("recommendation")}${also("scorecards", "notes")})
-    values (v_row.${a("tenant")}, v_row.${a("id")}, v_row.${a("stage")}, auth.uid(), submit_scorecard.rating, ${ctx.cast("scorecards", "recommendation", "submit_scorecard.recommendation")}${alsoValue("scorecards", "notes", "submit_scorecard.notes")})
-    on conflict (${s("application")}, ${s("stage")}, ${s("reviewer")}) do update set
-      ${s("rating")} = excluded.${s("rating")}, ${s("recommendation")} = excluded.${s("recommendation")},
-      ${ctx.has("scorecards", "notes") ? `${s("notes")} = excluded.${s("notes")}, ` : ""}${s("submittedAt")} = now()
+    insert into ${t("scorecards")} (${s("tenant")}, ${s("application")}${also("scorecards", "stage")}, ${s("reviewer")}, ${s("rating")}${also("scorecards", "recommendation")}${also("scorecards", "notes")})
+    values (v_row.${a("tenant")}, v_row.${a("id")}${alsoValue("scorecards", "stage", `v_row.${a("stage")}`)}, auth.uid(), submit_scorecard.rating${ctx.has("scorecards", "recommendation") ? `, ${ctx.cast("scorecards", "recommendation", "submit_scorecard.recommendation")}` : ""}${alsoValue("scorecards", "notes", "submit_scorecard.notes")})
+    on conflict (${perApplication ? `${s("application")}, ${s("reviewer")}` : `${s("application")}, ${s("stage")}, ${s("reviewer")}`}) do update set
+      ${s("rating")} = excluded.${s("rating")}${ctx.has("scorecards", "recommendation") ? `, ${s("recommendation")} = excluded.${s("recommendation")}` : ""},
+      ${perApplication && ctx.has("scorecards", "stage") ? `${s("stage")} = excluded.${s("stage")}, ` : ""}${ctx.has("scorecards", "notes") ? `${s("notes")} = excluded.${s("notes")}, ` : ""}${s("submittedAt")} = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
     ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
-  end;
-  ${record("scorecard.submitted", "v_row", `, 'reviewerId', v_card.${s("reviewer")}, 'recommendation', v_card.${s("recommendation")}`)}
-  return to_jsonb(v_card);
+  end;${scoreRows ? scoresWrite(ctx) : ""}
+  ${record("scorecard.submitted", "v_row", `, 'reviewerId', v_card.${s("reviewer")}, 'recommendation', ${or("scorecards", "v_card", "recommendation")}`)}
+  return ${scorecardJson("v_card")};
 end;
 $$;
-${userGrant(`${fn("submit_scorecard")}(uuid, integer, text, text)`)}
+${userGrant(`${fn("submit_scorecard")}(uuid, integer, text, text${scoreRows ? ", jsonb" : ""})`)}
 
 -- Schedules an interview; the interviewers can read it and score the
 -- application.
@@ -647,7 +786,14 @@ begin
   select * into v_row from ${t("applications")} x where x.${a("id")} = schedule_interview.application;
   if v_row.${a("id")} is null or not ${editable(`v_row.${a("tenant")}`)} then
     ${fail("HIRING_APPLICATION_NOT_FOUND", "no such application you can change", "P0002")}
-  end if;${refuse("interviews", "kind", "schedule_interview.kind", "HIRING_INTERVIEW_KIND_UNSUPPORTED", "this interviews table has no kind column")}${refuse("interviews", "location", "schedule_interview.location", "HIRING_INTERVIEW_LOCATION_UNSUPPORTED", "this interviews table has no location column")}${
+  end if;${
+    ctx.has("interviews", "interviewers") || interviewerRows
+      ? ""
+      : `
+  if coalesce(cardinality(schedule_interview.interviewers), 0) > 0 then
+    ${fail("HIRING_INTERVIEWERS_UNSUPPORTED", "this interviews table keeps no interviewers", "22023")}
+  end if;`
+  }${refuse("interviews", "kind", "schedule_interview.kind", "HIRING_INTERVIEW_KIND_UNSUPPORTED", "this interviews table has no kind column")}${refuse("interviews", "location", "schedule_interview.location", "HIRING_INTERVIEW_LOCATION_UNSUPPORTED", "this interviews table has no location column")}${
     ctx.appOwned.includes("interviews")
       ? `
   if not (schedule_interview.ends_at > schedule_interview.starts_at) then
@@ -656,28 +802,43 @@ begin
       : ""
   }
   begin
-    insert into ${t("interviews")} (${v("tenant")}, ${v("application")}${also("interviews", "kind")}, ${v("startsAt")}, ${v("endsAt")}${also("interviews", "location")}, ${v("interviewers")}${also("interviews", "createdBy")})
+    insert into ${t("interviews")} (${v("tenant")}, ${v("application")}${also("interviews", "kind")}, ${v("startsAt")}, ${v("endsAt")}${also("interviews", "location")}${also("interviews", "interviewers")}${also("interviews", "createdBy")})
     values (${lines(
       "      ",
       [
         `v_row.${a("tenant")}`,
         `v_row.${a("id")}`,
-        present("interviews", "kind", "schedule_interview.kind"),
+        present(
+          "interviews",
+          "kind",
+          ctx.cast("interviews", "kind", "schedule_interview.kind"),
+        ),
         "schedule_interview.starts_at",
         "schedule_interview.ends_at",
       ],
       [
         present("interviews", "location", "schedule_interview.location"),
-        "coalesce(schedule_interview.interviewers, '{}')",
+        present(
+          "interviews",
+          "interviewers",
+          "coalesce(schedule_interview.interviewers, '{}')",
+        ),
         present("interviews", "createdBy", "auth.uid()"),
       ],
     )})
     returning * into v_interview;
   exception when check_violation or not_null_violation then
     ${fail("HIRING_INTERVIEW_INVALID", "an interview needs a start before its end", "22023")}
-  end;
+  end;${
+    interviewerRows
+      ? `
+  insert into ${t("interviewers")} (${ctx.has("interviewers", "tenant") ? `${iv("tenant")}, ` : ""}${iv("interview")}, ${iv("user")})
+  select distinct ${ctx.has("interviewers", "tenant") ? `v_row.${a("tenant")}, ` : ""}v_interview.${v("id")}, u
+  from unnest(coalesce(schedule_interview.interviewers, '{}')) u;`
+      : ""
+  }
   ${record("interview.scheduled", "v_row", `, 'interviewId', v_interview.${v("id")}, 'startsAt', v_interview.${v("startsAt")}`)}
-  return to_jsonb(v_interview);
+  return ${interviewJson("v_interview")};
 end;
 $$;
 ${userGrant(`${fn("schedule_interview")}(uuid, timestamptz, timestamptz, uuid[], text, text)`)}
@@ -691,9 +852,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object(
-    'scorecards', coalesce((select jsonb_agg(to_jsonb(c) order by c.${s("submittedAt")}) from ${t("scorecards")} c where c.${s("application")} = x.${a("id")}), '[]'::jsonb),
-    'interviews', coalesce((select jsonb_agg(to_jsonb(i) order by i.${v("startsAt")}) from ${t("interviews")} i where i.${v("application")} = x.${a("id")}), '[]'::jsonb),
+  select ${applicationJson("x")} || jsonb_build_object(
+    'scorecards', coalesce((select jsonb_agg(${scorecardJson("c")} order by c.${s("submittedAt")}) from ${t("scorecards")} c where c.${s("application")} = x.${a("id")}), '[]'::jsonb),
+    'interviews', coalesce((select jsonb_agg(${interviewJson("i")} order by i.${v("startsAt")}) from ${t("interviews")} i where i.${v("application")} = x.${a("id")}), '[]'::jsonb),
     'averageRating', (select round(avg(c.${s("rating")}), 2) from ${t("scorecards")} c where c.${s("application")} = x.${a("id")}))
   from ${t("applications")} x where x.${a("id")} = application_detail.application
 $$;
@@ -701,7 +862,7 @@ ${userGrant(`${fn("application_detail")}(uuid)`)}
 `;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
@@ -716,7 +877,13 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "submit_scorecard",
-      args: ["uuid", "integer", "text", "text"],
+      args: [
+        "uuid",
+        "integer",
+        "text",
+        "text",
+        ...(optIn(ctx, "scorecardScores") ? ["jsonb"] : []),
+      ],
       returns: "jsonb",
     },
     {
@@ -786,6 +953,10 @@ function applicationPipeline(
 
 const CONTRIBUTES: BlockContributes = {
   pipelines: (own) => {
+    if (jobStages(own) !== undefined || !own.has("applications", "pipeline")) {
+      return [];
+    }
+
     const { schema, name } = own.tableName("applications");
 
     return [

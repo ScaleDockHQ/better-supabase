@@ -97,14 +97,21 @@ export interface Application {
   readonly createdAt: Temporal.Instant;
 }
 
+export interface ScorecardScore {
+  readonly criterion: string;
+  readonly score: number;
+  readonly notes?: string;
+}
+
 export interface Scorecard {
   readonly id: string;
   readonly stageId?: string;
   readonly reviewerId: string;
   /** 1 to 4. */
   readonly rating: number;
-  readonly recommendation: Recommendation;
+  readonly recommendation?: Recommendation;
   readonly notes?: string;
+  readonly scores?: readonly ScorecardScore[];
   readonly submittedAt: Temporal.Instant;
 }
 
@@ -141,8 +148,9 @@ export interface Hiring<F extends object = Record<never, never>> {
     applicationId: string,
     card: {
       readonly rating: number;
-      readonly recommendation: Recommendation;
+      readonly recommendation?: Recommendation;
       readonly notes?: string;
+      readonly scores?: readonly ScorecardScore[];
     },
   ): AsyncResult<Scorecard>;
   scheduleInterview(
@@ -214,20 +222,33 @@ function applicationOf(value: unknown): Application {
   });
 }
 
+function scoreOf(value: unknown): ScorecardScore {
+  const row = recordOf(value, "score");
+
+  return compact<ScorecardScore>({
+    criterion: textOf(row["criterion"]),
+    score: Number(row["score"]),
+    notes: optionalText(row["notes"]),
+  });
+}
+
 function scorecardOf(value: unknown): Scorecard {
   const row = recordOf(value, "scorecard");
+  const recommendation = row["recommendation"];
 
   return compact<Scorecard>({
     id: textOf(row["id"]),
     stageId: optionalText(row["stage_id"]),
     reviewerId: textOf(row["reviewer_user_id"]),
     rating: Number(row["rating"]),
-    recommendation: enumOrThrow(
-      row["recommendation"],
-      RECOMMENDATIONS,
-      "recommendation",
-    ),
+    recommendation:
+      recommendation === null || recommendation === undefined
+        ? undefined
+        : enumOrThrow(recommendation, RECOMMENDATIONS, "recommendation"),
     notes: optionalText(row["notes"]),
+    scores: Array.isArray(row["scores"])
+      ? recordsOf(row["scores"], "scores").map(scoreOf)
+      : undefined,
     submittedAt: requiredInstant(row["submitted_at"], "submittedAt"),
   });
 }
@@ -311,8 +332,11 @@ export function createHiring<
         {
           application: applicationId,
           rating: card.rating,
-          recommendation: card.recommendation,
+          recommendation: card.recommendation ?? null,
           notes: card.notes ?? null,
+          ...(card.scores !== undefined && {
+            scores: card.scores.map((score) => ({ ...score })),
+          }),
         },
         scorecardOf,
       ),

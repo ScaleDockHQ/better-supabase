@@ -5033,6 +5033,17 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "stages": {
+                "default": "pipelines"
+              },
+              "scorecardKey": {
+                "type": "string",
+                "default": "stage"
+              },
+              "hiringManager": {
+                "type": "string",
+                "default": "user"
               }
             }
           }

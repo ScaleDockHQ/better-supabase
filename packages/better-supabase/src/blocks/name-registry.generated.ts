@@ -784,6 +784,8 @@ export interface BlockNameRegistry {
       readonly "applications": "id" | "tenant" | "job" | "candidateType" | "candidateId" | "source" | "owner" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "rejectionReason" | "hiredAt" | "rank" | "createdAt" | "updatedAt";
       readonly "scorecards": "id" | "tenant" | "application" | "stage" | "reviewer" | "rating" | "recommendation" | "notes" | "submittedAt";
       readonly "interviews": "id" | "tenant" | "application" | "kind" | "startsAt" | "endsAt" | "location" | "interviewers" | "createdBy" | "createdAt";
+      readonly "interviewers": "tenant" | "interview" | "user";
+      readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
     readonly functions: "application_detail" | "apply_to_job" | "close_application" | "save_job" | "schedule_interview" | "submit_scorecard";
     readonly actions: "read" | "write" | "manage";

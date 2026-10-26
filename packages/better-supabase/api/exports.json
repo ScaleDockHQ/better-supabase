@@ -7131,7 +7131,8 @@
       "JobStatus",
       "Recommendation",
       "RpcClient",
-      "Scorecard"
+      "Scorecard",
+      "ScorecardScore"
     ]
   },
   "./blocks/employees": {

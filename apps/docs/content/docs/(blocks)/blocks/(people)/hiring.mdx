@@ -95,6 +95,115 @@ await hiring.saveJob(organizationId, {
 
 `scheduleInterview` records an interview with its interviewers, who can then read it. `score(id, { rating, recommendation, notes })` saves the caller's scorecard at the application's current stage: a rating from 1 to 4 and a recommendation from `strong_no` to `strong_yes`. Scoring again at the same stage replaces it. `detail(id)` returns the application with its scorecards, its interviews and the average rating.
 
+## Over your own tables
+
+Every option below is opt-in: a config without them renders the same SQL as before. Together they let the block run over an applicant tracker whose tables already exist (see [your own schemas](/docs/blocks/own-schemas)).
+
+### One candidate type with a typed id
+
+Map `columns.applications.candidateType` to `null` when every application points at one record type through a typed column, such as a `candidate_id uuid` foreign key. The candidate type is then always `options.candidate`, which must be in `config.records`; `apply` refuses another type with `HIRING_CANDIDATE_TYPE_UNSUPPORTED`. The id is written and compared as the column's own type, and reads and event payloads still carry `candidateType` (the configured type) and `candidateId` as text. The block's own table drops the type column and keys applications on job and candidate.
+
+### Stages per job in your table
+
+`options.stages` is `"pipelines"` by default: each job gets a pipeline in the pipelines module. Set it to your table of job stages instead and the job is the pipeline:
+
+```ts
+stages: {
+  table: "public.job_stages",
+  job: "job_id",
+  rank: "position",
+  hired: "is_hired",
+  rejected: { column: "system_key", value: "rejected" },
+}
+```
+
+`id` defaults to `id`, and `archivedAt` names a column whose non-null value hides a stage. `hired`, `rejected` and `withdrawn` each name a boolean column, or a column and the value that marks the stage. A new application starts on its job's first stage that marks none of them, a move to another job's stage fails with `HIRING_STAGE_INVALID`, and a move onto a marked stage sets the state (back on an unmarked stage it is `active` again), so `application.hired` follows a plain stage update too. `hire`, `reject` and `withdraw` move the application to the job's first marked stage when there is one and set the state either way. In this mode the block binds nothing in the pipelines module, `columns.applications.pipeline` can be `null`, and the board index is on job, stage and rank. Mapping `pipeline` to `null` without `options.stages` keeps applications off any pipeline: closing sets the state only.
+
+The block keeps the pipelines module for the default mode rather than making its pipelines table optional with the job as the pipeline row: stage tables that apps already have mark outcomes with flags or keys, not with the pipelines module's categories and outcomes, and every pipelines function (boards, stats, history, transitions) assumes a pipeline row.
+
+### Interviewers in a junction table
+
+Map `tables.interviewers` (`interview`, `user`, and an optional `tenant`) to keep interviewers as rows instead of an array, and map `columns.interviews.interviewers` to `null` when the interviews table has no array column. `scheduleInterview` writes one row per interviewer, and the interviews read policy, the interviewer check of `score` and `detail` read the table. Without either, `scheduleInterview` refuses interviewers with `HIRING_INTERVIEWERS_UNSUPPORTED`. The block creates the table under the name you map when your schema lacks it.
+
+### Scorecards
+
+`options.scorecardKey: "application"` keeps one scorecard per reviewer per application instead of one per stage; a scorecards table without a stage column works that way too. `columns.scorecards.recommendation` can be `null`, and then `score` refuses a recommendation with `HIRING_RECOMMENDATION_UNSUPPORTED`. Map `tables.scorecardScores` (`scorecard`, `criterion`, `score`, optional `tenant` and `notes`) to store a score per criterion: `submit_scorecard` takes an extra `scores jsonb` argument, a list of `{ criterion, score, notes }` that replaces the card's scores (`HIRING_SCORES_INVALID` for a value the columns reject), and `detail` returns them as `scores` on each scorecard:
+
+```ts
+await hiring.score(applicationId, {
+  rating: 4,
+  scores: [
+    { criterion: "craft", score: 5 },
+    { criterion: "communication", score: 3 },
+  ],
+});
+```
+
+Turning `tables.scorecardScores` off again leaves the five-argument `submit_scorecard` in the database: drop it in the same migration.
+
+### Hiring manager and typed columns
+
+`options.hiringManager: "employee"` makes `jobs.hiringManager` an employee id: `saveJob` writes `hiringManagerId` as the column's type and, with the [employees](/docs/blocks/employees) block installed, refuses an id that is no employee of the organization (`HIRING_HIRING_MANAGER_INVALID`). `jobs.employmentType`, `applications.source` and `interviews.kind` accept [value maps](/docs/blocks/own-schemas) like the state columns, so an enum column works once `values.<table>.<column>` has an entry (`{}` casts without renaming).
+
+### A full config
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: {
+    candidate: {
+      table: "candidates",
+      tenant: "organization_id",
+      idType: "uuid",
+    },
+  },
+  blocks: {
+    hiring: {
+      options: {
+        candidate: "candidate",
+        stages: {
+          table: "public.job_stages",
+          job: "job_id",
+          rank: "position",
+          hired: "is_hired",
+          rejected: { column: "system_key", value: "rejected" },
+        },
+        scorecardKey: "application",
+        hiringManager: "employee",
+      },
+      tables: {
+        jobs: "public.jobs",
+        applications: "public.applications",
+        scorecards: "public.scorecards",
+        interviews: "public.interviews",
+        interviewers: "public.interview_interviewers",
+        scorecardScores: "public.scorecard_scores",
+      },
+      columns: {
+        jobs: { tenant: "organization_id", hiringManager: "hiring_manager_id" },
+        applications: {
+          tenant: "organization_id",
+          candidateType: null,
+          pipeline: null,
+        },
+        scorecards: {
+          tenant: "organization_id",
+          recommendation: null,
+          stage: null,
+        },
+        interviews: { tenant: "organization_id", interviewers: null },
+        interviewers: { tenant: null },
+        scorecardScores: { tenant: null, criterion: "criterion" },
+      },
+      values: {
+        jobs: { employmentType: {} },
+        applications: { source: {} },
+        interviews: { kind: {} },
+      },
+    },
+  },
+});
+```
+
 ## Events
 
 | Event                                                                                       | Data                                                                                                             |
@@ -109,18 +218,24 @@ The ReUI Recruiting Pipeline board reads its columns from the job's pipeline boa
 
 ## Errors
 
-| Hint                           | Cause                                                     |
-| ------------------------------ | --------------------------------------------------------- |
-| `HIRING_FORBIDDEN`             | the caller lacks `hiring.manage`                          |
-| `HIRING_JOB_INVALID`           | a job needs a title and a status of draft, open or closed |
-| `HIRING_JOB_NOT_FOUND`         | no such job the caller can change                         |
-| `HIRING_JOB_NOT_OPEN`          | the job isn't open                                        |
-| `HIRING_CANDIDATE_FORBIDDEN`   | the candidate is unknown or unreadable                    |
-| `HIRING_APPLICATION_NOT_FOUND` | no application the caller can change or review            |
-| `HIRING_OUTCOME_INVALID`       | close as hired, rejected or withdrawn                     |
-| `HIRING_STAGE_MISSING`         | the job's pipeline has no stage of that category          |
-| `HIRING_SCORECARD_INVALID`     | a rating from 1 to 4 and a recommendation                 |
-| `HIRING_INTERVIEW_INVALID`     | an interview starts before it ends                        |
+| Hint                                | Cause                                                        |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `HIRING_FORBIDDEN`                  | the caller lacks `hiring.manage`                             |
+| `HIRING_JOB_INVALID`                | a job needs a title and a status of draft, open or closed    |
+| `HIRING_JOB_NOT_FOUND`              | no such job the caller can change                            |
+| `HIRING_JOB_NOT_OPEN`               | the job isn't open                                           |
+| `HIRING_CANDIDATE_FORBIDDEN`        | the candidate is unknown or unreadable                       |
+| `HIRING_APPLICATION_NOT_FOUND`      | no application the caller can change or review               |
+| `HIRING_OUTCOME_INVALID`            | close as hired, rejected or withdrawn                        |
+| `HIRING_STAGE_MISSING`              | the job's pipeline has no stage of that category             |
+| `HIRING_SCORECARD_INVALID`          | a rating from 1 to 4 and a recommendation                    |
+| `HIRING_INTERVIEW_INVALID`          | an interview starts before it ends                           |
+| `HIRING_CANDIDATE_TYPE_UNSUPPORTED` | applications take candidates of `options.candidate` only     |
+| `HIRING_STAGE_INVALID`              | the stage is not an active stage of the application's job    |
+| `HIRING_INTERVIEWERS_UNSUPPORTED`   | the interviews table keeps no interviewers                   |
+| `HIRING_RECOMMENDATION_UNSUPPORTED` | the scorecards table has no recommendation column            |
+| `HIRING_SCORES_INVALID`             | scores must be a list of distinct criteria with valid scores |
+| `HIRING_HIRING_MANAGER_INVALID`     | the hiring manager is no employee of the organization        |
 
 ## Without the client
 
