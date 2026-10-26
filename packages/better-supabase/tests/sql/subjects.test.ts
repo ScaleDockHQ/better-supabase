@@ -14,7 +14,7 @@ const ctx = {
   naming: { rename: (name: string) => name },
   can: (scope: string, id: string, permission: string) =>
     `can_on(${scope}, ${id}, ${permission})`,
-  providerRowsWith: "rows_with({resource}, {permission}, {ids})",
+  providerRowsWith: "authz.rows_with({resource}, {permission}, {ids})",
 } as unknown as Pick<
   BlockSqlContext,
   "scope" | "naming" | "can" | "providerRowsWith"
@@ -68,7 +68,7 @@ describe("subjectReadable with a registered read granted per row or to an owner"
     const sql = subjectReadable(ctx, [["file", rows]], args);
 
     expect(sql).toContain(
-      `(can(o, 'file.read') or can_on(project, s."id"::text, 'file.read') or s."id"::text in (select r.id::text from rows_with(file_node, 'file.read', array[s."id"::text]) as r(id)))`,
+      `(can(o, 'file.read') or can_on(project, s."id"::text, 'file.read') or s."id"::text in (select r.id::text from authz.rows_with(file_node, 'file.read', array[s."id"::text]) as r(id)))`,
     );
     expect(sql).not.toMatch(/\) and can\(o/u);
   });
