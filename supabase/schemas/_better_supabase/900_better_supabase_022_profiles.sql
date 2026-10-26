@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:8be493ff292634471393e07a912db1e586cf8c6f46c29f95c1a9645be3959cca
+-- @bsb-hash sha256:62d21367ead2c08230d5e1c7fd483e48cc3e7ab33a55646a985654475fdb1671
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -437,5 +437,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

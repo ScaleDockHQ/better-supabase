@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:ad8d8b0a77d8eaddfc64d2a050dfb9a1379556bd8afa626d521a3f10e4ec4f4a
+-- @bsb-hash sha256:881b94a2c2849dcaf7db7b7ec91d369e2238ea7f1f789e1783d7a25b9a02ce42
 -- The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -471,5 +471,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

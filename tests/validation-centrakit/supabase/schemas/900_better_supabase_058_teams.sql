@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:3a37649446b4bfa2ffd1e62e39af9fb9ea22f91eb0d4e504c3cf98b6f790d1f6
+-- @bsb-hash sha256:97350601b343fba19e70583563010e1222f94577236273f79035cfc43011ace3
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -441,5 +441,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

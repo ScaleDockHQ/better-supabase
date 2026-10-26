@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:8f40381dcff85113db248ed71816fe31037db75538bcf9dcd3d3ce9cee19b71f
+-- @bsb-hash sha256:96b27487444e5b3191c097c257f2e5e1166526460e293562465d2ae6c2f6e4e3
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,7 @@ create index if not exists templates_type_idx on "better_supabase"."templates" (
 create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
 create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
-revoke all on "better_supabase"."templates" from anon, authenticated;
+revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
@@ -118,7 +118,7 @@ create table if not exists "better_supabase"."template_versions" (
 create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
 create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
-revoke all on "better_supabase"."template_versions" from anon, authenticated;
+revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
@@ -143,7 +143,7 @@ create index if not exists template_applications_version_idx on "better_supabase
 create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
 create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
-revoke all on "better_supabase"."template_applications" from anon, authenticated;
+revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
@@ -889,7 +889,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_templates.sql
@@ -911,7 +911,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d2aed11717f8f29d77f8902b4680c6bd377319ead096c3e3ebf7a1ad743e91ab
+-- @bsb-hash sha256:f44e295efe248f613003645579ae940f3d17fee10b825755d187ec4d6fcab3da
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1003,7 +1003,7 @@ create index if not exists templates_type_idx on "better_supabase"."templates" (
 create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
 create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
-revoke all on "better_supabase"."templates" from anon, authenticated;
+revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
@@ -1028,7 +1028,7 @@ create table if not exists "better_supabase"."template_versions" (
 create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
 create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
-revoke all on "better_supabase"."template_versions" from anon, authenticated;
+revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
@@ -1053,7 +1053,7 @@ create index if not exists template_applications_version_idx on "better_supabase
 create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
 create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
-revoke all on "better_supabase"."template_applications" from anon, authenticated;
+revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
@@ -1076,7 +1076,7 @@ create table if not exists "better_supabase"."template_workflows" (
 create index if not exists template_workflows_definition_idx on "better_supabase"."template_workflows" ("definition_id");
 create index if not exists template_workflows_created_by_idx on "better_supabase"."template_workflows" ("created_by");
 alter table "better_supabase"."template_workflows" enable row level security;
-revoke all on "better_supabase"."template_workflows" from anon, authenticated;
+revoke all on "better_supabase"."template_workflows" from public, anon, authenticated;
 grant select on "better_supabase"."template_workflows" to authenticated;
 grant all on "better_supabase"."template_workflows" to service_role;
 drop policy if exists template_workflows_read on "better_supabase"."template_workflows";
@@ -1997,7 +1997,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_templates.sql
@@ -2019,7 +2019,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c1856bc231ad2db945d2a45d2acc30f2adcc65aedb6c44468003848bbaba4b84
+-- @bsb-hash sha256:d3bd8b71d5c36f8dc9acdb03a726bde0253bcabcbb5db28ea9c1a7d5096ddf6e
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2084,6 +2084,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
@@ -2113,7 +2116,7 @@ create index if not exists templates_type_idx on "app_private"."templates" ("ten
 create index if not exists templates_forked_from_idx on "app_private"."templates" ("forked_from") where "forked_from" is not null;
 create index if not exists templates_created_by_idx on "app_private"."templates" ("created_by");
 alter table "app_private"."templates" enable row level security;
-revoke all on "app_private"."templates" from anon, authenticated;
+revoke all on "app_private"."templates" from public, anon, authenticated;
 grant select on "app_private"."templates" to authenticated;
 grant all on "app_private"."templates" to service_role;
 drop policy if exists templates_read on "app_private"."templates";
@@ -2138,7 +2141,7 @@ create table if not exists "app_private"."template_versions" (
 create unique index if not exists template_versions_one_draft_idx on "app_private"."template_versions" ("template_id") where "published_at" is null;
 create index if not exists template_versions_created_by_idx on "app_private"."template_versions" ("created_by");
 alter table "app_private"."template_versions" enable row level security;
-revoke all on "app_private"."template_versions" from anon, authenticated;
+revoke all on "app_private"."template_versions" from public, anon, authenticated;
 grant select on "app_private"."template_versions" to authenticated;
 grant all on "app_private"."template_versions" to service_role;
 drop policy if exists template_versions_read on "app_private"."template_versions";
@@ -2163,7 +2166,7 @@ create index if not exists template_applications_version_idx on "app_private"."t
 create index if not exists template_applications_subject_idx on "app_private"."template_applications" ("subject_type", "subject_id");
 create index if not exists template_applications_applied_by_idx on "app_private"."template_applications" ("applied_by");
 alter table "app_private"."template_applications" enable row level security;
-revoke all on "app_private"."template_applications" from anon, authenticated;
+revoke all on "app_private"."template_applications" from public, anon, authenticated;
 grant select on "app_private"."template_applications" to authenticated;
 grant all on "app_private"."template_applications" to service_role;
 drop policy if exists template_applications_read on "app_private"."template_applications";
@@ -2909,7 +2912,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_templates.sql
@@ -2931,7 +2934,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c76c40a9b921871d532db641d10204af0f7374cfe0ce56434d5e91396aff9208
+-- @bsb-hash sha256:b34bebf58a8d75546fbaf0a3a640a6b2d53ea5926577d683723ed66d08505a7a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3023,7 +3026,7 @@ create index if not exists templates_type_idx on "better_supabase"."templates" (
 create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
 create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
-revoke all on "better_supabase"."templates" from anon, authenticated;
+revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
@@ -3048,7 +3051,7 @@ create table if not exists "better_supabase"."template_versions" (
 create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
 create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
-revoke all on "better_supabase"."template_versions" from anon, authenticated;
+revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
@@ -3073,7 +3076,7 @@ create index if not exists template_applications_version_idx on "better_supabase
 create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
 create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
-revoke all on "better_supabase"."template_applications" from anon, authenticated;
+revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
@@ -3960,7 +3963,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_templates.sql
@@ -3982,7 +3985,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:bde68846d821fdd7ef66e4af6a81c77188962db921aba122ffe8ae27ebd78546
+-- @bsb-hash sha256:01584329c0559be193a2dd3ced6d3bfc3250e363af982c5c382e7acb3dc6b50d
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4878,7 +4881,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_templates.sql
@@ -4900,7 +4903,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:47e2504426b916bc43600226321494fa59242820f2421495c5838e9cd38bcd88
+-- @bsb-hash sha256:20a235c219b5a343f5ba67df72d880b8aee20bf276c18e5054391cc71d02e1c2
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4992,7 +4995,7 @@ create index if not exists templates_type_idx on "better_supabase"."templates" (
 create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
 create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
-revoke all on "better_supabase"."templates" from anon, authenticated;
+revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
 drop policy if exists templates_read on "better_supabase"."templates";
@@ -5017,7 +5020,7 @@ create table if not exists "better_supabase"."template_versions" (
 create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
 create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
-revoke all on "better_supabase"."template_versions" from anon, authenticated;
+revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
 drop policy if exists template_versions_read on "better_supabase"."template_versions";
@@ -5042,7 +5045,7 @@ create index if not exists template_applications_version_idx on "better_supabase
 create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
 create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
-revoke all on "better_supabase"."template_applications" from anon, authenticated;
+revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
 drop policy if exists template_applications_read on "better_supabase"."template_applications";
@@ -5788,7 +5791,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_templates.sql

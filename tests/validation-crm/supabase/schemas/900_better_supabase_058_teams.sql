@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:7905ce63df347365f33506ada336f87f5c9e1691aa6d59a63f4890dc8b12483d
+-- @bsb-hash sha256:e894b256c10d7e3e1e2e7115536ccbde4d68552bfad6bde1d505f860d9870b2f
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create policy bsb_teams_select on "public"."teams"
   using ("organization_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
 -- public.team_members is the app's table, and it has every column this block needs.
-create index if not exists team_members_user_idx on "public"."team_members" ("user_id");
+-- public.team_members already has an index on (user_id), so this block adds none.
 create index if not exists team_members_membership_idx on "public"."team_members" ("organization_id", "user_id");
 alter table "public"."team_members" enable row level security;
 grant select on "public"."team_members" to authenticated;
@@ -393,5 +393,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

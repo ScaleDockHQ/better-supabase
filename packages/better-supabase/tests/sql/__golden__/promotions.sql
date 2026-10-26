@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:ebd21ece4be208b286358265634c2a341a50bb1df773f690bc6f0b36e7e6607b
+-- @bsb-hash sha256:625b7fe1b78842d34df63488ce00e43ecb6309b98a041543fb178a91022be2ee
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ create table if not exists "better_supabase"."promotions" (
 );
 create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
-revoke all on "better_supabase"."promotions" from anon, authenticated;
+revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
@@ -133,7 +133,7 @@ create table if not exists "better_supabase"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
-revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
@@ -150,7 +150,7 @@ create table if not exists "better_supabase"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
-revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
@@ -177,7 +177,7 @@ create index if not exists promotion_redemptions_promotion_idx on "better_supaba
 create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
-revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
@@ -956,7 +956,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:fa75bca02af217f0f8094896a32d068325ca8fb9095c7822f6f6756d3fb2a893
+-- @bsb-hash sha256:8e5fca473bf992fe7922552679157e4ee3ca7cc67ea38e22745bf2e1dd883de3
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1088,7 +1088,7 @@ create table if not exists "better_supabase"."promotions" (
 );
 create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
-revoke all on "better_supabase"."promotions" from anon, authenticated;
+revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
@@ -1108,7 +1108,7 @@ create table if not exists "better_supabase"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
-revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
@@ -1125,7 +1125,7 @@ create table if not exists "better_supabase"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
-revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
@@ -1152,7 +1152,7 @@ create index if not exists promotion_redemptions_promotion_idx on "better_supaba
 create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
-revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
@@ -1931,7 +1931,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
@@ -1951,7 +1951,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:e017b2116fd7349d707fd728ae62936ba5859bc39d44ff98b7d4dada5a0d0309
+-- @bsb-hash sha256:83999a87b1b0f4f52e0a03bce9e5ea974fef55862139e04654d15c1f7f0a0e57
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2032,6 +2032,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Promotions (percentage, fixed or free shipping), automatic or by code,
 -- with usage limits and stacking rules; orders prices carts with them.
 
@@ -2065,7 +2068,7 @@ create table if not exists "app_private"."promotions" (
 );
 create index if not exists promotions_tenant_idx on "app_private"."promotions" ("tenant_id", "active", "automatic");
 alter table "app_private"."promotions" enable row level security;
-revoke all on "app_private"."promotions" from anon, authenticated;
+revoke all on "app_private"."promotions" from public, anon, authenticated;
 grant select on "app_private"."promotions" to authenticated;
 grant all on "app_private"."promotions" to service_role;
 drop policy if exists promotions_read on "app_private"."promotions";
@@ -2085,7 +2088,7 @@ create table if not exists "app_private"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "app_private"."promotion_codes" ("promotion_id");
 alter table "app_private"."promotion_codes" enable row level security;
-revoke all on "app_private"."promotion_codes" from anon, authenticated;
+revoke all on "app_private"."promotion_codes" from public, anon, authenticated;
 grant select on "app_private"."promotion_codes" to authenticated;
 grant all on "app_private"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "app_private"."promotion_codes";
@@ -2102,7 +2105,7 @@ create table if not exists "app_private"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "app_private"."cart_promotion_codes" ("code_id");
 alter table "app_private"."cart_promotion_codes" enable row level security;
-revoke all on "app_private"."cart_promotion_codes" from anon, authenticated;
+revoke all on "app_private"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "app_private"."cart_promotion_codes" to authenticated;
 grant all on "app_private"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "app_private"."cart_promotion_codes";
@@ -2129,7 +2132,7 @@ create index if not exists promotion_redemptions_promotion_idx on "app_private".
 create index if not exists promotion_redemptions_customer_idx on "app_private"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "app_private"."promotion_redemptions" ("code_id");
 alter table "app_private"."promotion_redemptions" enable row level security;
-revoke all on "app_private"."promotion_redemptions" from anon, authenticated;
+revoke all on "app_private"."promotion_redemptions" from public, anon, authenticated;
 grant select on "app_private"."promotion_redemptions" to authenticated;
 grant all on "app_private"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "app_private"."promotion_redemptions";
@@ -2908,7 +2911,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
@@ -2928,7 +2931,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:4031fa500be4edec9046ef8ceb5628990effe439a553ed3382869f7949481764
+-- @bsb-hash sha256:95745031b226cd470a54ea1822d6c5262c46149364be98f0efa8f09134d9b0c9
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3040,7 +3043,7 @@ create table if not exists "better_supabase"."promotions" (
 );
 create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
-revoke all on "better_supabase"."promotions" from anon, authenticated;
+revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
@@ -3060,7 +3063,7 @@ create table if not exists "better_supabase"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
-revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
@@ -3077,7 +3080,7 @@ create table if not exists "better_supabase"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
-revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
@@ -3104,7 +3107,7 @@ create index if not exists promotion_redemptions_promotion_idx on "better_supaba
 create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
-revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
@@ -3970,7 +3973,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
@@ -3990,7 +3993,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:1fc1168ee7fbc1db2855f6d4afe71b3f75350027949de3b72de5fa805c4694cc
+-- @bsb-hash sha256:ed6caa7e4d897b7ace9b9726181f8860891e7580a1eba4f58f3147f96aaaa268
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4949,7 +4952,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
@@ -4969,7 +4972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:9e0ed73a0d19952aa65f03701d748eb9198c0cf63e9b5785b16d44bb89df6a90
+-- @bsb-hash sha256:d87e95e591875f2e994242b1ac71d201a8017d9b07441b0a2c663951d90a5cca
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5081,7 +5084,7 @@ create table if not exists "better_supabase"."promotions" (
 );
 create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("org_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
-revoke all on "better_supabase"."promotions" from anon, authenticated;
+revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
 drop policy if exists promotions_read on "better_supabase"."promotions";
@@ -5101,7 +5104,7 @@ create table if not exists "better_supabase"."promotion_codes" (
 );
 create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
-revoke all on "better_supabase"."promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
 drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
@@ -5118,7 +5121,7 @@ create table if not exists "better_supabase"."cart_promotion_codes" (
 );
 create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
-revoke all on "better_supabase"."cart_promotion_codes" from anon, authenticated;
+revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
 drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
@@ -5145,7 +5148,7 @@ create index if not exists promotion_redemptions_promotion_idx on "better_supaba
 create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
 create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
-revoke all on "better_supabase"."promotion_redemptions" from anon, authenticated;
+revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
 drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
@@ -5924,7 +5927,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql

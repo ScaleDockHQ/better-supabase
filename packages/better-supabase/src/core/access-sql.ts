@@ -1,6 +1,8 @@
 import type { AuthorizationFunctions } from "../config/authorization.ts";
 import type { AccessPolicySql } from "../schema/types.ts";
+import type { TemplateToken } from "./sql-template-tokens.ts";
 
+import { tokenizeTemplate } from "./sql-template-tokens.ts";
 import { sqlString } from "./template.ts";
 
 const SCOPE = /^[a-z][a-z0-9_]*$/;
@@ -129,30 +131,103 @@ const CALL_KEYWORDS = new Set([
 ]);
 
 /**
- * What makes a template unsafe to put into generated SQL: a `$$`, `;` or `--`
- * (outside string literals), or a function call without a schema.
+ * What makes a template unsafe to put into generated SQL: a dollar-quote tag, a
+ * `;`, a comment, an unterminated string, quoted identifier or comment, a stray
+ * `{`, or a function call without a schema. Strings and quoted identifiers are
+ * read whole, so what is inside them never counts.
  */
 export function templateProblems(template: string): string[] {
-  const code = template
-    .replaceAll(/'(?:[^']|'')*'/g, "''")
-    .replaceAll(/\{(\w+)\}/g, "$1");
-
+  const tokens = tokenizeTemplate(template);
   const problems: string[] = [];
+  const seen = new Set<string>();
 
-  for (const token of ["$$", ";", "--"]) {
-    if (code.includes(token)) {
-      problems.push(`contains "${token}"`);
+  const report = (problem: string): void => {
+    if (!seen.has(problem)) {
+      seen.add(problem);
+      problems.push(problem);
+    }
+  };
+
+  let code: TemplateToken[] = [];
+
+  for (const token of tokens) {
+    const last = code.at(-1);
+
+    const glued =
+      (token.kind === "word" || token.kind === "placeholder") &&
+      (last?.kind === "word" || last?.kind === "placeholder") &&
+      !(last.kind === "word" && last.quoted);
+
+    if (glued) {
+      code[code.length - 1] = {
+        kind: "word",
+        text: last.text + token.text,
+        quoted: false,
+      };
+    } else if (token.kind === "placeholder") {
+      code.push({ kind: "word", text: token.text, quoted: false });
+    } else {
+      code.push(token);
     }
   }
 
-  for (const match of code.matchAll(/(?<![\w$.":])"?([a-z_][\w$]*)"?\s*\(/gi)) {
-    const name = match[1]!;
+  code = code.filter((token) => token.kind !== "space");
 
-    if (CALL_KEYWORDS.has(name.toLowerCase())) {
-      continue;
+  for (const [position, token] of code.entries()) {
+    switch (token.kind) {
+      case "dollar": {
+        report(`contains "${token.text}"`);
+        break;
+      }
+
+      case "comment": {
+        report(`contains "${token.text.startsWith("--") ? "--" : "/*"}"`);
+        break;
+      }
+
+      case "error": {
+        report(
+          token.text === "{"
+            ? 'contains a "{" that is not a {name} placeholder'
+            : `contains an unterminated ${token.text.startsWith("/*") ? "comment" : token.text.startsWith('"') ? "identifier" : "string"}`,
+        );
+        break;
+      }
+
+      case "punct": {
+        if (token.text === ";") {
+          report('contains ";"');
+        }
+
+        break;
+      }
+
+      case "word": {
+        const next = code[position + 1];
+        const previous = code[position - 1];
+
+        if (
+          next?.kind === "punct" &&
+          next.text === "(" &&
+          !(previous?.kind === "punct" && [".", ":"].includes(previous.text)) &&
+          (token.quoted || !CALL_KEYWORDS.has(token.text.toLowerCase()))
+        ) {
+          report(`calls ${token.text}() without a schema`);
+        }
+
+        break;
+      }
+
+      case "string":
+      case "placeholder":
+      case "space": {
+        break;
+      }
+
+      default: {
+        token satisfies never;
+      }
     }
-
-    problems.push(`calls ${name}() without a schema`);
   }
 
   return problems;
@@ -172,6 +247,12 @@ export function fillTemplate(
   template: string,
   values: Readonly<Record<string, string>>,
 ): string {
+  const problems = templateProblems(template);
+
+  if (problems.length > 0) {
+    throw new TypeError(`${where}: the template ${problems.join(", ")}`);
+  }
+
   return template.replaceAll(/\{(\w+)\}/g, (match, name: string) => {
     const value = values[name];
 

@@ -103,7 +103,7 @@ employee keeps `employee_id` null.
 
 ## From a hired application
 
-With the [hiring](/docs/blocks/hiring) module, `fromApplication(applicationId)` makes the employee for a hired application, in `preboarding`. The name comes from the candidate's `title` column in `config.records`, and the job title, team and employment type from the job; pass overrides such as `{ startDate }` as the second argument. The employee's origin is the application, so calling it again returns the same employee, and with `relations` it gets a `created_from` relation to the application. Call it from an `application.hired` handler:
+With the [hiring](/docs/blocks/hiring) module, `fromApplication(applicationId)` makes the employee for a hired application, in `preboarding`. The name comes from the candidate's `title` column in `config.records`, and the job title, team and employment type from the job (an employment type the job's column stores as an enum, or under another label through `blocks.hiring.values`, is compared by its block label, and a team or employment type the job's table has no column for is left empty); pass overrides such as `{ startDate }` as the second argument. The employee's origin is the application, so calling it again returns the same employee, and with `relations` it gets a `created_from` relation to the application. Call it from an `application.hired` handler:
 
 ```ts
 onBlockEvent(bsb, hiringEvents, "application.hired", async (event) => {

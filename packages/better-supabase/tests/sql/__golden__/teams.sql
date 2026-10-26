@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:858fe8cdfb2fbb9a875ec404bc0c5e995ca6fa9b29a0b83b0418751a84f51d13
+-- @bsb-hash sha256:76afaa9d2d0fedf3407b5d463a119b2b4b6eb54438a8ce8ed6739299108cda50
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,7 @@ create table if not exists "better_supabase"."teams" (
   unique ("tenant_id", "slug")
 );
 alter table "better_supabase"."teams" enable row level security;
-revoke all on "better_supabase"."teams" from anon, authenticated;
+revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
@@ -96,7 +96,7 @@ create table if not exists "better_supabase"."team_members" (
 create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
-revoke all on "better_supabase"."team_members" from anon, authenticated;
+revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
@@ -418,7 +418,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
@@ -438,7 +438,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:8f142ec83ea36d33bd1fed696f7b1d31385ea9ce1c99a1f19045275f92e9d761
+-- @bsb-hash sha256:16c3e98b26c35bd8061a5db4b58b08460b4ea1d8bde0ec36f4e6d4ee9bbde989
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -515,7 +515,7 @@ create table if not exists "better_supabase"."teams" (
   unique ("tenant_id", "slug")
 );
 alter table "better_supabase"."teams" enable row level security;
-revoke all on "better_supabase"."teams" from anon, authenticated;
+revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
@@ -533,7 +533,7 @@ create table if not exists "better_supabase"."team_members" (
 create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
-revoke all on "better_supabase"."team_members" from anon, authenticated;
+revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
@@ -935,7 +935,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
@@ -955,7 +955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:bb6b00643386cb4876c6a5c37fb7b0d3f727ed3fb782ccc37e808026f4202cfb
+-- @bsb-hash sha256:0dd78206ca116126322b6d80cbe61cb8e2149af1df6d678edea513785ba66c08
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1020,6 +1020,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
 create table if not exists "app_private"."teams" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1034,7 +1037,7 @@ create table if not exists "app_private"."teams" (
   unique ("tenant_id", "slug")
 );
 alter table "app_private"."teams" enable row level security;
-revoke all on "app_private"."teams" from anon, authenticated;
+revoke all on "app_private"."teams" from public, anon, authenticated;
 grant select on "app_private"."teams" to authenticated;
 grant all on "app_private"."teams" to service_role;
 drop policy if exists teams_read on "app_private"."teams";
@@ -1052,7 +1055,7 @@ create table if not exists "app_private"."team_members" (
 create index if not exists team_members_user_idx on "app_private"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "app_private"."team_members" ("tenant_id", "user_id");
 alter table "app_private"."team_members" enable row level security;
-revoke all on "app_private"."team_members" from anon, authenticated;
+revoke all on "app_private"."team_members" from public, anon, authenticated;
 grant select on "app_private"."team_members" to authenticated;
 grant all on "app_private"."team_members" to service_role;
 drop policy if exists team_members_read on "app_private"."team_members";
@@ -1374,7 +1377,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
@@ -1394,7 +1397,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:d0366c0f384f9df0439bff12ee203cef80f411950ba267e186d8795b86d53369
+-- @bsb-hash sha256:4a62eea23ee3982a5cbde52aaa4016935f918725d3ad3a79fc4329b3746ecad3
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1471,7 +1474,7 @@ create table if not exists "better_supabase"."teams" (
   unique ("tenant_id", "slug")
 );
 alter table "better_supabase"."teams" enable row level security;
-revoke all on "better_supabase"."teams" from anon, authenticated;
+revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
@@ -1489,7 +1492,7 @@ create table if not exists "better_supabase"."team_members" (
 create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
-revoke all on "better_supabase"."team_members" from anon, authenticated;
+revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
@@ -1908,7 +1911,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
@@ -1928,7 +1931,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:fb2f8f5b7709f898dce3eebfde535d688882818962a3a9b96b7c89c85550e54e
+-- @bsb-hash sha256:57cdd2eb4a246b332a6393aca6b64ee9e94e67d4d59476d3d56351c799dd545b
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2334,7 +2337,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
@@ -2354,7 +2357,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:491d7e923ceeeb84d1ab2d9b64589e1915964e8cc4c374a535375f7ef09ad695
+-- @bsb-hash sha256:909b5a97f73d03c3e2fefb003949f5af6dc08ce0ccb16349ef4e88632fd9de93
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2431,7 +2434,7 @@ create table if not exists "better_supabase"."teams" (
   unique ("org_id", "slug")
 );
 alter table "better_supabase"."teams" enable row level security;
-revoke all on "better_supabase"."teams" from anon, authenticated;
+revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
 drop policy if exists teams_read on "better_supabase"."teams";
@@ -2449,7 +2452,7 @@ create table if not exists "better_supabase"."team_members" (
 create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
 create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("org_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
-revoke all on "better_supabase"."team_members" from anon, authenticated;
+revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
 drop policy if exists team_members_read on "better_supabase"."team_members";
@@ -2771,7 +2774,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_058_teams.sql

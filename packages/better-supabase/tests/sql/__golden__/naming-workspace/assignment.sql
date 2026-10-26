@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:6cda3eb8e22c732717feb1cf1ccd2fb85576e6bf49708ce58a98ffcdefcf80d2
+-- @bsb-hash sha256:72b41ecfe18c9bee3287ae865ecf371fdb3d5aa6418e95475b76c2d605050f0a
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ create table if not exists "better_supabase"."assignment_queues" (
 );
 create index if not exists assignment_queues_order_idx on "better_supabase"."assignment_queues" ("tenant_id", "subject_type", "rank") where "enabled";
 alter table "better_supabase"."assignment_queues" enable row level security;
-revoke all on "better_supabase"."assignment_queues" from anon, authenticated;
+revoke all on "better_supabase"."assignment_queues" from public, anon, authenticated;
 grant select on "better_supabase"."assignment_queues" to authenticated;
 grant all on "better_supabase"."assignment_queues" to service_role;
 create table if not exists "better_supabase"."assignment_queue_members" (
@@ -105,7 +105,7 @@ create table if not exists "better_supabase"."assignment_queue_members" (
 );
 create index if not exists assignment_queue_members_user_idx on "better_supabase"."assignment_queue_members" ("user_id");
 alter table "better_supabase"."assignment_queue_members" enable row level security;
-revoke all on "better_supabase"."assignment_queue_members" from anon, authenticated;
+revoke all on "better_supabase"."assignment_queue_members" from public, anon, authenticated;
 grant select on "better_supabase"."assignment_queue_members" to authenticated;
 grant all on "better_supabase"."assignment_queue_members" to service_role;
 create table if not exists "better_supabase"."assignments" (
@@ -121,7 +121,7 @@ create index if not exists assignments_subject_idx on "better_supabase"."assignm
 create index if not exists assignments_queue_idx on "better_supabase"."assignments" ("queue_id") where "queue_id" is not null;
 create index if not exists assignments_user_idx on "better_supabase"."assignments" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."assignments" enable row level security;
-revoke all on "better_supabase"."assignments" from anon, authenticated;
+revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
 drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
@@ -508,7 +508,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_134_assignment.sql

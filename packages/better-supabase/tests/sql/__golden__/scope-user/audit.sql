@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:6185aaab48e54f8966f501a6ae4427ea0ffbcdec52ee0a509e7994977f2f2380
+-- @bsb-hash sha256:3aeedea678b60a73d4e932a9ec3c3d1c00719192b9cfca6e812780776fa1f07c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ alter table "better_supabase"."audited_tables" add column if not exists "target_
 alter table "better_supabase"."audited_tables" add column if not exists "tenant_column" text;
 alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
-revoke all on "better_supabase"."audited_tables" from anon, authenticated;
+revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
 
 -- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
@@ -156,7 +156,7 @@ create index if not exists audit_events_occurred_at_idx on "better_supabase"."au
 create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
 create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
-revoke all on "better_supabase"."audit_events" from anon, authenticated;
+revoke all on "better_supabase"."audit_events" from public, anon, authenticated;
 grant select on "better_supabase"."audit_events" to service_role;
 
 create or replace function better_supabase.audit_row_change()
@@ -1205,7 +1205,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_003_audit.sql

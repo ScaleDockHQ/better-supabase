@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:628df22fee4fdead61aa13615ee873064a7d7033e0180a6b34b580eaf4b77db5
+-- @bsb-hash sha256:b59534f9b04b987b1d2a81f21f7d73434c682b8b3fa43b73b18b4443680155d6
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,7 +126,7 @@ create index if not exists "work_orders_asset_idx" on "better_supabase"."work_or
 create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
 create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
-revoke all on "better_supabase"."work_orders" from anon, authenticated;
+revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
@@ -147,7 +147,7 @@ create table if not exists "better_supabase"."dispatch_routes" (
 );
 create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
-revoke all on "better_supabase"."dispatch_routes" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
@@ -165,7 +165,7 @@ create table if not exists "better_supabase"."dispatch_route_stops" (
 );
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
-revoke all on "better_supabase"."dispatch_route_stops" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
@@ -192,7 +192,7 @@ create index if not exists "work_order_parts_asset_idx" on "better_supabase"."wo
 create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
 create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
-revoke all on "better_supabase"."work_order_parts" from anon, authenticated;
+revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
@@ -906,7 +906,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
@@ -926,7 +926,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:f002a7e55d506499c37dd0df19d809f7e9215e9a2f929f3f3a3b9b251700700e
+-- @bsb-hash sha256:7aa808cdcb0fc0c1ef0ef38200144a5bcccf0bcdda76fa1bc4fa1c7abc9e62d1
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1051,7 +1051,7 @@ create index if not exists "work_orders_asset_idx" on "better_supabase"."work_or
 create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
 create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
-revoke all on "better_supabase"."work_orders" from anon, authenticated;
+revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
@@ -1072,7 +1072,7 @@ create table if not exists "better_supabase"."dispatch_routes" (
 );
 create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
-revoke all on "better_supabase"."dispatch_routes" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
@@ -1090,7 +1090,7 @@ create table if not exists "better_supabase"."dispatch_route_stops" (
 );
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
-revoke all on "better_supabase"."dispatch_route_stops" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
@@ -1117,7 +1117,7 @@ create index if not exists "work_order_parts_asset_idx" on "better_supabase"."wo
 create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
 create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
-revoke all on "better_supabase"."work_order_parts" from anon, authenticated;
+revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
@@ -2028,7 +2028,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
@@ -2048,7 +2048,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:c21b0bc518bea53950e94ccbaf5d3bd2d298a76343ecbbc19940de24a92c0be0
+-- @bsb-hash sha256:3d69cef1293d67911d4ed39e6bb61d28b61987924a94b00b536d902c8c7f739f
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2129,6 +2129,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -2175,7 +2178,7 @@ create index if not exists "work_orders_asset_idx" on "app_private"."work_orders
 create index if not exists "work_orders_booking_idx" on "app_private"."work_orders" ("booking_id");
 create index if not exists "work_orders_subject_idx" on "app_private"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."work_orders" enable row level security;
-revoke all on "app_private"."work_orders" from anon, authenticated;
+revoke all on "app_private"."work_orders" from public, anon, authenticated;
 grant select on "app_private"."work_orders" to authenticated;
 grant all on "app_private"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "app_private"."work_orders";
@@ -2196,7 +2199,7 @@ create table if not exists "app_private"."dispatch_routes" (
 );
 create index if not exists "dispatch_routes_technician_idx" on "app_private"."dispatch_routes" ("technician_id", "route_date");
 alter table "app_private"."dispatch_routes" enable row level security;
-revoke all on "app_private"."dispatch_routes" from anon, authenticated;
+revoke all on "app_private"."dispatch_routes" from public, anon, authenticated;
 grant select on "app_private"."dispatch_routes" to authenticated;
 grant all on "app_private"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "app_private"."dispatch_routes";
@@ -2214,7 +2217,7 @@ create table if not exists "app_private"."dispatch_route_stops" (
 );
 create index if not exists "dispatch_route_stops_job_idx" on "app_private"."dispatch_route_stops" ("work_order_id");
 alter table "app_private"."dispatch_route_stops" enable row level security;
-revoke all on "app_private"."dispatch_route_stops" from anon, authenticated;
+revoke all on "app_private"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "app_private"."dispatch_route_stops" to authenticated;
 grant all on "app_private"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "app_private"."dispatch_route_stops";
@@ -2241,7 +2244,7 @@ create index if not exists "work_order_parts_asset_idx" on "app_private"."work_o
 create index if not exists "work_order_parts_variant_idx" on "app_private"."work_order_parts" ("variant_id");
 create index if not exists "work_order_parts_location_idx" on "app_private"."work_order_parts" ("location_id");
 alter table "app_private"."work_order_parts" enable row level security;
-revoke all on "app_private"."work_order_parts" from anon, authenticated;
+revoke all on "app_private"."work_order_parts" from public, anon, authenticated;
 grant select on "app_private"."work_order_parts" to authenticated;
 grant all on "app_private"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "app_private"."work_order_parts";
@@ -2955,7 +2958,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
@@ -2975,7 +2978,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:025f08647b51848291fa2f60bcac41c53c8f89d70192798619e0ae7d4b4c9cd3
+-- @bsb-hash sha256:d36af9bcfbecda06da769629cbdeb57bad1942a6c3a8d65a18c044e2d626cc86
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3100,7 +3103,7 @@ create index if not exists "work_orders_asset_idx" on "better_supabase"."work_or
 create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
 create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
-revoke all on "better_supabase"."work_orders" from anon, authenticated;
+revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
@@ -3121,7 +3124,7 @@ create table if not exists "better_supabase"."dispatch_routes" (
 );
 create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
-revoke all on "better_supabase"."dispatch_routes" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
@@ -3139,7 +3142,7 @@ create table if not exists "better_supabase"."dispatch_route_stops" (
 );
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
-revoke all on "better_supabase"."dispatch_route_stops" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
@@ -3166,7 +3169,7 @@ create index if not exists "work_order_parts_asset_idx" on "better_supabase"."wo
 create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
 create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
-revoke all on "better_supabase"."work_order_parts" from anon, authenticated;
+revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
@@ -4022,7 +4025,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
@@ -4042,7 +4045,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:03ceb3286c83457fb2816afc4daac81165f842cf824cc222fb87d6d138382b8d
+-- @bsb-hash sha256:e3b672eb72618a51f3f1d69f8e56a236e53a917ba3f7ee33746e999dcdbed9c5
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4949,7 +4952,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
@@ -4969,7 +4972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:08be1baccc95637beba8a26c35aac1d232ee21b2e6fbbee808b732e0d88fba5a
+-- @bsb-hash sha256:3f7b24b83fac4c11c01644afa4a573d865c88af7fc307e1421304b700828dd50
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5094,7 +5097,7 @@ create index if not exists "work_orders_asset_idx" on "better_supabase"."work_or
 create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
 create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
-revoke all on "better_supabase"."work_orders" from anon, authenticated;
+revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
 drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
@@ -5115,7 +5118,7 @@ create table if not exists "better_supabase"."dispatch_routes" (
 );
 create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
-revoke all on "better_supabase"."dispatch_routes" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
 drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
@@ -5133,7 +5136,7 @@ create table if not exists "better_supabase"."dispatch_route_stops" (
 );
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
-revoke all on "better_supabase"."dispatch_route_stops" from anon, authenticated;
+revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
 drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
@@ -5160,7 +5163,7 @@ create index if not exists "work_order_parts_asset_idx" on "better_supabase"."wo
 create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
 create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
-revoke all on "better_supabase"."work_order_parts" from anon, authenticated;
+revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
 drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
@@ -5874,7 +5877,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:5592d3c70629c07c817a2082e1e64dd8baba272a7e5ca66eb9e9e58d35715566
+-- @bsb-hash sha256:8f309a03c1dcbd1acae03c42c2552f28856f9d9e7f61f247af6aca99e8de6957
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,7 @@ create table if not exists "better_supabase"."projects" (
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
 alter table "better_supabase"."projects" enable row level security;
-revoke all on "better_supabase"."projects" from anon, authenticated;
+revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
@@ -127,7 +127,7 @@ create table if not exists "better_supabase"."iterations" (
 );
 create index if not exists iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
-revoke all on "better_supabase"."iterations" from anon, authenticated;
+revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
@@ -173,7 +173,7 @@ create index if not exists work_items_project_idx on "better_supabase"."work_ite
 create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
 create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from anon, authenticated;
+revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
@@ -190,7 +190,7 @@ create table if not exists "better_supabase"."work_item_assignees" (
 );
 create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from anon, authenticated;
+revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
@@ -215,7 +215,7 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
 );
 create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from anon, authenticated;
+revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
@@ -938,7 +938,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
@@ -958,7 +958,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:6cef0c190954c8bf384acaf04c7e18436b57b93d8cfbd5a7c21ccb6d161fc5ba
+-- @bsb-hash sha256:6b0c256f2f92bc97aa1f7c533af73fc67ff345e81de4ede89f0c86ea2a86aba6
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1064,7 +1064,7 @@ create table if not exists "better_supabase"."projects" (
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
 alter table "better_supabase"."projects" enable row level security;
-revoke all on "better_supabase"."projects" from anon, authenticated;
+revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
@@ -1084,7 +1084,7 @@ create table if not exists "better_supabase"."iterations" (
 );
 create index if not exists iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
-revoke all on "better_supabase"."iterations" from anon, authenticated;
+revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
@@ -1130,7 +1130,7 @@ create index if not exists work_items_project_idx on "better_supabase"."work_ite
 create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
 create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from anon, authenticated;
+revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
@@ -1147,7 +1147,7 @@ create table if not exists "better_supabase"."work_item_assignees" (
 );
 create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from anon, authenticated;
+revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
@@ -1172,7 +1172,7 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
 );
 create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from anon, authenticated;
+revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
@@ -2060,7 +2060,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
@@ -2080,7 +2080,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:c3c30799acb8b4c397ba62df847c61bf0ac8325d1451a10e8bdc65002ae37a28
+-- @bsb-hash sha256:f67d006a90f45c57c89a40aa5b30a4346cc4e7035a06f65007a1188412f7aab7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2169,6 +2169,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.
 
@@ -2188,7 +2191,7 @@ create table if not exists "app_private"."projects" (
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
 alter table "app_private"."projects" enable row level security;
-revoke all on "app_private"."projects" from anon, authenticated;
+revoke all on "app_private"."projects" from public, anon, authenticated;
 grant select on "app_private"."projects" to authenticated;
 grant all on "app_private"."projects" to service_role;
 drop policy if exists projects_read on "app_private"."projects";
@@ -2208,7 +2211,7 @@ create table if not exists "app_private"."iterations" (
 );
 create index if not exists iterations_tenant_idx on "app_private"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "app_private"."iterations" enable row level security;
-revoke all on "app_private"."iterations" from anon, authenticated;
+revoke all on "app_private"."iterations" from public, anon, authenticated;
 grant select on "app_private"."iterations" to authenticated;
 grant all on "app_private"."iterations" to service_role;
 drop policy if exists iterations_read on "app_private"."iterations";
@@ -2254,7 +2257,7 @@ create index if not exists work_items_project_idx on "app_private"."work_items" 
 create index if not exists work_items_iteration_idx on "app_private"."work_items" ("iteration_id");
 create index if not exists work_items_due_idx on "app_private"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "app_private"."work_items" enable row level security;
-revoke all on "app_private"."work_items" from anon, authenticated;
+revoke all on "app_private"."work_items" from public, anon, authenticated;
 grant select on "app_private"."work_items" to authenticated;
 grant all on "app_private"."work_items" to service_role;
 drop policy if exists work_items_read on "app_private"."work_items";
@@ -2271,7 +2274,7 @@ create table if not exists "app_private"."work_item_assignees" (
 );
 create index if not exists work_item_assignees_user_idx on "app_private"."work_item_assignees" ("user_id");
 alter table "app_private"."work_item_assignees" enable row level security;
-revoke all on "app_private"."work_item_assignees" from anon, authenticated;
+revoke all on "app_private"."work_item_assignees" from public, anon, authenticated;
 grant select on "app_private"."work_item_assignees" to authenticated;
 grant all on "app_private"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "app_private"."work_item_assignees";
@@ -2296,7 +2299,7 @@ create table if not exists "app_private"."work_item_checklist_items" (
 );
 create index if not exists work_item_checklist_item_idx on "app_private"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "app_private"."work_item_checklist_items" enable row level security;
-revoke all on "app_private"."work_item_checklist_items" from anon, authenticated;
+revoke all on "app_private"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "app_private"."work_item_checklist_items" to authenticated;
 grant all on "app_private"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "app_private"."work_item_checklist_items";
@@ -3019,7 +3022,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
@@ -3039,7 +3042,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:12d8a49c83116f017638abe25838286d10a26f5fdb7f0e23267a81369c5c0cc1
+-- @bsb-hash sha256:9eb34ad440e945f621df001bb64b2d3ce97ca5d6f14fece03606f9f71a9ac333
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3145,7 +3148,7 @@ create table if not exists "better_supabase"."projects" (
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
 alter table "better_supabase"."projects" enable row level security;
-revoke all on "better_supabase"."projects" from anon, authenticated;
+revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
@@ -3165,7 +3168,7 @@ create table if not exists "better_supabase"."iterations" (
 );
 create index if not exists iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
-revoke all on "better_supabase"."iterations" from anon, authenticated;
+revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
@@ -3211,7 +3214,7 @@ create index if not exists work_items_project_idx on "better_supabase"."work_ite
 create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
 create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from anon, authenticated;
+revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
@@ -3228,7 +3231,7 @@ create table if not exists "better_supabase"."work_item_assignees" (
 );
 create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from anon, authenticated;
+revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
@@ -3253,7 +3256,7 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
 );
 create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from anon, authenticated;
+revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
@@ -4115,7 +4118,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
@@ -4135,7 +4138,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:7d972cdc6cf23b41fe243d38ba5e082af1632d8742902893ce7fc731de75fb33
+-- @bsb-hash sha256:d84ce4fd17f60414bb284fba8964ab1d39a3330b0770292e5ad72fd79d8e0e37
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5075,7 +5078,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
@@ -5095,7 +5098,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:a40f52029cc988ad0963a72df4e5022fa9a322b47404dfdc8e1d58205bca0dc3
+-- @bsb-hash sha256:9f0a2031ade2b331d52bbc740213ca9103529a2d6a65389cd5d689e9de33a224
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5201,7 +5204,7 @@ create table if not exists "better_supabase"."projects" (
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
 alter table "better_supabase"."projects" enable row level security;
-revoke all on "better_supabase"."projects" from anon, authenticated;
+revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
@@ -5221,7 +5224,7 @@ create table if not exists "better_supabase"."iterations" (
 );
 create index if not exists iterations_tenant_idx on "better_supabase"."iterations" ("org_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
-revoke all on "better_supabase"."iterations" from anon, authenticated;
+revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
@@ -5267,7 +5270,7 @@ create index if not exists work_items_project_idx on "better_supabase"."work_ite
 create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
 create index if not exists work_items_due_idx on "better_supabase"."work_items" ("org_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from anon, authenticated;
+revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
@@ -5284,7 +5287,7 @@ create table if not exists "better_supabase"."work_item_assignees" (
 );
 create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from anon, authenticated;
+revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
@@ -5309,7 +5312,7 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
 );
 create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from anon, authenticated;
+revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
@@ -6032,7 +6035,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql

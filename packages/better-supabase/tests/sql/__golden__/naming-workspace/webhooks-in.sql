@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:97d134e9e6304690285521dc8b468d66754986d895a92ca0ff611ccee7223690
+-- @bsb-hash sha256:1719c75f374c6b5e2d362daf129131312217bc1b92817de9aedc278c44092ec1
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,7 @@ drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incomi
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
-revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
+revoke all on "better_supabase"."incoming_webhooks" from public, anon, authenticated;
 -- The secret stays with the service: members read every other column.
 grant select (id, tenant, name, verify, signature_header, enabled, max_body_bytes, receive_count, last_received_at, last_status, metadata, subject_type, subject_id, created_by, created_at, updated_at) on "better_supabase"."incoming_webhooks" to authenticated;
 grant all on "better_supabase"."incoming_webhooks" to service_role;
@@ -550,7 +550,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql

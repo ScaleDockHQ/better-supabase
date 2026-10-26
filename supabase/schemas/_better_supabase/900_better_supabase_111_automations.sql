@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:10ad932ee5caeb39f168a310536ab92b0b91179b976b718edcd8f099f8d727a7
+-- @bsb-hash sha256:2fcc428a6bb6897c0a4e8c8eb6acf07a521fba2edc106c340aea2c9d7109a5f3
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,7 @@ create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("u
 alter table "better_supabase"."rules" add column if not exists "default_key" text;
 create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from anon, authenticated;
+revoke all on "better_supabase"."rules" from public, anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -116,7 +116,7 @@ create table if not exists "better_supabase"."rule_defaults" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
 grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
@@ -133,7 +133,7 @@ create table if not exists "better_supabase"."rule_versions" (
 );
 create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("organization_id");
 alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from anon, authenticated;
+revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
 grant all on "better_supabase"."rule_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -155,7 +155,7 @@ create table if not exists "better_supabase"."rule_evaluations" (
 create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
 create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from anon, authenticated;
+revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."rule_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
@@ -177,7 +177,7 @@ create table if not exists "better_supabase"."rule_fields" (
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from anon, authenticated;
+revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
 grant all on "better_supabase"."rule_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
@@ -1616,5 +1616,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

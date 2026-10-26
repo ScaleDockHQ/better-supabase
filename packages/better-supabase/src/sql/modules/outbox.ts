@@ -244,7 +244,7 @@ create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt
 ${lockTable(n.t)}${
     n.partitioned
       ? `
-revoke all on sequence ${sequence} from anon, authenticated;
+revoke all on sequence ${sequence} from public, anon, authenticated;
 
 ${MONTHLY_PARTITIONS}
 ${registerPartitions(n.t)}`

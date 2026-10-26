@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:ff05688200b93b783adeb2254bb05d9a46bc3e328225c8cd0bd2d57fe152c0e0
+-- @bsb-hash sha256:2d7c52be9c789510adfe971ba34bada7ae5a40d9bd0e184aa1e2405f3e2622de
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ create index if not exists "posts_author_idx" on "better_supabase"."posts" ("aut
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
 alter table "better_supabase"."post_boards" enable row level security;
-revoke all on "better_supabase"."post_boards" from anon, authenticated;
+revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
@@ -113,7 +113,7 @@ create policy post_boards_read on "better_supabase"."post_boards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
-revoke all on "better_supabase"."posts" from anon, authenticated;
+revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
@@ -716,7 +716,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
@@ -736,7 +736,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:a71ca5af9f710ca9ad513faf39642b0a8f503cbc2b34081fd9f18c9a5e8de1b5
+-- @bsb-hash sha256:eec1d95212569e9d730a3396a175b01a5d74229d670b6fc1382cdf65e9419ee2
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -840,7 +840,7 @@ create index if not exists "posts_author_idx" on "better_supabase"."posts" ("aut
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
 alter table "better_supabase"."post_boards" enable row level security;
-revoke all on "better_supabase"."post_boards" from anon, authenticated;
+revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
@@ -848,7 +848,7 @@ create policy post_boards_read on "better_supabase"."post_boards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
-revoke all on "better_supabase"."posts" from anon, authenticated;
+revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
@@ -1501,7 +1501,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
@@ -1521,7 +1521,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:bc550d14690ece093934e4e02d46ce4b05af5193df01eb834a4fbd896a15e29d
+-- @bsb-hash sha256:81e04e72ddabdbe8d8988a7ce5c570c0c6b5416e8bdb614a4f3af7f01297f3db
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1586,6 +1586,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Forum and feedback posts on boards. Replies are comments, votes are
 -- reactions, and each post is a moderation item.
 create table if not exists "app_private"."post_boards" (
@@ -1627,7 +1630,7 @@ create index if not exists "posts_author_idx" on "app_private"."posts" ("author_
 create index if not exists "posts_merged_idx" on "app_private"."posts" ("merged_into_id");
 
 alter table "app_private"."post_boards" enable row level security;
-revoke all on "app_private"."post_boards" from anon, authenticated;
+revoke all on "app_private"."post_boards" from public, anon, authenticated;
 grant select on "app_private"."post_boards" to authenticated;
 grant all on "app_private"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "app_private"."post_boards";
@@ -1635,7 +1638,7 @@ create policy post_boards_read on "app_private"."post_boards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "app_private"."posts" enable row level security;
-revoke all on "app_private"."posts" from anon, authenticated;
+revoke all on "app_private"."posts" from public, anon, authenticated;
 grant select on "app_private"."posts" to authenticated;
 grant all on "app_private"."posts" to service_role;
 drop policy if exists "posts_read" on "app_private"."posts";
@@ -2238,7 +2241,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
@@ -2258,7 +2261,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:6d2ad3ad21b27a44de087a652967a75320f7fc54ba8dce365c39710adcd5e129
+-- @bsb-hash sha256:8ad4019fc4b0ab5c3fb0a09c9b5b775cb09481dc9bf8f79a1cff63fecb79e464
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2362,7 +2365,7 @@ create index if not exists "posts_author_idx" on "better_supabase"."posts" ("aut
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
 alter table "better_supabase"."post_boards" enable row level security;
-revoke all on "better_supabase"."post_boards" from anon, authenticated;
+revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
@@ -2370,7 +2373,7 @@ create policy post_boards_read on "better_supabase"."post_boards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
-revoke all on "better_supabase"."posts" from anon, authenticated;
+revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
@@ -3085,7 +3088,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
@@ -3105,7 +3108,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:0b2013f5baba182c5c435ffb61ff09ddd8f5614a70017d8c4e33edeb3633c285
+-- @bsb-hash sha256:ad667e481b87a28fea8dc5972cb708be01c63ff1487abdabd4080c928cc07bbb
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3829,7 +3832,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
@@ -3849,7 +3852,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:cbe285ac99c94bc835dec05e5de5583018e202b3628fdf3adef81d498b918b3c
+-- @bsb-hash sha256:def87c9b7edeb0d8e094ae26a5ecc78570750238f3bc9b76ec8e39a27e974d7f
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3953,7 +3956,7 @@ create index if not exists "posts_author_idx" on "better_supabase"."posts" ("aut
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
 alter table "better_supabase"."post_boards" enable row level security;
-revoke all on "better_supabase"."post_boards" from anon, authenticated;
+revoke all on "better_supabase"."post_boards" from public, anon, authenticated;
 grant select on "better_supabase"."post_boards" to authenticated;
 grant all on "better_supabase"."post_boards" to service_role;
 drop policy if exists "post_boards_read" on "better_supabase"."post_boards";
@@ -3961,7 +3964,7 @@ create policy post_boards_read on "better_supabase"."post_boards"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('posts.read')));
 alter table "better_supabase"."posts" enable row level security;
-revoke all on "better_supabase"."posts" from anon, authenticated;
+revoke all on "better_supabase"."posts" from public, anon, authenticated;
 grant select on "better_supabase"."posts" to authenticated;
 grant all on "better_supabase"."posts" to service_role;
 drop policy if exists "posts_read" on "better_supabase"."posts";
@@ -4564,7 +4567,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_140_posts.sql

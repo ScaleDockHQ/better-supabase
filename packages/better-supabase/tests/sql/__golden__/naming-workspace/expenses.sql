@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:70331c78a9adcf25a08fb15a35c49f8340e14eb059157e319c0043d05ea0413e
+-- @bsb-hash sha256:d8bb3ab7d8aaa393c18d8ef16730165e2dfc34555851a23bfab56d199a6c1ebd
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ create table if not exists "better_supabase"."expense_categories" (
   check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
-revoke all on "better_supabase"."expense_categories" from anon, authenticated;
+revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
 drop policy if exists "expense_categories_read" on "better_supabase"."expense_categories";
@@ -125,7 +125,7 @@ create index if not exists "expense_reports_approval_idx" on "better_supabase"."
 create index if not exists "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
 create index if not exists "expense_reports_reimbursement_idx" on "better_supabase"."expense_reports" ("reimbursement_transaction_id") where "reimbursement_transaction_id" is not null;
 alter table "better_supabase"."expense_reports" enable row level security;
-revoke all on "better_supabase"."expense_reports" from anon, authenticated;
+revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
 drop policy if exists "expense_reports_read" on "better_supabase"."expense_reports";
@@ -150,7 +150,7 @@ create table if not exists "better_supabase"."expense_lines" (
 create index if not exists "expense_lines_report_idx" on "better_supabase"."expense_lines" ("report_id", "spent_on");
 create index if not exists "expense_lines_category_idx" on "better_supabase"."expense_lines" ("tenant_id", "category_id");
 alter table "better_supabase"."expense_lines" enable row level security;
-revoke all on "better_supabase"."expense_lines" from anon, authenticated;
+revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
 drop policy if exists "expense_lines_read" on "better_supabase"."expense_lines";
@@ -848,7 +848,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_121_expenses.sql

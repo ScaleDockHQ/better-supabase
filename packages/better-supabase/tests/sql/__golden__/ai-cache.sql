@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:1fc7d110d6f2783a88fb506918f77aad2e0ab44acd86fd81079a489c1c0e5fd4
+-- @bsb-hash sha256:2ddb92c7a6a88dbbe1150a026c38a100aff0c55d7cc713aee3a47dac350b9b65
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ create table if not exists "better_supabase"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
-revoke all on "better_supabase"."ai_cache_entries" from anon, authenticated;
+revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -156,7 +156,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
@@ -176,7 +176,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:1fc7d110d6f2783a88fb506918f77aad2e0ab44acd86fd81079a489c1c0e5fd4
+-- @bsb-hash sha256:2ddb92c7a6a88dbbe1150a026c38a100aff0c55d7cc713aee3a47dac350b9b65
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -214,7 +214,7 @@ create table if not exists "better_supabase"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
-revoke all on "better_supabase"."ai_cache_entries" from anon, authenticated;
+revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -331,7 +331,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
@@ -351,7 +351,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:07de72008a5f22ba762ebd0d3c0159c33f705923c5e6c085fba93671320fd42d
+-- @bsb-hash sha256:f31f0a7a10112902bf9794fdcd6985fb80ef25de7eeb3928b914d2831316c031
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -374,6 +374,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
@@ -391,7 +394,7 @@ create table if not exists "app_private"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "app_private"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "app_private"."ai_cache_entries" ("organization_id");
 alter table "app_private"."ai_cache_entries" enable row level security;
-revoke all on "app_private"."ai_cache_entries" from anon, authenticated;
+revoke all on "app_private"."ai_cache_entries" from public, anon, authenticated;
 grant all on "app_private"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -508,7 +511,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
@@ -528,7 +531,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:23c45c9d097b488d69ca1e54c0cbd33e194f9a7c63df87440aad828e22c92e61
+-- @bsb-hash sha256:b88b269d165141c56fe96a352481f58d6eed03746558b1c32cdc76bdb722bbfe
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -566,7 +569,7 @@ create table if not exists "better_supabase"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
-revoke all on "better_supabase"."ai_cache_entries" from anon, authenticated;
+revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -723,7 +726,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
@@ -743,7 +746,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:e8b7dda325357c2707d57f549ed3812062dc8770ef82cf2a149ae5ebf77cbec4
+-- @bsb-hash sha256:53bd171cd8efa18dca969817d52dbeacd4bb173f4c2ba72e0c86e124424d2484
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -912,7 +915,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
@@ -932,7 +935,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:24e74f4130991eba13e96dea0144db152d51a304b9a5ced6b428307c4fd76117
+-- @bsb-hash sha256:df0f7839589f382240e059fe357093940245eb898bdbb8ebf532d6f14b0e98ef
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,7 +973,7 @@ create table if not exists "better_supabase"."ai_cache_entries" (
 create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
 create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("org_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
-revoke all on "better_supabase"."ai_cache_entries" from anon, authenticated;
+revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
 
 -- The entry under key, or null when there is none or it expired; counts the hit.
@@ -1087,7 +1090,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql

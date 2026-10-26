@@ -6,7 +6,11 @@
  * anything is written.
  */
 
-import type { AnyBlocksConfig, BlockConfig } from "../../config/index.ts";
+import type {
+  AnyBlocksConfig,
+  BlockConfig,
+  SubjectsConfig,
+} from "../../config/index.ts";
 import type { CatalogTable } from "../introspect/types.ts";
 
 import { toSnake } from "../../index.ts";
@@ -303,6 +307,8 @@ export interface ProposeOptions {
   readonly from?: readonly string[];
   /** The config's blocks, so the proposal is checked next to them. */
   readonly blocks?: AnyBlocksConfig;
+  /** `config.records`, which a block's `on` entries inherit from. */
+  readonly subjects?: SubjectsConfig;
   /**
    * Schemas searched for the module's default table names. Defaults to
    * `public`.
@@ -484,7 +490,15 @@ export function proposeAdoption(
 
     try {
       // Renders the block over these tables, which throws on what it refuses.
-      moduleBody(block, { modules: blocks, ownTables, ownViews, ownColumns });
+      moduleBody(block, {
+        modules: blocks,
+        ownTables,
+        ownViews,
+        ownColumns,
+        ...(options.subjects === undefined
+          ? {}
+          : { subjects: options.subjects }),
+      });
 
       errors.push(
         ...adoptedColumnProblems(
@@ -492,6 +506,7 @@ export function proposeAdoption(
           adopted.map((table) => ({ text: declaration(table) })),
           [...new Set(adopted.map((table) => table.schema))],
           ownTables,
+          options.subjects,
         ),
       );
     } catch (error) {

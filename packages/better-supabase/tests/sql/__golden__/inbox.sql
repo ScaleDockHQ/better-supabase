@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:eee7d660dca6d1854dd2caf5f333abe8cb3744c152e235977e7bd841b2104663
+-- @bsb-hash sha256:85183980a2e98b946f5df30ccbd0a5b9c8bc3b8e65b879d639505968fd943e16
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -158,7 +158,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
 create trigger bsb_updated_at before update on "better_supabase"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
-revoke all on "better_supabase"."inboxes" from anon, authenticated;
+revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
@@ -175,7 +175,7 @@ create table if not exists "better_supabase"."inbox_members" (
 );
 create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
 alter table "better_supabase"."inbox_members" enable row level security;
-revoke all on "better_supabase"."inbox_members" from anon, authenticated;
+revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
@@ -206,7 +206,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
 create trigger bsb_updated_at before update on "better_supabase"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."contacts" enable row level security;
-revoke all on "better_supabase"."contacts" from anon, authenticated;
+revoke all on "better_supabase"."contacts" from public, anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
@@ -226,7 +226,7 @@ create table if not exists "better_supabase"."contact_identities" (
 );
 create index if not exists contact_identities_contact_idx on "better_supabase"."contact_identities" ("contact_id");
 alter table "better_supabase"."contact_identities" enable row level security;
-revoke all on "better_supabase"."contact_identities" from anon, authenticated;
+revoke all on "better_supabase"."contact_identities" from public, anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
@@ -269,7 +269,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations"
 create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
-revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
+revoke all on "better_supabase"."inbox_conversations" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversations" to authenticated;
 grant all on "better_supabase"."inbox_conversations" to service_role;
 
@@ -286,7 +286,7 @@ create table if not exists "better_supabase"."conversation_events" (
 create index if not exists conversation_events_conversation_idx on "better_supabase"."conversation_events" ("conversation_id", "id");
 create index if not exists conversation_events_actor_idx on "better_supabase"."conversation_events" ("actor_id");
 alter table "better_supabase"."conversation_events" enable row level security;
-revoke all on "better_supabase"."conversation_events" from anon, authenticated;
+revoke all on "better_supabase"."conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
@@ -309,7 +309,7 @@ create unique index if not exists inbox_message_details_external_idx on "better_
 create index if not exists inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
 create index if not exists inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "better_supabase"."inbox_message_details" enable row level security;
-revoke all on "better_supabase"."inbox_message_details" from anon, authenticated;
+revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
@@ -337,7 +337,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_deliveries";
 create trigger bsb_updated_at before update on "better_supabase"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_deliveries" enable row level security;
-revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
@@ -365,7 +365,7 @@ create unique index if not exists inbound_events_external_idx on "better_supabas
 create index if not exists inbound_events_status_idx on "better_supabase"."inbound_events" ("status", "received_at");
 create index if not exists inbound_events_inbox_idx on "better_supabase"."inbound_events" ("inbox_id");
 alter table "better_supabase"."inbound_events" enable row level security;
-revoke all on "better_supabase"."inbound_events" from anon, authenticated;
+revoke all on "better_supabase"."inbound_events" from public, anon, authenticated;
 grant all on "better_supabase"."inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
@@ -389,7 +389,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_templates";
 create trigger bsb_updated_at before update on "better_supabase"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_templates" enable row level security;
-revoke all on "better_supabase"."message_templates" from anon, authenticated;
+revoke all on "better_supabase"."message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
@@ -417,7 +417,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_mess
 create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
-revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
+revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
@@ -2331,7 +2331,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
@@ -2351,7 +2351,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:04fbdb8707eb841466ba1bb4f8b364f34a3d5a6edc8b2bc4749cd2f760a74d7d
+-- @bsb-hash sha256:5f804cd4618b277c236de0a4e3a914498a93a9cb926d741a6751167492413dbb
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2508,7 +2508,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
 create trigger bsb_updated_at before update on "better_supabase"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
-revoke all on "better_supabase"."inboxes" from anon, authenticated;
+revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
@@ -2525,7 +2525,7 @@ create table if not exists "better_supabase"."inbox_members" (
 );
 create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
 alter table "better_supabase"."inbox_members" enable row level security;
-revoke all on "better_supabase"."inbox_members" from anon, authenticated;
+revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
@@ -2556,7 +2556,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
 create trigger bsb_updated_at before update on "better_supabase"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."contacts" enable row level security;
-revoke all on "better_supabase"."contacts" from anon, authenticated;
+revoke all on "better_supabase"."contacts" from public, anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
@@ -2576,7 +2576,7 @@ create table if not exists "better_supabase"."contact_identities" (
 );
 create index if not exists contact_identities_contact_idx on "better_supabase"."contact_identities" ("contact_id");
 alter table "better_supabase"."contact_identities" enable row level security;
-revoke all on "better_supabase"."contact_identities" from anon, authenticated;
+revoke all on "better_supabase"."contact_identities" from public, anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
@@ -2619,7 +2619,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations"
 create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
-revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
+revoke all on "better_supabase"."inbox_conversations" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversations" to authenticated;
 grant all on "better_supabase"."inbox_conversations" to service_role;
 
@@ -2636,7 +2636,7 @@ create table if not exists "better_supabase"."conversation_events" (
 create index if not exists conversation_events_conversation_idx on "better_supabase"."conversation_events" ("conversation_id", "id");
 create index if not exists conversation_events_actor_idx on "better_supabase"."conversation_events" ("actor_id");
 alter table "better_supabase"."conversation_events" enable row level security;
-revoke all on "better_supabase"."conversation_events" from anon, authenticated;
+revoke all on "better_supabase"."conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
@@ -2659,7 +2659,7 @@ create unique index if not exists inbox_message_details_external_idx on "better_
 create index if not exists inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
 create index if not exists inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "better_supabase"."inbox_message_details" enable row level security;
-revoke all on "better_supabase"."inbox_message_details" from anon, authenticated;
+revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
@@ -2687,7 +2687,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_deliveries";
 create trigger bsb_updated_at before update on "better_supabase"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_deliveries" enable row level security;
-revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
@@ -2715,7 +2715,7 @@ create unique index if not exists inbound_events_external_idx on "better_supabas
 create index if not exists inbound_events_status_idx on "better_supabase"."inbound_events" ("status", "received_at");
 create index if not exists inbound_events_inbox_idx on "better_supabase"."inbound_events" ("inbox_id");
 alter table "better_supabase"."inbound_events" enable row level security;
-revoke all on "better_supabase"."inbound_events" from anon, authenticated;
+revoke all on "better_supabase"."inbound_events" from public, anon, authenticated;
 grant all on "better_supabase"."inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
@@ -2739,7 +2739,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_templates";
 create trigger bsb_updated_at before update on "better_supabase"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_templates" enable row level security;
-revoke all on "better_supabase"."message_templates" from anon, authenticated;
+revoke all on "better_supabase"."message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
@@ -2767,7 +2767,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_mess
 create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
-revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
+revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
@@ -4803,7 +4803,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
@@ -4827,7 +4827,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:4e89458775b5a39336eab871ee3cb0b8485085d3a75328d07e8e44a1ef25edc4
+-- @bsb-hash sha256:967aadea87bcc84c6ebf77d02066b7068a4a3a657120e41e2d961eeb35e3433a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4956,6 +4956,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- A shared inbox on the messaging core: each conversation with a contact is
 -- a core conversation of kind inbox, each message (or internal note) a core
 -- message with its inbox fields in inbox_message_details, and files are
@@ -4986,7 +4989,7 @@ drop trigger if exists bsb_updated_at on "app_private"."inboxes";
 create trigger bsb_updated_at before update on "app_private"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."inboxes" enable row level security;
-revoke all on "app_private"."inboxes" from anon, authenticated;
+revoke all on "app_private"."inboxes" from public, anon, authenticated;
 grant select on "app_private"."inboxes" to authenticated;
 grant all on "app_private"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "app_private"."inboxes";
@@ -5003,7 +5006,7 @@ create table if not exists "app_private"."inbox_members" (
 );
 create index if not exists inbox_members_user_idx on "app_private"."inbox_members" ("user_id");
 alter table "app_private"."inbox_members" enable row level security;
-revoke all on "app_private"."inbox_members" from anon, authenticated;
+revoke all on "app_private"."inbox_members" from public, anon, authenticated;
 grant select on "app_private"."inbox_members" to authenticated;
 grant all on "app_private"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "app_private"."inbox_members";
@@ -5034,7 +5037,7 @@ drop trigger if exists bsb_updated_at on "app_private"."contacts";
 create trigger bsb_updated_at before update on "app_private"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."contacts" enable row level security;
-revoke all on "app_private"."contacts" from anon, authenticated;
+revoke all on "app_private"."contacts" from public, anon, authenticated;
 grant select on "app_private"."contacts" to authenticated;
 grant all on "app_private"."contacts" to service_role;
 drop policy if exists contacts_read on "app_private"."contacts";
@@ -5054,7 +5057,7 @@ create table if not exists "app_private"."contact_identities" (
 );
 create index if not exists contact_identities_contact_idx on "app_private"."contact_identities" ("contact_id");
 alter table "app_private"."contact_identities" enable row level security;
-revoke all on "app_private"."contact_identities" from anon, authenticated;
+revoke all on "app_private"."contact_identities" from public, anon, authenticated;
 grant select on "app_private"."contact_identities" to authenticated;
 grant all on "app_private"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "app_private"."contact_identities";
@@ -5097,7 +5100,7 @@ drop trigger if exists bsb_updated_at on "app_private"."inbox_conversations";
 create trigger bsb_updated_at before update on "app_private"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."inbox_conversations" enable row level security;
-revoke all on "app_private"."inbox_conversations" from anon, authenticated;
+revoke all on "app_private"."inbox_conversations" from public, anon, authenticated;
 grant select on "app_private"."inbox_conversations" to authenticated;
 grant all on "app_private"."inbox_conversations" to service_role;
 
@@ -5114,7 +5117,7 @@ create table if not exists "app_private"."conversation_events" (
 create index if not exists conversation_events_conversation_idx on "app_private"."conversation_events" ("conversation_id", "id");
 create index if not exists conversation_events_actor_idx on "app_private"."conversation_events" ("actor_id");
 alter table "app_private"."conversation_events" enable row level security;
-revoke all on "app_private"."conversation_events" from anon, authenticated;
+revoke all on "app_private"."conversation_events" from public, anon, authenticated;
 grant select on "app_private"."conversation_events" to authenticated;
 grant all on "app_private"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "app_private"."conversation_events";
@@ -5137,7 +5140,7 @@ create unique index if not exists inbox_message_details_external_idx on "app_pri
 create index if not exists inbox_message_details_conversation_idx on "app_private"."inbox_message_details" ("conversation_id");
 create index if not exists inbox_message_details_reply_idx on "app_private"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "app_private"."inbox_message_details" enable row level security;
-revoke all on "app_private"."inbox_message_details" from anon, authenticated;
+revoke all on "app_private"."inbox_message_details" from public, anon, authenticated;
 grant select on "app_private"."inbox_message_details" to authenticated;
 grant all on "app_private"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "app_private"."inbox_message_details";
@@ -5165,7 +5168,7 @@ drop trigger if exists bsb_updated_at on "app_private"."message_deliveries";
 create trigger bsb_updated_at before update on "app_private"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."message_deliveries" enable row level security;
-revoke all on "app_private"."message_deliveries" from anon, authenticated;
+revoke all on "app_private"."message_deliveries" from public, anon, authenticated;
 grant select on "app_private"."message_deliveries" to authenticated;
 grant all on "app_private"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "app_private"."message_deliveries";
@@ -5193,7 +5196,7 @@ create unique index if not exists inbound_events_external_idx on "app_private"."
 create index if not exists inbound_events_status_idx on "app_private"."inbound_events" ("status", "received_at");
 create index if not exists inbound_events_inbox_idx on "app_private"."inbound_events" ("inbox_id");
 alter table "app_private"."inbound_events" enable row level security;
-revoke all on "app_private"."inbound_events" from anon, authenticated;
+revoke all on "app_private"."inbound_events" from public, anon, authenticated;
 grant all on "app_private"."inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
@@ -5217,7 +5220,7 @@ drop trigger if exists bsb_updated_at on "app_private"."message_templates";
 create trigger bsb_updated_at before update on "app_private"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."message_templates" enable row level security;
-revoke all on "app_private"."message_templates" from anon, authenticated;
+revoke all on "app_private"."message_templates" from public, anon, authenticated;
 grant select on "app_private"."message_templates" to authenticated;
 grant all on "app_private"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "app_private"."message_templates";
@@ -5245,7 +5248,7 @@ drop trigger if exists bsb_updated_at on "app_private"."scheduled_inbox_messages
 create trigger bsb_updated_at before update on "app_private"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."scheduled_inbox_messages" enable row level security;
-revoke all on "app_private"."scheduled_inbox_messages" from anon, authenticated;
+revoke all on "app_private"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "app_private"."scheduled_inbox_messages" to authenticated;
 grant all on "app_private"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "app_private"."scheduled_inbox_messages";
@@ -7159,7 +7162,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
@@ -7179,7 +7182,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:d66e0ba09b1b856c5a97035d2748ad46fae2ca50336d9a280084833d8e898e0e
+-- @bsb-hash sha256:97b4cb16b0e75e0bc69167ad8fbfe0e14da862dad974331b16f690b59045d4bb
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7336,7 +7339,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
 create trigger bsb_updated_at before update on "better_supabase"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
-revoke all on "better_supabase"."inboxes" from anon, authenticated;
+revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
@@ -7353,7 +7356,7 @@ create table if not exists "better_supabase"."inbox_members" (
 );
 create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
 alter table "better_supabase"."inbox_members" enable row level security;
-revoke all on "better_supabase"."inbox_members" from anon, authenticated;
+revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
@@ -7384,7 +7387,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
 create trigger bsb_updated_at before update on "better_supabase"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."contacts" enable row level security;
-revoke all on "better_supabase"."contacts" from anon, authenticated;
+revoke all on "better_supabase"."contacts" from public, anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
@@ -7404,7 +7407,7 @@ create table if not exists "better_supabase"."contact_identities" (
 );
 create index if not exists contact_identities_contact_idx on "better_supabase"."contact_identities" ("contact_id");
 alter table "better_supabase"."contact_identities" enable row level security;
-revoke all on "better_supabase"."contact_identities" from anon, authenticated;
+revoke all on "better_supabase"."contact_identities" from public, anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
@@ -7447,7 +7450,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations"
 create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
-revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
+revoke all on "better_supabase"."inbox_conversations" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversations" to authenticated;
 grant all on "better_supabase"."inbox_conversations" to service_role;
 
@@ -7464,7 +7467,7 @@ create table if not exists "better_supabase"."conversation_events" (
 create index if not exists conversation_events_conversation_idx on "better_supabase"."conversation_events" ("conversation_id", "id");
 create index if not exists conversation_events_actor_idx on "better_supabase"."conversation_events" ("actor_id");
 alter table "better_supabase"."conversation_events" enable row level security;
-revoke all on "better_supabase"."conversation_events" from anon, authenticated;
+revoke all on "better_supabase"."conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
@@ -7487,7 +7490,7 @@ create unique index if not exists inbox_message_details_external_idx on "better_
 create index if not exists inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
 create index if not exists inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "better_supabase"."inbox_message_details" enable row level security;
-revoke all on "better_supabase"."inbox_message_details" from anon, authenticated;
+revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
@@ -7515,7 +7518,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_deliveries";
 create trigger bsb_updated_at before update on "better_supabase"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_deliveries" enable row level security;
-revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
@@ -7543,7 +7546,7 @@ create unique index if not exists inbound_events_external_idx on "better_supabas
 create index if not exists inbound_events_status_idx on "better_supabase"."inbound_events" ("status", "received_at");
 create index if not exists inbound_events_inbox_idx on "better_supabase"."inbound_events" ("inbox_id");
 alter table "better_supabase"."inbound_events" enable row level security;
-revoke all on "better_supabase"."inbound_events" from anon, authenticated;
+revoke all on "better_supabase"."inbound_events" from public, anon, authenticated;
 grant all on "better_supabase"."inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
@@ -7567,7 +7570,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_templates";
 create trigger bsb_updated_at before update on "better_supabase"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_templates" enable row level security;
-revoke all on "better_supabase"."message_templates" from anon, authenticated;
+revoke all on "better_supabase"."message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
@@ -7595,7 +7598,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_mess
 create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
-revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
+revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
@@ -9892,7 +9895,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
@@ -9912,7 +9915,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:187daa0b49ae0b5cd43b0f0303381c505019dd4b7d8079c19c312100a6acc3d0
+-- @bsb-hash sha256:66725e91928234d30e3fa62ca85435f58bbdd7eeabc096bbea5dcbefd152b87a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12242,7 +12245,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
@@ -12262,7 +12265,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@4 managed
--- @bsb-hash sha256:15fb66e99c6dba8ba631dfa5093ff8a1f07ed6e360a23660dc1d44b8ff5b6f4a
+-- @bsb-hash sha256:c042be136508312c8eceb9f2eed29be78db885ee33e462cf7d09b044334adc09
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12419,7 +12422,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
 create trigger bsb_updated_at before update on "better_supabase"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
-revoke all on "better_supabase"."inboxes" from anon, authenticated;
+revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
 drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
@@ -12436,7 +12439,7 @@ create table if not exists "better_supabase"."inbox_members" (
 );
 create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
 alter table "better_supabase"."inbox_members" enable row level security;
-revoke all on "better_supabase"."inbox_members" from anon, authenticated;
+revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
 drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
@@ -12467,7 +12470,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
 create trigger bsb_updated_at before update on "better_supabase"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."contacts" enable row level security;
-revoke all on "better_supabase"."contacts" from anon, authenticated;
+revoke all on "better_supabase"."contacts" from public, anon, authenticated;
 grant select on "better_supabase"."contacts" to authenticated;
 grant all on "better_supabase"."contacts" to service_role;
 drop policy if exists contacts_read on "better_supabase"."contacts";
@@ -12487,7 +12490,7 @@ create table if not exists "better_supabase"."contact_identities" (
 );
 create index if not exists contact_identities_contact_idx on "better_supabase"."contact_identities" ("contact_id");
 alter table "better_supabase"."contact_identities" enable row level security;
-revoke all on "better_supabase"."contact_identities" from anon, authenticated;
+revoke all on "better_supabase"."contact_identities" from public, anon, authenticated;
 grant select on "better_supabase"."contact_identities" to authenticated;
 grant all on "better_supabase"."contact_identities" to service_role;
 drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
@@ -12530,7 +12533,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations"
 create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
-revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
+revoke all on "better_supabase"."inbox_conversations" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversations" to authenticated;
 grant all on "better_supabase"."inbox_conversations" to service_role;
 
@@ -12547,7 +12550,7 @@ create table if not exists "better_supabase"."conversation_events" (
 create index if not exists conversation_events_conversation_idx on "better_supabase"."conversation_events" ("conversation_id", "id");
 create index if not exists conversation_events_actor_idx on "better_supabase"."conversation_events" ("actor_id");
 alter table "better_supabase"."conversation_events" enable row level security;
-revoke all on "better_supabase"."conversation_events" from anon, authenticated;
+revoke all on "better_supabase"."conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_events" to authenticated;
 grant all on "better_supabase"."conversation_events" to service_role;
 drop policy if exists conversation_events_staff_read on "better_supabase"."conversation_events";
@@ -12570,7 +12573,7 @@ create unique index if not exists inbox_message_details_external_idx on "better_
 create index if not exists inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
 create index if not exists inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "better_supabase"."inbox_message_details" enable row level security;
-revoke all on "better_supabase"."inbox_message_details" from anon, authenticated;
+revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
 drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
@@ -12598,7 +12601,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_deliveries";
 create trigger bsb_updated_at before update on "better_supabase"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_deliveries" enable row level security;
-revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
+revoke all on "better_supabase"."message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."message_deliveries" to authenticated;
 grant all on "better_supabase"."message_deliveries" to service_role;
 drop policy if exists message_deliveries_staff_read on "better_supabase"."message_deliveries";
@@ -12626,7 +12629,7 @@ create unique index if not exists inbound_events_external_idx on "better_supabas
 create index if not exists inbound_events_status_idx on "better_supabase"."inbound_events" ("status", "received_at");
 create index if not exists inbound_events_inbox_idx on "better_supabase"."inbound_events" ("inbox_id");
 alter table "better_supabase"."inbound_events" enable row level security;
-revoke all on "better_supabase"."inbound_events" from anon, authenticated;
+revoke all on "better_supabase"."inbound_events" from public, anon, authenticated;
 grant all on "better_supabase"."inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
@@ -12650,7 +12653,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."message_templates";
 create trigger bsb_updated_at before update on "better_supabase"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_templates" enable row level security;
-revoke all on "better_supabase"."message_templates" from anon, authenticated;
+revoke all on "better_supabase"."message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."message_templates" to authenticated;
 grant all on "better_supabase"."message_templates" to service_role;
 drop policy if exists message_templates_staff_read on "better_supabase"."message_templates";
@@ -12678,7 +12681,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_mess
 create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
-revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
+revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
 drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
@@ -14592,7 +14595,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql

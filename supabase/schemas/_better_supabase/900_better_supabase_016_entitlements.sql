@@ -1,6 +1,6 @@
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:eba773743ac275297bc5bcaab43ca1d974ae3088ace24452cb24705f789bf513
+-- @bsb-hash sha256:ee92bef5a1221790e9485468663b33b26f827814c7dd1d99aef0ba6b16cedcac
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -226,5 +226,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

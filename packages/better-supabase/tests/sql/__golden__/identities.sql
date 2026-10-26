@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:31190d46e95b4c6ffe9247638eece919dc212a62fca784794457aa219b54746d
+-- @bsb-hash sha256:8caa8c3bdddefd3f2d65ae734a26adabf259b487e20ea476f0b165f9f7b93360
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,7 +64,7 @@ create table if not exists "better_supabase"."identity_links" (
 create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
 create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
-revoke all on "better_supabase"."identity_links" from anon, authenticated;
+revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
 drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
@@ -89,7 +89,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
 );
 create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
-revoke all on "better_supabase"."identity_link_codes" from anon, authenticated;
+revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
 
 -- Issues a one-time code for the caller to hand to the bot or the mail
@@ -314,7 +314,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
@@ -334,7 +334,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:282cb416399ea934bf608070f73ff162fa39ed365ae64fdc06064316cd86efcb
+-- @bsb-hash sha256:9668e770e763ec0a309045d23dea4318cc4c3edfce12ae59d33bfb842374c46c
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -397,7 +397,7 @@ create table if not exists "better_supabase"."identity_links" (
 create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
 create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
-revoke all on "better_supabase"."identity_links" from anon, authenticated;
+revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
 drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
@@ -422,7 +422,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
 );
 create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
-revoke all on "better_supabase"."identity_link_codes" from anon, authenticated;
+revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
 
 -- Issues a one-time code for the caller to hand to the bot or the mail
@@ -647,7 +647,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
@@ -667,7 +667,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:74c862a12b4f044d27638770638f79d663092c64f2eb9d18bca23b0b24e5220c
+-- @bsb-hash sha256:a9faeaac5e9445d74600d3de4ca0afc1ea53a9d147ec61969954b3884bae10db
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -710,6 +710,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Maps an email address or a chat user to an app user or a contact. Rows
 -- come from a link code the signed-in user issued and the service redeemed
 -- (redeem_identity_link), or from a confirmed address in auth.users
@@ -732,7 +735,7 @@ create table if not exists "app_private"."identity_links" (
 create index if not exists identity_links_user_idx on "app_private"."identity_links" ("user_id");
 create index if not exists identity_links_contact_idx on "app_private"."identity_links" ("contact_id");
 alter table "app_private"."identity_links" enable row level security;
-revoke all on "app_private"."identity_links" from anon, authenticated;
+revoke all on "app_private"."identity_links" from public, anon, authenticated;
 grant select, delete on "app_private"."identity_links" to authenticated;
 grant all on "app_private"."identity_links" to service_role;
 drop policy if exists identity_links_own_read on "app_private"."identity_links";
@@ -757,7 +760,7 @@ create table if not exists "app_private"."identity_link_codes" (
 );
 create index if not exists identity_link_codes_user_idx on "app_private"."identity_link_codes" ("user_id");
 alter table "app_private"."identity_link_codes" enable row level security;
-revoke all on "app_private"."identity_link_codes" from anon, authenticated;
+revoke all on "app_private"."identity_link_codes" from public, anon, authenticated;
 grant all on "app_private"."identity_link_codes" to service_role;
 
 -- Issues a one-time code for the caller to hand to the bot or the mail
@@ -982,7 +985,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
@@ -1002,7 +1005,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:8123980966f08ed1e1d17ef6c9cf35ea02ead470fbabacd0d6da829910c8dde9
+-- @bsb-hash sha256:0bfcb3aaf2e23a99bdcbbe061c82eddac614c139744eb44135da5d85bebaf29f
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1065,7 +1068,7 @@ create table if not exists "better_supabase"."identity_links" (
 create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
 create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
-revoke all on "better_supabase"."identity_links" from anon, authenticated;
+revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
 drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
@@ -1090,7 +1093,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
 );
 create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
-revoke all on "better_supabase"."identity_link_codes" from anon, authenticated;
+revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
 
 -- Issues a one-time code for the caller to hand to the bot or the mail
@@ -1400,7 +1403,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
@@ -1420,7 +1423,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:8074b263611d23b02581220049c4fc07e98922b5d30e39ab570015b0bd5a9102
+-- @bsb-hash sha256:e8c928c4ea2f073450f80add3d2446444f0d3fdaa06b395ce63c1d3ab95f845f
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1763,7 +1766,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_089_identities.sql

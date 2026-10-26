@@ -39,6 +39,7 @@ import {
   overAppTables,
   overAppViews,
   withoutAppTableEdits,
+  withoutCoveredIndexes,
   withoutUnmappedColumns,
   withoutUnmappedTables,
 } from "./over-app-tables.ts";
@@ -148,23 +149,27 @@ function overApp(
   const appViews = appTableSet(ctx, ctx.appViews);
 
   return withoutAppTablePolicies(
-    withoutUnmappedColumns(
-      withoutUnmappedTables(
-        blockNamesOnAppTables(
-          withoutAppTableEdits(
-            overAppTables(
-              overAppViews(sql, appViews),
+    withoutCoveredIndexes(
+      withoutUnmappedColumns(
+        withoutUnmappedTables(
+          blockNamesOnAppTables(
+            withoutAppTableEdits(
+              overAppTables(
+                overAppViews(sql, appViews),
+                appTables,
+                layout.ownColumns,
+              ),
               appTables,
-              layout.ownColumns,
             ),
             appTables,
+            layout.ownUpdatedAtTriggers,
           ),
-          appTables,
-          layout.ownUpdatedAtTriggers,
+          ctx.instance,
         ),
         ctx.instance,
       ),
-      ctx.instance,
+      appTables,
+      layout.ownIndexes,
     ),
     ctx.config.ownTablePolicies === "app" ? appTables : new Set(),
   );
@@ -198,7 +203,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 `;
 

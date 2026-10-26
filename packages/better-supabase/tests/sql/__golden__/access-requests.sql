@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:9dd4aa7a04287b60796f4c3aa6e83a38997453eaa7fa3a88af465c3cfd1e144f
+-- @bsb-hash sha256:2ee38667acb96fe884bb80f728955de4e586e27982bb727d56e697fac2bb1b45
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create index if not exists "access_requests_tenant_idx" on "better_supabase"."ac
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
-revoke all on "better_supabase"."access_requests" from anon, authenticated;
+revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
@@ -402,7 +402,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
@@ -422,7 +422,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:74e1a8662e430d3b18edc0ad702b21f4e3a4abf6a144d1d940b5c490fd92bd4c
+-- @bsb-hash sha256:58b7af641dfcbc23d53cf78720595f40acb66ed495e76d5fc8ea76a26b006b5c
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -495,7 +495,7 @@ create index if not exists "access_requests_tenant_idx" on "better_supabase"."ac
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
-revoke all on "better_supabase"."access_requests" from anon, authenticated;
+revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
@@ -855,7 +855,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
@@ -875,7 +875,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3e8f2af2d4a53bceaa6ac53bd01e0d95921e89bc1563934cf7134dc5d511cdfe
+-- @bsb-hash sha256:db9c22e78a5821eb4e90cc7147e482d26e05c5ff29a055a4a4fb4c6e8478b42e
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -932,6 +932,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -950,7 +953,7 @@ create index if not exists "access_requests_tenant_idx" on "app_private"."access
 create index if not exists "access_requests_approval_idx" on "app_private"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "app_private"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "app_private"."access_requests" enable row level security;
-revoke all on "app_private"."access_requests" from anon, authenticated;
+revoke all on "app_private"."access_requests" from public, anon, authenticated;
 grant select on "app_private"."access_requests" to authenticated;
 grant all on "app_private"."access_requests" to service_role;
 drop policy if exists access_requests_read on "app_private"."access_requests";
@@ -1278,7 +1281,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
@@ -1298,7 +1301,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:0daf1cd6d41c1b92c4386bbff26600d4f2aaaba236d6df7f6aed90db15c053ca
+-- @bsb-hash sha256:0f401a83653780d519a5505a88f7645ce184f9c33179921f00e9078fb470e4b1
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1371,7 +1374,7 @@ create index if not exists "access_requests_tenant_idx" on "better_supabase"."ac
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
-revoke all on "better_supabase"."access_requests" from anon, authenticated;
+revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
@@ -1768,7 +1771,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
@@ -1788,7 +1791,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:442ae962254b5cafb1bb7251d168d3d3a43beb75143a7993d2a6f49dd28065ab
+-- @bsb-hash sha256:da70f8e5c58c0cc21c583a2a81bce1cf33e61967504dacd9a1f15f694fc75e58
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2187,7 +2190,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
@@ -2207,7 +2210,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:d6f846ae5b151bb4322139c60dcf3210e5387098ba72eebc491cbd4f58159e90
+-- @bsb-hash sha256:ba8d35debbb224c358fb3016a3360aa9ec01d3e11d3c1cea58c2605c99862b81
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2280,7 +2283,7 @@ create index if not exists "access_requests_tenant_idx" on "better_supabase"."ac
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
-revoke all on "better_supabase"."access_requests" from anon, authenticated;
+revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
@@ -2608,7 +2611,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql

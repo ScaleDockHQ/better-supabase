@@ -1,6 +1,6 @@
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:f2533cc7a31d4a4802e1f10b95d5ae362990c03c9b829c56c40cf65c82119942
+-- @bsb-hash sha256:db46df77e85468c09319e30fe623a7ef543e41b0ae245329aa5fcc25b1f57aa8
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,7 +86,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_s
 create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
-revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
@@ -111,7 +111,7 @@ create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_r
 create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
-revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
@@ -532,5 +532,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

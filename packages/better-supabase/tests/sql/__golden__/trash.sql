@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:15e95fb1d79af5dedf2dab2f256732388fb6a3af16930db0b27dfaab3b1f64db
+-- @bsb-hash sha256:64980596a65fae558631a77e7149ee8ad5a1d4f5c3bf74ee768421a6bbada884
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."trash_items" (
 create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
-revoke all on "better_supabase"."trash_items" from anon, authenticated;
+revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
 drop policy if exists trash_items_read on "better_supabase"."trash_items";
@@ -388,7 +388,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
@@ -408,7 +408,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:75a861c7bbd8049f901a556f3b9ab6e5372178e8de6163003f81e3b15385f9c7
+-- @bsb-hash sha256:92d96e25db5d81fc752bbbf9849bab4d887458bae5dafc7ad1906732f98eb0ef
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -479,7 +479,7 @@ create table if not exists "better_supabase"."trash_items" (
 create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
-revoke all on "better_supabase"."trash_items" from anon, authenticated;
+revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
 drop policy if exists trash_items_read on "better_supabase"."trash_items";
@@ -822,7 +822,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
@@ -842,7 +842,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:7d74f4a006d84d72c674234ccea89e891a626a3f2b2aec982aee0d9bf221886c
+-- @bsb-hash sha256:c36bf8870a50a29109d675be66486f91aa7fcb2e378b81daf0849c0c79311725
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -899,6 +899,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."trash_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -915,7 +918,7 @@ create table if not exists "app_private"."trash_items" (
 create index if not exists "trash_items_tenant_idx" on "app_private"."trash_items" ("tenant_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "app_private"."trash_items" ("batch_id");
 alter table "app_private"."trash_items" enable row level security;
-revoke all on "app_private"."trash_items" from anon, authenticated;
+revoke all on "app_private"."trash_items" from public, anon, authenticated;
 grant select on "app_private"."trash_items" to authenticated;
 grant all on "app_private"."trash_items" to service_role;
 drop policy if exists trash_items_read on "app_private"."trash_items";
@@ -1231,7 +1234,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
@@ -1251,7 +1254,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:3fe605a8e0e1c1318815b4d2dcd67cc19335ad8b8d3170bc4648a0da2d0567a7
+-- @bsb-hash sha256:0ec4927716b2b595fcbf0d64e140177126a81d4e764cf843f1515cce855e40e5
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1322,7 +1325,7 @@ create table if not exists "better_supabase"."trash_items" (
 create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
-revoke all on "better_supabase"."trash_items" from anon, authenticated;
+revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
 drop policy if exists trash_items_read on "better_supabase"."trash_items";
@@ -1716,7 +1719,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
@@ -1736,7 +1739,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:835c460df39fce524acb856281ea808959c41509209cffc94f8294790be841b8
+-- @bsb-hash sha256:6e8e3b382c976aa8d2716d48fb3e805ea7f42ea5fd47444eefd8726c962c2713
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2120,7 +2123,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_075_trash.sql
@@ -2140,7 +2143,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@2 managed
--- @bsb-hash sha256:c634155a2867d67ff831750e34247a1b9dc06ad593532c42e64d9449a6cbac64
+-- @bsb-hash sha256:e4c095949d4c20769637245426be0f1a5f9fadc559eeedcdc58caf3ada7aa109
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2211,7 +2214,7 @@ create table if not exists "better_supabase"."trash_items" (
 create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("org_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
-revoke all on "better_supabase"."trash_items" from anon, authenticated;
+revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
 drop policy if exists trash_items_read on "better_supabase"."trash_items";
@@ -2527,7 +2530,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_075_trash.sql

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:b104a8fcbc4b16d180f33382c42658dc8e2b668c87cfabdd81b59a3fec768840
+-- @bsb-hash sha256:1282c64dcb7341f3321e8a5b4c8bec481fea5779c87a70179d5fac6c6e2857bb
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ create index if not exists outbox_events_type_idx on "better_supabase"."outbox_e
 create index if not exists outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
 create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
 alter table "better_supabase"."outbox_events" enable row level security;
-revoke all on "better_supabase"."outbox_events" from anon, authenticated;
+revoke all on "better_supabase"."outbox_events" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_events" to service_role;
 
 create table if not exists "better_supabase"."outbox_consumers" (
@@ -64,7 +64,7 @@ alter table "better_supabase"."outbox_consumers" add column if not exists "attem
 alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
 alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
-revoke all on "better_supabase"."outbox_consumers" from anon, authenticated;
+revoke all on "better_supabase"."outbox_consumers" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
@@ -82,7 +82,7 @@ create table if not exists "better_supabase"."outbox_dead_letters" (
 );
 create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
-revoke all on "better_supabase"."outbox_dead_letters" from anon, authenticated;
+revoke all on "better_supabase"."outbox_dead_letters" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
@@ -513,7 +513,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_023_outbox.sql

@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:43722a46420ae818f6d0c34e3a0d4eea8e2fda52d9d0e37f42e5e24a07c7618c
+-- @bsb-hash sha256:b09868cfc655695fd71b6e64cef0f88749a3864139f63900ba67bbd410ec4404
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,7 +83,7 @@ create table if not exists "better_supabase"."sla_policies" (
 );
 create unique index if not exists sla_policies_match_idx on "better_supabase"."sla_policies" ("tenant_id", "subject_type", coalesce("priority", '')) where "archived_at" is null;
 alter table "better_supabase"."sla_policies" enable row level security;
-revoke all on "better_supabase"."sla_policies" from anon, authenticated;
+revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
 drop policy if exists sla_policies_read on "better_supabase"."sla_policies";
@@ -111,7 +111,7 @@ create unique index if not exists sla_clocks_open_idx on "better_supabase"."sla_
 create index if not exists sla_clocks_due_idx on "better_supabase"."sla_clocks" ("due_at") where "met_at" is null and "paused_at" is null;
 create index if not exists sla_clocks_policy_idx on "better_supabase"."sla_clocks" ("policy_id");
 alter table "better_supabase"."sla_clocks" enable row level security;
-revoke all on "better_supabase"."sla_clocks" from anon, authenticated;
+revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
 drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
@@ -737,5 +737,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

@@ -97,12 +97,21 @@ describe("an app's own declarative schema with blocks over it", () => {
       ],
       "public.notes": ["id", "body"],
     });
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
+      columns: ["id"],
+    });
   });
 
   it("adds the saved snapshot's tables, while the app's files still win", async () => {
     await writeFile(
       join(root, "supabase/snapshot.json"),
       JSON.stringify(moduleSnapshotFixture),
+    );
+    await writeFile(
+      join(root, `${SCHEMAS}/900_better_supabase_999_example.sql`),
+      `-- @bsb-block example@1 managed
+create index if not exists customers_block_idx on public.customers (organization_id);
+`,
     );
 
     const layout = await moduleLayoutFor(
@@ -130,6 +139,12 @@ describe("an app's own declarative schema with blocks over it", () => {
     expect(layout.ownUpdatedAtTriggers).not.toHaveProperty(
       "public.notifications",
     );
+    expect(layout.ownIndexes?.["public.customers"]).not.toContainEqual(
+      expect.objectContaining({ name: "customers_block_idx" }),
+    );
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
+      columns: ["id"],
+    });
   });
 
   it("takes the snapshot's views as the app's, with whether Postgres writes through them", async () => {

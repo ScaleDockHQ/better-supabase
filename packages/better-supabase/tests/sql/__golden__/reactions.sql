@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:92bcc37a607ee0cbc4146d9bb9e1c2ae11a04ac8108540a7fb1946da652f0ad0
+-- @bsb-hash sha256:1dd3eade5f3457e4b7b201daa207b23e7fb3fa19ea6285117b55bceffaab8189
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
-revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
@@ -124,7 +124,7 @@ create table if not exists "better_supabase"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
-revoke all on "better_supabase"."custom_emoji" from anon, authenticated;
+revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
@@ -643,7 +643,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql
@@ -663,7 +663,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:cad89ae8116ed86569f5b5f48aafc3cafbcec3a3595634c6c9f351c1078f74cb
+-- @bsb-hash sha256:8ae1623c455af784b33a31750392d5da2bd66affc9f9cd5869ec583f4d57fbf0
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -770,7 +770,7 @@ create table if not exists "better_supabase"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
-revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
@@ -786,7 +786,7 @@ create table if not exists "better_supabase"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
-revoke all on "better_supabase"."custom_emoji" from anon, authenticated;
+revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
@@ -1305,7 +1305,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql
@@ -1325,7 +1325,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:28191bf0d292d17f33c4fb62709fa341e9defd630d5688d44f5d23a5b69e35fa
+-- @bsb-hash sha256:35b0f6b95d37dddc822d6838fd4ce12fcd8e589436ae94b18adbf3f6032575a2
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1398,6 +1398,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1434,7 +1437,7 @@ create table if not exists "app_private"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "app_private"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "app_private"."reaction_scores" enable row level security;
-revoke all on "app_private"."reaction_scores" from anon, authenticated;
+revoke all on "app_private"."reaction_scores" from public, anon, authenticated;
 grant select on "app_private"."reaction_scores" to authenticated;
 grant all on "app_private"."reaction_scores" to service_role;
 
@@ -1450,7 +1453,7 @@ create table if not exists "app_private"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "app_private"."custom_emoji" enable row level security;
-revoke all on "app_private"."custom_emoji" from anon, authenticated;
+revoke all on "app_private"."custom_emoji" from public, anon, authenticated;
 grant select on "app_private"."custom_emoji" to authenticated;
 grant all on "app_private"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "app_private"."custom_emoji";
@@ -1969,7 +1972,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql
@@ -1989,7 +1992,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ebb4c7eb16fb1150bc32555de3b50bc720ab855c639050a51d95ef5a6932b9ba
+-- @bsb-hash sha256:74c4d0b44d20d34621a8417aa2e91b456841ed199ef2dc13975ec5bbefa6c198
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2096,7 +2099,7 @@ create table if not exists "better_supabase"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
-revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
@@ -2112,7 +2115,7 @@ create table if not exists "better_supabase"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
-revoke all on "better_supabase"."custom_emoji" from anon, authenticated;
+revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
@@ -2737,7 +2740,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql
@@ -2757,7 +2760,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:488f66b467f035559cb92e88ec6a05d6616e0386a447cc0e97e240067ecc277a
+-- @bsb-hash sha256:91232185cbe0e58935db01644f2a4b0fedfd798702b1eae468875119035bab8e
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3406,7 +3409,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql
@@ -3426,7 +3429,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:bf9c08dbebca9b02613cab662101dbfb47dca68daf514e4ffa641d28ea17c7ad
+-- @bsb-hash sha256:6f880764b7b36766b2676eabbffaa4b2501d339b5ff54ee74a050355c9415516
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3533,7 +3536,7 @@ create table if not exists "better_supabase"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("org_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
-revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
@@ -3549,7 +3552,7 @@ create table if not exists "better_supabase"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
-revoke all on "better_supabase"."custom_emoji" from anon, authenticated;
+revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
@@ -4068,7 +4071,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_076_reactions.sql

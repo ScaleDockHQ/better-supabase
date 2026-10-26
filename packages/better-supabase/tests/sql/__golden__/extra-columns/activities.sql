@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:a6da9f63da8343e833e8cc6c47e760339399bac953139adbb853bbfaf2259051
+-- @bsb-hash sha256:754c444beed350ddd59cee775455c1a726955ae202c7f3ffa7ade3f85e37a0af
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,7 +86,7 @@ create index if not exists engagements_tenant_created_idx on "better_supabase"."
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" add column if not exists "app_note" text;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -99,7 +99,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -475,7 +475,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_094_activities.sql

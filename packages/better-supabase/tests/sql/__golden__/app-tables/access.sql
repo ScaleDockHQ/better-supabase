@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:bdae7c73a02603ce9c9e8ccfd66201cd531c33c96a211506d85c27c7c369be9e
+-- @bsb-hash sha256:9a01cced476c6993d850e5c99eb9e18daedbf6eb5089c5fd2caeec37dcad1897
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -70,7 +70,7 @@ alter table "public"."tasks" add column if not exists "project_id" uuid not null
 alter table "public"."rates" add column if not exists "cost" numeric;
 
 alter table "public"."projects" enable row level security;
-revoke all on "public"."projects" from anon, authenticated;
+revoke all on "public"."projects" from public, anon, authenticated;
 grant select ("id", "organization_id", "created_at", "updated_at", "name", "budget") on "public"."projects" to authenticated;
 grant insert ("id", "organization_id", "created_at", "updated_at", "name"), update ("id", "organization_id", "created_at", "updated_at", "name") on "public"."projects" to authenticated;
 grant delete on "public"."projects" to authenticated;
@@ -116,7 +116,7 @@ create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
-revoke all on "public"."tasks" from anon, authenticated;
+revoke all on "public"."tasks" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
 drop policy if exists tasks_select on "public"."tasks";
@@ -161,7 +161,7 @@ create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."rates" enable row level security;
-revoke all on "public"."rates" from anon, authenticated;
+revoke all on "public"."rates" from public, anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."rates" to authenticated;
 grant all on "public"."rates" to service_role;
 drop policy if exists rates_select on "public"."rates";
@@ -187,7 +187,7 @@ select t."id",
   r0.value as "open_tasks"
 from "public"."projects" t
   left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id) r0 on true;
-revoke all on "public"."projects_view" from anon, authenticated;
+revoke all on "public"."projects_view" from public, anon, authenticated;
 grant select on "public"."projects_view" to authenticated;
 grant select on "public"."projects_view" to service_role;
 comment on view "public"."projects_view" is 'The rollups and lookups of public.projects, read with the caller''s row level security.';

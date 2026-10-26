@@ -26,7 +26,13 @@ import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 import { approvalTimesheetFunctions } from "./time-tracking-approvals.ts";
-import { byEmployee, entrySubjects, timeOwner } from "./time-tracking-owner.ts";
+import {
+  byEmployee,
+  durationEntries,
+  entryEnded,
+  entrySubjects,
+  timeOwner,
+} from "./time-tracking-owner.ts";
 import {
   dropNumericSignatures,
   rateChecks,
@@ -269,7 +275,7 @@ function build(ctx: BlockSqlContext): string {
   const userZone = userTimeZoneOf(ctx);
   const policy = statusMode ? "" : timesheetPolicy(ctx);
 
-  const durationMode = !ctx.has("entries", "endedAt");
+  const durationMode = durationEntries(ctx);
 
   if (
     durationMode &&
@@ -298,11 +304,7 @@ function build(ctx: BlockSqlContext): string {
     sheetUserJson,
   } = owner;
 
-  // When row `alias` ended, null while it runs.
-  const ended = (alias: string): string =>
-    durationMode
-      ? `(case when ${alias}.${ctx.col("entries", "runningSince")} is null then ${alias}.${ctx.col("entries", "startedAt")} + make_interval(secs => coalesce(${alias}.${ctx.col("entries", "seconds")}, 0)) end)`
-      : `${alias}.${ctx.col("entries", "endedAt")}`;
+  const ended = (alias: string): string => entryEnded(ctx, alias);
 
   // Whether row `alias` is a running timer.
   const running = (alias: string): string =>

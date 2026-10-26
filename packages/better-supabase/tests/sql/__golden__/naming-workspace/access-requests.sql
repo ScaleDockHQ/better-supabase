@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:c2577df4967c77766a1bbb4d56068e724ef9033723d9d08bef8de4d2e4c9c73b
+-- @bsb-hash sha256:a390cc9d9bef38a96670c917a7abb35afb0e8baeb7d9e8abacc304dc66701b6d
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create index if not exists "access_requests_tenant_idx" on "better_supabase"."ac
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
-revoke all on "better_supabase"."access_requests" from anon, authenticated;
+revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
 drop policy if exists access_requests_read on "better_supabase"."access_requests";
@@ -402,7 +402,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql

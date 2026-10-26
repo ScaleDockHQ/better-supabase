@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@2 managed
--- @bsb-hash sha256:4afb864acb580e0dc445f3dcd9c833d6f4f5968286146719b88d5eef8e8c14ec
+-- @bsb-hash sha256:3dbddf85bc8eec20b5a8e1f08e9c93cb8757e09a3e13b519c471a2a6d89dea8e
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,7 +81,7 @@ create index if not exists knowledge_documents_owner_idx on "better_supabase"."k
 create index if not exists knowledge_documents_file_idx on "better_supabase"."knowledge_documents" ("file_id") where "file_id" is not null;
 create index if not exists knowledge_documents_pending_idx on "better_supabase"."knowledge_documents" ("updated_at") where "status" = 'pending';
 alter table "better_supabase"."knowledge_documents" enable row level security;
-revoke all on "better_supabase"."knowledge_documents" from anon, authenticated;
+revoke all on "better_supabase"."knowledge_documents" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
 grant all on "better_supabase"."knowledge_documents" to service_role;
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
@@ -105,7 +105,7 @@ create index if not exists knowledge_chunks_embedding_idx on "better_supabase"."
 create index if not exists knowledge_chunks_tsv_idx on "better_supabase"."knowledge_chunks" using gin ("tsv");
 create index if not exists knowledge_chunks_pending_idx on "better_supabase"."knowledge_chunks" ("document_id", "idx") where "embedding" is null;
 alter table "better_supabase"."knowledge_chunks" enable row level security;
-revoke all on "better_supabase"."knowledge_chunks" from anon, authenticated;
+revoke all on "better_supabase"."knowledge_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
 drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
@@ -698,5 +698,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

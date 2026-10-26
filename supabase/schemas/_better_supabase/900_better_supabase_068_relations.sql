@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:e580419e81ab19f1d02d7511047513dfbac17cbb4ca93b5abd79ee5e23487646
+-- @bsb-hash sha256:c99e5d094eb0cbd99b88afa68e4f60a2edb1eb5c2e0b38e4a5c8bce7c0620af0
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,7 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
@@ -893,5 +893,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

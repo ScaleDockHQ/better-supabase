@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:6b9f69cab4282873a0a6a31b82e7b9a63215d529125b6f57c3bc07ef733e1d12
+-- @bsb-hash sha256:5778ba6a374d31bca25203c0ee1a00274260f786641131018a18450035c5a885
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -144,7 +144,7 @@ create unique index if not exists attachments_object_idx on "better_supabase"."a
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 alter table "better_supabase"."attachments" enable row level security;
-revoke all on "better_supabase"."attachments" from anon, authenticated;
+revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
 grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
@@ -208,7 +208,7 @@ create table if not exists "better_supabase"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
-revoke all on "better_supabase"."attachment_versions" from anon, authenticated;
+revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
 drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
@@ -576,7 +576,7 @@ create table if not exists "better_supabase"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "better_supabase"."scanned_objects" enable row level security;
-revoke all on "better_supabase"."scanned_objects" from anon, authenticated;
+revoke all on "better_supabase"."scanned_objects" from public, anon, authenticated;
 grant all on "better_supabase"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -734,7 +734,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
@@ -758,7 +758,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:4c01b3f16bac793c50afede40d06cfa7a10e08420c51294a65cfffc3d2ca16e5
+-- @bsb-hash sha256:45d81c7dc3bfa14cd9581fcd9066ea6f86738198876cbd5d6e7951a3501cdd4b
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -901,7 +901,7 @@ create unique index if not exists attachments_object_idx on "better_supabase"."a
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 alter table "better_supabase"."attachments" enable row level security;
-revoke all on "better_supabase"."attachments" from anon, authenticated;
+revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
 grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
@@ -965,7 +965,7 @@ create table if not exists "better_supabase"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
-revoke all on "better_supabase"."attachment_versions" from anon, authenticated;
+revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
 drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
@@ -1376,7 +1376,7 @@ create table if not exists "better_supabase"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "better_supabase"."scanned_objects" enable row level security;
-revoke all on "better_supabase"."scanned_objects" from anon, authenticated;
+revoke all on "better_supabase"."scanned_objects" from public, anon, authenticated;
 grant all on "better_supabase"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -1534,7 +1534,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
@@ -1558,7 +1558,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:828d786d4b76ec9b034d0a94e0778054d006bc9e8f02095790f50f01d17d505a
+-- @bsb-hash sha256:ca9b2573ef2c8a53d7d534293450fdace2c88726454bd86ef8778143704441a2
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1623,6 +1623,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -1703,7 +1706,7 @@ create unique index if not exists attachments_object_idx on "app_private"."attac
 create index if not exists attachments_subject_idx on "app_private"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "app_private"."attachments" ("uploaded_by");
 alter table "app_private"."attachments" enable row level security;
-revoke all on "app_private"."attachments" from anon, authenticated;
+revoke all on "app_private"."attachments" from public, anon, authenticated;
 grant select, delete on "app_private"."attachments" to authenticated;
 grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "app_private"."attachments" to authenticated;
 grant all on "app_private"."attachments" to service_role;
@@ -1767,7 +1770,7 @@ create table if not exists "app_private"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "app_private"."attachment_versions" ("uploaded_by");
 alter table "app_private"."attachment_versions" enable row level security;
-revoke all on "app_private"."attachment_versions" from anon, authenticated;
+revoke all on "app_private"."attachment_versions" from public, anon, authenticated;
 grant select on "app_private"."attachment_versions" to authenticated;
 grant all on "app_private"."attachment_versions" to service_role;
 drop policy if exists attachment_versions_read on "app_private"."attachment_versions";
@@ -2135,7 +2138,7 @@ create table if not exists "app_private"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "app_private"."scanned_objects" enable row level security;
-revoke all on "app_private"."scanned_objects" from anon, authenticated;
+revoke all on "app_private"."scanned_objects" from public, anon, authenticated;
 grant all on "app_private"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -2293,7 +2296,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
@@ -2317,7 +2320,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:f8bc0adb950588dc4fb8a431258bddea1a5edcd3ce02df141e77a18d6926dff2
+-- @bsb-hash sha256:71920a88e31ebd989229c347ee2152db566d06c163dbcd6a24d89b5e2f1e929c
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2460,7 +2463,7 @@ create unique index if not exists attachments_object_idx on "better_supabase"."a
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 alter table "better_supabase"."attachments" enable row level security;
-revoke all on "better_supabase"."attachments" from anon, authenticated;
+revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
 grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
@@ -2524,7 +2527,7 @@ create table if not exists "better_supabase"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
-revoke all on "better_supabase"."attachment_versions" from anon, authenticated;
+revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
 drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
@@ -2892,7 +2895,7 @@ create table if not exists "better_supabase"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "better_supabase"."scanned_objects" enable row level security;
-revoke all on "better_supabase"."scanned_objects" from anon, authenticated;
+revoke all on "better_supabase"."scanned_objects" from public, anon, authenticated;
 grant all on "better_supabase"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -3182,7 +3185,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
@@ -3206,7 +3209,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:6be022e22ac0dacd73cd171ca45cce6e1cc9cc465f40fb9d106782cb46a85abb
+-- @bsb-hash sha256:4134327c16ffbf4f3012fede34dbedbfef0856b9700be0bd6ad3df69268376ff
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3925,7 +3928,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
@@ -3949,7 +3952,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:95d7fdf6fa6639afc89c77ecfc69d1db034ffec9a506bf3a1c6f12ec973ce543
+-- @bsb-hash sha256:248acc3f9b3638bd185046fca081751edc177413069f53d9d5403c8769860a55
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4092,7 +4095,7 @@ create unique index if not exists attachments_object_idx on "better_supabase"."a
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("org_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 alter table "better_supabase"."attachments" enable row level security;
-revoke all on "better_supabase"."attachments" from anon, authenticated;
+revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
 grant insert ("org_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
@@ -4156,7 +4159,7 @@ create table if not exists "better_supabase"."attachment_versions" (
 );
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
-revoke all on "better_supabase"."attachment_versions" from anon, authenticated;
+revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
 drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
@@ -4524,7 +4527,7 @@ create table if not exists "better_supabase"."scanned_objects" (
   primary key ("bucket", "object_path")
 );
 alter table "better_supabase"."scanned_objects" enable row level security;
-revoke all on "better_supabase"."scanned_objects" from anon, authenticated;
+revoke all on "better_supabase"."scanned_objects" from public, anon, authenticated;
 grant all on "better_supabase"."scanned_objects" to service_role;
 
 -- For storage policies: whether the object was scanned and found clean.
@@ -4682,7 +4685,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:ce8d058727e7be38b14e5bb2f10fe06cebb2657c14736239fd1c3baa7f1f3bfd
+-- @bsb-hash sha256:8a8a9a4b5033283ad68cf57a4098fe2e518f12aba6889b370ab1555454ce28c5
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
-revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
@@ -315,7 +315,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
@@ -335,7 +335,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:d8e1465c6ac9d4af430ad970947c8e89e502a6143f7e46d8b2cd19e8ce4bf391
+-- @bsb-hash sha256:feba6040bb0b6c63cede8106c75c4b7ffa2104d0475c65d83fe2d57bfa1ddef4
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -409,7 +409,7 @@ create table if not exists "better_supabase"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
-revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
@@ -669,7 +669,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
@@ -689,7 +689,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:8a5af176f78458efb62c2953db924dad9700ecb7fcadf03ec67f183d9399f99c
+-- @bsb-hash sha256:c8637f5e96ed3771575f3769366a147c1cb2326bdec5d009a7f98fe87cec89a8
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -746,6 +746,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."bulk_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -765,7 +768,7 @@ create table if not exists "app_private"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "app_private"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "app_private"."bulk_runs" ("tenant_id");
 alter table "app_private"."bulk_runs" enable row level security;
-revoke all on "app_private"."bulk_runs" from anon, authenticated;
+revoke all on "app_private"."bulk_runs" from public, anon, authenticated;
 grant select on "app_private"."bulk_runs" to authenticated;
 grant all on "app_private"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "app_private"."bulk_runs";
@@ -1005,7 +1008,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
@@ -1025,7 +1028,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:dcb500ad41dc4a66c103fac9df481b6706c4a47489abac7f2e7ab4fe128f9038
+-- @bsb-hash sha256:33f623217df7d6c82e2af9729848111c871fb7a631e2136a654773f5c9540a3f
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1099,7 +1102,7 @@ create table if not exists "better_supabase"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
-revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
@@ -1406,7 +1409,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
@@ -1426,7 +1429,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:2bf838bb06c13fb4394a859ac86c7f6914b8c15fea67ecbf2fdaeaf2ee98fc35
+-- @bsb-hash sha256:1bb8a6b890b16614b71c0d7ebfc8e1413d6eb95bd0098c001cb42bd1cdaeebae
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1754,7 +1757,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
@@ -1774,7 +1777,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:e47ffd655fa821ac26feca8c6f4d171c72b102980c4601dcd2028b2152da29eb
+-- @bsb-hash sha256:947cc7bd5cf2571cadf783b6389aad3d5939df288cafbb699445ef1c88b36332
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1848,7 +1851,7 @@ create table if not exists "better_supabase"."bulk_runs" (
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
 create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("org_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
-revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
 drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
@@ -2088,7 +2091,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql

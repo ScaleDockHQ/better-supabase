@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:5b71f5e82ee6c7bcb346ed1c6dc4224967e56507f8a374aae5242bb209b7db80
+-- @bsb-hash sha256:31c40ace4b303cd7b99ca787de92f52808362becdad12d411c289d4e76cedbfd
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."versions" (
 );
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
-revoke all on "better_supabase"."versions" from anon, authenticated;
+revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
 drop policy if exists versions_read on "better_supabase"."versions";
@@ -686,5 +686,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

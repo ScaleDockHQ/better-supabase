@@ -247,7 +247,7 @@ create table if not exists ${scores} (
 );
 create index if not exists ${sqlIdent(`${scoresName}_rank_idx`)} on ${scores} (${sc("tenant")}, ${sc("subjectType")}, ${sc("score")} desc);${uniqueOverApp("scores", scoresName, "subject", ["tenant", "subjectType", "subjectId"])}
 alter table ${scores} enable row level security;
-revoke all on ${scores} from anon, authenticated;
+revoke all on ${scores} from public, anon, authenticated;
 grant select on ${scores} to authenticated;
 grant all on ${scores} to service_role;
 
@@ -260,7 +260,7 @@ create table if not exists ${emojiTable} (
   check (${attaches ? `${e("attachment")} is not null or ` : ""}${e("url")} is not null)
 );${uniqueOverApp("emoji", emojiName, "shortcode", ["tenant", "shortcode"])}
 alter table ${emojiTable} enable row level security;
-revoke all on ${emojiTable} from anon, authenticated;
+revoke all on ${emojiTable} from public, anon, authenticated;
 grant select on ${emojiTable} to authenticated;
 grant all on ${emojiTable} to service_role;
 ${renderPolicy(makePolicy({ table: emojiTable, name: "custom_emoji_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), read) }), { drop: true, target: emojiTable })}

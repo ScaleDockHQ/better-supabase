@@ -204,6 +204,11 @@ describe("blocks.<name>.entities in the SQL", () => {
               new RegExp(String.raw`bsb_${name}_\w+|/${name}/`, "g"),
               "",
             )
+            // The default privileges name every object kind, not an entity.
+            .replaceAll(
+              /alter default privileges in schema \w+ revoke all on \w+ from[^;]*;/g,
+              "",
+            )
             // Supabase owns `realtime.messages`.
             .replaceAll("realtime.messages", "")
             // Realtime topic prefixes are option values (`options.topic`).

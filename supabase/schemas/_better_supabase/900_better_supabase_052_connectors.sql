@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:718a29c6a1147d54b6c90bf0a716054d1c4b931adb7236683477f5638100fcf4
+-- @bsb-hash sha256:3e7a5b3b65a2205478478dd4622c85bc21ab68d17c464a7a7d0b3d48e21a795d
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create table if not exists "better_supabase"."connector_servers" (
 create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
 create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
-revoke all on "better_supabase"."connector_servers" from anon, authenticated;
+revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
 drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
@@ -110,7 +110,7 @@ create unique index if not exists connector_grants_active_idx on "better_supabas
 create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
 create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
-revoke all on "better_supabase"."connector_grants" from anon, authenticated;
+revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
 drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
@@ -133,7 +133,7 @@ create table if not exists "better_supabase"."connector_sessions" (
 create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
 create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
-revoke all on "better_supabase"."connector_sessions" from anon, authenticated;
+revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
 drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
@@ -155,7 +155,7 @@ create table if not exists "better_supabase"."connector_tool_fingerprints" (
 );
 create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
-revoke all on "better_supabase"."connector_tool_fingerprints" from anon, authenticated;
+revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
 drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
@@ -774,5 +774,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

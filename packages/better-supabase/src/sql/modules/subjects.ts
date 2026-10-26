@@ -102,7 +102,9 @@ function entryCheck(
       : [`s.${sqlIdent(value.owner)} = ${user ?? "auth.uid()"}`]),
   ];
 
-  return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+  const any = parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+
+  return value.also === undefined ? any : `(${held(value.also)} and ${any})`;
 }
 
 /**

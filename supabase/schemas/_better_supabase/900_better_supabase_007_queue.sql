@@ -1,6 +1,6 @@
 -- better-supabase module: queue
 -- @bsb-block queue@8 managed
--- @bsb-hash sha256:af63d494a822ab5ca8aa5e170414361b7d234e2ed0f0f9a9386b8a7b6f070035
+-- @bsb-hash sha256:2128a6f59d709b195646667c6820ac632aad766f6eed14bed5990cc79ac633bf
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -540,5 +540,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

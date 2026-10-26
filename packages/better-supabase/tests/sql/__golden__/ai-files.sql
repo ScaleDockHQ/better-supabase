@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:9c8e8319ecb9ce25bc8e053616486ca6d117c51c0c21ccb67ba2eb57ba03a2a6
+-- @bsb-hash sha256:cf7794fcef11a0bbec4cdd29dd5fb797e52b35456b2fd2b182bd7472c3ffb79a
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" (
 create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
-revoke all on "better_supabase"."ai_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
@@ -112,7 +112,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
 );
 create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
-revoke all on "better_supabase"."ai_provider_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
@@ -132,7 +132,7 @@ create index if not exists ai_documents_owner_idx on "better_supabase"."ai_docum
 create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
 create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
-revoke all on "better_supabase"."ai_documents" from anon, authenticated;
+revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
@@ -153,7 +153,7 @@ create table if not exists "better_supabase"."ai_document_versions" (
 );
 create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from anon, authenticated;
+revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_document_versions" to authenticated;
 grant all on "better_supabase"."ai_document_versions" to service_role;
 drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
@@ -176,7 +176,7 @@ create table if not exists "better_supabase"."ai_suggestions" (
 create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
 create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
-revoke all on "better_supabase"."ai_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
 drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
@@ -777,7 +777,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
@@ -801,7 +801,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:038d493aca7ccaa87201ef0d1cf244b24a7946dff6786be548480a10554c6821
+-- @bsb-hash sha256:3b4f16e735b5b848f7247d3625bc960fa383741c61043a40742903b0c603a4eb
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -892,7 +892,7 @@ create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" (
 create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
-revoke all on "better_supabase"."ai_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
@@ -912,7 +912,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
 );
 create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
-revoke all on "better_supabase"."ai_provider_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
@@ -932,7 +932,7 @@ create index if not exists ai_documents_owner_idx on "better_supabase"."ai_docum
 create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
 create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
-revoke all on "better_supabase"."ai_documents" from anon, authenticated;
+revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
@@ -953,7 +953,7 @@ create table if not exists "better_supabase"."ai_document_versions" (
 );
 create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from anon, authenticated;
+revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_document_versions" to authenticated;
 grant all on "better_supabase"."ai_document_versions" to service_role;
 drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
@@ -976,7 +976,7 @@ create table if not exists "better_supabase"."ai_suggestions" (
 create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
 create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
-revoke all on "better_supabase"."ai_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
 drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
@@ -1578,7 +1578,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
@@ -1602,7 +1602,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:4095f02954a9ec25989cd800a454c1255f90b77527afdab3d0fc1f9a4306d375
+-- @bsb-hash sha256:739fa0921600157623ac448883f7fa2240aeb11e35686c6c5f46ad883aef4883
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1667,6 +1667,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
@@ -1695,7 +1698,7 @@ create index if not exists ai_files_tenant_idx on "app_private"."ai_files" ("org
 create index if not exists ai_files_chat_idx on "app_private"."ai_files" ("chat_id") where "chat_id" is not null;
 create index if not exists ai_files_pending_idx on "app_private"."ai_files" ("created_at") where "status" = 'pending';
 alter table "app_private"."ai_files" enable row level security;
-revoke all on "app_private"."ai_files" from anon, authenticated;
+revoke all on "app_private"."ai_files" from public, anon, authenticated;
 grant select on "app_private"."ai_files" to authenticated;
 grant all on "app_private"."ai_files" to service_role;
 drop policy if exists ai_files_read on "app_private"."ai_files";
@@ -1715,7 +1718,7 @@ create table if not exists "app_private"."ai_provider_files" (
 );
 create index if not exists ai_provider_files_expires_idx on "app_private"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "app_private"."ai_provider_files" enable row level security;
-revoke all on "app_private"."ai_provider_files" from anon, authenticated;
+revoke all on "app_private"."ai_provider_files" from public, anon, authenticated;
 grant all on "app_private"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
@@ -1735,7 +1738,7 @@ create index if not exists ai_documents_owner_idx on "app_private"."ai_documents
 create index if not exists ai_documents_tenant_idx on "app_private"."ai_documents" ("organization_id");
 create index if not exists ai_documents_chat_idx on "app_private"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "app_private"."ai_documents" enable row level security;
-revoke all on "app_private"."ai_documents" from anon, authenticated;
+revoke all on "app_private"."ai_documents" from public, anon, authenticated;
 grant select on "app_private"."ai_documents" to authenticated;
 grant all on "app_private"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "app_private"."ai_documents";
@@ -1756,7 +1759,7 @@ create table if not exists "app_private"."ai_document_versions" (
 );
 create index if not exists ai_document_versions_created_by_idx on "app_private"."ai_document_versions" ("created_by") where "created_by" is not null;
 alter table "app_private"."ai_document_versions" enable row level security;
-revoke all on "app_private"."ai_document_versions" from anon, authenticated;
+revoke all on "app_private"."ai_document_versions" from public, anon, authenticated;
 grant select on "app_private"."ai_document_versions" to authenticated;
 grant all on "app_private"."ai_document_versions" to service_role;
 drop policy if exists ai_document_versions_read on "app_private"."ai_document_versions";
@@ -1779,7 +1782,7 @@ create table if not exists "app_private"."ai_suggestions" (
 create index if not exists ai_suggestions_document_idx on "app_private"."ai_suggestions" ("document_id");
 create index if not exists ai_suggestions_created_by_idx on "app_private"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "app_private"."ai_suggestions" enable row level security;
-revoke all on "app_private"."ai_suggestions" from anon, authenticated;
+revoke all on "app_private"."ai_suggestions" from public, anon, authenticated;
 grant select on "app_private"."ai_suggestions" to authenticated;
 grant all on "app_private"."ai_suggestions" to service_role;
 drop policy if exists ai_suggestions_read on "app_private"."ai_suggestions";
@@ -2380,7 +2383,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
@@ -2404,7 +2407,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:2f32d3680ef87e3b7e48911b43181e65886998d5c748cd83d448c1fa0b8cc8cb
+-- @bsb-hash sha256:c0a978caf762064e4886f5b2342327de5a1716247cd84843d09f322b03b1f85a
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2495,7 +2498,7 @@ create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" (
 create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
-revoke all on "better_supabase"."ai_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
@@ -2515,7 +2518,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
 );
 create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
-revoke all on "better_supabase"."ai_provider_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
@@ -2535,7 +2538,7 @@ create index if not exists ai_documents_owner_idx on "better_supabase"."ai_docum
 create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
 create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
-revoke all on "better_supabase"."ai_documents" from anon, authenticated;
+revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
@@ -2556,7 +2559,7 @@ create table if not exists "better_supabase"."ai_document_versions" (
 );
 create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from anon, authenticated;
+revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_document_versions" to authenticated;
 grant all on "better_supabase"."ai_document_versions" to service_role;
 drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
@@ -2579,7 +2582,7 @@ create table if not exists "better_supabase"."ai_suggestions" (
 create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
 create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
-revoke all on "better_supabase"."ai_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
 drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
@@ -3388,7 +3391,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
@@ -3412,7 +3415,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:ec5e5b650b9942f7d21102c2b289266a31ecfeef5a167e2880e5e9cbbbc6bf81
+-- @bsb-hash sha256:6acddf11134bcdf7888eba470b7066ed5e5b9197a1d54843ec744f8a8651589e
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4192,7 +4195,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
@@ -4216,7 +4219,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:50b6787f59037979ae5006689b8817f11c7914ab79a48a8f3712f9bc41ed46e7
+-- @bsb-hash sha256:7075db8000621d8931d3b879a9ea2cec168efeb80e3a380c43ac1cba6f08d191
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4307,7 +4310,7 @@ create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" (
 create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
-revoke all on "better_supabase"."ai_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
@@ -4327,7 +4330,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
 );
 create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
-revoke all on "better_supabase"."ai_provider_files" from anon, authenticated;
+revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
@@ -4347,7 +4350,7 @@ create index if not exists ai_documents_owner_idx on "better_supabase"."ai_docum
 create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("org_id");
 create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
-revoke all on "better_supabase"."ai_documents" from anon, authenticated;
+revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
@@ -4368,7 +4371,7 @@ create table if not exists "better_supabase"."ai_document_versions" (
 );
 create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from anon, authenticated;
+revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_document_versions" to authenticated;
 grant all on "better_supabase"."ai_document_versions" to service_role;
 drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
@@ -4391,7 +4394,7 @@ create table if not exists "better_supabase"."ai_suggestions" (
 create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
 create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
-revoke all on "better_supabase"."ai_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
 drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
@@ -4992,7 +4995,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql

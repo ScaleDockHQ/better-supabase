@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:521df71b13cb28ad21d6870cd0c91b0868b86b90c9f577ceee07296579d3620b
+-- @bsb-hash sha256:98fb6ffc49c43099d3b56fe47c6b23e34c3d414b9b16c3763b3330fac4c9b329
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_s
 create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
-revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
@@ -112,7 +112,7 @@ create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_r
 create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
-revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
@@ -438,7 +438,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:5f332ff87c3d99b761da30e1b60e19b42f9492f340ac50426d6ef42c5eb394b1
+-- @bsb-hash sha256:1edb9773baaa6efa5b709fdb1d3a74328c08a7ef851b5f42358f700d27e6b574
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +544,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_s
 create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
-revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
@@ -569,7 +569,7 @@ create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_r
 create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
-revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
@@ -896,7 +896,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
@@ -916,7 +916,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:35437d66f4bad50927c2e806ff40a6bf4ea26f7ae6181c775bd7a8f02eef20b7
+-- @bsb-hash sha256:36d238b14c5b2980ced09c8befefe1f078dca3cfaa9b66bb0716418d9bb68349
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -981,6 +981,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
@@ -1004,7 +1007,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "app_private"."ai_sched
 create index if not exists ai_scheduled_tasks_user_idx on "app_private"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "app_private"."ai_scheduled_tasks" ("agent_id");
 alter table "app_private"."ai_scheduled_tasks" enable row level security;
-revoke all on "app_private"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "app_private"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "app_private"."ai_scheduled_tasks" to authenticated;
 grant all on "app_private"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks";
@@ -1029,7 +1032,7 @@ create index if not exists ai_task_runs_task_idx on "app_private"."ai_task_runs"
 create index if not exists ai_task_runs_user_idx on "app_private"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "app_private"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "app_private"."ai_task_runs" enable row level security;
-revoke all on "app_private"."ai_task_runs" from anon, authenticated;
+revoke all on "app_private"."ai_task_runs" from public, anon, authenticated;
 grant select on "app_private"."ai_task_runs" to authenticated;
 grant all on "app_private"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "app_private"."ai_task_runs";
@@ -1355,7 +1358,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
@@ -1375,7 +1378,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:438840c66a7823c501057b61e765660b0bc173f93679eac39d3f0c3ed8db3131
+-- @bsb-hash sha256:391055d2b82a2454da3756d390aed1fef3e7106c56ed90a3fba78007942570b4
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1461,7 +1464,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_s
 create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
-revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
@@ -1486,7 +1489,7 @@ create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_r
 create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
-revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
@@ -1906,7 +1909,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
@@ -1926,7 +1929,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:fb4fe12a8b0406d382e75b354caaea62d5d609cb0b049740bb4d321f5cf62c0b
+-- @bsb-hash sha256:ffdb7dc61a42967895277d1b209b252f82e68429c0eb7ef9e037f5306c13aa48
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2375,7 +2378,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
@@ -2395,7 +2398,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:1bbc92b58b095dfdff295046e5e9bfbd568f888a14e2e517e3c31b43730c3f94
+-- @bsb-hash sha256:13cce65273a100c112115b6b4a9230dd4e909d16de4a5c799189ca5852bb7ab7
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2481,7 +2484,7 @@ create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_s
 create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "org_id");
 create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
-revoke all on "better_supabase"."ai_scheduled_tasks" from anon, authenticated;
+revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
@@ -2506,7 +2509,7 @@ create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_r
 create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
 create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
-revoke all on "better_supabase"."ai_task_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
@@ -2832,7 +2835,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql

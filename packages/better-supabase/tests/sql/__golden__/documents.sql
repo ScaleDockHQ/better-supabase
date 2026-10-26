@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:7b2a2bd95ebc4626a4d9f127f07808fd6b990f6f39829726547c3d6e3fa6bcd8
+-- @bsb-hash sha256:c29e6fb9df3a8a3f90d33f3c746dd0bcca369a8ce2064d6d5605e875b2fd3eb3
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,7 @@ create table if not exists "better_supabase"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
-revoke all on "better_supabase"."documents" from anon, authenticated;
+revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
 drop policy if exists documents_read on "better_supabase"."documents";
@@ -111,7 +111,7 @@ create table if not exists "better_supabase"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
-revoke all on "better_supabase"."document_updates" from anon, authenticated;
+revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
 create table if not exists "better_supabase"."document_snapshots" (
@@ -122,7 +122,7 @@ create table if not exists "better_supabase"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."document_snapshots" enable row level security;
-revoke all on "better_supabase"."document_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
 create table if not exists "better_supabase"."document_suggestions" (
@@ -140,7 +140,7 @@ create table if not exists "better_supabase"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
-revoke all on "better_supabase"."document_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -631,7 +631,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_079_documents.sql
@@ -651,7 +651,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:6dae9340f53af8660e11b15be062b61a1766ae2525c5abd988fe02a2580bda65
+-- @bsb-hash sha256:adfc643ab644cf11a03cc3f39f86d37b152d580ea89ecef98efd35696f693e25
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -743,7 +743,7 @@ create table if not exists "better_supabase"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
-revoke all on "better_supabase"."documents" from anon, authenticated;
+revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
 drop policy if exists documents_read on "better_supabase"."documents";
@@ -761,7 +761,7 @@ create table if not exists "better_supabase"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
-revoke all on "better_supabase"."document_updates" from anon, authenticated;
+revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
 create table if not exists "better_supabase"."document_snapshots" (
@@ -772,7 +772,7 @@ create table if not exists "better_supabase"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."document_snapshots" enable row level security;
-revoke all on "better_supabase"."document_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
 create table if not exists "better_supabase"."document_suggestions" (
@@ -790,7 +790,7 @@ create table if not exists "better_supabase"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
-revoke all on "better_supabase"."document_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -1426,7 +1426,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_079_documents.sql
@@ -1446,7 +1446,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:a04ce2b4905ff16fb2b155ce4a854c52824e738226a26c55cd38d68d88a629ce
+-- @bsb-hash sha256:06a351aab56d898cbb224764352a716b17b57c341f93659838edeb4c084335b0
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1527,6 +1527,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1540,7 +1543,7 @@ create table if not exists "app_private"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "app_private"."documents" ("tenant_id", "updated_at" desc);
 alter table "app_private"."documents" enable row level security;
-revoke all on "app_private"."documents" from anon, authenticated;
+revoke all on "app_private"."documents" from public, anon, authenticated;
 grant select on "app_private"."documents" to authenticated;
 grant all on "app_private"."documents" to service_role;
 drop policy if exists documents_read on "app_private"."documents";
@@ -1558,7 +1561,7 @@ create table if not exists "app_private"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "app_private"."document_updates" ("document_id", "seq");
 alter table "app_private"."document_updates" enable row level security;
-revoke all on "app_private"."document_updates" from anon, authenticated;
+revoke all on "app_private"."document_updates" from public, anon, authenticated;
 grant all on "app_private"."document_updates" to service_role;
 
 create table if not exists "app_private"."document_snapshots" (
@@ -1569,7 +1572,7 @@ create table if not exists "app_private"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."document_snapshots" enable row level security;
-revoke all on "app_private"."document_snapshots" from anon, authenticated;
+revoke all on "app_private"."document_snapshots" from public, anon, authenticated;
 grant all on "app_private"."document_snapshots" to service_role;
 
 create table if not exists "app_private"."document_suggestions" (
@@ -1587,7 +1590,7 @@ create table if not exists "app_private"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "app_private"."document_suggestions" ("document_id", "status", "created_at");
 alter table "app_private"."document_suggestions" enable row level security;
-revoke all on "app_private"."document_suggestions" from anon, authenticated;
+revoke all on "app_private"."document_suggestions" from public, anon, authenticated;
 grant all on "app_private"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -2078,7 +2081,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_079_documents.sql
@@ -2098,7 +2101,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:81be3cafd33753461643bda4c6668d905256cce930ec56f3f6abc97cdf347813
+-- @bsb-hash sha256:56c6448e87c4b3ba406c30072e69f7dc560ea2ed188ef5ddede3e94b82e04893
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2190,7 +2193,7 @@ create table if not exists "better_supabase"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
-revoke all on "better_supabase"."documents" from anon, authenticated;
+revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
 drop policy if exists documents_read on "better_supabase"."documents";
@@ -2208,7 +2211,7 @@ create table if not exists "better_supabase"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
-revoke all on "better_supabase"."document_updates" from anon, authenticated;
+revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
 create table if not exists "better_supabase"."document_snapshots" (
@@ -2219,7 +2222,7 @@ create table if not exists "better_supabase"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."document_snapshots" enable row level security;
-revoke all on "better_supabase"."document_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
 create table if not exists "better_supabase"."document_suggestions" (
@@ -2237,7 +2240,7 @@ create table if not exists "better_supabase"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
-revoke all on "better_supabase"."document_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -2840,7 +2843,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_079_documents.sql
@@ -2860,7 +2863,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:df4cee46ded29c3d0cb4dffa4d9d34a7820374104dadc2e52708a1230be73c99
+-- @bsb-hash sha256:7788c441a35bd521e06a54e88af5cafc8d1a222f08ed35c5e9c2683bd5aa1792
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3499,7 +3502,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_079_documents.sql
@@ -3519,7 +3522,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:042a536425d9f8c5580285879fd034b1aae62423cd830c3753542a6e3c886015
+-- @bsb-hash sha256:0cdffb89746117cf83d16ed5b52d1b9f3ab5480bb82a661242280e472c89bd44
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3611,7 +3614,7 @@ create table if not exists "better_supabase"."documents" (
 );
 create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("org_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
-revoke all on "better_supabase"."documents" from anon, authenticated;
+revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
 drop policy if exists documents_read on "better_supabase"."documents";
@@ -3629,7 +3632,7 @@ create table if not exists "better_supabase"."document_updates" (
 );
 create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
-revoke all on "better_supabase"."document_updates" from anon, authenticated;
+revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
 create table if not exists "better_supabase"."document_snapshots" (
@@ -3640,7 +3643,7 @@ create table if not exists "better_supabase"."document_snapshots" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."document_snapshots" enable row level security;
-revoke all on "better_supabase"."document_snapshots" from anon, authenticated;
+revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
 create table if not exists "better_supabase"."document_suggestions" (
@@ -3658,7 +3661,7 @@ create table if not exists "better_supabase"."document_suggestions" (
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
-revoke all on "better_supabase"."document_suggestions" from anon, authenticated;
+revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
 
 -- Whether the caller may read (or, with write, edit) a document. The
@@ -4149,7 +4152,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_079_documents.sql

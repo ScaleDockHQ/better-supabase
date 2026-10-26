@@ -77,10 +77,17 @@ function checkSearchSources(where: string, entry: SubjectConfig): void {
     if (watched.via !== undefined) {
       column(`${at}.via`, watched.via);
     }
+
+    for (const [hop, through] of (watched.through ?? []).entries()) {
+      const step = `${at}.through[${String(hop)}]`;
+      table(`${step}.table`, through.table);
+      column(`${step}.from`, through.from);
+      column(`${step}.to`, through.to);
+    }
   }
 }
 
-/** One `permissions.<action>` entry: a key, or `{ key?, rows?, owner? }`. */
+/** One `permissions.<action>` entry: a key, or `{ key?, rows?, owner?, also? }`. */
 function checkPermission(where: string, action: string, value: unknown): void {
   if (!ACTION.test(action)) {
     throw new TypeError(`${where}: use an action name with a permission key`);
@@ -96,21 +103,25 @@ function checkPermission(where: string, action: string, value: unknown): void {
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(
-      `${where}: use a permission key or { key, rows, owner }`,
+      `${where}: use a permission key or { key, rows, owner, also }`,
     );
   }
 
   const entry: Readonly<Record<string, unknown>> = { ...value };
 
   for (const name of Object.keys(entry)) {
-    if (name !== "key" && name !== "rows" && name !== "owner") {
+    if (!["key", "rows", "owner", "also"].includes(name)) {
       throw new TypeError(
-        `${where}.${name} is not an option. Options: key, rows, owner`,
+        `${where}.${name} is not an option. Options: key, rows, owner, also`,
       );
     }
   }
 
-  const { key, rows, owner } = entry;
+  const { key, rows, owner, also } = entry;
+
+  if (also !== undefined && (typeof also !== "string" || also === "")) {
+    throw new TypeError(`${where}.also must be a permission key`);
+  }
 
   if (key !== undefined && (typeof key !== "string" || key === "")) {
     throw new TypeError(`${where}.key must be a permission key`);

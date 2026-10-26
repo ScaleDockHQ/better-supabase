@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:9f971addb75da667b2c33c44316c9fb41149e45c51911e5e386b6adc92585ae4
+-- @bsb-hash sha256:55a5c03a51423ad1460133014b0c9c48c47a2c8c8c74874621bfbf76862e7a36
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
@@ -507,7 +507,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:8385637fe18bcb6783d5347e2f552250757823c66826cb1e80d609b77f9ad608
+-- @bsb-hash sha256:4bca5a146388ae811a1c22028b508cf27f9b2c3a207f11b28dee6d785684f3fa
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,7 +598,7 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
@@ -1033,7 +1033,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -1053,7 +1053,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:09940bda4a35bf4c99b6ed6a2a751d37bbbd7d4ec3ee76d19ffd59555ca0d07b
+-- @bsb-hash sha256:182cf9c50ddc7f2546cfe31092c910a8dc9119f79664a12acd540c45407600ec
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,6 +1110,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1126,7 +1129,7 @@ create table if not exists "app_private"."relations" (
 );
 create index if not exists relations_target_idx on "app_private"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "app_private"."relations" enable row level security;
-revoke all on "app_private"."relations" from anon, authenticated;
+revoke all on "app_private"."relations" from public, anon, authenticated;
 grant select on "app_private"."relations" to authenticated;
 grant all on "app_private"."relations" to service_role;
 
@@ -1561,7 +1564,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -1581,7 +1584,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:19fcfdfc1c982ab922c7aca014de32cffda1d00fcfdf202c657483865c793f12
+-- @bsb-hash sha256:557a99101fb5e4f697b01f30d22eef3dcda221a34282bb9b74979371797a822a
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1652,7 +1655,7 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
@@ -2192,7 +2195,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -2212,7 +2215,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:c0c61be2df0eb90e91d2480df9fd7d6507a3f31c95a85cc02da04463a669cf66
+-- @bsb-hash sha256:bfc23e281e2c272f662072f07cca09d511e50eb4ba0f4e5f36714b2f47680f6b
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2714,7 +2717,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_068_relations.sql
@@ -2734,7 +2737,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:091f7e7e5de3070c02fd7a108153256348ab3989cece873bbebc3657b3749595
+-- @bsb-hash sha256:92b367f78cfb48f9efc5062311c6d569a2b5b9d0ae75b0189e7b1243060b3d2f
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2805,7 +2808,7 @@ create table if not exists "better_supabase"."relations" (
 );
 create index if not exists relations_target_idx on "better_supabase"."relations" ("org_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
-revoke all on "better_supabase"."relations" from anon, authenticated;
+revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
@@ -3240,7 +3243,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_068_relations.sql

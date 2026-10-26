@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:a56ef61ab91d80b92bda983b2fde666c814062bb2301a9bb3150ce31e05a1744
+-- @bsb-hash sha256:d9ab41277fa44df3a9b9e60415e933a3150c7f929358c506072d34a8e6a3c32d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create index if not exists "signature_requests_subject_idx" on "better_supabase"
 create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
-revoke all on "better_supabase"."signature_requests" from anon, authenticated;
+revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
 drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
@@ -109,7 +109,7 @@ create table if not exists "better_supabase"."signatures" (
   unique ("request_id", "signer")
 );
 alter table "better_supabase"."signatures" enable row level security;
-revoke all on "better_supabase"."signatures" from anon, authenticated;
+revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
 drop policy if exists signatures_read on "better_supabase"."signatures";
@@ -531,7 +531,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_087_signatures.sql

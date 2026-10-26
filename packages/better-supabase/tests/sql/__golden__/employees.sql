@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:04bfbcd6f073f59c343a98419dc7e0fc118f99b72e959a9268adaf08a73d5884
+-- @bsb-hash sha256:b5b5083667f9c767a0ae990b47206a96d8fcbbaf2e1d6fdb193b6dd9f0fbf89d
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ create unique index if not exists employees_origin_idx on "better_supabase"."emp
 create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
 create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
-revoke all on "better_supabase"."employees" from anon, authenticated;
+revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
 drop policy if exists employees_read on "better_supabase"."employees";
@@ -133,7 +133,7 @@ create table if not exists "better_supabase"."employee_private_details" (
 );
 create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
-revoke all on "better_supabase"."employee_private_details" from anon, authenticated;
+revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
@@ -161,7 +161,7 @@ create table if not exists "better_supabase"."employee_contracts" (
 );
 create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
-revoke all on "better_supabase"."employee_contracts" from anon, authenticated;
+revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
@@ -806,7 +806,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
@@ -826,7 +826,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:0e249ed57d852d949fb319682bfb177bc5117feb0b9c80c21fda736191b6566b
+-- @bsb-hash sha256:5aafd1ed63948fc2c4b209b682ed29c2ff14d9017afafd985b2c816b7ebea64c
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -930,7 +930,7 @@ create unique index if not exists employees_origin_idx on "better_supabase"."emp
 create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
 create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
-revoke all on "better_supabase"."employees" from anon, authenticated;
+revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
 drop policy if exists employees_read on "better_supabase"."employees";
@@ -958,7 +958,7 @@ create table if not exists "better_supabase"."employee_private_details" (
 );
 create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
-revoke all on "better_supabase"."employee_private_details" from anon, authenticated;
+revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
@@ -986,7 +986,7 @@ create table if not exists "better_supabase"."employee_contracts" (
 );
 create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
-revoke all on "better_supabase"."employee_contracts" from anon, authenticated;
+revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
@@ -1726,7 +1726,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
@@ -1746,7 +1746,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:75724b29d7712b9c7cef14bad76f1ad20b0572398d963e2961cba611d0e86f72
+-- @bsb-hash sha256:2f2b8d1117dfc575184d200ee54bba6cf0ea5c3d7ad74020cf1355bbdb38023c
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1819,6 +1819,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
@@ -1852,7 +1855,7 @@ create unique index if not exists employees_origin_idx on "app_private"."employe
 create index if not exists employees_tenant_status_idx on "app_private"."employees" ("tenant_id", "status");
 create index if not exists employees_manager_idx on "app_private"."employees" ("manager_id") where "manager_id" is not null;
 alter table "app_private"."employees" enable row level security;
-revoke all on "app_private"."employees" from anon, authenticated;
+revoke all on "app_private"."employees" from public, anon, authenticated;
 grant select on "app_private"."employees" to authenticated;
 grant all on "app_private"."employees" to service_role;
 drop policy if exists employees_read on "app_private"."employees";
@@ -1880,7 +1883,7 @@ create table if not exists "app_private"."employee_private_details" (
 );
 create index if not exists employee_private_details_user_idx on "app_private"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "app_private"."employee_private_details" enable row level security;
-revoke all on "app_private"."employee_private_details" from anon, authenticated;
+revoke all on "app_private"."employee_private_details" from public, anon, authenticated;
 grant select on "app_private"."employee_private_details" to authenticated;
 grant all on "app_private"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "app_private"."employee_private_details";
@@ -1908,7 +1911,7 @@ create table if not exists "app_private"."employee_contracts" (
 );
 create index if not exists employee_contracts_employee_idx on "app_private"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "app_private"."employee_contracts" enable row level security;
-revoke all on "app_private"."employee_contracts" from anon, authenticated;
+revoke all on "app_private"."employee_contracts" from public, anon, authenticated;
 grant select on "app_private"."employee_contracts" to authenticated;
 grant all on "app_private"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "app_private"."employee_contracts";
@@ -2553,7 +2556,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
@@ -2573,7 +2576,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:43a08a877704794801a7caab2457c535f5c3b19ee209cf2eb783b8aa30cacd25
+-- @bsb-hash sha256:e881ee183d58a0987bb75c89b08d180fec898c21b111e022db7fe6c5c5fb40be
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2677,7 +2680,7 @@ create unique index if not exists employees_origin_idx on "better_supabase"."emp
 create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
 create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
-revoke all on "better_supabase"."employees" from anon, authenticated;
+revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
 drop policy if exists employees_read on "better_supabase"."employees";
@@ -2705,7 +2708,7 @@ create table if not exists "better_supabase"."employee_private_details" (
 );
 create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
-revoke all on "better_supabase"."employee_private_details" from anon, authenticated;
+revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
@@ -2733,7 +2736,7 @@ create table if not exists "better_supabase"."employee_contracts" (
 );
 create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
-revoke all on "better_supabase"."employee_contracts" from anon, authenticated;
+revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
@@ -3481,7 +3484,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
@@ -3501,7 +3504,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:c67c5665b2d4571178bcc8f55bb0b69ff358edec64998720cad1bb3f27f1e365
+-- @bsb-hash sha256:3deeb3cad9c25d8a93042ef197ff1215a6b0cfdafbe7c8a230276428221e6f6a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4311,7 +4314,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
@@ -4331,7 +4334,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:76a699eb05e7bb6ecf639f96a61945053bdff90bf57e529c7ecc6b6355b336fe
+-- @bsb-hash sha256:33aef87c4f18dfb61c1bfdf482b5f0919ac93918e75f1788b0da486b5aaff905
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4435,7 +4438,7 @@ create unique index if not exists employees_origin_idx on "better_supabase"."emp
 create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("org_id", "status");
 create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
-revoke all on "better_supabase"."employees" from anon, authenticated;
+revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
 drop policy if exists employees_read on "better_supabase"."employees";
@@ -4463,7 +4466,7 @@ create table if not exists "better_supabase"."employee_private_details" (
 );
 create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
-revoke all on "better_supabase"."employee_private_details" from anon, authenticated;
+revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
@@ -4491,7 +4494,7 @@ create table if not exists "better_supabase"."employee_contracts" (
 );
 create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
-revoke all on "better_supabase"."employee_contracts" from anon, authenticated;
+revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
@@ -5136,7 +5139,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_102_employees.sql

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:ea908bf05e0b8e29095650bf63901279c578e5e7b701dd6cc8ca266e8af09558
+-- @bsb-hash sha256:0ced80006ff6d0594031eb6b9331b88ad718b949cffaf6534fbe49521da8eedc
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."donation_funds" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
-revoke all on "better_supabase"."donation_funds" from anon, authenticated;
+revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
 drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
@@ -138,7 +138,7 @@ create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" (
 create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
 create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
-revoke all on "better_supabase"."pledges" from anon, authenticated;
+revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
 drop policy if exists "pledges_read" on "better_supabase"."pledges";
@@ -167,7 +167,7 @@ create index if not exists "donation_receipts_donor_idx" on "better_supabase"."d
 create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
-revoke all on "better_supabase"."donation_receipts" from anon, authenticated;
+revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
 drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
@@ -211,7 +211,7 @@ create index if not exists "donations_refund_idx" on "better_supabase"."donation
 create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
-revoke all on "better_supabase"."donations" from anon, authenticated;
+revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
 drop policy if exists "donations_read" on "better_supabase"."donations";
@@ -1084,7 +1084,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_122_donations.sql

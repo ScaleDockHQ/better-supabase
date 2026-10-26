@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@4 managed
--- @bsb-hash sha256:b015b3118555d21285948bae7c0b4b80afc60eeedef5d6f23cfa43062c72b715
+-- @bsb-hash sha256:da00d21b8e3a6981e72485dc56fcd48401eccc548084df69ebb630e7bd1f7808
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."ai_projects" (
 );
 create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "organization_id");
 alter table "better_supabase"."ai_projects" enable row level security;
-revoke all on "better_supabase"."ai_projects" from anon, authenticated;
+revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
 drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
@@ -142,7 +142,7 @@ create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" 
 create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" add column if not exists "app_note" text;
 alter table "better_supabase"."ai_chats" enable row level security;
-revoke all on "better_supabase"."ai_chats" from anon, authenticated;
+revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
 grant select on "better_supabase"."ai_chats" to authenticated;
 drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
@@ -179,7 +179,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" enable row level security;
-revoke all on "better_supabase"."ai_messages" from anon, authenticated;
+revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
 drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
@@ -210,7 +210,7 @@ create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("ow
 create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
 create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
-revoke all on "better_supabase"."ai_runs" from anon, authenticated;
+revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
 drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
@@ -239,7 +239,7 @@ create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_t
 create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
 create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
-revoke all on "better_supabase"."ai_tool_approvals" from anon, authenticated;
+revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
 drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
@@ -257,7 +257,7 @@ create table if not exists "better_supabase"."ai_tool_policies" (
   primary key ("organization_id", "tool")
 );
 alter table "better_supabase"."ai_tool_policies" enable row level security;
-revoke all on "better_supabase"."ai_tool_policies" from anon, authenticated;
+revoke all on "better_supabase"."ai_tool_policies" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
@@ -277,7 +277,7 @@ create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_p
 create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
 create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
-revoke all on "better_supabase"."ai_pending_inputs" from anon, authenticated;
+revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
 drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
@@ -298,7 +298,7 @@ create table if not exists "better_supabase"."ai_message_sources" (
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
 alter table "better_supabase"."ai_message_sources" enable row level security;
-revoke all on "better_supabase"."ai_message_sources" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
 drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
@@ -321,7 +321,7 @@ create table if not exists "better_supabase"."ai_message_feedback" (
 );
 create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
-revoke all on "better_supabase"."ai_message_feedback" from anon, authenticated;
+revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
 drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
@@ -343,7 +343,7 @@ create table if not exists "better_supabase"."ai_chat_shares" (
 create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
 create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
-revoke all on "better_supabase"."ai_chat_shares" from anon, authenticated;
+revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
@@ -359,7 +359,7 @@ create table if not exists "better_supabase"."ai_model_catalog" (
   "refreshed_at" timestamptz not null default now()
 );
 alter table "better_supabase"."ai_model_catalog" enable row level security;
-revoke all on "better_supabase"."ai_model_catalog" from anon, authenticated;
+revoke all on "better_supabase"."ai_model_catalog" from public, anon, authenticated;
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
@@ -379,7 +379,7 @@ create index if not exists ai_moderation_events_tenant_idx on "better_supabase".
 create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
-revoke all on "better_supabase"."ai_moderation_events" from anon, authenticated;
+revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
@@ -399,7 +399,7 @@ create table if not exists "better_supabase"."ai_run_steps" (
 create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
 create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
-revoke all on "better_supabase"."ai_run_steps" from anon, authenticated;
+revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
 drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
@@ -427,7 +427,7 @@ create table if not exists "better_supabase"."ai_harness_sessions" (
 create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
 create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
-revoke all on "better_supabase"."ai_harness_sessions" from anon, authenticated;
+revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
@@ -1816,7 +1816,7 @@ create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_san
 create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
 create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
-revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
+revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
@@ -2453,7 +2453,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql

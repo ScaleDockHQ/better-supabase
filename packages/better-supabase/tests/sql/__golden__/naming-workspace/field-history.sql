@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:3ec84779dcdd65826b5b2db15accdc6a1e3cf33406a1e16b65d1f906f1247a80
+-- @bsb-hash sha256:4a66302bc8ce03765f7f79fa9c80a7bac7d2543a7c93ed39fe72122e55af6c6f
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ create index if not exists field_changes_subject_idx on "better_supabase"."field
 create index if not exists field_changes_tenant_idx on "better_supabase"."field_changes" ("tenant_id", "changed_at");
 create index if not exists field_changes_changed_by_idx on "better_supabase"."field_changes" ("changed_by") where "changed_by" is not null;
 alter table "better_supabase"."field_changes" enable row level security;
-revoke all on "better_supabase"."field_changes" from anon, authenticated;
+revoke all on "better_supabase"."field_changes" from public, anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 drop policy if exists field_changes_read on "better_supabase"."field_changes";
@@ -130,7 +130,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_137_field_history.sql

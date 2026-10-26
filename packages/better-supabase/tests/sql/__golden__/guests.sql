@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:9bd351d1c7f8e48f34eaa9d7b84c9c6a81ff2a229567f59ffcae8ae204c90146
+-- @bsb-hash sha256:26b3f57629a7894c6308ef7b074dc16deabfb809d442c3cfce32e37ce3f595de
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ create unique index if not exists "guests_email_idx" on "better_supabase"."guest
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
-revoke all on "better_supabase"."guests" from anon, authenticated;
+revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
 drop policy if exists "guests_read" on "better_supabase"."guests";
@@ -114,7 +114,7 @@ create table if not exists "better_supabase"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
-revoke all on "better_supabase"."guest_grants" from anon, authenticated;
+revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
@@ -560,7 +560,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
@@ -580,7 +580,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:d67c077280cb2af707e2815673941c16e4d6eb69418d5de7ac9d4cbf409830fe
+-- @bsb-hash sha256:6cf2efff58da90e0c4fd5f458f022add2af1f335ed96af02952bcc72e147d0db
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -670,7 +670,7 @@ create unique index if not exists "guests_email_idx" on "better_supabase"."guest
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
-revoke all on "better_supabase"."guests" from anon, authenticated;
+revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
 drop policy if exists "guests_read" on "better_supabase"."guests";
@@ -693,7 +693,7 @@ create table if not exists "better_supabase"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
-revoke all on "better_supabase"."guest_grants" from anon, authenticated;
+revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
@@ -1195,7 +1195,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
@@ -1215,7 +1215,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:b69fcf55df97cf4ac389a0d684050b7158ae1e02a685e86636293e76afbcb761
+-- @bsb-hash sha256:11e81d806cf46c9ef5eb4c1868fcbf999ae5aa4a3e7d5899bd6f930a64346572
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1280,6 +1280,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
@@ -1307,7 +1310,7 @@ create unique index if not exists "guests_email_idx" on "app_private"."guests" (
 create unique index if not exists "guests_user_idx" on "app_private"."guests" ("tenant_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "app_private"."guests" ("user_id");
 alter table "app_private"."guests" enable row level security;
-revoke all on "app_private"."guests" from anon, authenticated;
+revoke all on "app_private"."guests" from public, anon, authenticated;
 grant select on "app_private"."guests" to authenticated;
 grant all on "app_private"."guests" to service_role;
 drop policy if exists "guests_read" on "app_private"."guests";
@@ -1330,7 +1333,7 @@ create table if not exists "app_private"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "app_private"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."guest_grants" enable row level security;
-revoke all on "app_private"."guest_grants" from anon, authenticated;
+revoke all on "app_private"."guest_grants" from public, anon, authenticated;
 grant select on "app_private"."guest_grants" to authenticated;
 grant all on "app_private"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "app_private"."guest_grants";
@@ -1776,7 +1779,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
@@ -1796,7 +1799,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:fa300093c8e4cbe6e62315f6d5a4eece59d724ec356f05cc7ffa8239b683de47
+-- @bsb-hash sha256:c88204ccc336f9f4566187a789162a9049cbf147529fbe6c0d78525e1c9216b0
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1886,7 +1889,7 @@ create unique index if not exists "guests_email_idx" on "better_supabase"."guest
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
-revoke all on "better_supabase"."guests" from anon, authenticated;
+revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
 drop policy if exists "guests_read" on "better_supabase"."guests";
@@ -1909,7 +1912,7 @@ create table if not exists "better_supabase"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
-revoke all on "better_supabase"."guest_grants" from anon, authenticated;
+revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
@@ -2476,7 +2479,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
@@ -2496,7 +2499,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:8a8cd49ebdb822fcb556088f8ce7417d4e9c7f4988f78371ea9ecb99f0c7242a
+-- @bsb-hash sha256:d42568c54ddc560577913fcf7a3c84f6b71cd7191561e789e8ba3d8a3f460e19
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3065,7 +3068,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
@@ -3085,7 +3088,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:1eeb2e8688de8f3accfb27fb8741cdaeaa0d82f8aacca60e6539a91b836c3dd8
+-- @bsb-hash sha256:d705fd084acb19bbf951c2059a977bddeae70766e681938793bbcdafdcd9cd5b
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3175,7 +3178,7 @@ create unique index if not exists "guests_email_idx" on "better_supabase"."guest
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("org_id", "user_id") where "user_id" is not null;
 create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
-revoke all on "better_supabase"."guests" from anon, authenticated;
+revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
 drop policy if exists "guests_read" on "better_supabase"."guests";
@@ -3198,7 +3201,7 @@ create table if not exists "better_supabase"."guest_grants" (
 );
 create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
-revoke all on "better_supabase"."guest_grants" from anon, authenticated;
+revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
 drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
@@ -3644,7 +3647,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_032_guests.sql

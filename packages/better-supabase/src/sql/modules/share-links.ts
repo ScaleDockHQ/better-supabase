@@ -291,8 +291,8 @@ function build(ctx: BlockSqlContext): string {
   }
 
   const links = ctx.table("links");
-  const views = ctx.table("views");
-  const state = ctx.table("state");
+  const views = ctx.hasTable("views") ? ctx.table("views") : "";
+  const state = ctx.hasTable("state") ? ctx.table("state") : "";
   const create = ctx.permission("create", OPERATIONS["share-links.create"]);
   const read = ctx.permission("read", OPERATIONS["share-links.read"]);
   const pinned = ctx.has("links", "versionId");

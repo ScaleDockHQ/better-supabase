@@ -1,6 +1,6 @@
 -- better-supabase module: push
 -- @bsb-block push@2 managed
--- @bsb-hash sha256:0344366797bfced637887bd1d71ef4481a0a136609eb81d0606d6cd7976cdbe7
+-- @bsb-hash sha256:753b77d5139c13777efeaf4fbc5d8817394994aac680913601b54812e0e92283
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,7 +59,7 @@ create table if not exists "better_supabase"."push_devices" (
 );
 create index if not exists push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
 alter table "better_supabase"."push_devices" enable row level security;
-revoke all on "better_supabase"."push_devices" from anon, authenticated;
+revoke all on "better_supabase"."push_devices" from public, anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;
 grant all on "better_supabase"."push_devices" to service_role;
 drop policy if exists push_devices_own_read on "better_supabase"."push_devices";
@@ -249,7 +249,7 @@ create table if not exists "better_supabase"."push_tickets" (
 );
 create index if not exists push_tickets_unchecked_idx on "better_supabase"."push_tickets" ("created_at") where "checked_at" is null and "ticket_id" is not null;
 alter table "better_supabase"."push_tickets" enable row level security;
-revoke all on "better_supabase"."push_tickets" from anon, authenticated;
+revoke all on "better_supabase"."push_tickets" from public, anon, authenticated;
 grant all on "better_supabase"."push_tickets" to service_role;
 
 -- Stores the tickets of one delivery: [{ token, id } | { token, error }].
@@ -507,5 +507,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

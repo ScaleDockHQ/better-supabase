@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:32e2bcd677a5289de3ac81b77501d337b58b701cf98ca700411d1720f0b733fd
+-- @bsb-hash sha256:2e8585ff0ed2a47a0f3bda5c718d51401b5f759ba23f70d82ffe614b1b1dd4b6
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -92,7 +92,7 @@ alter table "public"."saved_views" add column if not exists "name" text not null
 alter table "public"."saved_views" add column if not exists "filters" jsonb not null default '{}';
 
 alter table "public"."projects" enable row level security;
-revoke all on "public"."projects" from anon, authenticated;
+revoke all on "public"."projects" from public, anon, authenticated;
 grant select ("id", "organization_id", "created_at", "updated_at", "name", "budget_minor", "currency", "lead_id", "label_id", "deleted_at") on "public"."projects" to authenticated;
 grant insert ("id", "organization_id", "created_at", "updated_at", "name", "budget_minor", "currency", "lead_id", "label_id", "deleted_at"), update ("id", "organization_id", "created_at", "updated_at", "name", "budget_minor", "currency", "lead_id", "label_id", "deleted_at") on "public"."projects" to authenticated;
 grant delete on "public"."projects" to authenticated;
@@ -140,7 +140,7 @@ create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
-revoke all on "public"."tasks" from anon, authenticated;
+revoke all on "public"."tasks" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
 drop policy if exists tasks_select on "public"."tasks";
@@ -228,7 +228,7 @@ create trigger "bsb_emit_event" after insert or update or delete on "public"."ta
   for each row execute function "better_supabase"."tasks_emit_event"();
 
 alter table "public"."client_notes" enable row level security;
-revoke all on "public"."client_notes" from anon, authenticated;
+revoke all on "public"."client_notes" from public, anon, authenticated;
 grant select ("id", "organization_id", "created_at", "updated_at", "client_name") on "public"."client_notes" to authenticated;
 grant insert ("id", "organization_id", "created_at", "updated_at", "client_name", "diagnosis", "birth_date"), update ("id", "organization_id", "created_at", "updated_at", "client_name", "diagnosis", "birth_date") on "public"."client_notes" to authenticated;
 grant delete on "public"."client_notes" to authenticated;
@@ -374,7 +374,7 @@ revoke execute on function "public"."client_notes_reveal"(uuid[]) from public, a
 grant execute on function "public"."client_notes_reveal"(uuid[]) to authenticated, service_role;
 
 alter table "public"."saved_views" enable row level security;
-revoke all on "public"."saved_views" from anon, authenticated;
+revoke all on "public"."saved_views" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."saved_views" to authenticated;
 grant all on "public"."saved_views" to service_role;
 drop policy if exists saved_views_select on "public"."saved_views";
@@ -422,7 +422,7 @@ from "public"."projects" t
   left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'todo') r0 on true
   left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'done') r1 on true
   left join lateral (select min(c."due_on") as value from "public"."tasks" c where c."project_id" = t.id) r2 on true;
-revoke all on "public"."projects_view" from anon, authenticated;
+revoke all on "public"."projects_view" from public, anon, authenticated;
 grant select on "public"."projects_view" to authenticated;
 grant select on "public"."projects_view" to service_role;
 comment on view "public"."projects_view" is 'The rollups and lookups of public.projects, read with the caller''s row level security.';
@@ -433,7 +433,7 @@ select t.*,
   l0.value as "project_name"
 from "public"."tasks" t
   left join lateral (select r."name" as value from "public"."projects" r where r.id = t."project_id") l0 on true;
-revoke all on "public"."tasks_view" from anon, authenticated;
+revoke all on "public"."tasks_view" from public, anon, authenticated;
 grant select on "public"."tasks_view" to authenticated;
 grant select on "public"."tasks_view" to service_role;
 comment on view "public"."tasks_view" is 'The rollups and lookups of public.tasks, read with the caller''s row level security.';

@@ -105,7 +105,7 @@ AI chat sharing uses this block. `share_ai_chat`, `revoke_ai_chat_share`, `list_
 
 ## Over your own tables
 
-To run over tables you already have, map `tables.links`, `tables.views` and `tables.state`. CentraKit's `file_share_links` stores plaintext tokens: run `update ... set token = encode(sha256(convert_to(token, 'utf8')), 'hex')` once. `document_views` and `file_node_user_state` map onto `views` and `state` when their columns fit.
+To run over tables you already have, map `tables.links`, `tables.views` and `tables.state`. The block stores a SHA-256 hash of each token, so a table that keeps plaintext tokens needs `update ... set token = encode(sha256(convert_to(token, 'utf8')), 'hex')` once. Your own view and per-user state tables map onto `views` and `state` when their columns fit. `views` and `state` are optional: map either to `null`, over your tables or the block's own, and the block creates no such table, `record_view` counts no views and `set_user_state` keeps no state.
 
 ## Your own columns
 

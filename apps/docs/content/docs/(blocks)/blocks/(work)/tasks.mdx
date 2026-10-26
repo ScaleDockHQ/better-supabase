@@ -22,7 +22,7 @@ The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it b
 | `completed` | success | Done                   |
 | `canceled`  | failure | Canceled               |
 
-A stage's category sets the item's `state`, so a list or a policy reads `state` and never a stage name. Set `blocks.pipelines.on.work_item` to rename the stages or start with your own, such as CentraKit's Todo, In progress, On hold and Done; your keys are merged over the defaults.
+A stage's category sets the item's `state`, so a list or a policy reads `state` and never a stage name. Set `blocks.pipelines.on.work_item` to rename the stages or start with your own, such as Todo, In progress, On hold and Done; your keys are merged over the defaults.
 
 Installing the block registers work items as the `work_item` subject, ranked by stage. Set the page a search result links to on the entity:
 
@@ -120,7 +120,7 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 ## Extra columns
 
-`options.extraColumns` adds columns to `work_items`, such as CentraKit's `customer_id`. Every item a read returns carries them in `fields`.
+`options.extraColumns` adds columns to `work_items`, such as a `customer_id`. Every item a read returns carries them in `fields`.
 
 ## Events
 

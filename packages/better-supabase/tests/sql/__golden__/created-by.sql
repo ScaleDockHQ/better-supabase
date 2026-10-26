@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,7 +178,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
@@ -198,7 +198,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,7 +375,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
@@ -395,7 +395,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
+-- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -572,7 +572,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
@@ -592,7 +592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:3f938839ee6c1445325989dfe9b372c4722d40a4d1acb5d78c40d61d5913d227
+-- @bsb-hash sha256:b65c27f8aef0b931a51feb25b3acb017aa9905e3362085cefc455eb4068691b2
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -809,7 +809,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql

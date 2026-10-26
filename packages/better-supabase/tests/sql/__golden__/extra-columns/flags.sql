@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@3 managed
--- @bsb-hash sha256:670ada2d9b93ff9a014a50a5acdc652c6a2ff3d919de64c6c753ecb5301b4f7d
+-- @bsb-hash sha256:6f96780e3088cff55b49e4ffb60938d017deddb729c831ffbbed536997a14c35
 -- Feature flags with variants, targeting rules over tenant, user, plan, role and custom contexts such as brand, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,7 +81,7 @@ create table if not exists "better_supabase"."flags" (
 );
 alter table "better_supabase"."flags" add column if not exists "app_note" text;
 alter table "better_supabase"."flags" enable row level security;
-revoke all on "better_supabase"."flags" from anon, authenticated;
+revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
 
 -- A variant for one tenant, one user or one value of a custom context (such
@@ -124,7 +124,7 @@ end;
 $$;
 create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
-revoke all on "better_supabase"."flag_overrides" from anon, authenticated;
+revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- The rollout bucket of target for flag: the first 32 bits of
@@ -432,7 +432,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_032_flags.sql

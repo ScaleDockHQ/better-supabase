@@ -83,6 +83,18 @@ export interface SubjectPermission {
   readonly rows?: string;
   /** A uuid column of the subject row that grants the action to its user. */
   readonly owner?: string;
+  /**
+   * A permission key the caller must hold as well, in the row's tenant (or on
+   * `scope`), whichever of `key`, `rows` and `owner` grants the action.
+   */
+  readonly also?: string;
+}
+
+/** One table `search.watch[].through` crosses: from the `from` column to `to`. */
+export interface SearchWatchHop {
+  readonly table: string;
+  readonly from: string;
+  readonly to: string;
 }
 
 /**
@@ -109,12 +121,15 @@ export interface SubjectSearch {
   /**
    * Tables whose changes re-index the record: `key` is the column holding the
    * record's id, or, with `via`, the column the record's `via` column points
-   * at.
+   * at. `through` follows `key` across further tables first, such as a junction
+   * table: each hop reads `to` from the rows of `table` whose `from` holds the
+   * previous value.
    */
   readonly watch?: readonly {
     readonly table: string;
     readonly key: string;
     readonly via?: string;
+    readonly through?: readonly SearchWatchHop[];
   }[];
 }
 

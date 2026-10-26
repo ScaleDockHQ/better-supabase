@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:d6f9a3ebb2d6552e02a466d59efffb800742236b10f2951c6a949c3511248602
+-- @bsb-hash sha256:524f53fe056178cba38c93945e1dccd34a785f627e9ea86bd3f55d4efa40964b
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ create table if not exists "better_supabase"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "better_supabase"."search_documents" enable row level security;
-revoke all on "better_supabase"."search_documents" from anon, authenticated;
+revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
@@ -421,7 +421,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_070_search.sql
@@ -444,7 +444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:bf281bf1ec8c52f77fdd061f76c44df8abb695b76b43d903688fbc57ae52d7ba
+-- @bsb-hash sha256:3e53e2ae3835261139d46e5f0dcd4490beb6ca8878218ee67b72e7c303115dc3
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -515,7 +515,7 @@ create table if not exists "better_supabase"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "better_supabase"."search_documents" enable row level security;
-revoke all on "better_supabase"."search_documents" from anon, authenticated;
+revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
@@ -910,7 +910,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_070_search.sql
@@ -933,7 +933,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:3f4c30a034870131b6854213c646e399fdf118f1e81f80624e84d3bd692bd7cf
+-- @bsb-hash sha256:b7da7c173eb2f96fdd5de2c9574e5cbeb125948229f372a918ef602c240a7823
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -956,6 +956,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
 create table if not exists "app_private"."search_documents" (
@@ -972,7 +975,7 @@ create table if not exists "app_private"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "app_private"."search_documents" enable row level security;
-revoke all on "app_private"."search_documents" from anon, authenticated;
+revoke all on "app_private"."search_documents" from public, anon, authenticated;
 grant select on "app_private"."search_documents" to authenticated;
 grant all on "app_private"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "app_private"."search_documents" using gin ("tsv");
@@ -1355,7 +1358,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_070_search.sql
@@ -1378,7 +1381,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:92ac3d7e0523392f306723da2a3f73fbcd71f0f43959aa64250d13efdd260114
+-- @bsb-hash sha256:58e4d88c1fc28b2891f6ed6e3261fbb0873727f11dfe4c638b2e9f8f483f8483
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1415,7 +1418,7 @@ create table if not exists "better_supabase"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "better_supabase"."search_documents" enable row level security;
-revoke all on "better_supabase"."search_documents" from anon, authenticated;
+revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
@@ -1878,7 +1881,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_070_search.sql
@@ -1901,7 +1904,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:cabfb32f9849fa49f57468cb1df93a49987631c8effd2d1cd855fe0e39dde10c
+-- @bsb-hash sha256:add44874d917978abc3bf136496f240ba3c75b65170fa15bd72462c073452b61
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2318,7 +2321,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_070_search.sql
@@ -2341,7 +2344,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:d2195c0bc4f613fdaeb658ef108eb7478325b1a2baf569cbeab0ccd271054788
+-- @bsb-hash sha256:c68cfd13f4bfee8a63dc9b8c20f4575ce0ce954332a24292cb486d0fb57e1931
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2378,7 +2381,7 @@ create table if not exists "better_supabase"."search_documents" (
   primary key ("subject_type", "subject_id")
 );
 alter table "better_supabase"."search_documents" enable row level security;
-revoke all on "better_supabase"."search_documents" from anon, authenticated;
+revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
@@ -2761,7 +2764,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_070_search.sql

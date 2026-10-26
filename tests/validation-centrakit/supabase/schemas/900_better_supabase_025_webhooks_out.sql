@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@5 managed
--- @bsb-hash sha256:f2dca292aef519f47fefcdd714fb950117e9b1c46702c85ff885954b108c9808
+-- @bsb-hash sha256:e99f2d2b7b6f89bade0a06a2799bdf0ae1afbdebf5b0ac9deae5796fa83e2a18
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,7 @@ drop policy if exists bsb_webhook_endpoints_delete on "centrakit"."webhook_desti
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_delete already allows what bsb_webhook_endpoints_delete would, so the block adds none.
 
 -- centrakit.webhook_destination_secrets is the app's table, and it has every column this block needs.
-create index if not exists webhook_endpoint_secrets_endpoint_idx on "centrakit"."webhook_destination_secrets" ("destination_id");
+-- centrakit.webhook_destination_secrets already has an index on (destination_id), so this block adds none.
 alter table "centrakit"."webhook_destination_secrets" enable row level security;
 grant all on "centrakit"."webhook_destination_secrets" to service_role;
 
@@ -621,5 +621,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

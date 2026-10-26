@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:e64d6e26d80a029131980d493936fa5347ac883b9b36fe6290b4ba9671641698
+-- @bsb-hash sha256:c249c67cb4665cde9561a69cd734d50e46ec1f4bda55825bab7d71e1735616a3
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create index if not exists "saved_views_list_idx" on "better_supabase"."saved_vi
 create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
-revoke all on "better_supabase"."saved_views" from anon, authenticated;
+revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
@@ -110,7 +110,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
-revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
@@ -506,7 +506,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
@@ -526,7 +526,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:5e0c24cb0ab2afdf9c69660e49bb32a161338f4f49c9e7ed7e1f4e2a548e25cf
+-- @bsb-hash sha256:ffb974892ea4d245079e02f7c49a34666fb322b78b20db630fe0419f55c4e780
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -610,7 +610,7 @@ create index if not exists "saved_views_list_idx" on "better_supabase"."saved_vi
 create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
-revoke all on "better_supabase"."saved_views" from anon, authenticated;
+revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
@@ -635,7 +635,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
-revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
@@ -1042,7 +1042,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
@@ -1062,7 +1062,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:331a6076e9dbe89e56a9cc936141eea56176d110befc71cb6b07e5db5a7ce54d
+-- @bsb-hash sha256:4c40b2d952df35e421fee59d0343d7bd3598dc1b5a5b715fc380bc87eb1a0e48
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1127,6 +1127,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table if not exists "app_private"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1148,7 +1151,7 @@ create index if not exists "saved_views_list_idx" on "app_private"."saved_views"
 create index if not exists "saved_views_owner_idx" on "app_private"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "saved_views_default_idx" on "app_private"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "app_private"."saved_views" enable row level security;
-revoke all on "app_private"."saved_views" from anon, authenticated;
+revoke all on "app_private"."saved_views" from public, anon, authenticated;
 grant select on "app_private"."saved_views" to authenticated;
 grant all on "app_private"."saved_views" to service_role;
 
@@ -1173,7 +1176,7 @@ create table if not exists "app_private"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "app_private"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "app_private"."saved_view_preferences" enable row level security;
-revoke all on "app_private"."saved_view_preferences" from anon, authenticated;
+revoke all on "app_private"."saved_view_preferences" from public, anon, authenticated;
 grant select on "app_private"."saved_view_preferences" to authenticated;
 grant all on "app_private"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "app_private"."saved_view_preferences";
@@ -1569,7 +1572,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
@@ -1589,7 +1592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:67f9fd32cbbbbdf9ebb2aab90be74fbb7af9561efa34b2a97ec683c467ac71be
+-- @bsb-hash sha256:b82502be9394eef5f9c333a015a915d05e5f1f6352a38e6739c460e593d6b863
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1673,7 +1676,7 @@ create index if not exists "saved_views_list_idx" on "better_supabase"."saved_vi
 create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
-revoke all on "better_supabase"."saved_views" from anon, authenticated;
+revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
@@ -1698,7 +1701,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
-revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
@@ -2181,7 +2184,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
@@ -2201,7 +2204,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:7cc75b7d2d828aec4041361e848285dbadc5469642ac9fbd0d6aafcec0e85e30
+-- @bsb-hash sha256:1468f96e96be7786295741c56c8d15f075da628ef7426b45ec422f5b47e9cd6e
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2699,7 +2702,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
@@ -2719,7 +2722,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:1931597b3bb9ca4bcd662d687a2190a648c4dba61523b923c589a96c3fe16928
+-- @bsb-hash sha256:96f986f5b97d41142491d0b73a2936894385a90ad0b34173856839fdea8b9f74
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2803,7 +2806,7 @@ create index if not exists "saved_views_list_idx" on "better_supabase"."saved_vi
 create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("org_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
-revoke all on "better_supabase"."saved_views" from anon, authenticated;
+revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
@@ -2828,7 +2831,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
 );
 create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "org_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
-revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
+revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
 drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
@@ -3224,7 +3227,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql

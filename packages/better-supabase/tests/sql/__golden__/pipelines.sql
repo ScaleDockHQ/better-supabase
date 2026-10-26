@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:1bf08adda87fc6855b37bdefa95a3ae3bdf6707c7b046653a173643987f7c470
+-- @bsb-hash sha256:bb3ac7d36daf7a5e6df2b66a0b101c5c6826c83f490f8a692b5325b97e0383ea
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ create table if not exists "better_supabase"."pipelines" (
 create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
-revoke all on "better_supabase"."pipelines" from anon, authenticated;
+revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
@@ -129,7 +129,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
-revoke all on "better_supabase"."pipeline_stages" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
@@ -147,7 +147,7 @@ create table if not exists "better_supabase"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
-revoke all on "better_supabase"."pipeline_transitions" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
@@ -176,7 +176,7 @@ create index if not exists pipeline_stage_history_subject_idx on "better_supabas
 create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
-revoke all on "better_supabase"."pipeline_stage_history" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -746,7 +746,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
@@ -766,7 +766,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:b4447e807aae1af63b8b0ccdf179a6dfe9f94857b6f0332d48f6c263ad435d69
+-- @bsb-hash sha256:4e7e06c1096601411621a030457d35ea909e5f747b36eeee6a77462bfa789f0e
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -865,7 +865,7 @@ create table if not exists "better_supabase"."pipelines" (
 create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
-revoke all on "better_supabase"."pipelines" from anon, authenticated;
+revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
@@ -894,7 +894,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
-revoke all on "better_supabase"."pipeline_stages" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
@@ -912,7 +912,7 @@ create table if not exists "better_supabase"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
-revoke all on "better_supabase"."pipeline_transitions" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
@@ -941,7 +941,7 @@ create index if not exists pipeline_stage_history_subject_idx on "better_supabas
 create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
-revoke all on "better_supabase"."pipeline_stage_history" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -2141,7 +2141,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
@@ -2161,7 +2161,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:685649232fc8cce701ba99af34fd7af03fd149d95c5f6c5bd68455f83bdfcb35
+-- @bsb-hash sha256:346805e9be32b481c85360ff7f7d1d62716fb4fd429ec839f66b5165d5993779
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2242,6 +2242,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
@@ -2262,7 +2265,7 @@ create table if not exists "app_private"."pipelines" (
 create unique index if not exists pipelines_default_idx on "app_private"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "app_private"."pipelines" enable row level security;
-revoke all on "app_private"."pipelines" from anon, authenticated;
+revoke all on "app_private"."pipelines" from public, anon, authenticated;
 grant select on "app_private"."pipelines" to authenticated;
 grant all on "app_private"."pipelines" to service_role;
 drop policy if exists pipelines_read on "app_private"."pipelines";
@@ -2291,7 +2294,7 @@ create table if not exists "app_private"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "app_private"."pipeline_stages" ("pipeline_id", "rank");
 alter table "app_private"."pipeline_stages" enable row level security;
-revoke all on "app_private"."pipeline_stages" from anon, authenticated;
+revoke all on "app_private"."pipeline_stages" from public, anon, authenticated;
 grant select on "app_private"."pipeline_stages" to authenticated;
 grant all on "app_private"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "app_private"."pipeline_stages";
@@ -2309,7 +2312,7 @@ create table if not exists "app_private"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "app_private"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "app_private"."pipeline_transitions" ("to_stage_id");
 alter table "app_private"."pipeline_transitions" enable row level security;
-revoke all on "app_private"."pipeline_transitions" from anon, authenticated;
+revoke all on "app_private"."pipeline_transitions" from public, anon, authenticated;
 grant select on "app_private"."pipeline_transitions" to authenticated;
 grant all on "app_private"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "app_private"."pipeline_transitions";
@@ -2338,7 +2341,7 @@ create index if not exists pipeline_stage_history_subject_idx on "app_private"."
 create index if not exists pipeline_stage_history_pipeline_idx on "app_private"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "app_private"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "app_private"."pipeline_stage_history" enable row level security;
-revoke all on "app_private"."pipeline_stage_history" from anon, authenticated;
+revoke all on "app_private"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "app_private"."pipeline_stage_history" to authenticated;
 grant all on "app_private"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -2908,7 +2911,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
@@ -2928,7 +2931,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:4215e82b2c99521e12e04841bb31820b1e30165edeca677e03671891d8e8ffcd
+-- @bsb-hash sha256:09de1545f8c7f3fb5ebfde72954190b261c00aa0f6d358ce8c61877bfd0bd9c5
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3027,7 +3030,7 @@ create table if not exists "better_supabase"."pipelines" (
 create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
-revoke all on "better_supabase"."pipelines" from anon, authenticated;
+revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
@@ -3056,7 +3059,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
-revoke all on "better_supabase"."pipeline_stages" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
@@ -3074,7 +3077,7 @@ create table if not exists "better_supabase"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
-revoke all on "better_supabase"."pipeline_transitions" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
@@ -3103,7 +3106,7 @@ create index if not exists pipeline_stage_history_subject_idx on "better_supabas
 create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
-revoke all on "better_supabase"."pipeline_stage_history" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -3796,7 +3799,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
@@ -3816,7 +3819,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:4134b95733f66facc9ad85f3f1098eb3a749f1e9c7f67c0d48ea79df5cced907
+-- @bsb-hash sha256:c4fbe881c0292822a24fc649ae1c6d82d5093f4c0aa81cdd068b43bcce7a36c4
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4569,7 +4572,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
@@ -4589,7 +4592,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:42b87323ca0b9f330293a86574d162002f98127abe5eb053b096aef65afda428
+-- @bsb-hash sha256:8c2a9f4431b50dd447843cd1c39d62271cb5619956ab387b142d5b4090912ec3
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4688,7 +4691,7 @@ create table if not exists "better_supabase"."pipelines" (
 create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("org_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
-revoke all on "better_supabase"."pipelines" from anon, authenticated;
+revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
 drop policy if exists pipelines_read on "better_supabase"."pipelines";
@@ -4717,7 +4720,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
 );
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
-revoke all on "better_supabase"."pipeline_stages" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
 drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
@@ -4735,7 +4738,7 @@ create table if not exists "better_supabase"."pipeline_transitions" (
 create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
 create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
-revoke all on "better_supabase"."pipeline_transitions" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
 drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
@@ -4764,7 +4767,7 @@ create index if not exists pipeline_stage_history_subject_idx on "better_supabas
 create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
 create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
-revoke all on "better_supabase"."pipeline_stage_history" from anon, authenticated;
+revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
@@ -5334,7 +5337,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql

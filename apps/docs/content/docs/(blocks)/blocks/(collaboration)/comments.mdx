@@ -101,6 +101,11 @@ export default defineConfig({
 | `mentionGroups` | none    | Expands a mention of a group, such as a team, into its members                                              |
 | `notify`        | `true`  | Sends `comment.posted` to the record's followers (with notifications); `false` sends none                   |
 
+Comments go on every type in `config.records` by default. `blocks.comments.on`
+keeps them to the types it lists, such as `on: ["customer", "task"]`, and
+`create_comment` refuses any other type with `COMMENT_SUBJECT_UNSUPPORTED`.
+Registering a record type for another block then opens no comments on it.
+
 The body limit, the extra columns and the Realtime topic are messaging
 options (`blocks.messaging.options.maxBodyLength`, `extraColumns` and
 `topic`); see [Messaging](/docs/blocks/messaging#options).

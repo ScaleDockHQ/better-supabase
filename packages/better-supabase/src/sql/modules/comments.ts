@@ -19,7 +19,11 @@ import {
   userGrant,
   quotedTable,
 } from "../shared.ts";
-import { subjectCascades, subjectsOption } from "../subjects.ts";
+import {
+  subjectCascades,
+  subjectsOption,
+  subjectTypeGuard,
+} from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
@@ -414,7 +418,7 @@ declare
   v_raw uuid[];
   v_mentions uuid[];
   v_msg jsonb;
-begin
+begin${subjectTypeGuard(ctx, "create_comment.subject_type", "COMMENT_SUBJECT_UNSUPPORTED", "  ")}
   v_conv := (${m.fn("open_conversation")}(
     create_comment.tenant,
     'subject',

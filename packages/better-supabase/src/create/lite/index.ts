@@ -19,6 +19,8 @@ export * from "./import.ts";
 
 export * from "./data-api.ts";
 
+export * from "./matrix-tests.ts";
+
 export * from "./verify.ts";
 
 export type {

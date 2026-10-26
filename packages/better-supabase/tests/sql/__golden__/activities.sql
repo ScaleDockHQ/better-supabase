@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:075d38140c027a2ff088886e7b3e5da452a4876a0b35382a3909a768e5aa1861
+-- @bsb-hash sha256:2199869031adbcc51d55a6be35f27ad33e923f488b26c4a994fe5b2e74ea4fdc
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create index if not exists engagements_owner_open_idx on "better_supabase"."enga
 create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("tenant_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -98,7 +98,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -468,7 +468,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
@@ -488,7 +488,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:9557517163e1a3c0eae887c7671f71f2d350dc568d7ae75344947bfe9725d5f6
+-- @bsb-hash sha256:40790e48ea39b4828111fa0bb2ab4447202fb85c069f4f978da3641842368ba3
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -572,7 +572,7 @@ create index if not exists engagements_owner_open_idx on "better_supabase"."enga
 create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("tenant_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -585,7 +585,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -989,7 +989,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
@@ -1009,7 +1009,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:4ed198f5cb4ad0c83933f8b38b84b532909bee993fc99c2934eee60cfca03162
+-- @bsb-hash sha256:6d7f8b25982b2aca407d138993a710e4ce04f503e133162ac33d42e82c950319
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1074,6 +1074,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Calls, emails, meetings, notes and tasks logged on one or more records.
 create table if not exists "app_private"."engagements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1095,7 +1098,7 @@ create index if not exists engagements_owner_open_idx on "app_private"."engageme
 create index if not exists engagements_tenant_created_idx on "app_private"."engagements" ("tenant_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "app_private"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "app_private"."engagements" enable row level security;
-revoke all on "app_private"."engagements" from anon, authenticated;
+revoke all on "app_private"."engagements" from public, anon, authenticated;
 grant select on "app_private"."engagements" to authenticated;
 grant all on "app_private"."engagements" to service_role;
 create table if not exists "app_private"."engagement_subjects" (
@@ -1108,7 +1111,7 @@ create table if not exists "app_private"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "app_private"."engagement_subjects" ("subject_type", "subject_id");
 alter table "app_private"."engagement_subjects" enable row level security;
-revoke all on "app_private"."engagement_subjects" from anon, authenticated;
+revoke all on "app_private"."engagement_subjects" from public, anon, authenticated;
 grant select on "app_private"."engagement_subjects" to authenticated;
 grant all on "app_private"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -1478,7 +1481,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
@@ -1498,7 +1501,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:0aabd500994b62ac780d75a8b9ae2a9633c816766b0429d6d2c50c12794da4ca
+-- @bsb-hash sha256:f30f08f940b2b964ee300c797c50cd265ad74a317e20bf46df0e95e60587db01
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1582,7 +1585,7 @@ create index if not exists engagements_owner_open_idx on "better_supabase"."enga
 create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("tenant_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -1595,7 +1598,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -2050,7 +2053,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
@@ -2070,7 +2073,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:d1d96cc038bc9cccd5f4fdd0aaf90d0f923c868fb9ff426170a9786a32f3c065
+-- @bsb-hash sha256:2af32dfd4de681b624b5dd4a390aa0034c761ec61d8f2b09f7935f512475b165
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2549,7 +2552,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
@@ -2569,7 +2572,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:861e2ae9522df521eb1684c0e7b0b7f100b9abfbe9773bbe4d0ab09a58352fc5
+-- @bsb-hash sha256:995094893d91f20e27f1b5d5f6a93f421f8ec122b73868d8989dba069ebe509d
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2653,7 +2656,7 @@ create index if not exists engagements_owner_open_idx on "better_supabase"."enga
 create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("org_id", "created_at" desc);
 create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("org_id", "external_ref") where "external_ref" is not null;
 alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from anon, authenticated;
+revoke all on "better_supabase"."engagements" from public, anon, authenticated;
 grant select on "better_supabase"."engagements" to authenticated;
 grant all on "better_supabase"."engagements" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
@@ -2666,7 +2669,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
 );
 create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
-revoke all on "better_supabase"."engagement_subjects" from anon, authenticated;
+revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
@@ -3036,7 +3039,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_094_activities.sql

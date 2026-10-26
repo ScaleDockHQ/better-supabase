@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:e769839c7d58eeebb4dd49761deea6c819d0c8345349d33ba18645cf6ac47872
+-- @bsb-hash sha256:cb8b707ce9f7d098b28d16ac914f8d7217d582e691f739bca0cec942d5ccdc25
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create index if not exists streams_owner_idx on "better_supabase"."streams" ("ow
 create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
 create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
-revoke all on "better_supabase"."streams" from anon, authenticated;
+revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
 drop policy if exists streams_owner_read on "better_supabase"."streams";
@@ -89,7 +89,7 @@ create table if not exists "better_supabase"."stream_chunks" (
   primary key ("stream_id", "idx")
 );
 alter table "better_supabase"."stream_chunks" enable row level security;
-revoke all on "better_supabase"."stream_chunks" from anon, authenticated;
+revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
 drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
@@ -379,7 +379,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_040_streams.sql

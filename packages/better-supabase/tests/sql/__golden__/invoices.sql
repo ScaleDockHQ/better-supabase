@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:ce0fa53be18c1176d7e220bdf6a4c30de85f7194eb325e0cca5441af48d0931d
+-- @bsb-hash sha256:d7c75c5607270c735a59948bf4684296de0875e7f61924ef2c3e81a3134f9c3c
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create index if not exists invoices_origin_idx on "better_supabase"."invoices" (
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
 alter table "better_supabase"."invoices" enable row level security;
-revoke all on "better_supabase"."invoices" from anon, authenticated;
+revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
@@ -201,7 +201,7 @@ create table if not exists "better_supabase"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
+revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
@@ -756,7 +756,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
@@ -776,7 +776,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:222e9ffb6075b7ca01f54778813bd2d41504a9d10ab2d59e53ad359dfbe1ba8c
+-- @bsb-hash sha256:a45658e85a37c154b66e0dc080f74f4debd08f03bdfc19d075d3dd35581a6fe7
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -887,7 +887,7 @@ create index if not exists invoices_origin_idx on "better_supabase"."invoices" (
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
 alter table "better_supabase"."invoices" enable row level security;
-revoke all on "better_supabase"."invoices" from anon, authenticated;
+revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
@@ -981,7 +981,7 @@ create table if not exists "better_supabase"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
+revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
@@ -1622,7 +1622,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
@@ -1642,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:08bea0ca29810a1942eda2d4f17526735b9bc84628f9f6f039d7300f9b8a9798
+-- @bsb-hash sha256:c125e62828a30cf645aa75a1ed866294e4ec55634bd5f35b40dbcc5694848192
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1707,6 +1707,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Invoices an organization sends its own customers: drafts with lines, a
 -- number on issue, payments, credit notes, void and write-off, and aging.
 
@@ -1755,7 +1758,7 @@ create index if not exists invoices_origin_idx on "app_private"."invoices" ("ori
 create index if not exists invoices_original_idx on "app_private"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "app_private"."invoices" ("company_type", "company_id");
 alter table "app_private"."invoices" enable row level security;
-revoke all on "app_private"."invoices" from anon, authenticated;
+revoke all on "app_private"."invoices" from public, anon, authenticated;
 grant select on "app_private"."invoices" to authenticated;
 grant all on "app_private"."invoices" to service_role;
 drop policy if exists invoices_read on "app_private"."invoices";
@@ -1844,7 +1847,7 @@ create table if not exists "app_private"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "app_private"."invoice_lines" ("parent_id", "position");
 alter table "app_private"."invoice_lines" enable row level security;
-revoke all on "app_private"."invoice_lines" from anon, authenticated;
+revoke all on "app_private"."invoice_lines" from public, anon, authenticated;
 grant select on "app_private"."invoice_lines" to authenticated;
 grant all on "app_private"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "app_private"."invoice_lines";
@@ -2399,7 +2402,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
@@ -2419,7 +2422,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:00e27c5f3af5792b31e24f131df0b2449131ee8585edb1b2087e97203e32ba36
+-- @bsb-hash sha256:40f72491a581a7a4661381f4b80b4c6846a3227214125915763de3d3e6eb821d
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2530,7 +2533,7 @@ create index if not exists invoices_origin_idx on "better_supabase"."invoices" (
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
 alter table "better_supabase"."invoices" enable row level security;
-revoke all on "better_supabase"."invoices" from anon, authenticated;
+revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
@@ -2619,7 +2622,7 @@ create table if not exists "better_supabase"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
+revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
@@ -3270,7 +3273,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
@@ -3290,7 +3293,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:ba3b0c07d5c02755885268b1b7261d86ee5c3aa6432c954d43f810b760b412d5
+-- @bsb-hash sha256:5dad384c7177a5f3223a6d7e04ccaddbf8df56f85eac5c3d27a6e3feeaf4ff20
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4054,7 +4057,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
@@ -4074,7 +4077,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:9ac5ddd362de9e2a173ad24df0b57f8ad37315a9b681afc716bd706ccdbebf3e
+-- @bsb-hash sha256:7102af9b500cab7565c02301a51d45755eb39bdb019720eb2909ae35903d5dab
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4185,7 +4188,7 @@ create index if not exists invoices_origin_idx on "better_supabase"."invoices" (
 create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
 alter table "better_supabase"."invoices" enable row level security;
-revoke all on "better_supabase"."invoices" from anon, authenticated;
+revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
@@ -4274,7 +4277,7 @@ create table if not exists "better_supabase"."invoice_lines" (
 );
 create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
-revoke all on "better_supabase"."invoice_lines" from anon, authenticated;
+revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
 drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
@@ -4829,7 +4832,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql

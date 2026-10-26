@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:e2802f1421517a5945e8562225220016bc6ce7c931b62276c4e162344b270dcd
+-- @bsb-hash sha256:07e219d61abf1b38f796330da6130b0a48c28520a1fdd30a116264422615ef20
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ create index if not exists "contracts_counterparty_idx" on "better_supabase"."co
 create index if not exists "contracts_owner_idx" on "better_supabase"."contracts" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index if not exists "contracts_signature_idx" on "better_supabase"."contracts" ("signature_request_id") where "signature_request_id" is not null;
 alter table "better_supabase"."contracts" enable row level security;
-revoke all on "better_supabase"."contracts" from anon, authenticated;
+revoke all on "better_supabase"."contracts" from public, anon, authenticated;
 grant select on "better_supabase"."contracts" to authenticated;
 grant all on "better_supabase"."contracts" to service_role;
 drop policy if exists "contracts_read" on "better_supabase"."contracts";
@@ -131,7 +131,7 @@ create index if not exists "contract_obligations_parent_idx" on "better_supabase
 create index if not exists "contract_obligations_owner_idx" on "better_supabase"."contract_obligations" ("tenant_id", "owner_id", "due_on") where "owner_id" is not null;
 create index if not exists "contract_obligations_due_idx" on "better_supabase"."contract_obligations" ("tenant_id", "due_on") where "status" = 'open';
 alter table "better_supabase"."contract_obligations" enable row level security;
-revoke all on "better_supabase"."contract_obligations" from anon, authenticated;
+revoke all on "better_supabase"."contract_obligations" from public, anon, authenticated;
 grant select on "better_supabase"."contract_obligations" to authenticated;
 grant all on "better_supabase"."contract_obligations" to service_role;
 drop policy if exists "contract_obligations_read" on "better_supabase"."contract_obligations";
@@ -1053,5 +1053,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

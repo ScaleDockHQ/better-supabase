@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:ffac7080e396869e0aa72e87a2421e61cef1de143b4d914c19331b01f5a7a5f5
+-- @bsb-hash sha256:408cd3e5650a0040d5c3b6589e85b0d2e6c181cb9f7847908d7f2d5323411272
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -72,7 +72,7 @@ alter table "public"."notes" add column if not exists "body" text not null;
 alter table "public"."keys" add column if not exists "secret" text;
 
 alter table "public"."patients" enable row level security;
-revoke all on "public"."patients" from anon, authenticated;
+revoke all on "public"."patients" from public, anon, authenticated;
 grant select ("id", "organization_id", "created_at", "updated_at", "name") on "public"."patients" to authenticated;
 grant insert ("id", "organization_id", "created_at", "updated_at", "name", "ssn", "email", "born_on"), update ("id", "organization_id", "created_at", "updated_at", "name", "ssn", "email", "born_on") on "public"."patients" to authenticated;
 grant delete on "public"."patients" to authenticated;
@@ -240,7 +240,7 @@ revoke execute on function "public"."patients_reveal"(uuid[]) from public, anon;
 grant execute on function "public"."patients_reveal"(uuid[]) to authenticated, service_role;
 
 alter table "public"."notes" enable row level security;
-revoke all on "public"."notes" from anon, authenticated;
+revoke all on "public"."notes" from public, anon, authenticated;
 grant select ("id", "user_id", "created_at", "updated_at") on "public"."notes" to authenticated;
 grant insert ("id", "user_id", "created_at", "updated_at", "body"), update ("id", "user_id", "created_at", "updated_at", "body") on "public"."notes" to authenticated;
 grant delete on "public"."notes" to authenticated;
@@ -343,7 +343,7 @@ revoke execute on function "public"."notes_reveal"(uuid[]) from public, anon;
 grant execute on function "public"."notes_reveal"(uuid[]) to authenticated, service_role;
 
 alter table "public"."keys" enable row level security;
-revoke all on "public"."keys" from anon, authenticated;
+revoke all on "public"."keys" from public, anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."keys" to authenticated;
 grant all on "public"."keys" to service_role;
 drop policy if exists keys_select on "public"."keys";

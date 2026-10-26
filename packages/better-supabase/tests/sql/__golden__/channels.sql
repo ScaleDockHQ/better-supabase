@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:f78a0919bbdcdb75d7a269347d2f8db119d56adeeeb07eee7cfba941898195d8
+-- @bsb-hash sha256:236d96eacdeeb7b35513f1b8e56e94a82fe0c1d621084a014f35ce8195532dac
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,7 @@ create table if not exists "better_supabase"."channels" (
 create unique index if not exists channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index if not exists channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."channels" enable row level security;
-revoke all on "better_supabase"."channels" from anon, authenticated;
+revoke all on "better_supabase"."channels" from public, anon, authenticated;
 grant select on "better_supabase"."channels" to authenticated;
 grant all on "better_supabase"."channels" to service_role;
 
@@ -438,7 +438,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:e157be33cf32752c69c72d6432f69c4604a90643b9c0e0581816d1fb2edef351
+-- @bsb-hash sha256:8711077eb43702ca3f2b3a542752f7901f9fac41ff6695b5579ef4fc3c415433
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -535,7 +535,7 @@ create table if not exists "better_supabase"."channels" (
 create unique index if not exists channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index if not exists channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."channels" enable row level security;
-revoke all on "better_supabase"."channels" from anon, authenticated;
+revoke all on "better_supabase"."channels" from public, anon, authenticated;
 grant select on "better_supabase"."channels" to authenticated;
 grant all on "better_supabase"."channels" to service_role;
 
@@ -913,7 +913,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
@@ -933,7 +933,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:6baf8899ed17b2158a81392009a799a297affe271184def6cac006aaefddf809
+-- @bsb-hash sha256:7b88577342346143cc77e0125702e58975ead474d7ae554ba883def3dd498cb2
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -990,6 +990,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Channels: named conversations in a tenant, public (read by the tenant) or
 -- private (read by their members), with a topic, a purpose and an optional
 -- linked record. Messages, threads, typing and read markers come from the
@@ -1012,7 +1015,7 @@ create table if not exists "app_private"."channels" (
 create unique index if not exists channels_name_idx on "app_private"."channels" ("tenant_id", "name");
 create index if not exists channels_subject_idx on "app_private"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "app_private"."channels" enable row level security;
-revoke all on "app_private"."channels" from anon, authenticated;
+revoke all on "app_private"."channels" from public, anon, authenticated;
 grant select on "app_private"."channels" to authenticated;
 grant all on "app_private"."channels" to service_role;
 
@@ -1372,7 +1375,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
@@ -1392,7 +1395,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:60dd4e3b07a1507f00285ae2fbac6a2cad1cde511b17531f0b0bdd92933bdf99
+-- @bsb-hash sha256:eb04371a09f2859ff8cadd186b50113163d6717cd9cb9a01ff2d1c242b3346ff
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1469,7 +1472,7 @@ create table if not exists "better_supabase"."channels" (
 create unique index if not exists channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index if not exists channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."channels" enable row level security;
-revoke all on "better_supabase"."channels" from anon, authenticated;
+revoke all on "better_supabase"."channels" from public, anon, authenticated;
 grant select on "better_supabase"."channels" to authenticated;
 grant all on "better_supabase"."channels" to service_role;
 
@@ -1941,7 +1944,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
@@ -1961,7 +1964,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:232e3c92cb58efb052ed380b5b0cccd330aa8ddb64f671f5ac27ca56fe682f3f
+-- @bsb-hash sha256:ea909912460374f601d9e2f02898066032367db9922e25e2791c96e2844f5a40
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2411,7 +2414,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
@@ -2431,7 +2434,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:6479a3fb323b5e029a3481f30f551a922bc29dc642b6c9357a5788b79c600f3d
+-- @bsb-hash sha256:d803887cd3f9ca5606672dcc7fbf7851ccc4b80f1932bfbf7d7e8c2dc7a204c6
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2508,7 +2511,7 @@ create table if not exists "better_supabase"."channels" (
 create unique index if not exists channels_name_idx on "better_supabase"."channels" ("org_id", "name");
 create index if not exists channels_subject_idx on "better_supabase"."channels" ("org_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."channels" enable row level security;
-revoke all on "better_supabase"."channels" from anon, authenticated;
+revoke all on "better_supabase"."channels" from public, anon, authenticated;
 grant select on "better_supabase"."channels" to authenticated;
 grant all on "better_supabase"."channels" to service_role;
 
@@ -2868,7 +2871,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_130_channels.sql

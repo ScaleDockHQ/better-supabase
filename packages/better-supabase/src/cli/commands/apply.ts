@@ -139,6 +139,7 @@ function adoptBlocks(
 
     const proposal = proposeAdoption(block, tables, {
       blocks: config.blocks,
+      subjects: config.subjects,
       schemas,
     });
 

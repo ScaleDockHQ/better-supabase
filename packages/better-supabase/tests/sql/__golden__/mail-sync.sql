@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:b3b806954924ad1558a1d04f91f967d68a4c467f89af140126fa340106b17136
+-- @bsb-hash sha256:56c01b75ee4f644c1bcad87289323d7e10343f94b46a2fc0c01bb4157ab6fca8
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -117,7 +117,7 @@ create table if not exists "better_supabase"."mail_accounts" (
 create index if not exists mail_accounts_user_idx on "better_supabase"."mail_accounts" ("user_id");
 create index if not exists mail_accounts_due_idx on "better_supabase"."mail_accounts" ("last_synced_at" nulls first) where "status" = 'active';
 alter table "better_supabase"."mail_accounts" enable row level security;
-revoke all on "better_supabase"."mail_accounts" from anon, authenticated;
+revoke all on "better_supabase"."mail_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."mail_accounts" to authenticated;
 grant all on "better_supabase"."mail_accounts" to service_role;
 create table if not exists "better_supabase"."mail_threads" (
@@ -137,7 +137,7 @@ create table if not exists "better_supabase"."mail_threads" (
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
 create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
-revoke all on "better_supabase"."mail_threads" from anon, authenticated;
+revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
 create table if not exists "better_supabase"."mail_messages" (
@@ -171,7 +171,7 @@ create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_mess
 create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
 create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
-revoke all on "better_supabase"."mail_messages" from anon, authenticated;
+revoke all on "better_supabase"."mail_messages" from public, anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
 create table if not exists "better_supabase"."mail_tracked_links" (
@@ -184,7 +184,7 @@ create table if not exists "better_supabase"."mail_tracked_links" (
   primary key ("message_id", "position")
 );
 alter table "better_supabase"."mail_tracked_links" enable row level security;
-revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracked_links" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracked_links" to authenticated;
 grant all on "better_supabase"."mail_tracked_links" to service_role;
 create table if not exists "better_supabase"."mail_tracking_events" (
@@ -198,7 +198,7 @@ create table if not exists "better_supabase"."mail_tracking_events" (
 );
 create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "better_supabase"."mail_tracking_events" enable row level security;
-revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracking_events" to authenticated;
 grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
@@ -212,7 +212,7 @@ create table if not exists "better_supabase"."mail_thread_subjects" (
 );
 create index if not exists mail_thread_subjects_subject_idx on "better_supabase"."mail_thread_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."mail_thread_subjects" enable row level security;
-revoke all on "better_supabase"."mail_thread_subjects" from anon, authenticated;
+revoke all on "better_supabase"."mail_thread_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."mail_thread_subjects" to authenticated;
 grant all on "better_supabase"."mail_thread_subjects" to service_role;
 
@@ -1024,7 +1024,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:ac6983ad63af0ff5e48dcca12a7887274e1935e51ebe7a3af4c03c04162465a5
+-- @bsb-hash sha256:a6a93e145f3a0ef7a83adabc0951265862e22189772c28298039e57556d3d971
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1160,7 +1160,7 @@ create table if not exists "better_supabase"."mail_accounts" (
 create index if not exists mail_accounts_user_idx on "better_supabase"."mail_accounts" ("user_id");
 create index if not exists mail_accounts_due_idx on "better_supabase"."mail_accounts" ("last_synced_at" nulls first) where "status" = 'active';
 alter table "better_supabase"."mail_accounts" enable row level security;
-revoke all on "better_supabase"."mail_accounts" from anon, authenticated;
+revoke all on "better_supabase"."mail_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."mail_accounts" to authenticated;
 grant all on "better_supabase"."mail_accounts" to service_role;
 create table if not exists "better_supabase"."mail_threads" (
@@ -1180,7 +1180,7 @@ create table if not exists "better_supabase"."mail_threads" (
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
 create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
-revoke all on "better_supabase"."mail_threads" from anon, authenticated;
+revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
 create table if not exists "better_supabase"."mail_messages" (
@@ -1214,7 +1214,7 @@ create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_mess
 create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
 create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
-revoke all on "better_supabase"."mail_messages" from anon, authenticated;
+revoke all on "better_supabase"."mail_messages" from public, anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
 create table if not exists "better_supabase"."mail_tracked_links" (
@@ -1227,7 +1227,7 @@ create table if not exists "better_supabase"."mail_tracked_links" (
   primary key ("message_id", "position")
 );
 alter table "better_supabase"."mail_tracked_links" enable row level security;
-revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracked_links" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracked_links" to authenticated;
 grant all on "better_supabase"."mail_tracked_links" to service_role;
 create table if not exists "better_supabase"."mail_tracking_events" (
@@ -1241,7 +1241,7 @@ create table if not exists "better_supabase"."mail_tracking_events" (
 );
 create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "better_supabase"."mail_tracking_events" enable row level security;
-revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracking_events" to authenticated;
 grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
@@ -1255,7 +1255,7 @@ create table if not exists "better_supabase"."mail_thread_subjects" (
 );
 create index if not exists mail_thread_subjects_subject_idx on "better_supabase"."mail_thread_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."mail_thread_subjects" enable row level security;
-revoke all on "better_supabase"."mail_thread_subjects" from anon, authenticated;
+revoke all on "better_supabase"."mail_thread_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."mail_thread_subjects" to authenticated;
 grant all on "better_supabase"."mail_thread_subjects" to service_role;
 
@@ -2173,7 +2173,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
@@ -2193,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:d94fb76eab87a1d433fbb20868f1a1073ed27d95101678e963a69974d4f746c4
+-- @bsb-hash sha256:b4062cc56675cf253b2f1ae93f8f2fe636561db1fd7bac001825ade78f75bc16
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2290,6 +2290,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
 -- linked to the people and companies they involve, logged as engagements.
 create table if not exists "app_private"."mail_accounts" (
@@ -2311,7 +2314,7 @@ create table if not exists "app_private"."mail_accounts" (
 create index if not exists mail_accounts_user_idx on "app_private"."mail_accounts" ("user_id");
 create index if not exists mail_accounts_due_idx on "app_private"."mail_accounts" ("last_synced_at" nulls first) where "status" = 'active';
 alter table "app_private"."mail_accounts" enable row level security;
-revoke all on "app_private"."mail_accounts" from anon, authenticated;
+revoke all on "app_private"."mail_accounts" from public, anon, authenticated;
 grant select on "app_private"."mail_accounts" to authenticated;
 grant all on "app_private"."mail_accounts" to service_role;
 create table if not exists "app_private"."mail_threads" (
@@ -2331,7 +2334,7 @@ create table if not exists "app_private"."mail_threads" (
 create index if not exists mail_threads_tenant_recent_idx on "app_private"."mail_threads" ("tenant_id", "last_message_at" desc);
 create index if not exists mail_threads_engagement_idx on "app_private"."mail_threads" ("engagement_id") where "engagement_id" is not null;
 alter table "app_private"."mail_threads" enable row level security;
-revoke all on "app_private"."mail_threads" from anon, authenticated;
+revoke all on "app_private"."mail_threads" from public, anon, authenticated;
 grant select on "app_private"."mail_threads" to authenticated;
 grant all on "app_private"."mail_threads" to service_role;
 create table if not exists "app_private"."mail_messages" (
@@ -2365,7 +2368,7 @@ create index if not exists mail_messages_rfc_idx on "app_private"."mail_messages
 create unique index if not exists mail_messages_tracking_idx on "app_private"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
 create index if not exists mail_messages_template_idx on "app_private"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "app_private"."mail_messages" enable row level security;
-revoke all on "app_private"."mail_messages" from anon, authenticated;
+revoke all on "app_private"."mail_messages" from public, anon, authenticated;
 grant select on "app_private"."mail_messages" to authenticated;
 grant all on "app_private"."mail_messages" to service_role;
 create table if not exists "app_private"."mail_tracked_links" (
@@ -2378,7 +2381,7 @@ create table if not exists "app_private"."mail_tracked_links" (
   primary key ("message_id", "position")
 );
 alter table "app_private"."mail_tracked_links" enable row level security;
-revoke all on "app_private"."mail_tracked_links" from anon, authenticated;
+revoke all on "app_private"."mail_tracked_links" from public, anon, authenticated;
 grant select on "app_private"."mail_tracked_links" to authenticated;
 grant all on "app_private"."mail_tracked_links" to service_role;
 create table if not exists "app_private"."mail_tracking_events" (
@@ -2392,7 +2395,7 @@ create table if not exists "app_private"."mail_tracking_events" (
 );
 create index if not exists mail_tracking_events_message_idx on "app_private"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "app_private"."mail_tracking_events" enable row level security;
-revoke all on "app_private"."mail_tracking_events" from anon, authenticated;
+revoke all on "app_private"."mail_tracking_events" from public, anon, authenticated;
 grant select on "app_private"."mail_tracking_events" to authenticated;
 grant all on "app_private"."mail_tracking_events" to service_role;
 create table if not exists "app_private"."mail_thread_subjects" (
@@ -2406,7 +2409,7 @@ create table if not exists "app_private"."mail_thread_subjects" (
 );
 create index if not exists mail_thread_subjects_subject_idx on "app_private"."mail_thread_subjects" ("subject_type", "subject_id");
 alter table "app_private"."mail_thread_subjects" enable row level security;
-revoke all on "app_private"."mail_thread_subjects" from anon, authenticated;
+revoke all on "app_private"."mail_thread_subjects" from public, anon, authenticated;
 grant select on "app_private"."mail_thread_subjects" to authenticated;
 grant all on "app_private"."mail_thread_subjects" to service_role;
 
@@ -3218,7 +3221,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
@@ -3238,7 +3241,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:f4133e29c3c354e674a37afb2da876e41509ba556ab34add1cde75bed79ebbe9
+-- @bsb-hash sha256:1b483f6de3945be78ee6bbbcac6af08b44b360895408f636d687fdf2b6f0349d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3354,7 +3357,7 @@ create table if not exists "better_supabase"."mail_accounts" (
 create index if not exists mail_accounts_user_idx on "better_supabase"."mail_accounts" ("user_id");
 create index if not exists mail_accounts_due_idx on "better_supabase"."mail_accounts" ("last_synced_at" nulls first) where "status" = 'active';
 alter table "better_supabase"."mail_accounts" enable row level security;
-revoke all on "better_supabase"."mail_accounts" from anon, authenticated;
+revoke all on "better_supabase"."mail_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."mail_accounts" to authenticated;
 grant all on "better_supabase"."mail_accounts" to service_role;
 create table if not exists "better_supabase"."mail_threads" (
@@ -3374,7 +3377,7 @@ create table if not exists "better_supabase"."mail_threads" (
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
 create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
-revoke all on "better_supabase"."mail_threads" from anon, authenticated;
+revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
 create table if not exists "better_supabase"."mail_messages" (
@@ -3408,7 +3411,7 @@ create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_mess
 create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
 create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
-revoke all on "better_supabase"."mail_messages" from anon, authenticated;
+revoke all on "better_supabase"."mail_messages" from public, anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
 create table if not exists "better_supabase"."mail_tracked_links" (
@@ -3421,7 +3424,7 @@ create table if not exists "better_supabase"."mail_tracked_links" (
   primary key ("message_id", "position")
 );
 alter table "better_supabase"."mail_tracked_links" enable row level security;
-revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracked_links" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracked_links" to authenticated;
 grant all on "better_supabase"."mail_tracked_links" to service_role;
 create table if not exists "better_supabase"."mail_tracking_events" (
@@ -3435,7 +3438,7 @@ create table if not exists "better_supabase"."mail_tracking_events" (
 );
 create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "better_supabase"."mail_tracking_events" enable row level security;
-revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracking_events" to authenticated;
 grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
@@ -3449,7 +3452,7 @@ create table if not exists "better_supabase"."mail_thread_subjects" (
 );
 create index if not exists mail_thread_subjects_subject_idx on "better_supabase"."mail_thread_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."mail_thread_subjects" enable row level security;
-revoke all on "better_supabase"."mail_thread_subjects" from anon, authenticated;
+revoke all on "better_supabase"."mail_thread_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."mail_thread_subjects" to authenticated;
 grant all on "better_supabase"."mail_thread_subjects" to service_role;
 
@@ -4436,7 +4439,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
@@ -4456,7 +4459,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:533d533d0a82f5eb0219f78bf34f282f491a2f5c7d5c4532c07df25e166608cf
+-- @bsb-hash sha256:79406fb8d4416ae75568a83d56dc6bb5b4ae39f0aa4528e2792708996a2e5551
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5481,7 +5484,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
@@ -5501,7 +5504,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:01e80f90783d9af9ad9aa692c3fd3159247ff4cafa247670c483c4d4cea29d63
+-- @bsb-hash sha256:916d759b83e6d357ffd3ccf6490bfa07a6024a3f5c60e0e4bd908c08a02375cf
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5617,7 +5620,7 @@ create table if not exists "better_supabase"."mail_accounts" (
 create index if not exists mail_accounts_user_idx on "better_supabase"."mail_accounts" ("user_id");
 create index if not exists mail_accounts_due_idx on "better_supabase"."mail_accounts" ("last_synced_at" nulls first) where "status" = 'active';
 alter table "better_supabase"."mail_accounts" enable row level security;
-revoke all on "better_supabase"."mail_accounts" from anon, authenticated;
+revoke all on "better_supabase"."mail_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."mail_accounts" to authenticated;
 grant all on "better_supabase"."mail_accounts" to service_role;
 create table if not exists "better_supabase"."mail_threads" (
@@ -5637,7 +5640,7 @@ create table if not exists "better_supabase"."mail_threads" (
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("org_id", "last_message_at" desc);
 create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("engagement_id") where "engagement_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
-revoke all on "better_supabase"."mail_threads" from anon, authenticated;
+revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
 create table if not exists "better_supabase"."mail_messages" (
@@ -5671,7 +5674,7 @@ create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_mess
 create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
 create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("org_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
-revoke all on "better_supabase"."mail_messages" from anon, authenticated;
+revoke all on "better_supabase"."mail_messages" from public, anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
 create table if not exists "better_supabase"."mail_tracked_links" (
@@ -5684,7 +5687,7 @@ create table if not exists "better_supabase"."mail_tracked_links" (
   primary key ("message_id", "position")
 );
 alter table "better_supabase"."mail_tracked_links" enable row level security;
-revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracked_links" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracked_links" to authenticated;
 grant all on "better_supabase"."mail_tracked_links" to service_role;
 create table if not exists "better_supabase"."mail_tracking_events" (
@@ -5698,7 +5701,7 @@ create table if not exists "better_supabase"."mail_tracking_events" (
 );
 create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "better_supabase"."mail_tracking_events" enable row level security;
-revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."mail_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."mail_tracking_events" to authenticated;
 grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
@@ -5712,7 +5715,7 @@ create table if not exists "better_supabase"."mail_thread_subjects" (
 );
 create index if not exists mail_thread_subjects_subject_idx on "better_supabase"."mail_thread_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."mail_thread_subjects" enable row level security;
-revoke all on "better_supabase"."mail_thread_subjects" from anon, authenticated;
+revoke all on "better_supabase"."mail_thread_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."mail_thread_subjects" to authenticated;
 grant all on "better_supabase"."mail_thread_subjects" to service_role;
 
@@ -6524,7 +6527,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql

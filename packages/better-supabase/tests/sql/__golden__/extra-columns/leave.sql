@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:36c3bbd48ffe39e3977fb3f1461bf12b990dabca5ad98755f39e1b98fe8186ed
+-- @bsb-hash sha256:6734364a60515fe4f6d6196d0dc3280350acee55e666c69598d9f2687d2187d2
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create table if not exists "better_supabase"."leave_types" (
   unique ("tenant_id", "id")
 );
 alter table "better_supabase"."leave_types" enable row level security;
-revoke all on "better_supabase"."leave_types" from anon, authenticated;
+revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
 drop policy if exists leave_types_read on "better_supabase"."leave_types";
@@ -119,7 +119,7 @@ create index if not exists "leave_requests_dates_idx" on "better_supabase"."leav
 create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
-revoke all on "better_supabase"."leave_requests" from anon, authenticated;
+revoke all on "better_supabase"."leave_requests" from public, anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
 drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
@@ -817,7 +817,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_110_leave.sql

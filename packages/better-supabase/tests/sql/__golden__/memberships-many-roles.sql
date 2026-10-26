@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:c8cc0ed214959fcb5afb189875ecd8ae6f043911dcb963b7f451939edd6103c6
+-- @bsb-hash sha256:5c3df060080908b10f9835866b2af99eacffe2ff13ffff35d408f4312173b809
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -294,7 +294,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- better-supabase module: memberships
@@ -313,7 +313,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:b2735c9d9463cec8b793ebeec644343934ec130460cdee6db88d07d3da83d196
+-- @bsb-hash sha256:648352e102b4cea6b34533a4b057072f7b3212f10b73d398065ce6a21cfce477
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -733,7 +733,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- better-supabase module: permissions
@@ -752,7 +752,7 @@ on conflict (name) do update
 -- ==== organizations
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:4adbf0795a8c5f34a541eceab396905e2e50432b127782749bdae8f45bfd0427
+-- @bsb-hash sha256:37df00507b65ee30a8e213ad4bab1b2fd01c2cf9755c1bc6558961e4d0569a01
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -810,7 +810,7 @@ drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
-revoke all on "better_supabase"."organizations" from anon, authenticated;
+revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
 drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
@@ -1637,7 +1637,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- better-supabase module: organizations
@@ -1656,7 +1656,7 @@ on conflict (name) do update
 -- ==== invitations
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:30e40557452a827d5c825c5beaf5b90ca7304c6edc4c1c0be27c949bbe87fe40
+-- @bsb-hash sha256:c78ac655b1c2d07240208f3f45411d8e95880d243d25b4b7e419de393411cff1
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1747,7 +1747,7 @@ alter table "better_supabase"."invitations"
   add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
-revoke all on "better_supabase"."invitations" from anon, authenticated;
+revoke all on "better_supabase"."invitations" from public, anon, authenticated;
 grant select on "better_supabase"."invitations" to authenticated;
 grant all on "better_supabase"."invitations" to service_role;
 
@@ -2472,7 +2472,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- better-supabase module: invitations

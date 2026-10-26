@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:0dc2e03a9f657e0583b02879b47cee35beee337fa53dde9f3a373b18e3ad1580
+-- @bsb-hash sha256:11c86e8435e7057a403cc776ec15700e218125eb5f24ae39f5bdb1f23332548f
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lea
 create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
 create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from anon, authenticated;
+revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
@@ -125,7 +125,7 @@ create table if not exists "better_supabase"."lease_charges" (
 create index if not exists "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
 create index if not exists "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
 alter table "better_supabase"."lease_charges" enable row level security;
-revoke all on "better_supabase"."lease_charges" from anon, authenticated;
+revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
@@ -633,7 +633,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
@@ -653,7 +653,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:72f4868ea49d70fd1995150e35482dd1b22d18b55f35b764b99972979b681407
+-- @bsb-hash sha256:b0f970307053046c2f8a3b002d154b53b4cf8a8bc8101cdea445d2cd8e63eb69
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -752,7 +752,7 @@ create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lea
 create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
 create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from anon, authenticated;
+revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
@@ -777,7 +777,7 @@ create table if not exists "better_supabase"."lease_charges" (
 create index if not exists "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
 create index if not exists "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
 alter table "better_supabase"."lease_charges" enable row level security;
-revoke all on "better_supabase"."lease_charges" from anon, authenticated;
+revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
@@ -1344,7 +1344,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
@@ -1364,7 +1364,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:bebd3f699c697c904d3a56fafe69bbd2ce0e84db03a1e491e8474c7908cff166
+-- @bsb-hash sha256:601e4200e98f83bddd8ed23c377f722a55feb6dbc27f98b1602f0ff3b5315d54
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1429,6 +1429,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
@@ -1465,7 +1468,7 @@ create index if not exists "lease_agreements_unit_idx" on "app_private"."lease_a
 create index if not exists "lease_agreements_party_idx" on "app_private"."lease_agreements" ("tenant_id", "party_type", "party_id");
 create index if not exists "lease_agreements_deposit_hold_idx" on "app_private"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "app_private"."lease_agreements" enable row level security;
-revoke all on "app_private"."lease_agreements" from anon, authenticated;
+revoke all on "app_private"."lease_agreements" from public, anon, authenticated;
 grant select on "app_private"."lease_agreements" to authenticated;
 grant all on "app_private"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "app_private"."lease_agreements";
@@ -1490,7 +1493,7 @@ create table if not exists "app_private"."lease_charges" (
 create index if not exists "lease_charges_tenant_idx" on "app_private"."lease_charges" ("tenant_id", "period_start" desc);
 create index if not exists "lease_charges_transaction_idx" on "app_private"."lease_charges" ("transaction_id");
 alter table "app_private"."lease_charges" enable row level security;
-revoke all on "app_private"."lease_charges" from anon, authenticated;
+revoke all on "app_private"."lease_charges" from public, anon, authenticated;
 grant select on "app_private"."lease_charges" to authenticated;
 grant all on "app_private"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "app_private"."lease_charges";
@@ -1998,7 +2001,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
@@ -2018,7 +2021,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:d67e4d0a8a90b4b98db625b2c9ecb6735ffac17fca3d604900b4d2f8b4fe81df
+-- @bsb-hash sha256:e0a2ad59db68b866addb4edbcc06b20e6668c3c8dfb9b2a92f4f245e31ad05f9
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2117,7 +2120,7 @@ create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lea
 create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
 create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from anon, authenticated;
+revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
@@ -2142,7 +2145,7 @@ create table if not exists "better_supabase"."lease_charges" (
 create index if not exists "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
 create index if not exists "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
 alter table "better_supabase"."lease_charges" enable row level security;
-revoke all on "better_supabase"."lease_charges" from anon, authenticated;
+revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
@@ -2755,7 +2758,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
@@ -2775,7 +2778,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:329028b7f8067c454f2f5d3f71ccdf21717dca14d3c7469259b3e2e321b02556
+-- @bsb-hash sha256:8a66267d9249a5c9a96402949c6bd0da4f89cda5abc94eee46a2390d054e1322
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3413,7 +3416,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
@@ -3433,7 +3436,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:630c9841cab4bc68a37a93f5d1c010e97fabb4439cd0253465cd89c5ae611003
+-- @bsb-hash sha256:2f3e322fa9d894971568a68d0d10623887fcb2a64c7063fd5f5dc960f7d00103
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3532,7 +3535,7 @@ create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lea
 create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("org_id", "party_type", "party_id");
 create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from anon, authenticated;
+revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
 grant select on "better_supabase"."lease_agreements" to authenticated;
 grant all on "better_supabase"."lease_agreements" to service_role;
 drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
@@ -3557,7 +3560,7 @@ create table if not exists "better_supabase"."lease_charges" (
 create index if not exists "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("org_id", "period_start" desc);
 create index if not exists "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
 alter table "better_supabase"."lease_charges" enable row level security;
-revoke all on "better_supabase"."lease_charges" from anon, authenticated;
+revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
 drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
@@ -4065,7 +4068,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_120_leases.sql

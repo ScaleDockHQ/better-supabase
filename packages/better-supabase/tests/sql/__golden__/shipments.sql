@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:aceae3229a053fca431aac923b6f2c32bafe44e049c7605d82bdf1db947354d0
+-- @bsb-hash sha256:5f6b7f7f2506656f84455efb8213e12d2884cb9eedd851a5afee603a40c1233b
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create unique index if not exists "shipments_tracking_key" on "better_supabase".
 create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
-revoke all on "better_supabase"."shipments" from anon, authenticated;
+revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
 drop policy if exists "shipments_read" on "better_supabase"."shipments";
@@ -132,7 +132,7 @@ create table if not exists "better_supabase"."shipment_packages" (
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
-revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
@@ -156,7 +156,7 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 );
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
-revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
@@ -633,7 +633,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
@@ -653,7 +653,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:1ecd6c14709545f6626b72bb86b7c19e390134ad5f208e51ff79d2e58a0f174c
+-- @bsb-hash sha256:c4e765cadab2d0fe64f3785316bc10ae11fe41af9e51db8e40ca5da306ed39d0
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -764,7 +764,7 @@ create unique index if not exists "shipments_tracking_key" on "better_supabase".
 create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
-revoke all on "better_supabase"."shipments" from anon, authenticated;
+revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
 drop policy if exists "shipments_read" on "better_supabase"."shipments";
@@ -784,7 +784,7 @@ create table if not exists "better_supabase"."shipment_packages" (
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
-revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
@@ -808,7 +808,7 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 );
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
-revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
@@ -1335,7 +1335,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
@@ -1355,7 +1355,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:b71a3404bcdb461ff3ff92ac16d8660bdfab034fe79cfd01c500bad269f61617
+-- @bsb-hash sha256:b5976a5591c7d12b8e82f169fda888c3d56595cbdea5ddfb99aa5a44a36b148f
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1428,6 +1428,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Shipments: packages, addresses, carrier labels and a tracking timeline
 -- whose latest event sets the shipment's status.
 
@@ -1468,7 +1471,7 @@ create unique index if not exists "shipments_tracking_key" on "app_private"."shi
 create index if not exists "shipments_subject_idx" on "app_private"."shipments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "shipments_location_idx" on "app_private"."shipments" ("from_location_id");
 alter table "app_private"."shipments" enable row level security;
-revoke all on "app_private"."shipments" from anon, authenticated;
+revoke all on "app_private"."shipments" from public, anon, authenticated;
 grant select on "app_private"."shipments" to authenticated;
 grant all on "app_private"."shipments" to service_role;
 drop policy if exists "shipments_read" on "app_private"."shipments";
@@ -1488,7 +1491,7 @@ create table if not exists "app_private"."shipment_packages" (
   unique ("shipment_id", "position")
 );
 alter table "app_private"."shipment_packages" enable row level security;
-revoke all on "app_private"."shipment_packages" from anon, authenticated;
+revoke all on "app_private"."shipment_packages" from public, anon, authenticated;
 grant select on "app_private"."shipment_packages" to authenticated;
 grant all on "app_private"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "app_private"."shipment_packages";
@@ -1512,7 +1515,7 @@ create table if not exists "app_private"."shipment_tracking_events" (
 );
 create index if not exists "shipment_tracking_events_timeline_idx" on "app_private"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "app_private"."shipment_tracking_events" enable row level security;
-revoke all on "app_private"."shipment_tracking_events" from anon, authenticated;
+revoke all on "app_private"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "app_private"."shipment_tracking_events" to authenticated;
 grant all on "app_private"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "app_private"."shipment_tracking_events";
@@ -1989,7 +1992,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
@@ -2009,7 +2012,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:05a4246df9d1c9c6e2d1b24d45d25d9c2d905c7a3d9daeed7add79f2cb2741c1
+-- @bsb-hash sha256:afc9e90d6d2ad4860ecaaaf6c160791b0a09994a2fd69964209bb37cddde5b0b
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2120,7 +2123,7 @@ create unique index if not exists "shipments_tracking_key" on "better_supabase".
 create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
-revoke all on "better_supabase"."shipments" from anon, authenticated;
+revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
 drop policy if exists "shipments_read" on "better_supabase"."shipments";
@@ -2140,7 +2143,7 @@ create table if not exists "better_supabase"."shipment_packages" (
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
-revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
@@ -2164,7 +2167,7 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 );
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
-revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
@@ -2737,7 +2740,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
@@ -2757,7 +2760,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:f3a29e79edb05f4e088ab29b0f6c48a6c52e02e2f9eb9063a4466e22ad2f185b
+-- @bsb-hash sha256:02ad3e3db37e1a7fd6e8588b6e2e8120ee9535171c89bdee145966c166599ce6
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3395,7 +3398,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
@@ -3415,7 +3418,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@1 managed
--- @bsb-hash sha256:6e9794287ebc32b61453e112880eb842bf84d7e884c85bf82a00fb33b5fa08e2
+-- @bsb-hash sha256:82a0a36d956a75b7155504bbec23686601ea2df298e61e46fe486e4ed15dd629
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3526,7 +3529,7 @@ create unique index if not exists "shipments_tracking_key" on "better_supabase".
 create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("org_id", "subject_type", "subject_id");
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
-revoke all on "better_supabase"."shipments" from anon, authenticated;
+revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
 drop policy if exists "shipments_read" on "better_supabase"."shipments";
@@ -3546,7 +3549,7 @@ create table if not exists "better_supabase"."shipment_packages" (
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
-revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
 drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
@@ -3570,7 +3573,7 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 );
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
-revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
 drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
@@ -4047,7 +4050,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_124_shipments.sql

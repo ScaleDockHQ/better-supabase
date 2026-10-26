@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@9 managed
--- @bsb-hash sha256:5ffd22729d49eebcccd3e964f594f41ff1c9c59f73b45b4115bee4ae1ccb4191
+-- @bsb-hash sha256:8d3720f55393ce0dff1d40d535876f35b174a59b6c3f5127f8fe391b64abde3f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ alter table "better_supabase"."audited_tables" add column if not exists "target_
 alter table "better_supabase"."audited_tables" add column if not exists "tenant_column" text;
 alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
-revoke all on "better_supabase"."audited_tables" from anon, authenticated;
+revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
 
 -- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
@@ -1248,5 +1248,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

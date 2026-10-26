@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:d4c006ae30a794b78ad6c73befdda31c7126ab95ea60171530e56ffc7e1adb47
+-- @bsb-hash sha256:3e59da1c882cadce4277134de8bb135dba30d9688d08c5e5b846644baeb28984
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,7 @@ alter table "better_supabase"."billing_customers" alter column "stripe_customer_
 alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
-revoke all on "better_supabase"."billing_customers" from anon, authenticated;
+revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 drop policy if exists billing_customers_read on "better_supabase"."billing_customers";
@@ -695,7 +695,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
@@ -715,7 +715,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:ecb51943e38c3046c4c32a2126f04adf23213ea3b425dd9bcb3a6113c20569a7
+-- @bsb-hash sha256:280d2af93b7360da24bae9109ffaca563fdb99462258008821e315190b4503fd
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -751,7 +751,7 @@ alter table "better_supabase"."billing_customers" alter column "stripe_customer_
 alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
-revoke all on "better_supabase"."billing_customers" from anon, authenticated;
+revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 do $$
@@ -1444,7 +1444,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
@@ -1464,7 +1464,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:ea95bcc9ad9b13e6c017456017583e9119e0d638de406bf1b19ebe4c7f836a55
+-- @bsb-hash sha256:eb75c7d69c022cf7dcd261eac9ade4334404834d78fa4c798146b55a586f9df0
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1487,6 +1487,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -1502,7 +1505,7 @@ alter table "app_private"."billing_customers" alter column "stripe_customer_id" 
 alter table "app_private"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "app_private"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "app_private"."billing_customers" enable row level security;
-revoke all on "app_private"."billing_customers" from anon, authenticated;
+revoke all on "app_private"."billing_customers" from public, anon, authenticated;
 grant select on "app_private"."billing_customers" to authenticated;
 grant all on "app_private"."billing_customers" to service_role;
 drop policy if exists billing_customers_read on "app_private"."billing_customers";
@@ -2160,7 +2163,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
@@ -2180,7 +2183,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:02d59fc5474bb19edb983649be7c908af4e51d9028d7ad2c6fdab36d55ebb973
+-- @bsb-hash sha256:0614895ab0278bcc7329e95a1a923df3f5e8379fb15deaf82565b51c1fcabb93
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2216,7 +2219,7 @@ alter table "better_supabase"."billing_customers" alter column "stripe_customer_
 alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
-revoke all on "better_supabase"."billing_customers" from anon, authenticated;
+revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 drop policy if exists billing_customers_read on "better_supabase"."billing_customers";
@@ -3117,7 +3120,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
@@ -3137,7 +3140,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:a877e744eda18cf7e9993f57bea8c08f8a3d307f5c8bedf0eb8c064339b7af67
+-- @bsb-hash sha256:85f5111b112ffb3769c60d3731c918f836724e03290701744c488e13ceb6ad01
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3826,7 +3829,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
@@ -3846,7 +3849,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@3 managed
--- @bsb-hash sha256:68d31a05c081b2974b786fd0a6fa6db9fdf862a1431df213b834aac5eaabeb89
+-- @bsb-hash sha256:33de526d42cfb8f5ec03d15959bf142302b78732383767de80126cbe9306c830
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3882,7 +3885,7 @@ alter table "better_supabase"."billing_customers" alter column "stripe_customer_
 alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
-revoke all on "better_supabase"."billing_customers" from anon, authenticated;
+revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 drop policy if exists billing_customers_read on "better_supabase"."billing_customers";
@@ -4540,7 +4543,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_031_billing.sql

@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@2 managed
--- @bsb-hash sha256:3a8521394a2d17799e78663c0fb16687b9c41918db8e9d04750f02cbf41e1b97
+-- @bsb-hash sha256:291fabc4b636cc0db3c190545062a8c750263d04c172bb918a15634b41624ed4
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.records type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,7 +65,7 @@ create table if not exists "better_supabase"."status_history" (
 );
 create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
-revoke all on "better_supabase"."status_history" from anon, authenticated;
+revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."status_stages" (
 );
 create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
-revoke all on "better_supabase"."status_stages" from anon, authenticated;
+revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
@@ -115,7 +115,7 @@ create table if not exists "better_supabase"."subject_lifecycles" (
 );
 create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
-revoke all on "better_supabase"."subject_lifecycles" from anon, authenticated;
+revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
@@ -572,5 +572,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

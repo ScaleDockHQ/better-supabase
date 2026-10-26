@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:13b0241f31a9515cf009f50fbc5f237b67b89813c3614682bfde0edf13f16025
+-- @bsb-hash sha256:98feacc162cecd397ddfed4aa6cc2abc8b227944d371f842fe80a7d7bd5eb12d
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ alter table "better_supabase"."announcements" add constraint bsb_announcements_a
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
-revoke all on "better_supabase"."announcements" from anon, authenticated;
+revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
 create table if not exists "better_supabase"."announcement_dismissals" (
@@ -80,7 +80,7 @@ create table if not exists "better_supabase"."announcement_dismissals" (
 );
 create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
-revoke all on "better_supabase"."announcement_dismissals" from anon, authenticated;
+revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
 
 -- The caller's live, undismissed announcements, newest first. Pass the
@@ -301,7 +301,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_039_announcements.sql

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:c420d656f507ca9da01e4010b1851e9ab07023ed22e08363c8f31ca3b3626ac7
+-- @bsb-hash sha256:f22f26c49e2adc459ebb97f985503fc2ab9dd2994c676ae19c9a6b310e14b578
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ create table if not exists "better_supabase"."booking_resources" (
 alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
 alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
-revoke all on "better_supabase"."booking_resources" from anon, authenticated;
+revoke all on "better_supabase"."booking_resources" from public, anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
@@ -124,7 +124,7 @@ create table if not exists "better_supabase"."booking_availability" (
 );
 create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
-revoke all on "better_supabase"."booking_availability" from anon, authenticated;
+revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
 drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
@@ -141,7 +141,7 @@ create table if not exists "better_supabase"."booking_exceptions" (
 );
 create index if not exists booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
 alter table "better_supabase"."booking_exceptions" enable row level security;
-revoke all on "better_supabase"."booking_exceptions" from anon, authenticated;
+revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
 drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
@@ -164,7 +164,7 @@ create table if not exists "better_supabase"."booking_services" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."booking_services" enable row level security;
-revoke all on "better_supabase"."booking_services" from anon, authenticated;
+revoke all on "better_supabase"."booking_services" from public, anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
@@ -206,7 +206,7 @@ create index if not exists bookings_resource_idx on "better_supabase"."bookings"
 create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
-revoke all on "better_supabase"."bookings" from anon, authenticated;
+revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
@@ -912,7 +912,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
@@ -934,7 +934,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:8527e614f6e8bd477925eb12d9ae158684a5c37ec91cbae893cc41167a4523ce
+-- @bsb-hash sha256:3596e83fe75980c55c21f2f99124f852bfca803922c74d3d3210d135d5605f8e
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1038,7 +1038,7 @@ create table if not exists "better_supabase"."booking_resources" (
 alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
 alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
-revoke all on "better_supabase"."booking_resources" from anon, authenticated;
+revoke all on "better_supabase"."booking_resources" from public, anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
@@ -1057,7 +1057,7 @@ create table if not exists "better_supabase"."booking_availability" (
 );
 create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
-revoke all on "better_supabase"."booking_availability" from anon, authenticated;
+revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
 drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
@@ -1074,7 +1074,7 @@ create table if not exists "better_supabase"."booking_exceptions" (
 );
 create index if not exists booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
 alter table "better_supabase"."booking_exceptions" enable row level security;
-revoke all on "better_supabase"."booking_exceptions" from anon, authenticated;
+revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
 drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
@@ -1097,7 +1097,7 @@ create table if not exists "better_supabase"."booking_services" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."booking_services" enable row level security;
-revoke all on "better_supabase"."booking_services" from anon, authenticated;
+revoke all on "better_supabase"."booking_services" from public, anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
@@ -1139,7 +1139,7 @@ create index if not exists bookings_resource_idx on "better_supabase"."bookings"
 create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
-revoke all on "better_supabase"."bookings" from anon, authenticated;
+revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
@@ -2090,7 +2090,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
@@ -2112,7 +2112,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:28b52be9028c866ab35ebd796c8683b7c5294d484f88c0847e582e06139cffb7
+-- @bsb-hash sha256:0272e49d3aba41068d6b769568908dda34c8ccf0e7edd70fed529388fa0f2e54
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2201,6 +2201,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists btree_gist with schema extensions;
 create table if not exists "app_private"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2218,7 +2221,7 @@ create table if not exists "app_private"."booking_resources" (
 alter table "app_private"."booking_resources" add column if not exists "host_user_id" uuid;
 alter table "app_private"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "app_private"."booking_resources" enable row level security;
-revoke all on "app_private"."booking_resources" from anon, authenticated;
+revoke all on "app_private"."booking_resources" from public, anon, authenticated;
 grant select on "app_private"."booking_resources" to authenticated;
 grant all on "app_private"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "app_private"."booking_resources" ("tenant_id");
@@ -2237,7 +2240,7 @@ create table if not exists "app_private"."booking_availability" (
 );
 create index if not exists booking_availability_resource_idx on "app_private"."booking_availability" ("resource_id", "weekday");
 alter table "app_private"."booking_availability" enable row level security;
-revoke all on "app_private"."booking_availability" from anon, authenticated;
+revoke all on "app_private"."booking_availability" from public, anon, authenticated;
 grant select on "app_private"."booking_availability" to authenticated;
 grant all on "app_private"."booking_availability" to service_role;
 drop policy if exists booking_availability_read on "app_private"."booking_availability";
@@ -2254,7 +2257,7 @@ create table if not exists "app_private"."booking_exceptions" (
 );
 create index if not exists booking_exceptions_resource_idx on "app_private"."booking_exceptions" using gist ("resource_id", "during");
 alter table "app_private"."booking_exceptions" enable row level security;
-revoke all on "app_private"."booking_exceptions" from anon, authenticated;
+revoke all on "app_private"."booking_exceptions" from public, anon, authenticated;
 grant select on "app_private"."booking_exceptions" to authenticated;
 grant all on "app_private"."booking_exceptions" to service_role;
 drop policy if exists booking_exceptions_read on "app_private"."booking_exceptions";
@@ -2277,7 +2280,7 @@ create table if not exists "app_private"."booking_services" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."booking_services" enable row level security;
-revoke all on "app_private"."booking_services" from anon, authenticated;
+revoke all on "app_private"."booking_services" from public, anon, authenticated;
 grant select on "app_private"."booking_services" to authenticated;
 grant all on "app_private"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "app_private"."booking_services" ("tenant_id");
@@ -2319,7 +2322,7 @@ create index if not exists bookings_resource_idx on "app_private"."bookings" ("r
 create index if not exists bookings_service_idx on "app_private"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "app_private"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "app_private"."bookings" enable row level security;
-revoke all on "app_private"."bookings" from anon, authenticated;
+revoke all on "app_private"."bookings" from public, anon, authenticated;
 grant select on "app_private"."bookings" to authenticated;
 grant all on "app_private"."bookings" to service_role;
 drop policy if exists bookings_read on "app_private"."bookings";
@@ -3025,7 +3028,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
@@ -3047,7 +3050,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:e0a34da244154b6a66c442e4b6a6779b9a2f7ba89bc5ada90028eb246edb4b46
+-- @bsb-hash sha256:95d4c40721d1f119c07c9ecde2ed30c95f49c97bb8875e009cfe07b984e0cade
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3151,7 +3154,7 @@ create table if not exists "better_supabase"."booking_resources" (
 alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
 alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
-revoke all on "better_supabase"."booking_resources" from anon, authenticated;
+revoke all on "better_supabase"."booking_resources" from public, anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
@@ -3170,7 +3173,7 @@ create table if not exists "better_supabase"."booking_availability" (
 );
 create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
-revoke all on "better_supabase"."booking_availability" from anon, authenticated;
+revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
 drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
@@ -3187,7 +3190,7 @@ create table if not exists "better_supabase"."booking_exceptions" (
 );
 create index if not exists booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
 alter table "better_supabase"."booking_exceptions" enable row level security;
-revoke all on "better_supabase"."booking_exceptions" from anon, authenticated;
+revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
 drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
@@ -3210,7 +3213,7 @@ create table if not exists "better_supabase"."booking_services" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."booking_services" enable row level security;
-revoke all on "better_supabase"."booking_services" from anon, authenticated;
+revoke all on "better_supabase"."booking_services" from public, anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
@@ -3252,7 +3255,7 @@ create index if not exists bookings_resource_idx on "better_supabase"."bookings"
 create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
-revoke all on "better_supabase"."bookings" from anon, authenticated;
+revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
@@ -4115,7 +4118,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
@@ -4137,7 +4140,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:a988e53c974ecca2359190713036c1db080e37ea5aa5e4176b649490c30dd9d4
+-- @bsb-hash sha256:c9ca6ebcc22548884d9f49004a41403e7d929a35bb1d10aeadb55709025b6c91
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5046,7 +5049,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
@@ -5068,7 +5071,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:4d9f75806722892676714835b11cd1b8352a69a0259f4df75637b87753c78cbd
+-- @bsb-hash sha256:85d224b48c3d01343b7d94dd5662fe3119d97ea36819998cf5567be2a76107e5
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5172,7 +5175,7 @@ create table if not exists "better_supabase"."booking_resources" (
 alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
 alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
-revoke all on "better_supabase"."booking_resources" from anon, authenticated;
+revoke all on "better_supabase"."booking_resources" from public, anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("org_id");
@@ -5191,7 +5194,7 @@ create table if not exists "better_supabase"."booking_availability" (
 );
 create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
-revoke all on "better_supabase"."booking_availability" from anon, authenticated;
+revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
 drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
@@ -5208,7 +5211,7 @@ create table if not exists "better_supabase"."booking_exceptions" (
 );
 create index if not exists booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
 alter table "better_supabase"."booking_exceptions" enable row level security;
-revoke all on "better_supabase"."booking_exceptions" from anon, authenticated;
+revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
 drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
@@ -5231,7 +5234,7 @@ create table if not exists "better_supabase"."booking_services" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."booking_services" enable row level security;
-revoke all on "better_supabase"."booking_services" from anon, authenticated;
+revoke all on "better_supabase"."booking_services" from public, anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("org_id");
@@ -5273,7 +5276,7 @@ create index if not exists bookings_resource_idx on "better_supabase"."bookings"
 create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
-revoke all on "better_supabase"."bookings" from anon, authenticated;
+revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
@@ -5979,7 +5982,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql

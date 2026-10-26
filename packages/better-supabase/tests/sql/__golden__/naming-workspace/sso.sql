@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:936d67a896f1b8bff1f7f7cc2e032c3b231fd683bd29428974316331715c28c5
+-- @bsb-hash sha256:14c3c85070934b73e781d6d3237b1d14311673dd9698a1bcf1eb796da9090d4b
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,7 +101,7 @@ create table if not exists "better_supabase"."workspace_domains" (
 create unique index if not exists workspace_domains_verified_idx on "better_supabase"."workspace_domains" ("domain") where "verified_at" is not null;
 create index if not exists workspace_domains_created_by_idx on "better_supabase"."workspace_domains" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."workspace_domains" enable row level security;
-revoke all on "better_supabase"."workspace_domains" from anon, authenticated;
+revoke all on "better_supabase"."workspace_domains" from public, anon, authenticated;
 grant all on "better_supabase"."workspace_domains" to service_role;
 
 -- SAML identity providers registered with Supabase Auth for an organization.
@@ -115,7 +115,7 @@ create table if not exists "better_supabase"."workspace_sso_providers" (
 );
 create index if not exists workspace_sso_providers_tenant_idx on "better_supabase"."workspace_sso_providers" ("workspace_id");
 alter table "better_supabase"."workspace_sso_providers" enable row level security;
-revoke all on "better_supabase"."workspace_sso_providers" from anon, authenticated;
+revoke all on "better_supabase"."workspace_sso_providers" from public, anon, authenticated;
 grant all on "better_supabase"."workspace_sso_providers" to service_role;
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
@@ -143,7 +143,7 @@ create unique index if not exists scim_users_user_idx on "better_supabase"."scim
 create index if not exists scim_users_email_idx on "better_supabase"."scim_users" ("email") where "user_id" is null;
 create index if not exists scim_users_account_idx on "better_supabase"."scim_users" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."scim_users" enable row level security;
-revoke all on "better_supabase"."scim_users" from anon, authenticated;
+revoke all on "better_supabase"."scim_users" from public, anon, authenticated;
 grant all on "better_supabase"."scim_users" to service_role;
 
 create table if not exists "better_supabase"."scim_groups" (
@@ -159,7 +159,7 @@ create table if not exists "better_supabase"."scim_groups" (
 create unique index if not exists scim_groups_display_name_idx on "better_supabase"."scim_groups" ("workspace_id", lower("display_name"));
 create unique index if not exists scim_groups_external_id_idx on "better_supabase"."scim_groups" ("workspace_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."scim_groups" enable row level security;
-revoke all on "better_supabase"."scim_groups" from anon, authenticated;
+revoke all on "better_supabase"."scim_groups" from public, anon, authenticated;
 grant all on "better_supabase"."scim_groups" to service_role;
 
 create table if not exists "better_supabase"."scim_group_members" (
@@ -169,7 +169,7 @@ create table if not exists "better_supabase"."scim_group_members" (
 );
 create index if not exists scim_group_members_member_idx on "better_supabase"."scim_group_members" ("scim_user_id");
 alter table "better_supabase"."scim_group_members" enable row level security;
-revoke all on "better_supabase"."scim_group_members" from anon, authenticated;
+revoke all on "better_supabase"."scim_group_members" from public, anon, authenticated;
 grant all on "better_supabase"."scim_group_members" to service_role;
 
 -- The role a SCIM group grants: groupRoles by name, else a group named
@@ -976,7 +976,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_036_sso.sql

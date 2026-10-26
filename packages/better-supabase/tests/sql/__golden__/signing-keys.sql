@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:aac43c981b9fad400421d1858ddf84f319c0f906ceaf8a1de3f95bdcb5229bfd
+-- @bsb-hash sha256:f0cabfa2916fed55f6c27424b91ba5c557072d65825a829c7a160bb7a9ac02d0
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,7 @@ create table if not exists "better_supabase"."signing_keys" (
 create unique index if not exists signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
 create index if not exists signing_keys_owner_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
 alter table "better_supabase"."signing_keys" enable row level security;
-revoke all on "better_supabase"."signing_keys" from anon, authenticated;
+revoke all on "better_supabase"."signing_keys" from public, anon, authenticated;
 grant all on "better_supabase"."signing_keys" to service_role;
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
@@ -243,7 +243,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_104_signing_keys.sql
@@ -263,7 +263,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:823cfff2a18fb7bf4700162222dcd5ea26ade8b03a419e501131767d2362158e
+-- @bsb-hash sha256:30e1c6b01c46456493a1619171ebee811804b3e725cf2c9a308a390331945c96
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -289,7 +289,7 @@ create table if not exists "better_supabase"."signing_keys" (
 create unique index if not exists signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
 create index if not exists signing_keys_owner_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
 alter table "better_supabase"."signing_keys" enable row level security;
-revoke all on "better_supabase"."signing_keys" from anon, authenticated;
+revoke all on "better_supabase"."signing_keys" from public, anon, authenticated;
 grant all on "better_supabase"."signing_keys" to service_role;
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
@@ -526,7 +526,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_104_signing_keys.sql
@@ -546,7 +546,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:804f3901e4d346194fc73dd29083cde8f931278967dc802dcedcff2acc21bc49
+-- @bsb-hash sha256:47f42682061908324ff9cd5cca5985a938adf7b6575a30454a2db576f4eeb1ed
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,6 +555,9 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Asymmetric signing keys per owner (a tenant, an app, a stream): the public
 -- JWK here, the private JWK in Vault. One key per owner is active; a retired
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
@@ -574,7 +577,7 @@ create table if not exists "app_private"."signing_keys" (
 create unique index if not exists signing_keys_active_idx on "app_private"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
 create index if not exists signing_keys_owner_idx on "app_private"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
 alter table "app_private"."signing_keys" enable row level security;
-revoke all on "app_private"."signing_keys" from anon, authenticated;
+revoke all on "app_private"."signing_keys" from public, anon, authenticated;
 grant all on "app_private"."signing_keys" to service_role;
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
@@ -790,7 +793,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_104_signing_keys.sql
@@ -810,7 +813,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:0db4b03b9f0e1a5f424a0fa7d23e91f95dc0d514d160fe46a9ca2a2de1583eb0
+-- @bsb-hash sha256:f6567405a4998a3a5d7311a408cfafc7c88b3ad85b88ddb9d684ebfea172685c
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -836,7 +839,7 @@ create table if not exists "better_supabase"."signing_keys" (
 create unique index if not exists signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
 create index if not exists signing_keys_owner_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
 alter table "better_supabase"."signing_keys" enable row level security;
-revoke all on "better_supabase"."signing_keys" from anon, authenticated;
+revoke all on "better_supabase"."signing_keys" from public, anon, authenticated;
 grant all on "better_supabase"."signing_keys" to service_role;
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
@@ -1119,7 +1122,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_104_signing_keys.sql
@@ -1139,7 +1142,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:c86c45b4e8a4c84457d6c9d986714e145ff2c6ac98990bbfd6caa71e4710bbf4
+-- @bsb-hash sha256:13fdc4a09fdbbb9463d7abb39bdb13b3583fbd981f03a3d08c38ab193515a8b9
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1394,7 +1397,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_104_signing_keys.sql

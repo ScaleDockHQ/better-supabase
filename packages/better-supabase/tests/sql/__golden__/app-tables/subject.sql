@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:5a2b8d7332cc802293889423e48e4a15f8f511e38494d953cd98b89f5590a74a
+-- @bsb-hash sha256:4f352fb02dde889ffb6abfbdc64da6f2ba2905b0b73cfb09306a026bee1cb93e
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -54,7 +54,7 @@ alter table "public"."projects" add column if not exists "rank" text collate "C"
 alter table "public"."projects" add column if not exists "deleted_at" timestamptz;
 
 alter table "public"."projects" enable row level security;
-revoke all on "public"."projects" from anon, authenticated;
+revoke all on "public"."projects" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."projects" to authenticated;
 grant all on "public"."projects" to service_role;
 drop policy if exists projects_select on "public"."projects";

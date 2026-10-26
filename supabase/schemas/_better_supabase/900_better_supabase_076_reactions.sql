@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:66332096376d47db49c17cf6fe2b747dbef711eefa972f76bbb1788b1b390301
+-- @bsb-hash sha256:f1d9b5fe0ae640204c024a12750026ea568602a1a4966b7964c2982882e27b3f
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,7 @@ create table if not exists "better_supabase"."reaction_scores" (
 );
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
-revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
@@ -123,7 +123,7 @@ create table if not exists "better_supabase"."custom_emoji" (
   check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
-revoke all on "better_supabase"."custom_emoji" from anon, authenticated;
+revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
 drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
@@ -838,5 +838,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

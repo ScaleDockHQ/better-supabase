@@ -1,6 +1,6 @@
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:92b7e5811e5c1ccbaf2633222d49c09892a75730589a20567351e754f2b25e94
+-- @bsb-hash sha256:c965048271b4078dff1007bcc0e47677ea4c3cc6eb090eac635f4ff1362ba913
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -270,5 +270,5 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;

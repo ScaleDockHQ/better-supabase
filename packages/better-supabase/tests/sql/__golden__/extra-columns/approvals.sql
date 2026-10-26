@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:8dcf90e4232fda283fa7c1828168bf0840af83e7cf4c89cea00c38f420c80743
+-- @bsb-hash sha256:a7d092fd94c4fa00939a7df6288418b4c383f773b27be1fc95864c59ea49d75f
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create unique index if not exists "approval_requests_pending_idx" on "better_sup
 create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" add column if not exists "app_note" text;
 alter table "better_supabase"."approval_requests" enable row level security;
-revoke all on "better_supabase"."approval_requests" from anon, authenticated;
+revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."approval_decisions" (
 );
 create index if not exists "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "better_supabase"."approval_decisions" enable row level security;
-revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
+revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
 drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
@@ -659,7 +659,7 @@ create table if not exists better_supabase.blocks (
   updated_at timestamptz not null default now()
 );
 alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from anon, authenticated;
+revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
