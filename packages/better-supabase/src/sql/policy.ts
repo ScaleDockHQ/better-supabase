@@ -149,33 +149,52 @@ export interface MaskOptions {
   readonly dollarBodies?: "mask" | "scan";
 }
 
+const DOLLAR_TAG = /\$(?:[A-Za-z_]\w*)?\$/y;
+
 /**
  * `sql` with the text of comments, string literals, dollar-quoted bodies and
  * quoted identifiers blanked, so a scan for keywords and parentheses can't
  * match inside them. Offsets stay the same; line breaks stay.
  */
 export function maskSql(sql: string, options: MaskOptions = {}): string {
-  const out = sql.split("");
-  let at = 0;
+  const special =
+    options.dollarBodies === "scan" ? /--|\/\*|['"]/g : /--|\/\*|['"$]/g;
+
+  const parts: string[] = [];
+  let copied = 0;
 
   const blank = (from: number, to: number, fill = " "): void => {
-    for (let index = from; index < to && index < out.length; index += 1) {
-      if (out[index] !== "\n") {
-        out[index] = fill;
-      }
+    const stop = Math.min(to, sql.length);
+
+    if (from < stop) {
+      parts.push(
+        sql.slice(copied, from),
+        sql.slice(from, stop).replaceAll(/[^\n]/g, fill),
+      );
+      copied = stop;
     }
   };
 
-  while (at < sql.length) {
-    const char = sql[at];
+  let at = 0;
 
-    if (sql.startsWith("--", at)) {
+  while (at < sql.length) {
+    special.lastIndex = at;
+    const match = special.exec(sql);
+
+    if (match === null) {
+      break;
+    }
+
+    at = match.index;
+    const token = match[0];
+
+    if (token === "--") {
       const end = sql.indexOf("\n", at);
       const stop = end === -1 ? sql.length : end;
 
       blank(at, stop);
       at = stop;
-    } else if (sql.startsWith("/*", at)) {
+    } else if (token === "/*") {
       let depth = 1;
       let end = at + 2;
 
@@ -193,7 +212,7 @@ export function maskSql(sql: string, options: MaskOptions = {}): string {
 
       blank(at, end);
       at = end;
-    } else if (char === "'") {
+    } else if (token === "'") {
       const escaped =
         /[eE]/.test(sql[at - 1] ?? "") && !/\w/.test(sql[at - 2] ?? " ");
 
@@ -213,7 +232,7 @@ export function maskSql(sql: string, options: MaskOptions = {}): string {
 
       blank(at + 1, end);
       at = Math.min(end + 1, sql.length);
-    } else if (char === '"') {
+    } else if (token === '"') {
       let end = at + 1;
 
       while (end < sql.length) {
@@ -228,24 +247,25 @@ export function maskSql(sql: string, options: MaskOptions = {}): string {
 
       blank(at + 1, end, "_");
       at = Math.min(end + 1, sql.length);
-    } else if (char === "$" && options.dollarBodies !== "scan") {
-      const tag = /^\$(?:[A-Za-z_]\w*)?\$/.exec(sql.slice(at))?.[0];
+    } else {
+      DOLLAR_TAG.lastIndex = at;
+      const tag = DOLLAR_TAG.exec(sql)?.[0];
 
       if (tag !== undefined && !/\w/.test(sql[at - 1] ?? " ")) {
         const close = sql.indexOf(tag, at + tag.length);
-        const end = close === -1 ? sql.length : close;
+        const stop = close === -1 ? sql.length : close;
 
-        blank(at + tag.length, end);
-        at = Math.min(end + tag.length, sql.length);
+        blank(at + tag.length, stop);
+        at = Math.min(stop + tag.length, sql.length);
       } else {
         at += 1;
       }
-    } else {
-      at += 1;
     }
   }
 
-  return out.join("");
+  parts.push(sql.slice(copied));
+
+  return parts.join("");
 }
 
 /**
