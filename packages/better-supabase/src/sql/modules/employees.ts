@@ -80,7 +80,12 @@ const NAMES: BlockSqlNames = {
     "before_employee_offboard",
     "after_employee_offboard",
   ],
-  options: ["employmentTypes", "extraColumns"],
+  options: [
+    "employmentTypes",
+    "extraColumns",
+    "privateDetailsExtraColumns",
+    "contractExtraColumns",
+  ],
   tables: {
     employees: {
       name: "employees",
@@ -246,7 +251,7 @@ create table if not exists ${t("privateDetails")} (
   ${p("anonymizedAt")} timestamptz,
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
-);
+);${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
 create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;
 ${lockTable(t("privateDetails"), { read: true })}
 drop policy if exists ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")};
@@ -270,7 +275,7 @@ create table if not exists ${t("contracts")} (
   ${k("createdAt")} timestamptz not null default now(),
   check (${k("endsOn")} is null or ${k("endsOn")} >= ${k("startsOn")}),
   check ((${k("salary")} is null) = (${k("currency")} is null))
-);
+);${addExtraColumns(t("contracts"), ctx.extraColumns("contracts", [], "contractExtraColumns"))}
 create index if not exists ${ctx.naming.rename("employee_contracts_employee_idx")} on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
 ${lockTable(t("contracts"), { read: true })}
 drop policy if exists ${ctx.naming.rename("employee_contracts_read")} on ${t("contracts")};

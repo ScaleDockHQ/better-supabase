@@ -35,6 +35,7 @@ import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   blockCall,
+  isRecord,
   oneOf,
   optionalInstant,
   optionalText,
@@ -78,6 +79,8 @@ export interface CalendarInfo {
   readonly color?: string;
   readonly ownerType?: string;
   readonly ownerId?: string;
+  /** With `options.calendarExtraColumns`: the calendar's own columns. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** The fields of an event to write. Fields left out keep their value on update. */
@@ -131,6 +134,8 @@ export interface Calendar<F extends object = Record<never, never>> {
       readonly tz?: string;
       readonly ownerType?: string;
       readonly ownerId?: string;
+      /** With `options.calendarExtraColumns`: values for those columns. */
+      readonly fields?: Readonly<Record<string, unknown>>;
     },
   ): AsyncResult<{ readonly id: string }>;
   deleteCalendar(id: string): AsyncResult<boolean>;
@@ -470,6 +475,7 @@ export function createCalendar<
           tz: extra.tz ?? "UTC",
           owner_type: extra.ownerType ?? null,
           owner_id: extra.ownerId ?? null,
+          ...(extra.fields === undefined ? {} : { fields: extra.fields }),
         },
         (value) => ({ id: textOf(recordOf(value, "create_calendar")["id"]) }),
       ),
@@ -493,6 +499,9 @@ export function createCalendar<
             name: textOf(row["name"]),
             tz: optionalText(row["tz"]) ?? "UTC",
             ...extra,
+            ...(isRecord(row["fields"])
+              ? { fields: { ...row["fields"] } }
+              : {}),
           };
         }),
       ),

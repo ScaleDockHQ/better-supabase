@@ -3,7 +3,12 @@ import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import {
+  fail,
+  insertExtraColumns,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 
 interface Detail {
   /** The camelCase key of `attrs`. */
@@ -103,6 +108,15 @@ function privateSql(
 
   const user = has("user");
 
+  const extras = ctx.extraColumns(
+    "privateDetails",
+    [],
+    "privateDetailsExtraColumns",
+  );
+
+  const fields = "(save_employee_private_details.attrs -> 'fields')";
+  const required = insertExtraColumns(table, extras, fields);
+
   return `
 -- An employee's private details, or null when none are saved.
 create or replace function ${n.fn("employee_private_details")}(employee uuid)
@@ -127,7 +141,7 @@ ${userGrant(`${n.fn("employee_private_details")}(uuid)`)}
 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
--- one. The employee edits their own details too.
+-- one.${extras.length === 0 ? "" : " fields sets the extra columns."} The employee edits their own details too.
 create or replace function ${n.fn("save_employee_private_details")}(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -141,13 +155,13 @@ begin${load("save_employee_private_details", "employee", reader("v_employee"))}
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "attrs must be an object", "22023")}
   end if;
-  insert into ${table} (${p("employee")}, ${p("tenant")}${user ? `, ${p("user")}` : ""})
-  values (v_employee.${e("id")}, v_employee.${e("tenant")}${user ? `, v_employee.${e("user")}` : ""})
+  insert into ${table} (${p("employee")}, ${p("tenant")}${user ? `, ${p("user")}` : ""}${required.columns})
+  values (v_employee.${e("id")}, v_employee.${e("tenant")}${user ? `, v_employee.${e("user")}` : ""}${required.values})
   on conflict (${p("employee")}) do nothing;
   begin
     update ${table} x set ${sets.join(",\n      ")}
     where x.${p("employee")} = v_employee.${e("id")}
-    returning * into v_row;
+    returning * into v_row;${writeExtraColumns(table, extras, fields, `x.${p("employee")} = v_employee.${e("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "a private detail has an invalid value", "22023")}
   end;
@@ -178,6 +192,10 @@ function contractsSql(
 
   const arg = (key: string): string =>
     `add_employee_contract.attrs ->> ${sqlString(key)}`;
+
+  const extras = ctx.extraColumns("contracts", [], "contractExtraColumns");
+  const fields = "(add_employee_contract.attrs -> 'fields')";
+  const required = insertExtraColumns(table, extras, fields);
 
   const columns = [
     k("tenant"),
@@ -257,9 +275,9 @@ begin${load("add_employee_contract", "employee", `(${n.service} or (${ctx.scope.
     end if;
     update ${table} x set ${k("endsOn")} = v_starts - 1
     where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);
-    insert into ${table} (${columns.join(", ")})
-    values (${values.join(", ")})
-    returning * into v_row;
+    insert into ${table} (${columns.join(", ")}${required.columns})
+    values (${values.join(", ")}${required.values})
+    returning * into v_row;${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
   end;

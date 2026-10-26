@@ -77,6 +77,12 @@ const employees = createEmployees({
 });
 ```
 
+`options.privateDetailsExtraColumns` and `options.contractExtraColumns` add
+columns to the private details and contracts tables. `savePrivateDetails`
+and `addContract` take their values under `fields` (a column that is `not
+null` without a `default` is written in the insert), and the reads return
+them with the row.
+
 ## Time and leave
 
 With [time-tracking](/docs/blocks/time-tracking) or [leave](/docs/blocks/leave)

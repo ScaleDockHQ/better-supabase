@@ -12,8 +12,10 @@ import { sqlIdent } from "../../core/template.ts";
 import {
   addCheck,
   addExtraColumns,
+  extraFieldsArg,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -65,7 +67,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
-  options: ["extraColumns"],
+  options: ["extraColumns", "calendarExtraColumns"],
   tables: {
     calendars: {
       name: "calendars",
@@ -425,6 +427,20 @@ function build(ctx: BlockSqlContext): string {
 
   const fields = eventFields(ctx);
 
+  const calendarExtras = ctx.extraColumns(
+    "calendars",
+    ["fields"],
+    "calendarExtraColumns",
+  );
+
+  const calendarExtra = extraFieldsArg(calendarExtras);
+
+  const calendarRequired = insertExtraColumns(
+    calendars,
+    calendarExtras,
+    "create_calendar.fields",
+  );
+
   const record = (type: string, id: string, calendar: string, tenant: string) =>
     ctx.record({
       type,
@@ -444,7 +460,7 @@ function build(ctx: BlockSqlContext): string {
   ${k("ownerType")} text,
   ${k("ownerId")} text,
   ${k("createdAt")} timestamptz not null default now()
-);
+);${addExtraColumns(calendars, calendarExtras)}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
 drop policy if exists ${ctx.tableName("calendars").name}_read on ${calendars};
@@ -605,7 +621,7 @@ ${userGrant(`${fn("respond_calendar_event")}(uuid, text)`)}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-create or replace function ${fn("create_calendar")}(tenant ${ctx.idType}, name text, tz text, owner_type text, owner_id text)
+${calendarExtras.length === 0 ? "" : `${calendarExtra.drop(fn("create_calendar"), `${ctx.idType}, text, text, text, text`)}\n`}create or replace function ${fn("create_calendar")}(tenant ${ctx.idType}, name text, tz text, owner_type text, owner_id text${calendarExtra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -621,9 +637,9 @@ begin
   if not exists (select 1 from pg_catalog.pg_timezone_names where name = coalesce(create_calendar.tz, 'UTC')) then
     ${fail("CALENDAR_TZ_INVALID", "tz must be an IANA time zone", "22023")}
   end if;
-  insert into ${calendars} (${k("tenant")}, ${k("name")}, ${k("tz")}${ctx.has("calendars", "ownerType") ? `, ${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, ${k("ownerId")}` : ""})
-  values (create_calendar.tenant, create_calendar.name, coalesce(create_calendar.tz, 'UTC')${ctx.has("calendars", "ownerType") ? ", create_calendar.owner_type" : ""}${ctx.has("calendars", "ownerId") ? ", create_calendar.owner_id" : ""})
-  returning ${k("id")} into v_id;
+  insert into ${calendars} (${k("tenant")}, ${k("name")}, ${k("tz")}${ctx.has("calendars", "ownerType") ? `, ${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, ${k("ownerId")}` : ""}${calendarRequired.columns})
+  values (create_calendar.tenant, create_calendar.name, coalesce(create_calendar.tz, 'UTC')${ctx.has("calendars", "ownerType") ? ", create_calendar.owner_type" : ""}${ctx.has("calendars", "ownerId") ? ", create_calendar.owner_id" : ""}${calendarRequired.values})
+  returning ${k("id")} into v_id;${writeExtraColumns(calendars, calendarExtras, "create_calendar.fields", `x.${k("id")} = v_id`)}
   ${ctx.record({
     type: "calendar.created",
     payload: `jsonb_build_object('organizationId', create_calendar.tenant, 'id', v_id, 'name', create_calendar.name)`,
@@ -634,7 +650,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("create_calendar")}(${ctx.idType}, text, text, text, text)`)}
+${userGrant(`${fn("create_calendar")}(${ctx.idType}, text, text, text, text${calendarExtra.type})`)}
 
 create or replace function ${fn("delete_calendar")}(calendar_id uuid)
 returns boolean
@@ -936,7 +952,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', k.${k("id")}, 'name', k.${k("name")}, 'tz', k.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', k.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', k.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', k.${k("ownerId")}` : ""}) order by k.${k("name")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', k.${k("id")}, 'name', k.${k("name")}, 'tz', k.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', k.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', k.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', k.${k("ownerId")}` : ""}${extraFieldsJson("k", calendarExtras)}) order by k.${k("name")}), '[]'::jsonb)
   from ${calendars} k
   where k.${k("tenant")} = list_calendars.tenant
 $$;
@@ -948,7 +964,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_calendar",
-      args: ["{id}", "text", "text", "text", "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        ...extraFieldsArg(
+          ctx.extraColumns("calendars", ["fields"], "calendarExtraColumns"),
+        ).contract,
+      ],
       returns: "jsonb",
     },
     { name: "delete_calendar", args: ["uuid"], returns: "boolean" },

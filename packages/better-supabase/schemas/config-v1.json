@@ -4290,6 +4290,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "calendarExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4807,6 +4813,18 @@
                 }
               },
               "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "privateDetailsExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "contractExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
