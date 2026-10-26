@@ -74,8 +74,9 @@ async function run(
   check: string,
   subjects: SubjectsConfig = SUBJECTS,
   allow = ALLOW,
+  modules: AnyBlocksConfig = BLOCKS,
 ): Promise<void> {
-  const files = render(BLOCKS, subjects);
+  const files = render(modules, subjects);
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -202,6 +203,34 @@ end;
 $$;`,
         subjects,
         allow,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("installs without the optional views and state tables", async () => {
+    const sql = render({
+      "share-links": { tables: { views: null, state: null } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("subject_views");
+    expect(sql).not.toContain("subject_user_state");
+
+    await expect(
+      run(
+        `do $$
+begin
+  ${as(ALICE)}
+  perform better_supabase.create_share_link('${TENANT}', 'thread', '${MINE}', 'view');
+  perform better_supabase.set_user_state('thread', '${MINE}', true);
+  ${AS_SERVICE}
+  perform better_supabase.record_view('${TENANT}', 'thread', '${MINE}', 'user', '${ALICE}');
+end;
+$$;`,
+        SUBJECTS,
+        ALLOW,
+        { "share-links": { tables: { views: null, state: null } } },
       ),
     ).resolves.toBeUndefined();
   });
