@@ -107,6 +107,12 @@ describe("an app's own declarative schema with blocks over it", () => {
       join(root, "supabase/snapshot.json"),
       JSON.stringify(moduleSnapshotFixture),
     );
+    await writeFile(
+      join(root, `${SCHEMAS}/900_better_supabase_999_example.sql`),
+      `-- @bsb-block example@1 managed
+create index if not exists customers_block_idx on public.customers (organization_id);
+`,
+    );
 
     const layout = await moduleLayoutFor(
       resolveConfig(
@@ -133,7 +139,9 @@ describe("an app's own declarative schema with blocks over it", () => {
     expect(layout.ownUpdatedAtTriggers).not.toHaveProperty(
       "public.notifications",
     );
-    expect(layout.ownIndexes?.["public.customers"]).toBeInstanceOf(Array);
+    expect(layout.ownIndexes?.["public.customers"]).not.toContainEqual(
+      expect.objectContaining({ name: "customers_block_idx" }),
+    );
     expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
       columns: ["id"],
     });
