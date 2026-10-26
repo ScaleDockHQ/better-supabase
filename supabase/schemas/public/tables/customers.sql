@@ -41,7 +41,9 @@ comment on column public.customers.kvk is 'Chamber of Commerce (KvK) number.
 create index customers_owner_team_id_idx on public.customers (owner_team_id)
   where owner_team_id is not null;
 
-create trigger customers_owner_team_check before insert or update of owner_team_id on public.customers
+-- A constraint trigger, not a before trigger: it only validates, and gen reads a
+-- before insert trigger as one that may fill required columns.
+create constraint trigger customers_owner_team_check after insert or update of owner_team_id on public.customers
   for each row when (new.owner_team_id is not null)
   execute function public.customers_owner_team_check();
 

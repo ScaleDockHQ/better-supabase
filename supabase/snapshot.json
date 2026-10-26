@@ -221452,7 +221452,7 @@
           },
           {
             "name": "customers_owner_team_check",
-            "timing": "before",
+            "timing": "after",
             "events": [
               "insert",
               "update"

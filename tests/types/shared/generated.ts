@@ -21,9 +21,6 @@ export type Database = EnrichDatabase<
         status: "lead" | "active" | "archived";
         metadata: { source?: string; tier?: 'free' | 'pro' };
       };
-      memberships: {
-        role: "owner" | "admin" | "member";
-      };
       subscriptions: {
         status: "active" | "trialing" | "past_due" | "canceled";
       };
@@ -41,8 +38,6 @@ export const noteKindValues = ["call", "meeting", "email"] as const;
 export type NoteKind = (typeof noteKindValues)[number];
 export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
-export const membershipsRoleValues = ["owner", "admin", "member"] as const;
-export type MembershipsRole = (typeof membershipsRoleValues)[number];
 export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
 export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
@@ -99,6 +94,7 @@ export type Models = {
       fullName: string | null;
       createdAt: string;
       updatedAt: string;
+      emailDomain: string | null;
     };
     Insert: {
       id?: string;
@@ -107,6 +103,7 @@ export type Models = {
       fullName?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      emailDomain?: never;
     };
     Update: {
       id?: string;
@@ -115,6 +112,7 @@ export type Models = {
       fullName?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      emailDomain?: never;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -179,6 +177,7 @@ export type Models = {
       updatedAt: string;
       logoPath: string | null;
       createdBy: string | null;
+      ownerTeamId: string | null;
     };
     Insert: {
       id?: string;
@@ -194,6 +193,7 @@ export type Models = {
       updatedAt?: string;
       logoPath?: string | null;
       createdBy?: string | null;
+      ownerTeamId?: string | null;
     };
     Update: {
       id?: string;
@@ -209,6 +209,7 @@ export type Models = {
       updatedAt?: string;
       logoPath?: string | null;
       createdBy?: string | null;
+      ownerTeamId?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -223,12 +224,32 @@ export type Models = {
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
     Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
-    ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
+    ForeignKeys: "customers_organization_id_fkey" | "customers_owner_team_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       softDelete: "archivedAt";
       timestamps: true;
       tenant: "organizationId";
       actor: true;
+    };
+  };
+  customersWithOwner: {
+    Row: {
+      id: string;
+      organizationId: string;
+      name: string;
+      status: string;
+      ownerTeamId: string | null;
+      ownerTeamName: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: {
+      tenant: "organizationId";
     };
   };
   locations: {
@@ -279,34 +300,34 @@ export type Models = {
     Row: {
       organizationId: string;
       userId: string;
-      role: "owner" | "admin" | "member";
+      role: string;
       createdAt: string;
       lastUsedAt: string | null;
-      tierRole: string | null;
+      updatedAt: string;
     };
     Insert: {
       organizationId: string;
       userId: string;
-      role?: "owner" | "admin" | "member";
+      role: string;
       createdAt?: string;
       lastUsedAt?: string | null;
-      tierRole?: never;
+      updatedAt?: string;
     };
     Update: {
       organizationId?: string;
       userId?: string;
-      role?: "owner" | "admin" | "member";
+      role?: string;
       createdAt?: string;
       lastUsedAt?: string | null;
-      tierRole?: never;
+      updatedAt?: string;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "organizationId" | "userId";
     UniqueKeys: Record<never, never>;
-    Checks: "memberships_role_check";
-    ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
+    Checks: never;
+    ForeignKeys: "memberships_organization_id_fkey" | "memberships_role_fkey" | "memberships_user_id_fkey";
     Flags: {
       timestamps: true;
       tenant: "organizationId";

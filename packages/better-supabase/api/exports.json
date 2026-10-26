@@ -5225,6 +5225,7 @@
       "Teams",
       "TeamsEvents",
       "TeamsOptions",
+      "TeamStatus",
       "UpdateTeamOptions"
     ]
   },
