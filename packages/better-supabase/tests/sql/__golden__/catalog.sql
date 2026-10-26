@@ -9376,7 +9376,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:0f5fc92031f0b2eeec3c7beb58ac44f0aee0a1f68d6dafab2d0977fcfcd9a068
+-- @bsb-hash sha256:954a5d2ce7f357b0998439fb397a0c1d85534af71b74bbd3ab56fb74a30d279e
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9881,10 +9881,10 @@ begin
   begin
     if v_created then
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, save_product.title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'))
+      values (save_product.tenant, save_product.title, v_slug, save_product.description, better_supabase.as_column_type(coalesce(save_product.kind, 'physical'), (null::"better_supabase"."products")."kind"))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
+      update "better_supabase"."products" x set "title" = save_product.title, "slug" = v_slug, "description" = save_product.description, "kind" = coalesce(better_supabase.as_column_type(save_product.kind, (null::"better_supabase"."products")."kind"), x."kind"), "updated_at" = now()
       where x."id" = save_product.product and x."tenant_id" = save_product.tenant
       returning x."status" into v_status;
       if not found then

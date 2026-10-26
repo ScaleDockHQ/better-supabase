@@ -144,16 +144,39 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
 
+  const st = (value: string, labels: readonly string[], negate = false) =>
+    ctx.is("quotes", "status", value, labels, negate);
+
+  const sv = (label: string): string => ctx.value("quotes", "status", label);
+
+  const viewed = ctx.appValues("quotes", "status", "viewed").length > 0;
+
+  const markViewed = (): string =>
+    viewed || has("viewedAt")
+      ? `  if ${st(`v_row.${q("status")}`, ["sent"])}${viewed ? "" : ` and v_row.${q("viewedAt")} is null`} then
+    update ${t("quotes")} x set ${viewed ? `${q("status")} = ${sv("viewed")}${has("viewedAt") ? ", " : ""}` : ""}${has("viewedAt") ? `${q("viewedAt")} = now()` : ""} where x.${q("id")} = v_row.${q("id")}
+    returning * into v_row;
+    ${record("quote.viewed", "v_row")}
+  end if;`
+      : "  null;";
+
   const open = (alias: string): string =>
-    `${alias}.${q("status")} in ('draft', 'changes_requested')`;
+    st(`${alias}.${q("status")}`, ["draft", "changes_requested"]);
 
   const lines = (alias: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineColumn(ctx, "lines", "ql", "discountBps")}, 'taxRateBps', ${lineColumn(ctx, "lines", "ql", "taxRateBps")}, 'taxCode', ${lineColumn(ctx, "lines", "ql", "taxCode")}, 'product', case when ${lineColumn(ctx, "lines", "ql", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(ctx, "lines", "ql", "productType")}, 'id', ${lineColumn(ctx, "lines", "ql", "productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const int8 = ["number", ...Object.keys(TOTAL_COLUMNS)].map(q);
 
+  const int8As = Object.fromEntries(
+    ["number", ...Object.keys(TOTAL_COLUMNS)].map((logical) => [
+      logical,
+      (value: string) => `${value}::text`,
+    ]),
+  );
+
   const row = (alias: string): string =>
-    `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || ${int8Text(alias, int8)} || jsonb_build_object('lines', ${lines(alias)}${
+    `(${ctx.rowJson("quotes", alias, { as: int8As })} - ${sqlString(q("tokenHash").replaceAll('"', ""))}${q("tokenHash") === '"token_hash"' ? "" : " - 'token_hash'"}) || ${int8Text(alias, int8)} || jsonb_build_object('lines', ${lines(alias)}${
       n.extras.length === 0
         ? ""
         : `, 'fields', ${columnsObject(
@@ -466,7 +489,7 @@ begin
     ${fail("QUOTE_EMPTY", "a quote needs a line before it is sent", "23514")}
   end if;
   ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}
-  update ${t("quotes")} x set ${q("status")} = 'sent', ${q("sentAt")} = now(), ${q("tokenHash")} = ${sha256Hex("v_token")},
+  update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${sha256Hex("v_token")},
     ${q("decidedAt")} = null, ${q("decidedBy")} = null, ${has("decisionNote") ? `${q("decisionNote")} = null, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
@@ -496,7 +519,7 @@ begin
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     ${fail("QUOTE_DECISION_INVALID", "decide accepted, rejected or changes_requested", "22023")}
   end if;
-  if v_row.${q("status")} not in ('sent', 'viewed') then
+  if ${st(`v_row.${q("status")}`, ["sent", "viewed"], true)} then
     ${fail("QUOTE_NOT_OPEN", "only a sent quote takes a decision", "55000")}
   end if;
   if decide_quote.decision = 'accepted' then
@@ -526,7 +549,7 @@ begin
   if v_old.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;
-  if v_old.${q("status")} = 'draft' then
+  if ${st(`v_old.${q("status")}`, ["draft"])} then
     ${fail("QUOTE_NOT_SENT", "a draft is edited, not revised", "55000")}
   end if;
   if exists (select 1 from ${t("quotes")} x where x.${q("supersedes")} = v_old.${q("id")}) then
@@ -599,8 +622,8 @@ begin
     )
     .join(", ")}
   from ${t("lines")} x where x.${l("parent")} = v_old.${q("id")};
-  if v_old.${q("status")} <> 'accepted' then
-    update ${t("quotes")} x set ${q("status")} = 'withdrawn', ${q("tokenHash")} = null, ${q("updatedAt")} = now() where x.${q("id")} = v_old.${q("id")};
+  if ${st(`v_old.${q("status")}`, ["accepted"], true)} then
+    update ${t("quotes")} x set ${q("status")} = ${sv("withdrawn")}, ${q("tokenHash")} = null, ${q("updatedAt")} = now() where x.${q("id")} = v_old.${q("id")};
   end if;
   ${record("quote.revised", "v_old", `, 'revisionId', v_row.${q("id")}`)}
   return (select ${row("x")} from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")});
@@ -623,14 +646,10 @@ begin
   if v_row.${q("id")} is null then
     ${fail("QUOTE_LINK_INVALID", "this link is not valid", "P0002")}
   end if;
-  if v_row.${q("status")} = 'sent' then
-    update ${t("quotes")} x set ${q("status")} = 'viewed'${has("viewedAt") ? `, ${q("viewedAt")} = now()` : ""} where x.${q("id")} = v_row.${q("id")}
-    returning * into v_row;
-    ${record("quote.viewed", "v_row")}
-  end if;
+${markViewed()}
   return jsonb_build_object(
     'identifier', v_row.${q("identifier")}, 'revision', v_row.${q("revision")}, 'title', v_row.${q("title")},
-    'status', v_row.${q("status")}, 'currency', v_row.${q("currency")}, 'validUntil', v_row.${q("validUntil")},
+    'status', ${ctx.label("quotes", "status", `v_row.${q("status")}`)}, 'currency', v_row.${q("currency")}, 'validUntil', v_row.${q("validUntil")},
     'terms', ${or("v_row", "terms")}, 'subtotal', v_row.${q("subtotal")}::text, 'discountTotal', v_row.${q("discountTotal")}::text,
     'taxTotal', v_row.${q("taxTotal")}::text, 'total', v_row.${q("total")}::text, 'lines', ${lines("v_row")});
 end;
@@ -658,11 +677,11 @@ begin
   if respond_to_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     ${fail("QUOTE_DECISION_INVALID", "answer accepted, rejected or changes_requested", "22023")}
   end if;
-  if v_row.${q("status")} not in ('sent', 'viewed') then
+  if ${st(`v_row.${q("status")}`, ["sent", "viewed"], true)} then
     ${fail("QUOTE_NOT_OPEN", "this quote no longer takes an answer", "55000")}
   end if;
   if v_row.${q("validUntil")} < current_date then
-    update ${t("quotes")} x set ${q("status")} = 'expired', ${q("updatedAt")} = now() where x.${q("id")} = v_row.${q("id")}
+    update ${t("quotes")} x set ${q("status")} = ${sv("expired")}, ${q("updatedAt")} = now() where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;
     ${record("quote.expired", "v_row")}
     return jsonb_build_object('status', 'expired');
@@ -676,7 +695,7 @@ begin
   if respond_to_quote.decision = 'accepted' then
     ${ctx.hook("after_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;
-  return jsonb_build_object('status', v_row.${q("status")}, 'identifier', v_row.${q("identifier")});
+  return jsonb_build_object('status', ${ctx.label("quotes", "status", `v_row.${q("status")}`)}, 'identifier', v_row.${q("identifier")});
 end;
 $$;
 revoke all on function ${fn("respond_to_quote")}(text, text, text, text) from public, anon, authenticated;
@@ -694,8 +713,8 @@ declare
   v_count integer := 0;
 begin
   for v_row in
-    update ${t("quotes")} x set ${q("status")} = 'expired', ${q("updatedAt")} = now()
-    where x.${q("status")} in ('sent', 'viewed') and x.${q("validUntil")} < current_date
+    update ${t("quotes")} x set ${q("status")} = ${sv("expired")}, ${q("updatedAt")} = now()
+    where ${st(`x.${q("status")}`, ["sent", "viewed"])} and x.${q("validUntil")} < current_date
     returning *
   loop
     ${record("quote.expired", "v_row")}

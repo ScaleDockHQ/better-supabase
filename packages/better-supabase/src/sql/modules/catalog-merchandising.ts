@@ -635,7 +635,7 @@ security definer
 set search_path = ''
 as $$
   select x.${p("id")} from ${products} x
-  where x.${p("status")} = 'active'
+  where ${ctx.is("products", "status", `x.${p("status")}`, ["active"])}
     and x.${p("tenant")} in (select y.${s("tenant")} from ${storefronts} y where y.${s("publishedAt")} is not null)
 $$;
 revoke execute on function ${fn("storefront_products")}() from public;

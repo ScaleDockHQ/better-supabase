@@ -490,7 +490,7 @@ as $$
     select jsonb_build_object(
       'id', p.${p("id")},
       'slug', p.${p("slug")},
-      'status', p.${p("status")},
+      'status', ${ctx.label("products", "status", `p.${p("status")}`)},
       'kind', ${kind ? `p.${p("kind")}` : "null"},
       'locale', ${locale},
       'title', ${title},

@@ -156,12 +156,12 @@ begin
   begin
     if v_created then
       insert into ${products} (${p("tenant")}, ${p("title")}, ${p("slug")}${desc ? `, ${p("description")}` : ""}${kind ? `, ${p("kind")}` : ""})
-      values (save_product.tenant, save_product.title, v_slug${desc ? ", save_product.description" : ""}${kind ? ", coalesce(save_product.kind, 'physical')" : ""})
-      returning ${p("id")}, ${p("status")} into v_id, v_status;
+      values (save_product.tenant, save_product.title, v_slug${desc ? ", save_product.description" : ""}${kind ? `, ${ctx.cast("products", "kind", "coalesce(save_product.kind, 'physical')")}` : ""})
+      returning ${p("id")}, ${ctx.label("products", "status", p("status"))} into v_id, v_status;
     else
-      update ${products} x set ${p("title")} = save_product.title, ${p("slug")} = v_slug${desc ? `, ${p("description")} = save_product.description` : ""}${kind ? `, ${p("kind")} = coalesce(save_product.kind, x.${p("kind")})` : ""}, ${p("updatedAt")} = now()
+      update ${products} x set ${p("title")} = save_product.title, ${p("slug")} = v_slug${desc ? `, ${p("description")} = save_product.description` : ""}${kind ? `, ${p("kind")} = coalesce(${ctx.cast("products", "kind", "save_product.kind")}, x.${p("kind")})` : ""}, ${p("updatedAt")} = now()
       where x.${p("id")} = save_product.product and x.${p("tenant")} = save_product.tenant
-      returning x.${p("status")} into v_status;
+      returning ${ctx.label("products", "status", `x.${p("status")}`)} into v_status;
       if not found then
         ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
       end if;
@@ -213,7 +213,7 @@ declare
   v_tenant ${ctx.idType};
   v_from text;
 begin
-  select x.${p("tenant")}, x.${p("status")} into v_tenant, v_from from ${products} x where x.${p("id")} = set_product_status.product for update;
+  select x.${p("tenant")}, ${ctx.label("products", "status", `x.${p("status")}`)} into v_tenant, v_from from ${products} x where x.${p("id")} = set_product_status.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
