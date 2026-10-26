@@ -12,7 +12,18 @@ const mocks = vi.hoisted(() => ({ headers: new Headers() }));
 
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
-  cookies: () => Promise.resolve({ set: () => undefined }),
+  cookies: () =>
+    Promise.resolve({
+      set: () => undefined,
+      getAll: () =>
+        (mocks.headers.get("cookie") ?? "")
+          .split("; ")
+          .filter(Boolean)
+          .map((pair) => ({
+            name: pair.slice(0, pair.indexOf("=")),
+            value: decodeURIComponent(pair.slice(pair.indexOf("=") + 1)),
+          })),
+    }),
 }));
 
 vi.mock("next/server.js", async (original) => ({

@@ -17,7 +17,12 @@ export {
 
 export type { SessionSnapshot } from "../auth/snapshot.ts";
 
-export { safeRedirectPath } from "../auth/sign-in.ts";
+export {
+  safeRedirectPath,
+  type AuthorizeUrlParams,
+  type EmailOtpType,
+  type SignOutScope,
+} from "../auth/sign-in.ts";
 
 export {
   recordListServer,
@@ -71,10 +76,13 @@ export type {
   BetterNext,
   CachedContext,
   CachedOptions,
+  CodeExchange,
   EndedSessionOptions,
+  MfaVerification,
   NextCacheOptions,
   NextDebugOptions,
   NextOptions,
+  OAuthStart,
   ProxyOptions,
   RequireAalOptions,
   RequireOptions,
@@ -84,7 +92,9 @@ export type {
   SignedIn,
   SignInCredentials,
   SignInOptions,
+  SignOutParams,
   SupportStarted,
+  VerifyOtpParams,
 } from "./types.ts";
 
 export type {

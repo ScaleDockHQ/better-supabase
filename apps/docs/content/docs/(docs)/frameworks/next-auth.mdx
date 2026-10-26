@@ -1,0 +1,219 @@
+---
+title: Next.js auth
+description: Sign in, verify links and codes, OAuth with PKCE, MFA and sign-out from Server Actions, with the session visible in the same request.
+---
+
+`createNext` signs users in and out on the server. Each helper makes the Auth
+calls it needs, then commits the result once: it verifies the new token,
+writes or clears the session cookies through the request's cookie jar, stores
+the verified session for the next render, and makes `getRequestSession()`,
+`session()`, `context()` and `cached()` return the new session for the rest of
+the request. A render that never signs in or out still verifies its token
+once.
+
+| Helper                              | Auth call                                       |
+| ----------------------------------- | ----------------------------------------------- |
+| `signIn` (`signInWithPassword`)     | `POST /auth/v1/token?grant_type=password`       |
+| `verifyOtp`                         | `POST /auth/v1/verify`                          |
+| `authorizeUrl`, then `exchangeCode` | `/auth/v1/authorize`, then `grant_type=pkce`    |
+| `verifyMfa`                         | `POST /auth/v1/factors/:id/challenge`, `verify` |
+| `signOut`                           | `POST /auth/v1/logout`, then the cookies        |
+
+Every helper except `authorizeUrl` returns an `ActionResult<SignedIn>`:
+
+```ts
+interface SignedIn {
+  redirectTo: string; // `next` when it is a same-origin path, else `fallback`
+  mfa: boolean; // a verified factor and the session is not aal2 yet
+  session: SessionSnapshot | null; // null after a sign-out
+}
+```
+
+Errors are `unauthorized` with Auth's `error_code` as `code`
+(`invalid_credentials`, `otp_expired`, `code_verifier_missing`),
+`rate_limited`, `network` or `timeout`. Auth's own message never reaches the
+result, so a form can't tell whether an account exists.
+
+## One env
+
+Pass the validated env to `createNext` and read the browser values from it,
+so the server and the browser derive the same session cookie name:
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { loadEnv } from "better-supabase/env";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+
+export const env = loadEnv();
+export const bsb = createNext(betterSupabase, { env });
+```
+
+`loadEnv()` reports an issue when `SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_URL` are both set and differ. See
+[Environment](/docs/auth/env).
+
+## Password sign-in
+
+The recommended pattern is a Server Action that calls the helper, then
+`redirect(redirectTo)`. The cookies ride on the redirect response, and the
+next page renders signed in.
+
+```ts title="src/features/auth/auth-actions.ts"
+"use server";
+import { redirect } from "next/navigation";
+import { bsb } from "@/lib/supabase/server";
+
+export async function signIn(
+  _state: string | null,
+  form: FormData,
+): Promise<string | null> {
+  const result = await bsb.signIn({
+    email: String(form.get("email")),
+    password: String(form.get("password")),
+    next: String(form.get("next") ?? ""),
+  });
+
+  if (!result.ok) {
+    return result.error.code ?? result.error.kind;
+  }
+
+  const { redirectTo, mfa } = result.data;
+  redirect(mfa ? `/mfa?next=${encodeURIComponent(redirectTo)}` : redirectTo);
+}
+```
+
+When the landing page depends on who signed in (a default organization, an
+onboarding step), read it in the same action. `bsb.context()` already sees the
+new session, and so does a context built from the returned snapshot:
+
+```ts
+const ctx = await bsb.contextFromSession(result.data.session);
+// landingPath is your own lookup, such as the user's first organization.
+redirect(await landingPath(ctx));
+```
+
+`session` holds the access token. Keep it on the server: return
+`redirectTo` and `mfa` to a client form, never the whole result.
+
+## Email links and codes
+
+`verifyOtp` takes a link's `token_hash` or an email and the 6-digit code.
+`type` is `signup`, `invite`, `magiclink`, `recovery`, `email_change` or
+`email` (codes). The new session replaces any session the request carried.
+
+```ts title="src/app/auth/confirm/route.ts"
+import type { EmailOtpType } from "better-supabase/next";
+import { redirect } from "next/navigation";
+import { bsb } from "@/lib/supabase/server";
+
+export async function GET(request: Request): Promise<never> {
+  const params = new URL(request.url).searchParams;
+  const result = await bsb.verifyOtp({
+    tokenHash: params.get("token_hash") ?? "",
+    type: (params.get("type") ?? "email") as EmailOtpType,
+    next: params.get("next"),
+  });
+
+  redirect(result.ok ? result.data.redirectTo : "/sign-in?error=link");
+}
+```
+
+Point the email templates at this route with
+`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink`.
+For a code, call `verifyOtp({ type: "email", email, token, next })` from the
+form's action.
+
+## OAuth with PKCE
+
+`authorizeUrl` writes the PKCE verifier cookie (httpOnly, `SameSite=Lax`, 10
+minutes) and returns the provider URL. `redirectTo` is the callback route and
+must be in the project's redirect allow list; a safe `next` rides on it as
+`?next=`.
+
+```ts title="src/features/auth/auth-actions.ts"
+export async function signInWithGitHub(next: string | null): Promise<never> {
+  const { url } = await bsb.authorizeUrl({
+    provider: "github",
+    redirectTo: `${process.env.APP_URL}/auth/callback`,
+    next,
+  });
+
+  redirect(url);
+}
+```
+
+The callback exchanges the code. The verifier cookie is deleted whether the
+exchange succeeds or not, so a code works once:
+
+```ts title="src/app/auth/callback/route.ts"
+export async function GET(request: Request): Promise<never> {
+  const params = new URL(request.url).searchParams;
+  const result = await bsb.exchangeCode({
+    code: params.get("code") ?? "",
+    next: params.get("next"),
+  });
+
+  redirect(result.ok ? result.data.redirectTo : "/sign-in?error=oauth");
+}
+```
+
+## MFA
+
+`verifyMfa` challenges the factor and verifies the code as the signed-in
+user, then commits the `aal2` session; `mfa` is then false.
+
+```ts
+export async function verifyCode(factorId: string, code: string, next: string) {
+  const result = await bsb.verifyMfa({ factorId, code, next });
+  if (result.ok) redirect(result.data.redirectTo);
+  return result.error.code ?? result.error.kind;
+}
+```
+
+`mfa: true` after a sign-in is advisory. Keep the proxy's `protect` and
+`action({ aal: 2 })` on pages and actions that need the second factor, see
+[MFA and SSO](/docs/auth/mfa-sso).
+
+## Sign-out
+
+`signOut` ends the session in Auth first, then clears the session cookies,
+forgets the verified session and expires the user's cache tags. When Auth
+can't be reached the cookies stay and the result carries the error.
+
+```ts
+export async function signOut(): Promise<never> {
+  await bsb.signOut({ next: "/" });
+  redirect("/");
+}
+```
+
+`scope` is `local` (this session, the default), `global` (every session of
+the user) or `others` (every other session; this one stays signed in).
+`cookieScopes` on `createNext` also expires the cookie at the domains and
+paths earlier deploys wrote it at, see
+[Sessions](/docs/auth/sessions#moving-the-cookie-to-another-domain-or-path).
+
+## Flows that start no session
+
+Sending a magic link or a code, a password reset email, `signUp` with email
+confirmation and resending an email start no session, so they stay on the
+supabase-js client. After `updateUser({ password })`, call
+`bsb.invalidateSession(userId)`.
+
+## Reads in the same request
+
+Reads after a commit see the committed session:
+
+```ts
+await bsb.getRequestSession(); // null
+await bsb.signIn({ email, password });
+await bsb.getRequestSession(); // the new user
+await bsb.context({ tenant }); // a context for the new user and tenant
+```
+
+Where React's `cache()` keeps one value per request, each commit bumps a
+request generation, so the cached reads miss once and then answer from the
+committed session without verifying the token again. Server Actions and route
+handlers run outside that cache; there every read builds the request from the
+cookie jar, which already holds the commit's writes.

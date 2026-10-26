@@ -16,11 +16,20 @@ export async function signIn(input: {
   readonly password: string;
   readonly next: string | null;
   readonly locale: string;
-}): Promise<ActionResult<SignedIn>> {
-  return bsb.signIn(
+}): Promise<ActionResult<Pick<SignedIn, "redirectTo" | "mfa">>> {
+  const result = await bsb.signIn(
     { email: input.email, password: input.password, next: input.next },
     {
       fallback: `/${hasLocale(routing.locales, input.locale) ? input.locale : routing.defaultLocale}`,
     },
   );
+
+  // The session snapshot holds the access token; only the redirect leaves the server.
+  return result.ok
+    ? {
+        ok: true,
+        data: { redirectTo: result.data.redirectTo, mfa: result.data.mfa },
+        error: null,
+      }
+    : result;
 }

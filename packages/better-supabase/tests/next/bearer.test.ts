@@ -8,7 +8,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(new Headers()),
-  cookies: () => Promise.resolve({ set: vi.fn() }),
+  cookies: () => Promise.resolve({ set: vi.fn(), getAll: () => [] }),
 }));
 
 vi.mock("next/cache.js", () => ({

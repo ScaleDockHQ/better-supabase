@@ -24,6 +24,7 @@ import type {
 } from "../server/server-types.ts";
 import type { BetterNext, NextOptions, ScopeOptions } from "./types.ts";
 
+import { snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { methodOf } from "../blocks/block-method.ts";
@@ -72,7 +73,7 @@ import {
 } from "./proxy.ts";
 import { recordServer } from "./record.ts";
 import { resourceRoutes } from "./resources.ts";
-import { signInWithPassword } from "./sign-in.ts";
+import { authFlows } from "./sign-in.ts";
 import {
   STATS_URL_HEADER,
   endedRedirect,
@@ -170,10 +171,28 @@ export function createNext<
     }
   };
 
-  const incomingRequest = async (): Promise<Request> =>
-    new Request("http://next.local/", {
-      headers: new Headers(await headers()),
-    });
+  /**
+   * The incoming request, with the cookie header rebuilt from the cookie jar:
+   * in a Server Action or a route handler the jar already holds this request's
+   * writes (a sign-in, a sign-out), and the header never does.
+   */
+  const incomingRequest = async (): Promise<Request> => {
+    const [incomingHeaders, jar] = await Promise.all([headers(), cookies()]);
+    const forwarded = new Headers(incomingHeaders);
+
+    const cookie = jar
+      .getAll()
+      .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
+      .join("; ");
+
+    if (cookie === "") {
+      forwarded.delete("cookie");
+    } else {
+      forwarded.set("cookie", cookie);
+    }
+
+    return new Request("http://next.local/", { headers: forwarded });
+  };
 
   /**
    * The incoming request, once its dynamic APIs are awaited. Auth reads cookies
@@ -197,14 +216,39 @@ export function createNext<
   };
 
   /**
+   * The request's auth generation. A sign-in or sign-out in the request bumps
+   * it and stores the committed session, so the cached reads below miss once
+   * and answer from it; a render that never commits keys every read on 0.
+   */
+  const box = cache(
+    (): {
+      generation: number;
+      committed:
+        | {
+            readonly request: Request;
+            readonly resolution: AuthResolution<C, P>;
+          }
+        | undefined;
+    } => ({ generation: 0, committed: undefined }),
+  );
+
+  /**
    * One token verification per render scope backs `context()`, `session()` and
    * `cached()`.
    */
-  const incoming = cache(
-    async (): Promise<{
+  const incomingAt = cache(
+    async (
+      _generation: number,
+    ): Promise<{
       readonly request: Request;
       readonly resolution: AuthResolution<C, P>;
     }> => {
+      const committed = box().committed;
+
+      if (committed) {
+        return committed;
+      }
+
       const request = await requestScope();
       // Scopes that resolve the same token share one verification; resolve
       // then answers from the verified-token memo.
@@ -217,10 +261,21 @@ export function createNext<
     },
   );
 
-  const getRequestSession = cache(
-    async (): Promise<SessionSnapshot<C> | null> =>
-      base.snapshot(await requestScope()),
+  const incoming = (): ReturnType<typeof incomingAt> =>
+    incomingAt(box().generation);
+
+  const getRequestSessionAt = cache(
+    async (_generation: number): Promise<SessionSnapshot<C> | null> => {
+      const committed = box().committed;
+
+      return committed
+        ? snapshotOf(committed.resolution.auth)
+        : base.snapshot(await requestScope());
+    },
   );
+
+  const getRequestSession = (): Promise<SessionSnapshot<C> | null> =>
+    getRequestSessionAt(box().generation);
 
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
   /** The tenant `scoped` resolved for a context, when it wasn't the claim. */
@@ -251,9 +306,10 @@ export function createNext<
     );
 
   /** `null` runs `NextOptions.tenant`; a string is the caller's explicit tenant. */
-  const scoped = cache(
+  const scopedAt = cache(
     async (
       explicit: string | null,
+      _generation: number,
     ): Promise<ServerContext<M, F, E, C, P, B>> => {
       const { request, resolution } = await incoming();
 
@@ -279,7 +335,7 @@ export function createNext<
   );
 
   const current = (tenant?: string): Promise<ServerContext<M, F, E, C, P, B>> =>
-    scoped(tenant ?? null);
+    scopedAt(tenant ?? null, box().generation);
 
   const context = (
     first?: Request | ScopeOptions,
@@ -290,13 +346,16 @@ export function createNext<
       : current(first?.tenant ?? contextOptions?.tenant);
 
   /** In a support session, the target's view: `impersonator` names the admin. */
-  const session = cache(async (): Promise<AuthSession<C, P>> =>
-    toSession(
-      options.support
-        ? (await current()).auth
-        : (await incoming()).resolution.auth,
-    ),
+  const sessionAt = cache(
+    async (_generation: number): Promise<AuthSession<C, P>> =>
+      toSession(
+        options.support
+          ? (await current()).auth
+          : (await incoming()).resolution.auth,
+      ),
   );
+
+  const session = (): Promise<AuthSession<C, P>> => sessionAt(box().generation);
 
   const supportCookieName =
     options.support?.options.cookie?.name ?? SUPPORT_COOKIE;
@@ -361,6 +420,26 @@ export function createNext<
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["suspendAccount"],
+  });
+
+  const flows = authFlows<C, P>({
+    env: () => base.env,
+    auth: options.auth,
+    cookieScopes: options.cookieScopes,
+    request: incomingRequest,
+    jar: cookies,
+    current: getRequestSession,
+    verify: (token) => base.resolve(bearerRequest(token)),
+    async publish(resolution, request) {
+      await base.sessions.seed(resolution.auth);
+      const scope = box();
+      scope.committed = { request, resolution };
+      scope.generation += 1;
+    },
+    signedOut: (userId) => {
+      invalidateAll([sessionTag(userId)]);
+      forget(userId);
+    },
   });
 
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B> = extendServer<
@@ -861,20 +940,9 @@ export function createNext<
         : { ok: false, data: null, error: stopped.error };
     },
 
-    async signIn(credentials, signInOptions = {}) {
-      const request = await incomingRequest();
-
-      return signInWithPassword(credentials, signInOptions, {
-        env: base.env,
-        auth: options.auth,
-        request,
-        jar: await cookies(),
-        seed: async (accessToken) => {
-          const verified = await base.resolve(bearerRequest(accessToken));
-          await base.sessions.seed(verified.auth);
-        },
-      });
-    },
+    ...flows,
+    signInWithPassword: (credentials, signInOptions) =>
+      flows.signIn(credentials, signInOptions),
 
     cacheTag(table, id, tagOptions = {}) {
       cacheTag(

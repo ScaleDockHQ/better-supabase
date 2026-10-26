@@ -16,7 +16,17 @@ vi.mock(import("next/headers.js"), () => ({
   cookies: () =>
     Promise.resolve(
       // SAFETY: the proxy and getRequestSession only await the cookie jar.
-      { set: () => undefined, getAll: () => [] } as never,
+      {
+        set: () => undefined,
+        getAll: () =>
+          (mocks.headers.get("cookie") ?? "")
+            .split("; ")
+            .filter(Boolean)
+            .map((pair) => ({
+              name: pair.slice(0, pair.indexOf("=")),
+              value: decodeURIComponent(pair.slice(pair.indexOf("=") + 1)),
+            })),
+      } as never,
     ),
 }));
 

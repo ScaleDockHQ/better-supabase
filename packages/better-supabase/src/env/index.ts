@@ -123,6 +123,10 @@ export class EnvValidationError extends Error {
   }
 }
 
+function trimSlashes(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
 function first(
   source: EnvSource,
   names: readonly string[],
@@ -330,6 +334,20 @@ export function parseEnv(
 
   if (!rawUrl) {
     issues.push({ variables: ENV_VARIABLES.url, message: "is not set" });
+  }
+
+  const urlNames = ENV_VARIABLES.url.filter((name) => source[name]?.trim());
+
+  const conflicting = urlNames.find(
+    (name) =>
+      trimSlashes(source[name]?.trim() ?? "") !== trimSlashes(rawUrl ?? ""),
+  );
+
+  if (conflicting) {
+    issues.push({
+      variables: [urlNames[0] ?? "SUPABASE_URL", conflicting],
+      message: `differs from ${conflicting}; the server and the browser must use one URL, or their session cookie names differ`,
+    });
   }
 
   const publishableKeys = keySet(
