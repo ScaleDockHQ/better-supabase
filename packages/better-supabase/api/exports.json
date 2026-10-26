@@ -618,15 +618,21 @@
   },
   "./create/lite": {
     "values": [
+      "accessMatrix",
       "designDataApi",
       "designFromCatalog",
       "importFilesOf",
       "importProject",
+      "MATRIX_COMMANDS",
       "openSandbox",
+      "readSecurityCatalog",
       "schemaMetaFromCatalog",
       "sqlIssues",
       "SUPABASE_PRELUDE",
-      "validateDesign"
+      "validateDesign",
+      "verifyCatalog",
+      "verifyFiles",
+      "verifyQuery"
     ],
     "types": [
       "DesignValidation",
