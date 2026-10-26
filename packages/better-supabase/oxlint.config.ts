@@ -42,7 +42,18 @@ export default defineConfig({
     // (1,427 core, 143 CLI).
     "anti-slop/no-conditional-empty-object-spread": "off",
   },
+  jsPlugins: [
+    {
+      name: "block-policies",
+      specifier: "../../scripts/oxlint/block-policies.ts",
+    },
+  ],
   overrides: [
+    {
+      // ADR 0103: block modules emit Policy values, not `create policy` text.
+      files: ["src/sql/modules/**/*.ts"],
+      rules: { "block-policies/no-raw-policy": "error" },
+    },
     {
       // These suites replace React, Next.js, Workflow and SDK modules with
       // partial, loosely typed fakes. `vi.mock(import(...))` checks each fake
