@@ -621,12 +621,14 @@
   "./create/lite": {
     "values": [
       "accessMatrix",
+      "accessMatrixTests",
       "catalogQuery",
       "designDataApi",
       "designFromCatalog",
       "importFilesOf",
       "importProject",
       "MATRIX_COMMANDS",
+      "MATRIX_PERSONAS",
       "openSandbox",
       "readCatalog",
       "readSecurityCatalog",
