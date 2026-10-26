@@ -112,3 +112,4 @@ add one, and link it from the code or config it explains.
 | [0106](0106-pgdelta-plans.md)                             | The CLI plans migrations with pg-delta's library plan: renames, hazards and data loss                                                              |
 | [0107](0107-design-data-api-stays-in-lite.md)             | `designDataApi` stays in `create/lite`                                                                                                             |
 | [0108](0108-db-diff-plans-with-the-library.md)            | db diff plans with pg-delta's library on the stack's postgres role; renames and data loss are gated                                                |
+| [0109](0109-dev-and-ci-performance.md)                    | Hooks run an affected gate, CI shards the tests, Next.js builds prerender a few pages outside Vercel production                                    |

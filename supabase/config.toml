@@ -55,6 +55,10 @@ additional_redirect_urls = [
   "https://example.localhost/**",
   "https://eve.localhost/**",
   "https://vite-react.localhost/**",
+  # Portless prefixes a linked worktree's hosts with its branch name.
+  "https://*.example.localhost/**",
+  "https://*.eve.localhost/**",
+  "https://*.vite-react.localhost/**",
   "http://localhost:3100/**",
   "http://127.0.0.1:3100/**",
 ]

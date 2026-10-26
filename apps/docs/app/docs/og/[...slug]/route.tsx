@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { appName } from "@/lib/shared";
 import { getPageImage, source } from "@/lib/source";
+import { scopeStaticParams } from "@better-supabase/next-config/build-scope";
 
 type ImageRouteContext = { params: Promise<{ slug: string[] }> };
 
@@ -27,7 +28,7 @@ export async function GET(
 }
 
 export function generateStaticParams() {
-  return source
-    .getPages()
-    .map((page) => ({ slug: getPageImage(page).segments }));
+  return scopeStaticParams(
+    source.getPages().map((page) => ({ slug: getPageImage(page).segments })),
+  );
 }

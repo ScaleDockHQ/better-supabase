@@ -57,7 +57,7 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase dev keys --cwd .
+          pnpm better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
@@ -76,8 +76,8 @@ jobs:
           # Tests add objects, so this checks the freshly migrated database.
           # shellcheck disable=SC2016
           pnpm exec dotenv -e .env.development.local -- \
-            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm exec better-supabase gen --save-snapshot --cwd . --db-url-stdin --check' \
-            || { echo "supabase/snapshot.json is stale. Run pnpm supabase:reset, then pnpm exec better-supabase gen --save-snapshot --cwd ."; exit 1; }
+            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm better-supabase gen --save-snapshot --cwd . --db-url-stdin --check' \
+            || { echo "supabase/snapshot.json is stale. Run pnpm supabase:reset, then pnpm better-supabase gen --save-snapshot --cwd ."; exit 1; }
 
       - name: pgTAP
         run: pnpm exec supabase test db
@@ -97,4 +97,4 @@ jobs:
           # SUPABASE_DB_URL comes from the dotenv file, so the inner shell expands it.
           # shellcheck disable=SC2016
           pnpm exec dotenv -e .env.development.local -- \
-            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm exec better-supabase doctor --cwd apps/examples/nextjs --db-url-stdin --fail-on warning'
+            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm better-supabase doctor --cwd apps/examples/nextjs --db-url-stdin --fail-on warning'

@@ -6,7 +6,6 @@
   "scripts": {
     "lint": "oxlint",
     "test": "vitest run",
-    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

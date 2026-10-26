@@ -5,7 +5,6 @@
   "scripts": {
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
-    "transit": "true",
     "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json && tsc --runExternalCode -p tsconfig.json"
   },
   "devDependencies": {
