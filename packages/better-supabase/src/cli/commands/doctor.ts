@@ -20,6 +20,7 @@ import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
+import { adoptionRows, adoptionText } from "../doctor/adoption-table.ts";
 import { loadStackEnvCheck } from "../doctor/env.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
@@ -117,6 +118,11 @@ const ARGS = {
     type: "boolean",
     description:
       "Print the grant and revoke SQL BS404 asks for, to add to your schema or migration",
+  },
+  adoption: {
+    type: "boolean",
+    description:
+      "Print one row per table: a block's, one of yours that a block runs over, or yours alone, with its features",
   },
   fix: {
     type: "boolean",
@@ -409,6 +415,14 @@ export async function runDoctor(
       code: 0,
       output: hookGrantBlock(hookGrantProblems(context), workflowOf(context)),
     };
+  }
+
+  if (args.adoption === true) {
+    await opened.close();
+
+    const rows = adoptionRows(context);
+
+    return { code: 0, output: adoptionText(rows), data: { tables: rows } };
   }
 
   let ran: Finding[];

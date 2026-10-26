@@ -811,6 +811,7 @@ Options
   --as <uuid>             Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
   --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
   --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
+  --adoption              Print one row per table: a block's, one of yours that a block runs over, or yours alone, with its features
   --fix                   Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
 
 Global options
