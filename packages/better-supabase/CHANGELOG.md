@@ -1,5 +1,30 @@
 # better-supabase
 
+## 0.27.0
+
+### Minor Changes
+
+- [#434](https://github.com/ScaleDockHQ/better-supabase/pull/434) [`97fa4dd`](https://github.com/ScaleDockHQ/better-supabase/commit/97fa4dd1e71666dd19bf8a0562b418f48d27e6c7) Thanks [@mick340](https://github.com/mick340)! - Blocks over the app's own tables take more of their shapes, all opt-in:
+  
+  - `pipelines`: with `status.follow`, an insert that sets the status and no stage lands on the first active stage whose category maps to that status, instead of the first open stage overwriting the status.
+  - A `mappable` column with a `values` entry, even `{}`, no longer counts as a text column the module writes, so an enum there passes the adoption check. `employees` maps `employmentType` this way.
+  - `hiring` `saveJob` writes `not null` extra columns in the insert that creates the job.
+  - Per-action keys with fallbacks: `tasks` `permissions.create` and `permissions.delete`, and `options.authorCanDelete: false`; `employees` `permissions.create`, `contractsRead`, `contractsWrite` and `privateDetailsWrite`; `hiring` `permissions.create`, `score`, `jobsCreate` and `jobsUpdate`.
+  - `employees` contracts: `salary` and `currency` can map to `null`, `options.salaryUnits: "major"` reads and writes a major-unit salary column, and `options.contractOverlap: "allow"` adds an editable contract without the overlap check.
+  - `employees` `update` accepts the app statuses a value map lists after a label's first value, such as `offboarding`.
+  - `hiring` with `options.stages`: a move to an unmarked stage keeps a state that no stage marks, such as a rejection.
+  - Entity rename errors name `blocks.<name>.names`, the key the config takes.
+
+- [#432](https://github.com/ScaleDockHQ/better-supabase/pull/432) [`4464f4f`](https://github.com/ScaleDockHQ/better-supabase/commit/4464f4f871f1bd2665cfa2216ab7417298ee4596) Thanks [@martijn00](https://github.com/martijn00)! - `gen` now also reads the `json`, `encrypted` and `events` table tags, and `migrate schema-first` writes them. `json meta=Type` types a jsonb column (`meta=import:module#Name` imports the type), `encrypted ssn=bigint` marks a sealed column, and `events on="created, updated"` lists the outbox events. A config key still wins over a tag.
+
+- [#435](https://github.com/ScaleDockHQ/better-supabase/pull/435) [`c9762eb`](https://github.com/ScaleDockHQ/better-supabase/commit/c9762eb06dbd7f142b2d8b7e37ed3e918291e369) Thanks [@martijn00](https://github.com/martijn00)! - The CLI now reads `@bsb` table comments from `supabase/schemas` for every command, so `upgrade` and doctor see the same `subject`, `realtime`, `vector-search` and `json` entries as `gen`. The `subject` tag takes `id`, `id-type`, `tenant`, `scope`, `cascade`, `deleted-at`, `search`, `search-title`, `search-body`, `search-description`, `search-exclude`, `rank`, `rank-group`, `versions`, `versions-auto` and `can-<action>`, and `migrate schema-first` writes them. `migrate schema-first` also works when `supabase/` sits above the project folder. A config key still wins over a tag.
+  
+  A new `server` table tag lists the columns signed-in users can't read (`server notes`), so `gen` types them as not selectable once a table lives in your schema files; `migrate schema-first` writes it for `access: "server"` columns.
+
+### Patch Changes
+
+- [#430](https://github.com/ScaleDockHQ/better-supabase/pull/430) [`27cbb86`](https://github.com/ScaleDockHQ/better-supabase/commit/27cbb86e182d11fa6d7a4a86eb357ca53e7fe3d7) Thanks [@martijn00](https://github.com/martijn00)! - Authorization templates are now checked by a tokenizer instead of regular expressions. A `;` or `--` inside a string or quoted identifier no longer counts, and a tagged dollar quote (`$tag$`), a block comment, an unterminated string or a stray `{` is refused. `gen` refuses an unsafe template before it fills the placeholders.
+
 ## 0.26.0
 
 ### Minor Changes
