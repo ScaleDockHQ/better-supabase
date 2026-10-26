@@ -147,6 +147,24 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES],
   },
   {
+    name: "table",
+    description:
+      "Turns a per-table feature on or off with its @bsb tag in the table comment, in the schema file that creates the table",
+    group: "setup",
+    docs: "/docs/cli/table",
+    examples: [
+      {
+        command: "better-supabase table invoices enable realtime",
+        description: "Adds the realtime tag to the invoices table comment",
+      },
+      {
+        command: "better-supabase table public.invoices disable audit",
+        description: "Removes the audit tag and keeps the comment's text",
+      },
+    ],
+    effects: [FILES],
+  },
+  {
     name: "upgrade",
     description:
       "Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files",

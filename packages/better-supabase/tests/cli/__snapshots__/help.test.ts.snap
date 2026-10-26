@@ -1231,6 +1231,43 @@ Docs: https://bettersupabase.com/docs/cli/spec
 "
 `;
 
+exports[`help > documents table 1`] = `
+"Usage: better-supabase table [options] <table> <action> <feature>
+
+Turns a per-table feature on or off with its @bsb tag in the table comment, in the schema file that creates the table
+
+Arguments
+  <table>    The table, as name or schema.name
+  <action>   enable or disable
+  <feature>  The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, events or vector-search
+
+Options
+  --dry-run  Print what would change, with a diff, and write nothing
+  --check    Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Adds the realtime tag to the invoices table comment
+  $ better-supabase table invoices enable realtime
+  # Removes the audit tag and keeps the comment's text
+  $ better-supabase table public.invoices disable audit
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/table
+"
+`;
+
 exports[`help > documents upgrade 1`] = `
 "Usage: better-supabase upgrade [options]
 
@@ -1275,6 +1312,7 @@ Set up
   init        Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
   add         Adds blocks with what they require, a preset with --preset, existing tables with --adopt, or glue for an integration with --integration
   remove      Removes blocks: their config entries, their clients in lib/blocks.ts and the SQL files no other block needs
+  table       Turns a per-table feature on or off with its @bsb tag in the table comment, in the schema file that creates the table
   upgrade     Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files
   blocks      Lists, shows and searches the blocks you can add, and decodes presets
   skills      Installs the Agent Skills that ship with this version of better-supabase

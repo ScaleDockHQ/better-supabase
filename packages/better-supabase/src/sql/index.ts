@@ -216,3 +216,13 @@ export {
 } from "./bsb-tags.ts";
 
 export type { BsbComment, BsbTag } from "./bsb-tags.ts";
+
+export {
+  createsTable,
+  isTableFeature,
+  setTableFeature,
+  TABLE_FEATURES,
+  tableFeatures,
+} from "./table-features.ts";
+
+export type { TableFeature } from "./table-features.ts";

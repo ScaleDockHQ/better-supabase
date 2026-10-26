@@ -7,6 +7,7 @@
     "gen",
     "dev",
     "db",
+    "table",
     "spec",
     "powersync",
     "doctor",
