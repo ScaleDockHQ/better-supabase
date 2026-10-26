@@ -759,7 +759,7 @@ describe("init --preset", () => {
     expect(config).not.toContain("preset:");
     expect(config).toContain("  database: { sql: { workflow: 'migra' } },");
     expect(config).toContain(
-      "  blocks: { permissions: { model: 'catalog', idType: 'bigint' }, memberships: { names: { organization: 'club' } } },",
+      "  blocks: { permissions: { model: 'catalog', idType: 'bigint' }, memberships: { names: { organization: 'club' } }, 'rls-guard': {} },",
     );
     expect(
       (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,

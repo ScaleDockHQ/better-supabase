@@ -132,7 +132,7 @@ describe("init prompts", () => {
     expect(config).toContain("casing: 'camel'");
     expect(config).toContain("database: { sql: { api: 'api' } },");
     expect(config).toContain(
-      "blocks: { permissions: { idType: 'text' }, memberships: { names: { organization: 'workspace' } } },",
+      "blocks: { permissions: { idType: 'text' }, memberships: { names: { organization: 'workspace' } }, 'rls-guard': {} },",
     );
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
   });

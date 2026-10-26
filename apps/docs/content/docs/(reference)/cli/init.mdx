@@ -87,6 +87,10 @@ and API schema, and `blocks.permissions` for the access model and id type, which
 installs the access block. With `--access provider` it also writes a comment
 that points you at the `authorization` key.
 
+Without a preset, `init` always writes `blocks: { 'rls-guard': {} }`, which installs the
+event trigger that keeps row level security on for every table you create later. Remove the
+entry to opt out.
+
 With `--preset`, each flag overrides that convention of the preset, and
 `init` writes the preset as an object with the fields that differ from the
 defaults. Its `tenantName` takes the names Create offers (`organization`,
