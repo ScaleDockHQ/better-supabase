@@ -144,4 +144,33 @@ describe("splitAppTables", () => {
     expect(a).toContain("events on=created include=x");
     expect(b).toContain("events");
   });
+
+  it("keeps a view's grants and comment in its file and drops its drop", () => {
+    const sql = [
+      'drop trigger if exists "t" on "public"."a";',
+      'create trigger "t" before update on "public"."a" for each row execute function f();',
+      'drop view if exists "public"."a_view";',
+      'create view "public"."a_view" as select 1;',
+      'revoke all on "public"."a_view" from anon;',
+      'grant select on "public"."a_view" to authenticated;',
+      "comment on view \"public\".\"a_view\" is 'It''s a view.';",
+      'alter view "public"."a_view" set (security_invoker = true);',
+      'drop view if exists "public"."other_view";',
+    ].join("\n");
+
+    const files = splitAppTables(base, sql, ["a"]);
+    const table = files.find((file) => file.path === "public/tables/a.sql");
+    const view = files.find((file) => file.path === "public/views/a_view.sql");
+    const rest = files.find((file) => file.path.includes("_custom"));
+
+    expect(table?.contents).toContain('drop trigger if exists "t"');
+    expect(view?.contents).toContain("revoke all");
+    expect(view?.contents).toContain("grant select");
+    expect(view?.contents).toContain("comment on view");
+    expect(view?.contents).toContain("alter view");
+    expect(view?.contents).not.toContain("drop view");
+    expect(rest?.contents).toContain(
+      'drop view if exists "public"."other_view"',
+    );
+  });
 });

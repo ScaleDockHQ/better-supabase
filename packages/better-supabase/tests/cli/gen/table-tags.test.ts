@@ -14,7 +14,9 @@ async function tagged(
   const snapshot = await loadFixtureSnapshot();
 
   return snapshot.generator.tables.map((each) =>
-    each.schema === schema && each.name === table ? { ...each, comment } : each,
+    each.schema === schema && each.name === table
+      ? { ...each, comment }
+      : { ...each, comment: null },
   );
 }
 
@@ -43,7 +45,13 @@ describe("withTableTags", () => {
     const config = resolveConfig({ blocks: {} }, "/tmp");
 
     expect(
-      withTableTags(config, (await loadFixtureSnapshot()).generator.tables),
+      withTableTags(
+        config,
+        (await loadFixtureSnapshot()).generator.tables.map((each) => ({
+          ...each,
+          comment: null,
+        })),
+      ),
     ).toBe(config);
   });
 
@@ -186,6 +194,13 @@ describe("withTableTags", () => {
       type: "text",
       access: "server",
     });
+
+    const named = withTableTags(
+      config,
+      await tagged(name, "@bsb subject type=thing; events"),
+    );
+
+    expect(named.appTables[name]?.subject).toEqual({ type: "thing" });
 
     const all = withTableTags(config, await tagged(name, "@bsb events"));
 

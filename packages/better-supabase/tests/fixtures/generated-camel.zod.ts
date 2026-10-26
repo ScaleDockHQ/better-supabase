@@ -12,7 +12,7 @@ export const clientNotesRow: z.ZodType<RowOf<'clientNotes'>> = z.object({
   clientName: z.string(),
   diagnosis: z.string().nullable(),
   birthDate: z.string().nullable(),
-}).meta({ title: "Client notes" });
+}).meta({ title: "Client notes", description: "@bsb encrypted diagnosis=text birth_date=date" });
 export const clientNotesInsert: z.ZodType<InsertOf<'clientNotes'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -21,7 +21,7 @@ export const clientNotesInsert: z.ZodType<InsertOf<'clientNotes'>> = z.object({
   clientName: z.string(),
   diagnosis: z.string().nullable().exactOptional(),
   birthDate: z.string().nullable().exactOptional(),
-}).meta({ title: "Client notes insert" });
+}).meta({ title: "Client notes insert", description: "@bsb encrypted diagnosis=text birth_date=date" });
 export const clientNotesUpdate: z.ZodType<UpdateOf<'clientNotes'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -30,7 +30,7 @@ export const clientNotesUpdate: z.ZodType<UpdateOf<'clientNotes'>> = z.object({
   clientName: z.string().exactOptional(),
   diagnosis: z.string().nullable().exactOptional(),
   birthDate: z.string().nullable().exactOptional(),
-}).meta({ title: "Client notes update" });
+}).meta({ title: "Client notes update", description: "@bsb encrypted diagnosis=text birth_date=date" });
 
 export const contactsRow: z.ZodType<RowOf<'contacts'>> = z.object({
   id: z.guid(),
@@ -283,7 +283,7 @@ export const projectsRow: z.ZodType<RowOf<'projects'>> = z.object({
   labelId: z.guid().nullable(),
   deletedAt: z.iso.datetime({ offset: true }).nullable(),
   internalNotes: z.string().nullable(),
-}).meta({ title: "Projects" });
+}).meta({ title: "Projects", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" });
 export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -296,7 +296,7 @@ export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   labelId: z.guid().nullable().exactOptional(),
   deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   internalNotes: z.string().nullable().exactOptional(),
-}).meta({ title: "Projects insert" });
+}).meta({ title: "Projects insert", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" });
 export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -309,7 +309,7 @@ export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   labelId: z.guid().nullable().exactOptional(),
   deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   internalNotes: z.string().nullable().exactOptional(),
-}).meta({ title: "Projects update" });
+}).meta({ title: "Projects update", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" });
 
 export const projectsViewRow: z.ZodType<RowOf<'projectsView'>> = z.object({
   id: z.guid(),
@@ -411,7 +411,7 @@ export const tasksRow: z.ZodType<RowOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable(),
   projectId: z.guid(),
   rank: z.string(),
-}).meta({ title: "Tasks" });
+}).meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -424,7 +424,7 @@ export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks insert" });
+}).meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -437,7 +437,7 @@ export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid().exactOptional(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks update" });
+}).meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
 
 export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
   id: z.guid(),

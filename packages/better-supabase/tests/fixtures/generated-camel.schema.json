@@ -3,6 +3,7 @@
   "$defs": {
     "clientNotesRow": {
       "title": "Client notes",
+      "description": "@bsb encrypted diagnosis=text birth_date=date",
       "type": "object",
       "properties": {
         "id": {
@@ -52,6 +53,7 @@
     },
     "clientNotesInsert": {
       "title": "Client notes insert",
+      "description": "@bsb encrypted diagnosis=text birth_date=date",
       "type": "object",
       "properties": {
         "id": {
@@ -96,6 +98,7 @@
     },
     "clientNotesUpdate": {
       "title": "Client notes update",
+      "description": "@bsb encrypted diagnosis=text birth_date=date",
       "type": "object",
       "properties": {
         "id": {
@@ -1264,6 +1267,7 @@
     },
     "projectsRow": {
       "title": "Projects",
+      "description": "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
       "type": "object",
       "properties": {
         "id": {
@@ -1312,7 +1316,8 @@
             "string",
             "null"
           ],
-          "format": "date-time"
+          "format": "date-time",
+          "readOnly": true
         },
         "internalNotes": {
           "type": [
@@ -1338,6 +1343,7 @@
     },
     "projectsInsert": {
       "title": "Projects insert",
+      "description": "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
       "type": "object",
       "properties": {
         "id": {
@@ -1386,7 +1392,8 @@
             "string",
             "null"
           ],
-          "format": "date-time"
+          "format": "date-time",
+          "readOnly": true
         },
         "internalNotes": {
           "type": [
@@ -1403,6 +1410,7 @@
     },
     "projectsUpdate": {
       "title": "Projects update",
+      "description": "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes",
       "type": "object",
       "properties": {
         "id": {
@@ -1451,7 +1459,8 @@
             "string",
             "null"
           ],
-          "format": "date-time"
+          "format": "date-time",
+          "readOnly": true
         },
         "internalNotes": {
           "type": [
@@ -1900,6 +1909,7 @@
     },
     "tasksRow": {
       "title": "Tasks",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {
@@ -1978,6 +1988,7 @@
     },
     "tasksInsert": {
       "title": "Tasks insert",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {
@@ -2048,6 +2059,7 @@
     },
     "tasksUpdate": {
       "title": "Tasks update",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {

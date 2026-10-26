@@ -14,5 +14,6 @@ export const membershipsRoleValues = ["owner", "admin", "member"] as const;
 export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export const tasksStatusValues = ["todo", "doing", "done"] as const;
+export const subjectTypes = ["project", "task"] as const;
 
 export const schema: typeof typedSchema = defineSchema(meta);

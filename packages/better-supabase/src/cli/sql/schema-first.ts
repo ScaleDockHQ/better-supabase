@@ -42,7 +42,26 @@ const TABLE_TARGETS: readonly RegExp[] = [
     "iu",
   ),
   new RegExp(String.raw`^comment\s+on\s+table\s+${NAME}\s+is`, "iu"),
+  new RegExp(
+    String.raw`^drop\s+trigger\s+(?:if\s+exists\s+)?\S+\s+on\s+${NAME}`,
+    "iu",
+  ),
 ];
+
+/** Statements about a view that sit next to its `create view`. */
+const VIEW_TARGETS: readonly RegExp[] = [
+  new RegExp(
+    String.raw`^(?:grant|revoke)\s[\s\S]*?\son\s+(?:table\s+)?${NAME}\s+(?:to|from)\s`,
+    "iu",
+  ),
+  new RegExp(String.raw`^comment\s+on\s+view\s+${NAME}\s+is`, "iu"),
+  new RegExp(String.raw`^alter\s+view\s+(?:if\s+exists\s+)?${NAME}`, "iu"),
+];
+
+const DROP_VIEW = new RegExp(
+  String.raw`^drop\s+view\s+(?:if\s+exists\s+)?${NAME}`,
+  "iu",
+);
 
 const VIEW = new RegExp(
   String.raw`^create\s+(?:or\s+replace\s+)?view\s+${NAME}`,
@@ -112,7 +131,10 @@ function statements(sql: string): string[] {
 function targetOf(
   statement: string,
   tables: ReadonlySet<string>,
-): { readonly kind: "table" | "view"; readonly name: string } | undefined {
+  views: ReadonlySet<string>,
+):
+  | { readonly kind: "table" | "view" | "dropped"; readonly name: string }
+  | undefined {
   const text = statement;
 
   for (const pattern of TABLE_TARGETS) {
@@ -120,6 +142,20 @@ function targetOf(
 
     if (name !== undefined && tables.has(name)) {
       return { kind: "table", name };
+    }
+  }
+
+  const dropped = DROP_VIEW.exec(text)?.[1];
+
+  if (dropped !== undefined && views.has(dropped)) {
+    return { kind: "dropped", name: dropped };
+  }
+
+  for (const pattern of VIEW_TARGETS) {
+    const name = pattern.exec(text)?.[1];
+
+    if (name !== undefined && views.has(name)) {
+      return { kind: "view", name };
     }
   }
 
@@ -268,22 +304,30 @@ export function splitAppTables(
   tables: readonly string[],
 ): SchemaFirstFile[] {
   const known = new Set(tables);
+  const all = statements(sql).map((raw) => bare(raw));
+
+  const views = new Set(
+    all.flatMap((statement) => {
+      const name = VIEW.exec(statement)?.[1];
+
+      return name === undefined ? [] : [name];
+    }),
+  );
+
   const byTable = new Map<string, string[]>();
   const byView = new Map<string, string[]>();
   const rest: string[] = [];
 
-  for (const raw of statements(sql)) {
-    const statement = bare(raw);
-
+  for (const statement of all) {
     if (statement === "") {
       continue;
     }
 
-    const target = targetOf(statement, known);
+    const target = targetOf(statement, known, views);
 
     if (target === undefined) {
       rest.push(statement);
-    } else {
+    } else if (target.kind !== "dropped") {
       const group = target.kind === "table" ? byTable : byView;
       group.set(target.name, [...(group.get(target.name) ?? []), statement]);
     }

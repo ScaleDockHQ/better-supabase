@@ -16,7 +16,7 @@ export const clientNotesRow: v.GenericSchema<RowOf<'clientNotes'>> = v.pipe(v.ob
   clientName: v.string(),
   diagnosis: v.nullable(v.string()),
   birthDate: v.nullable(v.string()),
-}), v.title("Client notes"));
+}), v.title("Client notes"), v.description("@bsb encrypted diagnosis=text birth_date=date"));
 export const clientNotesInsert: v.GenericSchema<InsertOf<'clientNotes'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -25,7 +25,7 @@ export const clientNotesInsert: v.GenericSchema<InsertOf<'clientNotes'>> = v.pip
   clientName: v.string(),
   diagnosis: v.exactOptional(v.nullable(v.string())),
   birthDate: v.exactOptional(v.nullable(v.string())),
-}), v.title("Client notes insert"));
+}), v.title("Client notes insert"), v.description("@bsb encrypted diagnosis=text birth_date=date"));
 export const clientNotesUpdate: v.GenericSchema<UpdateOf<'clientNotes'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -34,7 +34,7 @@ export const clientNotesUpdate: v.GenericSchema<UpdateOf<'clientNotes'>> = v.pip
   clientName: v.exactOptional(v.string()),
   diagnosis: v.exactOptional(v.nullable(v.string())),
   birthDate: v.exactOptional(v.nullable(v.string())),
-}), v.title("Client notes update"));
+}), v.title("Client notes update"), v.description("@bsb encrypted diagnosis=text birth_date=date"));
 
 export const contactsRow: v.GenericSchema<RowOf<'contacts'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
@@ -287,7 +287,7 @@ export const projectsRow: v.GenericSchema<RowOf<'projects'>> = v.pipe(v.object({
   labelId: v.nullable(v.pipe(v.string(), v.uuid())),
   deletedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
   internalNotes: v.nullable(v.string()),
-}), v.title("Projects"));
+}), v.title("Projects"), v.description("@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes"));
 export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -300,7 +300,7 @@ export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.ob
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   internalNotes: v.exactOptional(v.nullable(v.string())),
-}), v.title("Projects insert"));
+}), v.title("Projects insert"), v.description("@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes"));
 export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -313,7 +313,7 @@ export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.ob
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   internalNotes: v.exactOptional(v.nullable(v.string())),
-}), v.title("Projects update"));
+}), v.title("Projects update"), v.description("@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes"));
 
 export const projectsViewRow: v.GenericSchema<RowOf<'projectsView'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
@@ -415,7 +415,7 @@ export const tasksRow: v.GenericSchema<RowOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.nullable(v.pipe(v.string(), v.uuid())),
   projectId: v.pipe(v.string(), v.uuid()),
   rank: v.string(),
-}), v.title("Tasks"));
+}), v.title("Tasks"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
 export const tasksInsert: v.GenericSchema<InsertOf<'tasks'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -428,7 +428,7 @@ export const tasksInsert: v.GenericSchema<InsertOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   projectId: v.pipe(v.string(), v.uuid()),
   rank: v.exactOptional(v.string()),
-}), v.title("Tasks insert"));
+}), v.title("Tasks insert"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
 export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -441,7 +441,7 @@ export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   projectId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   rank: v.exactOptional(v.string()),
-}), v.title("Tasks update"));
+}), v.title("Tasks update"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
 
 export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),

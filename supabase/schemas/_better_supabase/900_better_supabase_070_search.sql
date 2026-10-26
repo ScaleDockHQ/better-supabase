@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:ad532c8ad1a174da2e0b1448e67f7b9ea75283f9b718b1f9cca74d1e23da97cd
+-- @bsb-hash sha256:8feebc4aeb73e78bc143c6538a858cae418d1745de8799c5ecda3a2203a3f3b0
 -- A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -410,7 +410,7 @@ begin
       end if;
     end loop;
   end if;
-  if (search_reindex.subject_type is null or search_reindex.subject_type = 'project') and to_regclass('"public"."projects"') is not null then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'project' then
     for v_id in select s."id"::text from "public"."projects" s loop
       if "better_supabase"."search_refresh"('project', v_id) then
         v_count := v_count + 1;
@@ -463,6 +463,11 @@ drop trigger if exists "bsb_search_drive_node_index" on "better_supabase"."drive
 create trigger "bsb_search_drive_node_index"
   after insert or delete or update of "id", "tenant_id", "name", "deleted_at" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
+
+drop trigger if exists "bsb_search_project_index" on "public"."projects";
+create trigger "bsb_search_project_index"
+  after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  for each row execute function "better_supabase"."search_index_row"('project', 'id');
 
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps

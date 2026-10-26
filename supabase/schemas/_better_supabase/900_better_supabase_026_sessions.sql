@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:5f9ce7f5327f5dc4d5e90c667992961085a51ebc0158a98f88d39e72e6521d13
+-- @bsb-hash sha256:394c09baa9eef8798c956cd6b048b398e3b4f9907721e6f440361a030277d476
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -155,23 +155,8 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 
 -- blocks['sessions'].options.policies: every table in the schema files,
 -- except blocks['sessions'].options.exclude. `upgrade` rewrites these.
-drop policy if exists bsb_session_active on "public"."projects";
-create policy bsb_session_active on "public"."projects" as restrictive
-  for all to authenticated
-  using ((select better_supabase.session_active()))
-  with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."tasks";
-create policy bsb_session_active on "public"."tasks" as restrictive
-  for all to authenticated
-  using ((select better_supabase.session_active()))
-  with check ((select better_supabase.session_active()));
 drop policy if exists bsb_session_active on "public"."client_notes";
 create policy bsb_session_active on "public"."client_notes" as restrictive
-  for all to authenticated
-  using ((select better_supabase.session_active()))
-  with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."saved_views";
-create policy bsb_session_active on "public"."saved_views" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
@@ -220,6 +205,16 @@ create policy bsb_session_active on "public"."plans" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
+drop policy if exists bsb_session_active on "public"."projects";
+create policy bsb_session_active on "public"."projects" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bsb_session_active on "public"."saved_views";
+create policy bsb_session_active on "public"."saved_views" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
 drop policy if exists bsb_session_active on "public"."subscriptions";
 create policy bsb_session_active on "public"."subscriptions" as restrictive
   for all to authenticated
@@ -227,6 +222,11 @@ create policy bsb_session_active on "public"."subscriptions" as restrictive
   with check ((select better_supabase.session_active()));
 drop policy if exists bsb_session_active on "public"."tags";
 create policy bsb_session_active on "public"."tags" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bsb_session_active on "public"."tasks";
+create policy bsb_session_active on "public"."tasks" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
